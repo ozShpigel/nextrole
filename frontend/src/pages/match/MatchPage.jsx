@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { matchApi } from '../../utils/api';
 import MatchResult from './MatchResult';
 import SaveToTracker from './SaveToTracker';
 import '../../styles/match.css';
@@ -18,18 +19,10 @@ export default function MatchPage() {
     setAnalysis(null);
 
     try {
-      const res = await fetch('/api/match', {
+      const data = await matchApi('', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ jobDescription: desc }),
       });
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.detail || err.error || 'Request failed');
-      }
-
-      const data = await res.json();
       setAnalysis(data);
     } catch (e) {
       setError(e.message);

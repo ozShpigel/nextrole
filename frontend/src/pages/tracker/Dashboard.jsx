@@ -8,9 +8,13 @@ export default function Dashboard() {
   const [stats, setStats] = useState(null);
   const [upcoming, setUpcoming] = useState([]);
   const [recent, setRecent] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const navigate = useNavigate();
 
   useEffect(() => {
+    setLoading(true);
+    setError(null);
     Promise.all([
       api('/stats'),
       api('/interviews/upcoming'),
@@ -19,8 +23,15 @@ export default function Dashboard() {
       setStats(s);
       setUpcoming(u);
       setRecent(apps.slice(0, 5));
-    }).catch(console.error);
+    }).catch((e) => {
+      setError(e.message);
+    }).finally(() => {
+      setLoading(false);
+    });
   }, []);
+
+  if (loading) return <p className="empty-state">טוען...</p>;
+  if (error) return <div className="card"><p className="text-dim">שגיאה בטעינת הנתונים: {error}</p></div>;
 
   return (
     <>

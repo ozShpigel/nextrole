@@ -43,7 +43,14 @@ export default function AnalysisCard({ matchAnalysisJson }) {
 
   return (
     <div className="card">
-      <div className={`collapsible-header${open ? '' : ' collapsed'}`} onClick={() => setOpen(!open)}>
+      <div
+        className={`collapsible-header${open ? '' : ' collapsed'}`}
+        onClick={() => setOpen(!open)}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen(!open); } }}
+        role="button"
+        tabIndex={0}
+        aria-expanded={open}
+      >
         <h3 className="section-title" style={{ border: 'none', margin: 0, padding: 0 }}>ניתוח AI</h3>
       </div>
       {open && (

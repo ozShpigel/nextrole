@@ -8,10 +8,11 @@ export default function NoteModal({ appId, onClose, onSaved }) {
   const [content, setContent] = useState('');
 
   async function save() {
+    if (!content.trim()) return;
     try {
       await api(`/applications/${appId}/notes`, {
         method: 'POST',
-        body: JSON.stringify({ content, category }),
+        body: JSON.stringify({ content: content.trim(), category }),
       });
       onSaved();
     } catch (e) {
@@ -33,7 +34,7 @@ export default function NoteModal({ appId, onClose, onSaved }) {
         <textarea value={content} onChange={(e) => setContent(e.target.value)} placeholder="כתוב הערה..." />
       </div>
       <div className="btn-group">
-        <button className="btn btn-primary" onClick={save}>הוסף</button>
+        <button className="btn btn-primary" onClick={save} disabled={!content.trim()}>הוסף</button>
         <button className="btn btn-secondary" onClick={onClose}>ביטול</button>
       </div>
     </Modal>

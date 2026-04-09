@@ -5,8 +5,12 @@ import { api } from '../../utils/api';
 export default function NoteList({ notes, onRefresh }) {
   async function deleteNote(noteId) {
     if (!confirm('למחוק את ההערה?')) return;
-    await api(`/notes/${noteId}`, { method: 'DELETE' });
-    onRefresh();
+    try {
+      await api(`/notes/${noteId}`, { method: 'DELETE' });
+      onRefresh();
+    } catch (e) {
+      alert('מחיקת הערה נכשלה: ' + e.message);
+    }
   }
 
   if (notes.length === 0) return <p className="text-dim text-sm">אין הערות</p>;

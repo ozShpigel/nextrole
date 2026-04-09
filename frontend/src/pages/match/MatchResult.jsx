@@ -11,8 +11,11 @@ function ItemList({ items, className }) {
 }
 
 export default function MatchResult({ data }) {
-  const b = data.breakdown;
+  const b = data.breakdown || {};
   const r = data.recommendation;
+  const tech = b.technical || {};
+  const cultural = b.cultural || {};
+  const role = b.roleCharacteristics || {};
 
   return (
     <div>
@@ -23,39 +26,47 @@ export default function MatchResult({ data }) {
       </div>
 
       {/* Score Breakdown */}
-      <div className="match-card">
-        <h3>פירוט</h3>
-        <ScoreBar label="טכני" score={b.technical.score} maxScore={b.technical.maxScore} />
-        <ScoreBar label="תרבותי" score={b.cultural.score} maxScore={b.cultural.maxScore} />
-        <ScoreBar label="התאמה לתפקיד" score={b.roleCharacteristics.score} maxScore={b.roleCharacteristics.maxScore} />
-      </div>
+      {(tech.score != null || cultural.score != null || role.score != null) && (
+        <div className="match-card">
+          <h3>פירוט</h3>
+          {tech.score != null && <ScoreBar label="טכני" score={tech.score} maxScore={tech.maxScore} />}
+          {cultural.score != null && <ScoreBar label="תרבותי" score={cultural.score} maxScore={cultural.maxScore} />}
+          {role.score != null && <ScoreBar label="התאמה לתפקיד" score={role.score} maxScore={role.maxScore} />}
+        </div>
+      )}
 
       {/* Technical */}
-      <div className="match-card match-section">
-        <h3>טכני</h3>
-        <p className="match-sub-label">חוזקות</p>
-        <ItemList items={b.technical.strengths} className="positive" />
-        <p className="match-sub-label gap">פערים</p>
-        <ItemList items={b.technical.gaps} className="negative" />
-      </div>
+      {(tech.strengths?.length > 0 || tech.gaps?.length > 0) && (
+        <div className="match-card match-section">
+          <h3>טכני</h3>
+          <p className="match-sub-label">חוזקות</p>
+          <ItemList items={tech.strengths} className="positive" />
+          <p className="match-sub-label gap">פערים</p>
+          <ItemList items={tech.gaps} className="negative" />
+        </div>
+      )}
 
       {/* Cultural */}
-      <div className="match-card match-section">
-        <h3>תרבותי</h3>
-        <p className="match-sub-label">סימנים חיוביים</p>
-        <ItemList items={b.cultural.positiveSignals} className="positive" />
-        <p className="match-sub-label gap">חששות</p>
-        <ItemList items={b.cultural.concerns} className="negative" />
-      </div>
+      {(cultural.positiveSignals?.length > 0 || cultural.concerns?.length > 0) && (
+        <div className="match-card match-section">
+          <h3>תרבותי</h3>
+          <p className="match-sub-label">סימנים חיוביים</p>
+          <ItemList items={cultural.positiveSignals} className="positive" />
+          <p className="match-sub-label gap">חששות</p>
+          <ItemList items={cultural.concerns} className="negative" />
+        </div>
+      )}
 
       {/* Role Characteristics */}
-      <div className="match-card match-section">
-        <h3>מאפייני התפקיד</h3>
-        <p className="match-sub-label">הזדמנויות</p>
-        <ItemList items={b.roleCharacteristics.opportunities} className="positive" />
-        <p className="match-sub-label gap">סיכונים</p>
-        <ItemList items={b.roleCharacteristics.risks} className="negative" />
-      </div>
+      {(role.opportunities?.length > 0 || role.risks?.length > 0) && (
+        <div className="match-card match-section">
+          <h3>מאפייני התפקיד</h3>
+          <p className="match-sub-label">הזדמנויות</p>
+          <ItemList items={role.opportunities} className="positive" />
+          <p className="match-sub-label gap">סיכונים</p>
+          <ItemList items={role.risks} className="negative" />
+        </div>
+      )}
 
       {/* Recommendation */}
       {r && (

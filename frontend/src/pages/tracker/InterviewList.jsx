@@ -4,8 +4,12 @@ import { api } from '../../utils/api';
 export default function InterviewList({ interviews, onEdit, onRefresh }) {
   async function deleteInterview(intId) {
     if (!confirm('למחוק את הראיון?')) return;
-    await api(`/interviews/${intId}`, { method: 'DELETE' });
-    onRefresh();
+    try {
+      await api(`/interviews/${intId}`, { method: 'DELETE' });
+      onRefresh();
+    } catch (e) {
+      alert('מחיקת ראיון נכשלה: ' + e.message);
+    }
   }
 
   if (interviews.length === 0) return <p className="text-dim text-sm">אין ראיונות</p>;

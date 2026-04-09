@@ -1,7 +1,8 @@
 export async function api(path, options = {}) {
+  const { headers, ...rest } = options;
   const res = await fetch(`/api${path}`, {
-    headers: { 'Content-Type': 'application/json' },
-    ...options,
+    headers: { 'Content-Type': 'application/json', ...headers },
+    ...rest,
   });
   if (!res.ok && res.status !== 204) {
     const err = await res.text();
@@ -12,9 +13,10 @@ export async function api(path, options = {}) {
 }
 
 export async function matchApi(path, options = {}) {
+  const { headers, ...rest } = options;
   const res = await fetch(`/api/match${path}`, {
-    headers: { 'Content-Type': 'application/json' },
-    ...options,
+    headers: { 'Content-Type': 'application/json', ...headers },
+    ...rest,
   });
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));

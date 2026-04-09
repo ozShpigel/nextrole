@@ -1,24 +1,78 @@
-@import url('https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;700;900&family=Noto+Serif+Hebrew:wght@400;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;700;900&family=Noto+Serif+Hebrew:wght@400;700&family=IBM+Plex+Sans+Hebrew:wght@300;400;500;600&display=swap');
+
+:root {
+  /* Unified warm dark palette */
+  --bg-deep: #0d0d0c;
+  --bg-surface: #161514;
+  --bg-card: #1c1b18;
+  --bg-elevated: #232220;
+  --bg-input: #121110;
+  --border: rgba(196, 167, 116, 0.1);
+  --border-strong: rgba(196, 167, 116, 0.18);
+  --border-hover: rgba(196, 167, 116, 0.28);
+  --text-primary: #ede8df;
+  --text-secondary: #9a9486;
+  --text-dim: #6b6560;
+  --text-bright: #f5f2ec;
+  --accent: #c4a774;
+  --accent-hover: #d4bc8a;
+  --accent-muted: rgba(196, 167, 116, 0.15);
+  --accent-glow: rgba(196, 167, 116, 0.06);
+  --teal: #5fb8a0;
+  --teal-bg: rgba(95, 184, 160, 0.1);
+  --green: #6ee7a0;
+  --green-bg: rgba(110, 231, 160, 0.08);
+  --yellow: #e5c76b;
+  --yellow-bg: rgba(229, 199, 107, 0.08);
+  --red: #e87272;
+  --red-bg: rgba(232, 114, 114, 0.08);
+  --blue: #6daaf5;
+  --blue-bg: rgba(109, 170, 245, 0.08);
+  --purple: #b49af5;
+  --purple-bg: rgba(180, 154, 245, 0.08);
+  --radius: 10px;
+  --radius-lg: 14px;
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
+  --shadow-md: 0 4px 16px rgba(0,0,0,0.25);
+  --shadow-lg: 0 8px 32px rgba(0,0,0,0.3);
+  --transition: 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+}
 
 *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
 html { font-size: 16px; }
 
 body {
-  font-family: 'Heebo', 'Noto Sans Hebrew', system-ui, sans-serif;
+  font-family: 'IBM Plex Sans Hebrew', 'Heebo', 'Noto Sans Hebrew', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   overflow-x: hidden;
   direction: rtl;
-  color: #e2e8f0;
-  background: #0f172a;
+  color: var(--text-primary);
+  background: var(--bg-deep);
+  letter-spacing: 0.01em;
 }
 
 a { text-decoration: none; color: inherit; }
 
+/* Grain overlay for all pages */
+.app-shell::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  opacity: 0.025;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 200px;
+}
+
 /* App shell nav */
 .app-nav {
-  background: #1a1917;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(22, 21, 20, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--border);
   position: sticky;
   top: 0;
   z-index: 50;
@@ -26,33 +80,42 @@ a { text-decoration: none; color: inherit; }
 .app-nav__inner {
   max-width: 1100px;
   margin: 0 auto;
-  padding: 0 1rem;
+  padding: 0 1.5rem;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 52px;
+  height: 56px;
 }
 .app-nav__brand {
+  font-family: 'Noto Serif Hebrew', 'Heebo', serif;
   font-weight: 700;
-  font-size: 1rem;
-  color: #ede8df;
+  font-size: 0.95rem;
+  color: var(--accent);
+  letter-spacing: 0.02em;
 }
 .app-nav__links {
   display: flex;
-  gap: 0.25rem;
+  gap: 0.15rem;
 }
 .app-nav__link {
-  padding: 0.4rem 0.9rem;
-  border-radius: 6px;
-  font-size: 0.85rem;
-  color: #9a9486;
-  transition: color 0.2s, background 0.2s;
+  padding: 0.45rem 1rem;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--text-dim);
+  transition: color var(--transition), background var(--transition);
 }
 .app-nav__link:hover {
-  color: #ede8df;
-  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-primary);
+  background: var(--accent-glow);
 }
 .app-nav__link.active {
-  color: #c4a774;
-  background: rgba(196, 167, 116, 0.08);
+  color: var(--accent);
+  background: var(--accent-muted);
+}
+
+/* Page enter animation */
+@keyframes pageIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
 }

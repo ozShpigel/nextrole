@@ -38,8 +38,6 @@ if (app.Environment.IsDevelopment())
     app.MapScalarApiReference();
 }
 
-app.UseDefaultFiles();
-app.UseStaticFiles();
 app.UseHttpsRedirection();
 
 app.MapGet("/health", () => Results.Ok(new { status = "healthy", service = "job-match" }))

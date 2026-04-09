@@ -1,0 +1,58 @@
+@import url('https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;700;900&family=Noto+Serif+Hebrew:wght@400;700&display=swap');
+
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+html { font-size: 16px; }
+
+body {
+  font-family: 'Heebo', 'Noto Sans Hebrew', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+  direction: rtl;
+  color: #e2e8f0;
+  background: #0f172a;
+}
+
+a { text-decoration: none; color: inherit; }
+
+/* App shell nav */
+.app-nav {
+  background: #1a1917;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  position: sticky;
+  top: 0;
+  z-index: 50;
+}
+.app-nav__inner {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 0 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 52px;
+}
+.app-nav__brand {
+  font-weight: 700;
+  font-size: 1rem;
+  color: #ede8df;
+}
+.app-nav__links {
+  display: flex;
+  gap: 0.25rem;
+}
+.app-nav__link {
+  padding: 0.4rem 0.9rem;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  color: #9a9486;
+  transition: color 0.2s, background 0.2s;
+}
+.app-nav__link:hover {
+  color: #ede8df;
+  background: rgba(255, 255, 255, 0.04);
+}
+.app-nav__link.active {
+  color: #c4a774;
+  background: rgba(196, 167, 116, 0.08);
+}

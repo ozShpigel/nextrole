@@ -13,21 +13,23 @@ export default function Dashboard() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    setLoading(true);
-    setError(null);
-    Promise.all([
-      api('/stats'),
-      api('/interviews/upcoming'),
-      api('/applications'),
-    ]).then(([s, u, apps]) => {
-      setStats(s);
-      setUpcoming(u);
-      setRecent(apps.slice(0, 5));
-    }).catch((e) => {
-      setError(e.message);
-    }).finally(() => {
-      setLoading(false);
-    });
+    async function load() {
+      setLoading(true);
+      setError(null);
+      try {
+        const apps = await api('/applications');
+        setRecent(apps.slice(0, 5));
+        const s = await api('/stats');
+        setStats(s);
+        const u = await api('/interviews/upcoming');
+        setUpcoming(u);
+      } catch (e) {
+        setError(e.message);
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
   }, []);
 
   if (loading) return <p className="empty-state">טוען...</p>;

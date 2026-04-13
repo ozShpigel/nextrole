@@ -1,0 +1,35 @@
+name: Job Discovery
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'JobDiscovery/**'
+      - '.github/workflows/job-discovery.yml'
+
+env:
+  IMAGE_NAME: job-discovery
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set image owner lowercase
+        run: echo "OWNER=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: JobDiscovery/Dockerfile
+          push: true
+          tags: ghcr.io/${{ env.OWNER }}/${{ env.IMAGE_NAME }}:latest
+      - name: Deploy to Render
+        run: curl -s "${{ secrets.RENDER_DEPLOY_HOOK_JD }}"

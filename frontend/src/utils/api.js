@@ -27,3 +27,20 @@ export async function matchApi(path, options = {}) {
   }
   return res.json();
 }
+
+export async function discoveryApi(path, options = {}) {
+  const { headers, ...rest } = options;
+  const res = await fetch(`/api/discovery${path}`, {
+    headers: { 'Content-Type': 'application/json', ...headers },
+    ...rest,
+  });
+  if (!res.ok && res.status !== 204) {
+    const data = await res.json().catch(() => ({}));
+    const err = new Error(data.detail || data.error || `HTTP ${res.status}`);
+    err.status = res.status;
+    err.data = data;
+    throw err;
+  }
+  if (res.status === 204) return null;
+  return res.json();
+}

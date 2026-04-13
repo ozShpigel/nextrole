@@ -1,0 +1,7 @@
+fastapi==0.115.*
+uvicorn[standard]==0.34.*
+python-jobspy==1.1.*
+anthropic==0.52.*
+motor==3.7.*
+pydantic-settings==2.7.*
+httpx==0.28.*

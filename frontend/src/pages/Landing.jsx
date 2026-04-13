@@ -17,6 +17,19 @@ const services = [
     accent: 'var(--landing-accent-primary)',
   },
   {
+    name: 'גילוי משרות',
+    description: 'סריקה אוטומטית של משרות מ-LinkedIn עם דירוג והתאמה באמצעות AI.',
+    path: '/discovery',
+    icon: (
+      <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+        <circle cx="14" cy="14" r="9" stroke="currentColor" strokeWidth="1.5" fill="none"/>
+        <line x1="21" y1="21" x2="28" y2="28" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+        <circle cx="14" cy="14" r="4" stroke="currentColor" strokeWidth="1.5" fill="currentColor" fillOpacity="0.15"/>
+      </svg>
+    ),
+    accent: 'var(--landing-accent-primary)',
+  },
+  {
     name: 'מעקב מועמדויות',
     description: 'מעקב אחר מועמדויות לעבודה, ראיונות ועדכוני סטטוס.',
     path: '/tracker',

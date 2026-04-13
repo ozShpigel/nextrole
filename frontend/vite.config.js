@@ -10,6 +10,7 @@ export default defineConfig({
       '/api/stats': 'http://localhost:5002',
       '/api/interviews': 'http://localhost:5002',
       '/api/notes': 'http://localhost:5002',
+      '/api/discovery': 'http://localhost:5137',
     },
   },
 });

@@ -19,8 +19,10 @@ export default function Dashboard() {
       try {
         const apps = await api('/applications');
         setRecent(apps.slice(0, 5));
+        await new Promise(r => setTimeout(r, 300));
         const s = await api('/stats');
         setStats(s);
+        await new Promise(r => setTimeout(r, 300));
         const u = await api('/interviews/upcoming');
         setUpcoming(u);
       } catch (e) {

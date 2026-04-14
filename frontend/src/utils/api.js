@@ -1,6 +1,18 @@
+async function fetchWithRetry(url, fetchOptions, retries = 3) {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const res = await fetch(url, fetchOptions);
+    if (res.status === 429 && attempt < retries) {
+      const delay = Math.min(1000 * 2 ** attempt, 8000);
+      await new Promise(r => setTimeout(r, delay));
+      continue;
+    }
+    return res;
+  }
+}
+
 export async function api(path, options = {}) {
   const { headers, ...rest } = options;
-  const res = await fetch(`/api${path}`, {
+  const res = await fetchWithRetry(`/api${path}`, {
     headers: { 'Content-Type': 'application/json', ...headers },
     ...rest,
   });
@@ -14,7 +26,7 @@ export async function api(path, options = {}) {
 
 export async function matchApi(path, options = {}) {
   const { headers, ...rest } = options;
-  const res = await fetch(`/api/match${path}`, {
+  const res = await fetchWithRetry(`/api/match${path}`, {
     headers: { 'Content-Type': 'application/json', ...headers },
     ...rest,
   });
@@ -30,7 +42,7 @@ export async function matchApi(path, options = {}) {
 
 export async function discoveryApi(path, options = {}) {
   const { headers, ...rest } = options;
-  const res = await fetch(`/api/discovery${path}`, {
+  const res = await fetchWithRetry(`/api/discovery${path}`, {
     headers: { 'Content-Type': 'application/json', ...headers },
     ...rest,
   });

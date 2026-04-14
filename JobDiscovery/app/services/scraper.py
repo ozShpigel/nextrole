@@ -22,6 +22,7 @@ def scrape_for_criteria(criteria: SearchCriteria) -> list[dict]:
                 hours_old=criteria.hours_old,
                 country_indeed=criteria.country,
                 is_remote=criteria.is_remote,
+                linkedin_fetch_description=True,
             )
 
             for _, row in df.iterrows():

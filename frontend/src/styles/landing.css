@@ -15,7 +15,7 @@
   position: fixed;
   inset: 0;
   z-index: 0;
-  opacity: 0.03;
+  opacity: 0.035;
   pointer-events: none;
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
   background-size: 200px;
@@ -27,16 +27,22 @@
   pointer-events: none;
   z-index: 0;
   filter: blur(120px);
+  animation: glowPulse 8s ease-in-out infinite alternate;
+}
+@keyframes glowPulse {
+  0% { opacity: 1; }
+  100% { opacity: 0.4; }
 }
 .landing-bg-glow--1 {
-  width: 600px; height: 600px;
-  top: -200px; right: -100px;
-  background: radial-gradient(circle, rgba(196,167,116,0.06) 0%, transparent 70%);
+  width: 700px; height: 700px;
+  top: -250px; right: -150px;
+  background: radial-gradient(circle, rgba(154, 123, 79, 0.08) 0%, transparent 70%);
 }
 .landing-bg-glow--2 {
-  width: 500px; height: 500px;
-  bottom: -150px; left: -100px;
-  background: radial-gradient(circle, rgba(95,184,160,0.04) 0%, transparent 70%);
+  width: 600px; height: 600px;
+  bottom: -200px; left: -150px;
+  background: radial-gradient(circle, rgba(61, 155, 133, 0.06) 0%, transparent 70%);
+  animation-delay: -4s;
 }
 
 /* Geometric decorations */
@@ -44,7 +50,7 @@
   position: fixed;
   pointer-events: none;
   z-index: 0;
-  border: 1px solid var(--border);
+  border: 1px solid rgba(154, 123, 79, 0.08);
   opacity: 0;
   transition: opacity 1.4s ease;
 }
@@ -56,6 +62,13 @@
   transform: rotate(45deg);
   border-radius: 6px;
   transition-delay: 0.5s;
+}
+.landing--loaded .landing-geo--1 {
+  animation: geoSpin1 60s linear infinite;
+}
+@keyframes geoSpin1 {
+  from { transform: rotate(45deg); }
+  to { transform: rotate(405deg); }
 }
 .landing-geo--2 {
   width: 140px; height: 140px;
@@ -70,7 +83,7 @@
   border-left: 55px solid transparent;
   border-right: 55px solid transparent;
   border-bottom: 95px solid transparent;
-  border-bottom-color: var(--border);
+  border-bottom-color: rgba(154, 123, 79, 0.08);
   background: none;
   transition-delay: 1.1s;
 }
@@ -83,8 +96,8 @@
   margin-top: clamp(3rem, 10vh, 7rem);
   margin-bottom: 4rem;
   opacity: 0;
-  transform: translateY(20px);
-  transition: opacity 0.9s ease, transform 0.9s cubic-bezier(0.22, 1, 0.36, 1);
+  transform: translateY(24px);
+  transition: opacity 1s ease, transform 1s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .landing--loaded .landing-header {
   opacity: 1;
@@ -93,15 +106,17 @@
 
 .landing-header__badge {
   display: inline-block;
-  font-size: 0.65rem;
-  letter-spacing: 0.18em;
+  font-size: 0.62rem;
+  letter-spacing: 0.2em;
   text-transform: uppercase;
   color: var(--accent);
   border: 1px solid var(--border-strong);
-  padding: 0.3rem 1rem;
+  padding: 0.3rem 1.1rem;
   border-radius: 100px;
   margin-bottom: 2rem;
-  font-family: 'Noto Serif Hebrew', 'Heebo', serif;
+  font-family: 'IBM Plex Sans Hebrew', sans-serif;
+  font-weight: 500;
+  background: rgba(154, 123, 79, 0.04);
 }
 
 .landing-header__title {
@@ -112,7 +127,7 @@
 .landing-header__title-line {
   display: block;
   font-size: clamp(2.4rem, 5.5vw, 4rem);
-  color: var(--text-primary);
+  color: var(--text-bright);
   letter-spacing: -0.03em;
   font-family: 'Heebo', sans-serif;
 }
@@ -120,10 +135,16 @@
   font-family: 'Noto Serif Hebrew', 'Heebo', serif;
   font-weight: 700;
   font-size: clamp(2.8rem, 6.5vw, 4.6rem);
-  background: linear-gradient(135deg, var(--accent) 0%, #d4bc8a 40%, var(--teal) 100%);
+  background: linear-gradient(135deg, var(--accent) 0%, #b08e5c 40%, var(--teal) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+  animation: gradientShift 6s ease infinite;
+  background-size: 200% 200%;
+}
+@keyframes gradientShift {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
 }
 
 .landing-header__sub {
@@ -163,19 +184,20 @@
   width: 100%;
   max-width: 380px;
   padding: 1.75rem 2rem;
-  background: rgba(28, 27, 24, 0.55);
+  background: rgba(255, 255, 255, 0.7);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   color: var(--text-primary);
   cursor: pointer;
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
+  box-shadow: var(--shadow-sm);
   opacity: 0;
   transform: translateY(28px);
   transition: opacity 0.8s ease calc(var(--i) * 0.12s + 0.3s),
               transform 0.8s cubic-bezier(0.22, 1, 0.36, 1) calc(var(--i) * 0.12s + 0.3s),
-              border-color 0.3s ease,
-              box-shadow 0.3s ease;
+              border-color 0.35s ease,
+              box-shadow 0.35s ease;
 }
 .landing--loaded .landing-card {
   opacity: 1;
@@ -187,16 +209,16 @@
   position: absolute;
   inset: 0;
   border-radius: var(--radius-lg);
-  background: radial-gradient(ellipse at top right, var(--accent-glow) 0%, transparent 55%);
+  background: radial-gradient(ellipse at top right, rgba(154, 123, 79, 0.04) 0%, transparent 55%);
   opacity: 0;
-  transition: opacity 0.35s ease;
+  transition: opacity 0.4s ease;
   pointer-events: none;
 }
 
 .landing-card:hover {
-  transform: translateY(-4px);
+  transform: translateY(-6px);
   border-color: var(--border-hover);
-  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(196, 167, 116, 0.04);
+  box-shadow: var(--shadow-lg);
 }
 .landing-card:hover::before { opacity: 1; }
 
@@ -208,14 +230,15 @@
   align-items: center;
   justify-content: center;
   border-radius: 12px;
-  background: var(--accent-glow);
+  background: var(--accent-muted);
   border: 1px solid var(--border);
-  color: var(--card-accent);
-  transition: background 0.3s ease, border-color 0.3s ease;
+  color: var(--accent);
+  transition: background 0.35s ease, border-color 0.35s ease, transform 0.35s ease;
 }
 .landing-card:hover .landing-card__icon {
-  background: var(--accent-muted);
+  background: rgba(154, 123, 79, 0.14);
   border-color: var(--border-hover);
+  transform: scale(1.05);
 }
 
 .landing-card__body { flex: 1; min-width: 0; }
@@ -237,11 +260,11 @@
 .landing-card__arrow {
   flex-shrink: 0;
   color: var(--text-dim);
-  transition: color 0.3s ease, transform 0.3s ease;
+  transition: color 0.35s ease, transform 0.35s ease;
 }
 .landing-card:hover .landing-card__arrow {
-  color: var(--card-accent);
-  transform: translateX(-5px);
+  color: var(--accent);
+  transform: translateX(-6px);
 }
 
 /* Footer */

@@ -40,9 +40,13 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: 1.5rem;
-  transition: border-color 0.3s ease;
+  box-shadow: var(--shadow-sm);
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
 }
-.criteria-card:hover { border-color: var(--border-strong); }
+.criteria-card:hover {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-md);
+}
 
 .criteria-card__header {
   display: flex;
@@ -173,11 +177,13 @@
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 1.1rem 1.25rem;
-  transition: border-color 0.3s ease, transform 0.2s ease;
+  box-shadow: var(--shadow-sm);
+  transition: border-color 0.3s ease, transform 0.25s ease, box-shadow 0.3s ease;
 }
 .run-card:hover {
   border-color: var(--border-strong);
-  transform: translateY(-1px);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
 }
 
 .run-card__header {
@@ -248,9 +254,13 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: 1.5rem;
-  transition: border-color 0.3s ease;
+  box-shadow: var(--shadow-sm);
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
 }
-.job-card:hover { border-color: var(--border-strong); }
+.job-card:hover {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-md);
+}
 
 .job-card__header {
   display: flex;
@@ -333,7 +343,7 @@
   margin-bottom: 1.25rem;
   transition: opacity 0.2s;
 }
-.back-link:hover { opacity: 0.8; }
+.back-link:hover { opacity: 0.75; }
 
 @media (max-width: 640px) {
   .discovery-header { flex-direction: column; }

@@ -14,16 +14,19 @@ def scrape_for_criteria(criteria: SearchCriteria) -> list[dict]:
     for title in criteria.job_titles:
         logger.info("Scraping '%s' from %s", title, criteria.site_names)
         try:
-            df = scrape_jobs(
+            scrape_kwargs = dict(
                 site_name=criteria.site_names,
                 search_term=title,
                 location=criteria.locations[0] if criteria.locations else None,
                 results_wanted=criteria.results_wanted,
                 hours_old=criteria.hours_old,
                 country_indeed=criteria.country,
-                is_remote=criteria.is_remote,
                 linkedin_fetch_description=True,
             )
+            if criteria.is_remote is not None:
+                scrape_kwargs["is_remote"] = criteria.is_remote
+
+            df = scrape_jobs(**scrape_kwargs)
 
             for _, row in df.iterrows():
                 url = str(row.get("job_url", "")) or ""

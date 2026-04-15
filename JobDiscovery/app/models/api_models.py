@@ -10,7 +10,7 @@ class CreateCriteriaRequest(BaseModel):
     hours_old: int = 72
     country: str = "Israel"
     is_remote: bool | None = None
-    min_score_to_save: int = 55
+    min_score_to_save: int = 70
     values: list[str] = []
     preferences: str = ""
 

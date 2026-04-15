@@ -10,7 +10,7 @@ export default function CriteriaForm({ initial, onSave, onCancel }) {
   const [hoursOld, setHoursOld] = useState(initial?.hours_old || 72);
   const [country, setCountry] = useState(initial?.country || 'Israel');
   const [isRemote, setIsRemote] = useState(initial?.is_remote ?? null);
-  const [minScore, setMinScore] = useState(initial?.min_score_to_save || 55);
+  const [minScore, setMinScore] = useState(initial?.min_score_to_save || 70);
   const [valuesText, setValuesText] = useState((initial?.values || []).join('\n'));
   const [preferences, setPreferences] = useState(initial?.preferences || '');
   const [saving, setSaving] = useState(false);

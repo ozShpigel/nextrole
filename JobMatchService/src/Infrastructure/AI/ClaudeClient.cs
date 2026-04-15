@@ -41,6 +41,11 @@ public sealed class ClaudeClient : IClaudeClient
         {
             var prompt = _promptBuilder.BuildAnalysisPrompt(jobDescription);
 
+            _logger.LogInformation("=== Claude parse request ===");
+            _logger.LogInformation("Model: claude-sonnet-4-20250514 | MaxTokens: 2048 | Temp: 0.3");
+            _logger.LogInformation("Job description length: {Length} chars", jobDescription.Length);
+            _logger.LogInformation("Prompt length: {Length} chars", prompt.Length);
+
             var messages = new List<Message>
             {
                 new(RoleType.User, prompt)
@@ -95,6 +100,11 @@ public sealed class ClaudeClient : IClaudeClient
         try
         {
             var prompt = _promptBuilder.BuildEvaluationPrompt(profile, parsedJob);
+
+            _logger.LogInformation("=== Claude evaluate request ===");
+            _logger.LogInformation("Model: claude-sonnet-4-20250514 | MaxTokens: 4096 | Temp: 0.5");
+            _logger.LogInformation("Profile length: {ProfileLen} chars | Prompt length: {PromptLen} chars", profile.Length, prompt.Length);
+            _logger.LogInformation("Job: {Title} at {Company}", parsedJob.JobTitle, parsedJob.Company);
 
             var messages = new List<Message>
             {

@@ -79,6 +79,15 @@ async def score_job(
 
     client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
 
+    logger.info("=== Claude scoring request ===")
+    logger.info("Model: %s | Max tokens: 1024 | Temperature: 0.3", settings.claude_model)
+    logger.info("Job: '%s' at '%s' (%s)", title, company, location or "no location")
+    logger.info("Description length: %d chars", len(description))
+    logger.info("Profile length: %d chars", len(profile))
+    logger.info("Values: %s", values_text)
+    logger.info("Preferences: %s", preferences_text)
+    logger.info("Total prompt length: %d chars", len(prompt))
+
     try:
         response = client.messages.create(
             model=settings.claude_model,
@@ -88,6 +97,9 @@ async def score_job(
         )
 
         text = response.content[0].text
+        logger.info("Claude response length: %d chars", len(text))
+        logger.info("Usage: input=%s, output=%s tokens",
+                     response.usage.input_tokens, response.usage.output_tokens)
         result = _extract_json(text)
 
         return {

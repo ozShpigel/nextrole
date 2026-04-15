@@ -1,0 +1,193 @@
+.settings-page {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 2.5rem 1.5rem;
+  animation: pageIn 0.5s ease both;
+}
+
+.settings-header {
+  margin-bottom: 2rem;
+}
+.settings-header h1 {
+  font-family: 'Heebo', sans-serif;
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--text-bright);
+  margin-bottom: 0.3rem;
+}
+.settings-header .subtitle {
+  color: var(--text-secondary);
+  font-size: 0.88rem;
+}
+
+.settings-error {
+  background: var(--red-bg);
+  border: 1px solid rgba(196, 84, 84, 0.15);
+  padding: 1rem 1.25rem;
+  border-radius: var(--radius);
+  margin-bottom: 1.5rem;
+  color: var(--red);
+  font-size: 0.88rem;
+}
+
+.settings-section {
+  margin-bottom: 2rem;
+}
+
+.settings-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 1.5rem;
+  box-shadow: var(--shadow-sm);
+}
+.settings-card h3 {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--text-bright);
+  margin-bottom: 0.5rem;
+}
+.settings-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+.settings-card__badge {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  background: var(--bg-elevated);
+  padding: 0.2rem 0.6rem;
+  border-radius: 6px;
+}
+.settings-card__desc {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  margin-bottom: 1rem;
+}
+
+/* Profile Editor */
+.settings-editor {
+  width: 100%;
+  min-height: 400px;
+  padding: 1.1rem 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-input);
+  color: var(--text-primary);
+  font-family: 'Courier New', Consolas, monospace;
+  font-size: 0.82rem;
+  resize: vertical;
+  outline: none;
+  line-height: 1.7;
+  box-shadow: var(--shadow-sm);
+  transition: border-color var(--transition), box-shadow var(--transition);
+  white-space: pre-wrap;
+  direction: ltr;
+  text-align: left;
+}
+.settings-editor:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-glow), var(--shadow-sm);
+}
+
+.settings-editor__footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 0.75rem;
+}
+.settings-editor__count {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+}
+.settings-editor__actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+/* Config Grid */
+.config-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+.config-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.6rem 0.9rem;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.config-item__label {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+}
+.config-item__value {
+  font-size: 0.82rem;
+  color: var(--text-primary);
+  font-weight: 500;
+  font-family: 'Courier New', Consolas, monospace;
+}
+
+/* Scoring Overview */
+.scoring-overview {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-bottom: 1rem;
+}
+.scoring-dimension {
+  padding: 0.75rem 1rem;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.scoring-dimension__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.25rem;
+}
+.scoring-dimension__name {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text-bright);
+}
+.scoring-dimension__points {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--accent);
+}
+.scoring-dimension__details {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+}
+
+/* Verdict Legend */
+.verdict-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.verdict-item {
+  padding: 0.25rem 0.65rem;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  font-family: 'Courier New', Consolas, monospace;
+}
+.verdict-strong-yes { background: var(--green-bg); color: var(--green); }
+.verdict-yes { background: var(--green-bg); color: var(--green); opacity: 0.8; }
+.verdict-maybe { background: var(--yellow-bg); color: var(--yellow); }
+.verdict-no { background: var(--red-bg); color: var(--red); opacity: 0.8; }
+.verdict-strong-no { background: var(--red-bg); color: var(--red); }
+
+@media (max-width: 640px) {
+  .config-grid { grid-template-columns: 1fr; }
+  .settings-editor__footer { flex-direction: column; gap: 0.75rem; align-items: stretch; }
+  .settings-editor__actions { justify-content: flex-end; }
+}

@@ -45,6 +45,22 @@ const services = [
     ),
     accent: 'var(--landing-accent-secondary)',
   },
+  {
+    name: 'הגדרות',
+    description: 'צפייה ועריכה של הפרופיל המקצועי ונתוני הקלט לניתוח Claude.',
+    path: '/settings',
+    icon: (
+      <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+        <circle cx="16" cy="16" r="11" stroke="currentColor" strokeWidth="1.5" fill="none"/>
+        <circle cx="16" cy="16" r="4" stroke="currentColor" strokeWidth="1.5" fill="currentColor" fillOpacity="0.15"/>
+        <line x1="16" y1="2" x2="16" y2="7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+        <line x1="16" y1="25" x2="16" y2="30" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+        <line x1="2" y1="16" x2="7" y2="16" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+        <line x1="25" y1="16" x2="30" y2="16" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+      </svg>
+    ),
+    accent: 'var(--landing-accent-secondary)',
+  },
 ];
 
 export default function Landing() {

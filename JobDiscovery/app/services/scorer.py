@@ -9,15 +9,23 @@ from app.config import Settings
 
 logger = logging.getLogger(__name__)
 
-_profile_cache: str | None = None
 _prompt_template_cache: str | None = None
 
 
-def _load_profile(settings: Settings) -> str:
-    global _profile_cache
-    if _profile_cache is None:
-        _profile_cache = Path(settings.profile_path).read_text(encoding="utf-8")
-    return _profile_cache
+async def _load_profile(settings: Settings, db=None) -> str:
+    """Load profile from MongoDB, falling back to file."""
+    if db is not None:
+        doc = await db.profile.find_one({"id": "default"})
+        if doc and doc.get("content"):
+            logger.info("Profile loaded from MongoDB (%d chars)", len(doc["content"]))
+            return doc["content"]
+    # Fallback to file
+    file_path = Path(settings.profile_path)
+    if file_path.exists():
+        content = file_path.read_text(encoding="utf-8")
+        logger.info("Profile loaded from file (%d chars)", len(content))
+        return content
+    raise FileNotFoundError(f"Profile not found in MongoDB or at {settings.profile_path}")
 
 
 def _load_prompt_template() -> str:
@@ -47,6 +55,7 @@ async def score_job(
     site: str,
     values: list[str],
     preferences: str,
+    db=None,
 ) -> dict:
     """Score a single job against the professional profile using Claude."""
     if not description or len(description) < 50:
@@ -59,7 +68,7 @@ async def score_job(
             "honestAssessment": "תיאור המשרה קצר מדי לניתוח",
         }
 
-    profile = _load_profile(settings)
+    profile = await _load_profile(settings, db)
     template = _load_prompt_template()
 
     values_text = ", ".join(values) if values else "לא צוינו"

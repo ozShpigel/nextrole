@@ -10,6 +10,7 @@ import DiscoveryPage from './pages/discovery/DiscoveryPage';
 import RunDetail from './pages/discovery/RunDetail';
 import TrackerPage from './pages/tracker/TrackerPage';
 import ApplicationDetail from './pages/tracker/ApplicationDetail';
+import SettingsPage from './pages/settings/SettingsPage';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
@@ -23,6 +24,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
             <Route path="/discovery/:runId" element={<RunDetail />} />
             <Route path="/tracker" element={<TrackerPage />} />
             <Route path="/tracker/:id" element={<ApplicationDetail />} />
+            <Route path="/settings" element={<SettingsPage />} />
           </Route>
         </Routes>
       </ErrorBoundary>

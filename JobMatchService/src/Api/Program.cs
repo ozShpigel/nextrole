@@ -15,7 +15,15 @@ builder.Configuration["ContentRoot"] = AppContext.BaseDirectory;
 // Add services to the container
 builder.Services.AddSingleton<PromptBuilder>();
 builder.Services.AddSingleton<IClaudeClient, ClaudeClient>();
-builder.Services.AddSingleton<IProfileProvider, FileProfileProvider>();
+builder.Services.AddHttpClient("ProfileApi", client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(10);
+});
+builder.Services.AddSingleton<IProfileProvider>(sp =>
+    new FileProfileProvider(
+        sp.GetRequiredService<IConfiguration>(),
+        sp.GetRequiredService<ILoggerFactory>().CreateLogger<FileProfileProvider>(),
+        sp.GetRequiredService<IHttpClientFactory>()));
 builder.Services.AddScoped<IJobMatchService, JobMatchService.Core.Services.JobMatchService>();
 
 // ApplicationTracker integration

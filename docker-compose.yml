@@ -7,6 +7,7 @@ services:
       - "5136:8080"
     environment:
       - ApplicationTracker__BaseUrl=http://application-tracker:8080
+      - JobDiscovery__BaseUrl=http://job-discovery:8080
       - Anthropic__ApiKey=${ANTHROPIC_API_KEY}
 
   application-tracker:

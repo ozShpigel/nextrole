@@ -6,7 +6,7 @@ from fastapi import BackgroundTasks, FastAPI, HTTPException
 from motor.motor_asyncio import AsyncIOMotorClient
 
 from app.config import Settings
-from app.models.api_models import CreateCriteriaRequest, UpdateCriteriaRequest
+from app.models.api_models import CreateCriteriaRequest, UpdateCriteriaRequest, UpdateProfileRequest
 from app.models.search_criteria import SearchCriteria
 from app.services import orchestrator, tracker_client
 
@@ -41,6 +41,37 @@ app = FastAPI(title="Job Discovery Service", lifespan=lifespan)
 @app.get("/health")
 async def health():
     return {"status": "ok", "service": "job-discovery"}
+
+
+# ---------------------------------------------------------------------------
+# Profile (professional profile sent to Claude for scoring)
+# ---------------------------------------------------------------------------
+
+@app.get("/api/discovery/profile")
+async def get_profile():
+    doc = await db.profile.find_one({"id": "default"})
+    if doc:
+        doc.pop("_id", None)
+        return doc
+    # Fallback: read from file
+    from pathlib import Path
+    file_path = Path(settings.profile_path)
+    if file_path.exists():
+        content = file_path.read_text(encoding="utf-8")
+        return {"id": "default", "content": content, "updated_at": None}
+    return {"id": "default", "content": "", "updated_at": None}
+
+
+@app.put("/api/discovery/profile")
+async def update_profile(req: UpdateProfileRequest):
+    now = datetime.now(timezone.utc)
+    await db.profile.update_one(
+        {"id": "default"},
+        {"$set": {"id": "default", "content": req.content, "updated_at": now}},
+        upsert=True,
+    )
+    logger.info("Profile updated (%d chars)", len(req.content))
+    return {"id": "default", "content": req.content, "updated_at": now}
 
 
 # ---------------------------------------------------------------------------

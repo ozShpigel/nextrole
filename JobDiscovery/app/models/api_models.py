@@ -28,3 +28,7 @@ class UpdateCriteriaRequest(BaseModel):
     values: list[str] | None = None
     preferences: str | None = None
     is_active: bool | None = None
+
+
+class UpdateProfileRequest(BaseModel):
+    content: str

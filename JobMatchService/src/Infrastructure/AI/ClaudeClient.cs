@@ -16,11 +16,16 @@ public sealed class ClaudeClient : IClaudeClient
     private readonly AnthropicClient _client;
     private readonly PromptBuilder _promptBuilder;
     private readonly ILogger<ClaudeClient> _logger;
+    private readonly IHttpClientFactory? _httpClientFactory;
+    private readonly string? _discoveryBaseUrl;
+
+    private const string DefaultModel = "claude-opus-4-20250514";
 
     public ClaudeClient(
         IConfiguration configuration,
         PromptBuilder promptBuilder,
-        ILogger<ClaudeClient> logger)
+        ILogger<ClaudeClient> logger,
+        IHttpClientFactory? httpClientFactory = null)
     {
         var apiKey = configuration["Anthropic:ApiKey"];
         if (string.IsNullOrWhiteSpace(apiKey))
@@ -31,6 +36,38 @@ public sealed class ClaudeClient : IClaudeClient
         _client = new AnthropicClient(apiKey);
         _promptBuilder = promptBuilder;
         _logger = logger;
+        _httpClientFactory = httpClientFactory;
+        _discoveryBaseUrl = configuration["JobDiscovery:BaseUrl"];
+    }
+
+    private async Task<(string model, decimal tempMatch, int maxTokensMatch)> GetScoringConfigAsync()
+    {
+        if (!string.IsNullOrEmpty(_discoveryBaseUrl) && _httpClientFactory != null)
+        {
+            try
+            {
+                var client = _httpClientFactory.CreateClient("ProfileApi");
+                var response = await client.GetAsync($"{_discoveryBaseUrl}/api/discovery/profile");
+                if (response.IsSuccessStatusCode)
+                {
+                    var json = await response.Content.ReadAsStringAsync();
+                    var doc = JsonDocument.Parse(json);
+                    if (doc.RootElement.TryGetProperty("scoring_config", out var config))
+                    {
+                        var model = config.TryGetProperty("model", out var m) ? m.GetString() ?? DefaultModel : DefaultModel;
+                        var temp = config.TryGetProperty("temperature_match", out var t) ? (decimal)t.GetDouble() : 0.5m;
+                        var tokens = config.TryGetProperty("max_tokens_match", out var mt) ? mt.GetInt32() : 4096;
+                        _logger.LogInformation("Scoring config from MongoDB: model={Model}, temp={Temp}, maxTokens={MaxTokens}", model, temp, tokens);
+                        return (model, temp, tokens);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to fetch scoring config, using defaults");
+            }
+        }
+        return (DefaultModel, 0.5m, 4096);
     }
 
     public async Task<ParsedJob> ParseJobDescriptionAsync(string jobDescription, CancellationToken cancellationToken = default)
@@ -41,8 +78,10 @@ public sealed class ClaudeClient : IClaudeClient
         {
             var prompt = _promptBuilder.BuildAnalysisPrompt(jobDescription);
 
+            var (model, _, _) = await GetScoringConfigAsync();
+
             _logger.LogInformation("=== Claude parse request ===");
-            _logger.LogInformation("Model: claude-sonnet-4-20250514 | MaxTokens: 2048 | Temp: 0.3");
+            _logger.LogInformation("Model: {Model} | MaxTokens: 2048 | Temp: 0.3", model);
             _logger.LogInformation("Job description length: {Length} chars", jobDescription.Length);
             _logger.LogInformation("Prompt length: {Length} chars", prompt.Length);
 
@@ -55,7 +94,7 @@ public sealed class ClaudeClient : IClaudeClient
             {
                 Messages = messages,
                 MaxTokens = 2048,
-                Model = "claude-sonnet-4-20250514",
+                Model = model,
                 Stream = false,
                 Temperature = 0.3m
             };
@@ -101,8 +140,10 @@ public sealed class ClaudeClient : IClaudeClient
         {
             var prompt = _promptBuilder.BuildEvaluationPrompt(profile, parsedJob);
 
+            var (model, tempMatch, maxTokensMatch) = await GetScoringConfigAsync();
+
             _logger.LogInformation("=== Claude evaluate request ===");
-            _logger.LogInformation("Model: claude-sonnet-4-20250514 | MaxTokens: 4096 | Temp: 0.5");
+            _logger.LogInformation("Model: {Model} | MaxTokens: {MaxTokens} | Temp: {Temp}", model, maxTokensMatch, tempMatch);
             _logger.LogInformation("Profile length: {ProfileLen} chars | Prompt length: {PromptLen} chars", profile.Length, prompt.Length);
             _logger.LogInformation("Job: {Title} at {Company}", parsedJob.JobTitle, parsedJob.Company);
 
@@ -114,10 +155,10 @@ public sealed class ClaudeClient : IClaudeClient
             var parameters = new MessageParameters
             {
                 Messages = messages,
-                MaxTokens = 4096,
-                Model = "claude-sonnet-4-20250514",
+                MaxTokens = maxTokensMatch,
+                Model = model,
                 Stream = false,
-                Temperature = 0.5m
+                Temperature = tempMatch
             };
 
             var response = await _client.Messages.GetClaudeMessageAsync(parameters, cancellationToken);

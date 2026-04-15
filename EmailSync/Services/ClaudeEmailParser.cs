@@ -77,7 +77,7 @@ public sealed class ClaudeEmailParser : IEmailParser
             var parameters = new MessageParameters
             {
                 Messages = messages,
-                Model = "claude-sonnet-4-20250514",
+                Model = "claude-opus-4-20250514",
                 MaxTokens = 512,
                 Temperature = 0.3m,
                 Stream = false

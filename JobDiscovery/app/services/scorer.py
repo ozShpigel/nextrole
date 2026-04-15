@@ -86,10 +86,22 @@ async def score_job(
         .replace("{{DESCRIPTION}}", description)
     )
 
+    # Load scoring config from MongoDB
+    model = settings.claude_model
+    max_tokens = 1024
+    temperature = 0.3
+    if db is not None:
+        config_doc = await db.profile.find_one({"id": "default"})
+        if config_doc and config_doc.get("scoring_config"):
+            sc = config_doc["scoring_config"]
+            model = sc.get("model", model)
+            temperature = sc.get("temperature_discovery", temperature)
+            max_tokens = sc.get("max_tokens_discovery", max_tokens)
+
     client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
 
     logger.info("=== Claude scoring request ===")
-    logger.info("Model: %s | Max tokens: 1024 | Temperature: 0.3", settings.claude_model)
+    logger.info("Model: %s | Max tokens: %d | Temperature: %s", model, max_tokens, temperature)
     logger.info("Job: '%s' at '%s' (%s)", title, company, location or "no location")
     logger.info("Description length: %d chars", len(description))
     logger.info("Profile length: %d chars", len(profile))
@@ -99,9 +111,9 @@ async def score_job(
 
     try:
         response = client.messages.create(
-            model=settings.claude_model,
-            max_tokens=1024,
-            temperature=0.3,
+            model=model,
+            max_tokens=max_tokens,
+            temperature=temperature,
             messages=[{"role": "user", "content": prompt}],
         )
 

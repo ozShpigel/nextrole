@@ -14,7 +14,12 @@ builder.Configuration["ContentRoot"] = AppContext.BaseDirectory;
 
 // Add services to the container
 builder.Services.AddSingleton<PromptBuilder>();
-builder.Services.AddSingleton<IClaudeClient, ClaudeClient>();
+builder.Services.AddSingleton<IClaudeClient>(sp =>
+    new ClaudeClient(
+        sp.GetRequiredService<IConfiguration>(),
+        sp.GetRequiredService<PromptBuilder>(),
+        sp.GetRequiredService<ILoggerFactory>().CreateLogger<ClaudeClient>(),
+        sp.GetRequiredService<IHttpClientFactory>()));
 builder.Services.AddHttpClient("ProfileApi", client =>
 {
     client.Timeout = TimeSpan.FromSeconds(10);

@@ -2,13 +2,31 @@ import { useState, useEffect } from 'react';
 import { discoveryApi } from '../../utils/api';
 import '../../styles/settings.css';
 
+const MODEL_OPTIONS = [
+  'claude-opus-4-20250514',
+  'claude-sonnet-4-20250514',
+  'claude-haiku-4-5-20251001',
+];
+
+const DEFAULT_CONFIG = {
+  model: 'claude-opus-4-20250514',
+  temperature_match: 0.5,
+  temperature_discovery: 0.3,
+  max_tokens_match: 4096,
+  max_tokens_discovery: 1024,
+};
+
 export default function SettingsPage() {
   const [profile, setProfile] = useState('');
   const [originalProfile, setOriginalProfile] = useState('');
+  const [config, setConfig] = useState(DEFAULT_CONFIG);
+  const [originalConfig, setOriginalConfig] = useState(DEFAULT_CONFIG);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [savingConfig, setSavingConfig] = useState(false);
   const [error, setError] = useState(null);
   const [saveResult, setSaveResult] = useState(null);
+  const [configSaveResult, setConfigSaveResult] = useState(null);
   const [lastUpdated, setLastUpdated] = useState(null);
 
   useEffect(() => {
@@ -19,6 +37,10 @@ export default function SettingsPage() {
         setProfile(content);
         setOriginalProfile(content);
         setLastUpdated(data?.updated_at);
+        if (data?.scoring_config) {
+          setConfig({ ...DEFAULT_CONFIG, ...data.scoring_config });
+          setOriginalConfig({ ...DEFAULT_CONFIG, ...data.scoring_config });
+        }
       } catch (e) {
         setError(e.message);
       } finally {
@@ -28,9 +50,10 @@ export default function SettingsPage() {
     load();
   }, []);
 
-  const isDirty = profile !== originalProfile;
+  const isProfileDirty = profile !== originalProfile;
+  const isConfigDirty = JSON.stringify(config) !== JSON.stringify(originalConfig);
 
-  async function handleSave() {
+  async function handleSaveProfile() {
     setSaving(true);
     setSaveResult(null);
     try {
@@ -48,9 +71,40 @@ export default function SettingsPage() {
     }
   }
 
-  function handleReset() {
+  async function handleSaveConfig() {
+    setSavingConfig(true);
+    setConfigSaveResult(null);
+    try {
+      const data = await discoveryApi('/profile', {
+        method: 'PUT',
+        body: JSON.stringify({ scoring_config: config }),
+      });
+      if (data?.scoring_config) {
+        setConfig({ ...DEFAULT_CONFIG, ...data.scoring_config });
+        setOriginalConfig({ ...DEFAULT_CONFIG, ...data.scoring_config });
+      }
+      setLastUpdated(data?.updated_at);
+      setConfigSaveResult({ type: 'success', message: 'תצורת הניתוח נשמרה בהצלחה' });
+    } catch (e) {
+      setConfigSaveResult({ type: 'error', message: `שגיאה בשמירה: ${e.message}` });
+    } finally {
+      setSavingConfig(false);
+    }
+  }
+
+  function handleResetProfile() {
     setProfile(originalProfile);
     setSaveResult(null);
+  }
+
+  function handleResetConfig() {
+    setConfig(originalConfig);
+    setConfigSaveResult(null);
+  }
+
+  function updateConfig(key, value) {
+    setConfig(prev => ({ ...prev, [key]: value }));
+    setConfigSaveResult(null);
   }
 
   if (loading) return <div className="settings-page"><p className="empty-state">טוען הגדרות...</p></div>;
@@ -66,6 +120,7 @@ export default function SettingsPage() {
 
       {error && <div className="settings-error">{error}</div>}
 
+      {/* Profile Editor */}
       <section className="settings-section">
         <div className="settings-card">
           <div className="settings-card__header">
@@ -89,15 +144,15 @@ export default function SettingsPage() {
           <div className="settings-editor__footer">
             <span className="settings-editor__count">{profile.length} תווים</span>
             <div className="settings-editor__actions">
-              {isDirty && (
-                <button className="btn btn-secondary btn-sm" onClick={handleReset} disabled={saving}>
+              {isProfileDirty && (
+                <button className="btn btn-secondary btn-sm" onClick={handleResetProfile} disabled={saving}>
                   ביטול שינויים
                 </button>
               )}
               <button
                 className="btn btn-primary"
-                onClick={handleSave}
-                disabled={saving || !isDirty}
+                onClick={handleSaveProfile}
+                disabled={saving || !isProfileDirty}
               >
                 {saving ? 'שומר...' : 'שמור פרופיל'}
               </button>
@@ -109,21 +164,92 @@ export default function SettingsPage() {
         </div>
       </section>
 
+      {/* Scoring Config */}
       <section className="settings-section">
         <div className="settings-card">
           <h3>תצורת ניתוח</h3>
-          <p className="settings-card__desc">הגדרות מודל Claude והפרמטרים לניתוח משרות (לקריאה בלבד).</p>
+          <p className="settings-card__desc">הגדרות מודל Claude והפרמטרים לניתוח משרות.</p>
           <div className="config-grid">
-            <ConfigItem label="מודל - התאמת משרות" value="claude-sonnet-4-20250514" />
-            <ConfigItem label="מודל - גילוי משרות" value="claude-sonnet-4-20250514" />
-            <ConfigItem label="טמפרטורה - התאמה" value="0.5" />
-            <ConfigItem label="טמפרטורה - גילוי" value="0.3" />
-            <ConfigItem label="Max Tokens - התאמה" value="4,096" />
-            <ConfigItem label="Max Tokens - גילוי" value="1,024" />
+            <div className="config-item config-item--editable">
+              <label className="config-item__label" htmlFor="cfg-model">מודל Claude</label>
+              <select
+                id="cfg-model"
+                className="config-item__select"
+                value={config.model}
+                onChange={(e) => updateConfig('model', e.target.value)}
+              >
+                {MODEL_OPTIONS.map(m => <option key={m} value={m}>{m}</option>)}
+              </select>
+            </div>
+            <div className="config-item config-item--editable">
+              <label className="config-item__label" htmlFor="cfg-temp-match">טמפרטורה - התאמה</label>
+              <input
+                id="cfg-temp-match"
+                type="number"
+                className="config-item__input"
+                value={config.temperature_match}
+                onChange={(e) => updateConfig('temperature_match', parseFloat(e.target.value) || 0)}
+                min="0" max="1" step="0.1"
+              />
+            </div>
+            <div className="config-item config-item--editable">
+              <label className="config-item__label" htmlFor="cfg-temp-disc">טמפרטורה - גילוי</label>
+              <input
+                id="cfg-temp-disc"
+                type="number"
+                className="config-item__input"
+                value={config.temperature_discovery}
+                onChange={(e) => updateConfig('temperature_discovery', parseFloat(e.target.value) || 0)}
+                min="0" max="1" step="0.1"
+              />
+            </div>
+            <div className="config-item config-item--editable">
+              <label className="config-item__label" htmlFor="cfg-tokens-match">Max Tokens - התאמה</label>
+              <input
+                id="cfg-tokens-match"
+                type="number"
+                className="config-item__input"
+                value={config.max_tokens_match}
+                onChange={(e) => updateConfig('max_tokens_match', parseInt(e.target.value) || 1024)}
+                min="256" max="8192" step="256"
+              />
+            </div>
+            <div className="config-item config-item--editable">
+              <label className="config-item__label" htmlFor="cfg-tokens-disc">Max Tokens - גילוי</label>
+              <input
+                id="cfg-tokens-disc"
+                type="number"
+                className="config-item__input"
+                value={config.max_tokens_discovery}
+                onChange={(e) => updateConfig('max_tokens_discovery', parseInt(e.target.value) || 1024)}
+                min="256" max="8192" step="256"
+              />
+            </div>
           </div>
+          <div className="settings-editor__footer" style={{ marginTop: '1rem' }}>
+            <span className="settings-editor__count" />
+            <div className="settings-editor__actions">
+              {isConfigDirty && (
+                <button className="btn btn-secondary btn-sm" onClick={handleResetConfig} disabled={savingConfig}>
+                  ביטול שינויים
+                </button>
+              )}
+              <button
+                className="btn btn-primary"
+                onClick={handleSaveConfig}
+                disabled={savingConfig || !isConfigDirty}
+              >
+                {savingConfig ? 'שומר...' : 'שמור תצורה'}
+              </button>
+            </div>
+          </div>
+          {configSaveResult && (
+            <div className={`save-result ${configSaveResult.type}`}>{configSaveResult.message}</div>
+          )}
         </div>
       </section>
 
+      {/* Scoring Overview */}
       <section className="settings-section">
         <div className="settings-card">
           <h3>מבנה ניתוח</h3>
@@ -160,15 +286,6 @@ export default function SettingsPage() {
           </div>
         </div>
       </section>
-    </div>
-  );
-}
-
-function ConfigItem({ label, value }) {
-  return (
-    <div className="config-item">
-      <span className="config-item__label">{label}</span>
-      <span className="config-item__value">{value}</span>
     </div>
   );
 }

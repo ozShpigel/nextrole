@@ -49,29 +49,40 @@ async def health():
 
 @app.get("/api/discovery/profile")
 async def get_profile():
+    from app.models.api_models import ScoringConfig
+    default_config = ScoringConfig().model_dump()
     doc = await db.profile.find_one({"id": "default"})
     if doc:
         doc.pop("_id", None)
+        if "scoring_config" not in doc:
+            doc["scoring_config"] = default_config
         return doc
     # Fallback: read from file
     from pathlib import Path
     file_path = Path(settings.profile_path)
+    content = ""
     if file_path.exists():
         content = file_path.read_text(encoding="utf-8")
-        return {"id": "default", "content": content, "updated_at": None}
-    return {"id": "default", "content": "", "updated_at": None}
+    return {"id": "default", "content": content, "scoring_config": default_config, "updated_at": None}
 
 
 @app.put("/api/discovery/profile")
 async def update_profile(req: UpdateProfileRequest):
     now = datetime.now(timezone.utc)
+    updates: dict = {"id": "default", "updated_at": now}
+    if req.content is not None:
+        updates["content"] = req.content
+    if req.scoring_config is not None:
+        updates["scoring_config"] = req.scoring_config.model_dump()
     await db.profile.update_one(
         {"id": "default"},
-        {"$set": {"id": "default", "content": req.content, "updated_at": now}},
+        {"$set": updates},
         upsert=True,
     )
-    logger.info("Profile updated (%d chars)", len(req.content))
-    return {"id": "default", "content": req.content, "updated_at": now}
+    logger.info("Profile updated: %s", list(updates.keys()))
+    doc = await db.profile.find_one({"id": "default"})
+    doc.pop("_id", None)
+    return doc
 
 
 # ---------------------------------------------------------------------------

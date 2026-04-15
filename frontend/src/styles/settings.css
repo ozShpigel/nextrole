@@ -132,6 +132,30 @@
   font-weight: 500;
   font-family: 'Courier New', Consolas, monospace;
 }
+.config-item--editable {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.35rem;
+}
+.config-item__select,
+.config-item__input {
+  padding: 0.5rem 0.7rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 0.82rem;
+  font-family: 'Courier New', Consolas, monospace;
+  direction: ltr;
+  text-align: left;
+  transition: border-color var(--transition), box-shadow var(--transition);
+}
+.config-item__select:focus,
+.config-item__input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+  outline: none;
+}
 
 /* Scoring Overview */
 .scoring-overview {

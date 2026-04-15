@@ -73,9 +73,20 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
+var startupLogger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Startup");
+startupLogger.LogInformation("=== ApplicationTracker starting ===");
+startupLogger.LogInformation("Environment: {Env}", app.Environment.EnvironmentName);
+startupLogger.LogInformation("Database: {Db}", databaseName);
+startupLogger.LogInformation("MongoDB connected: {Connected}", connectionString is not null);
+startupLogger.LogInformation("URLs: {Urls}", builder.WebHost.GetSetting("urls") ?? "default");
+
 // Middleware
 app.UseCors();
-app.MapGet("/health", () => Results.Ok(new { status = "ok" }))
+app.MapGet("/health", (ILogger<Program> logger) =>
+{
+    logger.LogInformation("Health check hit");
+    return Results.Ok(new { status = "ok", timestamp = DateTime.UtcNow });
+})
     .WithName("Health")
     .WithSummary("Liveness probe for orchestration and Job Match wake-up checks");
 

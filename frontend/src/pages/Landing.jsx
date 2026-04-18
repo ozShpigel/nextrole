@@ -4,19 +4,6 @@ import '../styles/landing.css';
 
 const services = [
   {
-    name: 'שירות התאמת משרות',
-    description: 'ניתוח הזדמנויות עבודה ביחס לפרופיל המקצועי שלך באמצעות בינה מלאכותית.',
-    path: '/match',
-    icon: (
-      <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
-        <path d="M16 2L28 9V23L16 30L4 23V9L16 2Z" stroke="currentColor" strokeWidth="1.5" fill="none"/>
-        <path d="M16 12L22 15.5V22.5L16 26L10 22.5V15.5L16 12Z" stroke="currentColor" strokeWidth="1.5" fill="currentColor" fillOpacity="0.15"/>
-        <circle cx="16" cy="18" r="2.5" fill="currentColor" opacity="0.6"/>
-      </svg>
-    ),
-    accent: 'var(--landing-accent-primary)',
-  },
-  {
     name: 'גילוי משרות',
     description: 'סריקה אוטומטית של משרות מ-LinkedIn עם דירוג והתאמה באמצעות AI.',
     path: '/discovery',

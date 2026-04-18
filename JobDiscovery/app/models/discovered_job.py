@@ -16,13 +16,12 @@ class DiscoveredJob(BaseModel):
     job_url: str | None = None
     date_posted: str | None = None
     site: str = "linkedin"
-    # From Claude scoring
+    # From JobMatchService (rich MatchResponse is stored in match_analysis;
+    # score/verdict/should_apply are copied out for sorting/filtering).
     score: int | None = None
     verdict: str | None = None
-    honest_assessment: str | None = None
-    key_strengths: list[str] = []
-    key_concerns: list[str] = []
     should_apply: bool | None = None
+    match_analysis: dict | None = None
     # Tracking
     is_duplicate: bool = False
     saved_to_tracker: bool = False

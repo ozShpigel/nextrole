@@ -8,7 +8,6 @@ export default function App() {
           <NavLink to="/" className="app-nav__brand">פלטפורמת חיפוש עבודה</NavLink>
           <div className="app-nav__links">
             <NavLink to="/" end className={({ isActive }) => `app-nav__link${isActive ? ' active' : ''}`}>בית</NavLink>
-            <NavLink to="/match" className={({ isActive }) => `app-nav__link${isActive ? ' active' : ''}`}>התאמת משרות</NavLink>
             <NavLink to="/discovery" className={({ isActive }) => `app-nav__link${isActive ? ' active' : ''}`}>גילוי משרות</NavLink>
             <NavLink to="/tracker" className={({ isActive }) => `app-nav__link${isActive ? ' active' : ''}`}>מעקב</NavLink>
             <NavLink to="/settings" className={({ isActive }) => `app-nav__link${isActive ? ' active' : ''}`}>הגדרות</NavLink>

@@ -1,3 +1,4 @@
+import json
 import logging
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
@@ -6,7 +7,7 @@ from fastapi import BackgroundTasks, FastAPI, HTTPException
 from motor.motor_asyncio import AsyncIOMotorClient
 
 from app.config import Settings
-from app.models.api_models import CreateCriteriaRequest, UpdateCriteriaRequest, UpdateProfileRequest
+from app.models.api_models import CreateCriteriaRequest, UpdateCriteriaRequest
 from app.models.search_criteria import SearchCriteria
 from app.services import orchestrator, tracker_client
 
@@ -41,48 +42,6 @@ app = FastAPI(title="Job Discovery Service", lifespan=lifespan)
 @app.get("/health")
 async def health():
     return {"status": "ok", "service": "job-discovery"}
-
-
-# ---------------------------------------------------------------------------
-# Profile (professional profile sent to Claude for scoring)
-# ---------------------------------------------------------------------------
-
-@app.get("/api/discovery/profile")
-async def get_profile():
-    from app.models.api_models import ScoringConfig
-    default_config = ScoringConfig().model_dump()
-    doc = await db.profile.find_one({"id": "default"})
-    if doc:
-        doc.pop("_id", None)
-        if "scoring_config" not in doc:
-            doc["scoring_config"] = default_config
-        return doc
-    # Fallback: read from file
-    from pathlib import Path
-    file_path = Path(settings.profile_path)
-    content = ""
-    if file_path.exists():
-        content = file_path.read_text(encoding="utf-8")
-    return {"id": "default", "content": content, "scoring_config": default_config, "updated_at": None}
-
-
-@app.put("/api/discovery/profile")
-async def update_profile(req: UpdateProfileRequest):
-    now = datetime.now(timezone.utc)
-    updates: dict = {"id": "default", "updated_at": now}
-    if req.content is not None:
-        updates["content"] = req.content
-    if req.scoring_config is not None:
-        updates["scoring_config"] = req.scoring_config.model_dump()
-    await db.profile.update_one(
-        {"id": "default"},
-        {"$set": updates},
-        upsert=True,
-    )
-    logger.info("Profile updated: %s", list(updates.keys()))
-    doc = await db.profile.find_one({"id": "default"})
-    doc.pop("_id", None)
-    return doc
 
 
 # ---------------------------------------------------------------------------
@@ -134,7 +93,6 @@ async def trigger_run(criteria_id: str, background_tasks: BackgroundTasks):
     doc = await db.search_criteria.find_one({"id": criteria_id})
     if not doc:
         raise HTTPException(404, "Criteria not found")
-    # Run in background; orchestrator creates its own DiscoveryRun record
     background_tasks.add_task(orchestrator.run_discovery, db, settings, criteria_id)
     return {"status": "started", "criteria_id": criteria_id}
 
@@ -176,15 +134,8 @@ async def save_job(job_id: str):
     if doc.get("saved_to_tracker"):
         return {"status": "already_saved"}
 
-    import json
-    analysis = json.dumps({
-        "score": doc.get("score"),
-        "verdict": doc.get("verdict"),
-        "shouldApply": doc.get("should_apply"),
-        "keyStrengths": doc.get("key_strengths", []),
-        "keyConcerns": doc.get("key_concerns", []),
-        "honestAssessment": doc.get("honest_assessment", ""),
-    }, ensure_ascii=False)
+    match_analysis = doc.get("match_analysis")
+    analysis_json = json.dumps(match_analysis, ensure_ascii=False) if match_analysis else None
 
     saved = await tracker_client.save_to_tracker(
         settings=settings,
@@ -193,7 +144,7 @@ async def save_job(job_id: str):
         description=doc.get("description"),
         score=doc.get("score"),
         verdict=doc.get("verdict"),
-        analysis_json=analysis,
+        analysis_json=analysis_json,
     )
     if saved:
         await db.discovered_jobs.update_one({"id": job_id}, {"$set": {"saved_to_tracker": True}})

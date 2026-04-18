@@ -1,8 +1,0 @@
-namespace JobMatchService.Infrastructure.ApplicationTracker;
-
-public interface IApplicationTrackerClient
-{
-    Task<bool> IsTrackerHealthyAsync(CancellationToken ct = default);
-    Task<bool> CreateApplicationAsync(CreateApplicationRequest request, CancellationToken ct = default);
-    Task<bool> IsApplicationExistsAsync(string company, string jobTitle, CancellationToken ct = default);
-}

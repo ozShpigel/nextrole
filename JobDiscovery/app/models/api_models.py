@@ -24,18 +24,3 @@ class UpdateCriteriaRequest(BaseModel):
     is_remote: bool | None = None
     min_score_to_save: int | None = None
     is_active: bool | None = None
-
-
-class ScoringConfig(BaseModel):
-    model: str = "claude-sonnet-4-6"
-    temperature_match: float = 0.5
-    temperature_discovery: float = 0.3
-    max_tokens_match: int = 4096
-    max_tokens_discovery: int = 1024
-    thinking_enabled_discovery: bool = True
-    thinking_budget_discovery: int = 1024
-
-
-class UpdateProfileRequest(BaseModel):
-    content: str | None = None
-    scoring_config: ScoringConfig | None = None

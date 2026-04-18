@@ -32,7 +32,7 @@ export async function api(path, options = {}) {
   return res.json();
 }
 
-export async function matchApi(path, options = {}) {
+export async function profileApi(path, options = {}) {
   const { headers, ...rest } = options;
   const res = await fetchWithRetry(`/api/match${path}`, {
     headers: { 'Content-Type': 'application/json', ...headers },

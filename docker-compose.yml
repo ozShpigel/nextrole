@@ -6,9 +6,9 @@ services:
     ports:
       - "5136:8080"
     environment:
-      - ApplicationTracker__BaseUrl=http://application-tracker:8080
-      - JobDiscovery__BaseUrl=http://job-discovery:8080
       - Anthropic__ApiKey=${ANTHROPIC_API_KEY}
+      - MongoDB__ConnectionString=${MONGODB_CONNECTION_STRING}
+      - MongoDB__Database=${JOBMATCH_MONGO_DB:-jobmatch}
 
   application-tracker:
     build:
@@ -25,8 +25,8 @@ services:
       - "5137:8080"
     environment:
       - MONGODB_CONNECTION_STRING=${MONGODB_CONNECTION_STRING}
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - APPLICATION_TRACKER_BASE_URL=http://application-tracker:8080
+      - JOB_MATCH_SERVICE_URL=http://job-match-service:8080
 
   email-sync:
     build:

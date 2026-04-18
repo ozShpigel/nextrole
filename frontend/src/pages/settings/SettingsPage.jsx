@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { discoveryApi } from '../../utils/api';
+import { profileApi } from '../../utils/api';
 import '../../styles/settings.css';
 
 const MODEL_OPTIONS = [
@@ -11,12 +11,11 @@ const MODEL_OPTIONS = [
 
 const DEFAULT_CONFIG = {
   model: 'claude-sonnet-4-6',
-  temperature_match: 0.5,
-  temperature_discovery: 0.3,
-  max_tokens_match: 4096,
-  max_tokens_discovery: 1024,
-  thinking_enabled_discovery: true,
-  thinking_budget_discovery: 1024,
+  temperature: 0.5,
+  max_tokens: 4096,
+  thinking_enabled: false,
+  thinking_budget: 2048,
+  min_score_to_save: 70,
 };
 
 export default function SettingsPage() {
@@ -35,7 +34,7 @@ export default function SettingsPage() {
   useEffect(() => {
     async function load() {
       try {
-        const data = await discoveryApi('/profile');
+        const data = await profileApi('/profile');
         const content = data?.content || '';
         setProfile(content);
         setOriginalProfile(content);
@@ -60,7 +59,7 @@ export default function SettingsPage() {
     setSaving(true);
     setSaveResult(null);
     try {
-      const data = await discoveryApi('/profile', {
+      const data = await profileApi('/profile', {
         method: 'PUT',
         body: JSON.stringify({ content: profile }),
       });
@@ -78,9 +77,9 @@ export default function SettingsPage() {
     setSavingConfig(true);
     setConfigSaveResult(null);
     try {
-      const data = await discoveryApi('/profile', {
+      const data = await profileApi('/profile', {
         method: 'PUT',
-        body: JSON.stringify({ scoring_config: config }),
+        body: JSON.stringify({ content: originalProfile, scoring_config: config }),
       });
       if (data?.scoring_config) {
         setConfig({ ...DEFAULT_CONFIG, ...data.scoring_config });
@@ -185,56 +184,35 @@ export default function SettingsPage() {
               </select>
             </div>
             <div className="config-item config-item--editable">
-              <label className="config-item__label" htmlFor="cfg-temp-match">טמפרטורה - התאמה</label>
+              <label className="config-item__label" htmlFor="cfg-temp">טמפרטורה</label>
               <input
-                id="cfg-temp-match"
+                id="cfg-temp"
                 type="number"
                 className="config-item__input"
-                value={config.temperature_match}
-                onChange={(e) => updateConfig('temperature_match', parseFloat(e.target.value) || 0)}
+                value={config.temperature}
+                onChange={(e) => updateConfig('temperature', parseFloat(e.target.value) || 0)}
                 min="0" max="1" step="0.1"
+                disabled={config.thinking_enabled}
               />
             </div>
             <div className="config-item config-item--editable">
-              <label className="config-item__label" htmlFor="cfg-temp-disc">טמפרטורה - גילוי</label>
+              <label className="config-item__label" htmlFor="cfg-tokens">Max Tokens</label>
               <input
-                id="cfg-temp-disc"
+                id="cfg-tokens"
                 type="number"
                 className="config-item__input"
-                value={config.temperature_discovery}
-                onChange={(e) => updateConfig('temperature_discovery', parseFloat(e.target.value) || 0)}
-                min="0" max="1" step="0.1"
+                value={config.max_tokens}
+                onChange={(e) => updateConfig('max_tokens', parseInt(e.target.value) || 1024)}
+                min="512" max="16384" step="512"
               />
             </div>
             <div className="config-item config-item--editable">
-              <label className="config-item__label" htmlFor="cfg-tokens-match">Max Tokens - התאמה</label>
-              <input
-                id="cfg-tokens-match"
-                type="number"
-                className="config-item__input"
-                value={config.max_tokens_match}
-                onChange={(e) => updateConfig('max_tokens_match', parseInt(e.target.value) || 1024)}
-                min="256" max="8192" step="256"
-              />
-            </div>
-            <div className="config-item config-item--editable">
-              <label className="config-item__label" htmlFor="cfg-tokens-disc">Max Tokens - גילוי</label>
-              <input
-                id="cfg-tokens-disc"
-                type="number"
-                className="config-item__input"
-                value={config.max_tokens_discovery}
-                onChange={(e) => updateConfig('max_tokens_discovery', parseInt(e.target.value) || 1024)}
-                min="256" max="8192" step="256"
-              />
-            </div>
-            <div className="config-item config-item--editable">
-              <label className="config-item__label" htmlFor="cfg-thinking-disc">חשיבה מורחבת - גילוי</label>
+              <label className="config-item__label" htmlFor="cfg-thinking">חשיבה מורחבת</label>
               <select
-                id="cfg-thinking-disc"
+                id="cfg-thinking"
                 className="config-item__select"
-                value={config.thinking_enabled_discovery ? 'on' : 'off'}
-                onChange={(e) => updateConfig('thinking_enabled_discovery', e.target.value === 'on')}
+                value={config.thinking_enabled ? 'on' : 'off'}
+                onChange={(e) => updateConfig('thinking_enabled', e.target.value === 'on')}
               >
                 <option value="on">מופעל (temperature=1)</option>
                 <option value="off">כבוי</option>
@@ -246,10 +224,21 @@ export default function SettingsPage() {
                 id="cfg-thinking-budget"
                 type="number"
                 className="config-item__input"
-                value={config.thinking_budget_discovery}
-                onChange={(e) => updateConfig('thinking_budget_discovery', parseInt(e.target.value) || 1024)}
+                value={config.thinking_budget}
+                onChange={(e) => updateConfig('thinking_budget', parseInt(e.target.value) || 2048)}
                 min="1024" max="16000" step="512"
-                disabled={!config.thinking_enabled_discovery}
+                disabled={!config.thinking_enabled}
+              />
+            </div>
+            <div className="config-item config-item--editable">
+              <label className="config-item__label" htmlFor="cfg-min-score">ציון מינימום לשמירה</label>
+              <input
+                id="cfg-min-score"
+                type="number"
+                className="config-item__input"
+                value={config.min_score_to_save}
+                onChange={(e) => updateConfig('min_score_to_save', parseInt(e.target.value) || 70)}
+                min="0" max="100" step="5"
               />
             </div>
           </div>

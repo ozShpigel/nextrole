@@ -3,48 +3,30 @@ using JobMatchService.Core.Models;
 using JobMatchService.Core.Profile;
 using JobMatchService.Core.Services;
 using JobMatchService.Infrastructure.AI;
-using JobMatchService.Infrastructure.ApplicationTracker;
 using JobMatchService.Infrastructure.Profile;
 using Microsoft.AspNetCore.Mvc;
+using MongoDB.Driver;
 using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Configuration["ContentRoot"] = AppContext.BaseDirectory;
 
-// Add services to the container
+// MongoDB
+var mongoConn = builder.Configuration["MongoDB:ConnectionString"]
+    ?? throw new InvalidOperationException("MongoDB:ConnectionString is not configured");
+builder.Services.AddSingleton<IMongoClient>(_ => new MongoClient(mongoConn));
+
+// Profile + Claude
 builder.Services.AddSingleton<PromptBuilder>();
-builder.Services.AddSingleton<IClaudeClient>(sp =>
-    new ClaudeClient(
-        sp.GetRequiredService<IConfiguration>(),
-        sp.GetRequiredService<PromptBuilder>(),
-        sp.GetRequiredService<ILoggerFactory>().CreateLogger<ClaudeClient>(),
-        sp.GetRequiredService<IHttpClientFactory>()));
-builder.Services.AddHttpClient("ProfileApi", client =>
-{
-    client.Timeout = TimeSpan.FromSeconds(10);
-});
-builder.Services.AddSingleton<IProfileProvider>(sp =>
-    new FileProfileProvider(
-        sp.GetRequiredService<IConfiguration>(),
-        sp.GetRequiredService<ILoggerFactory>().CreateLogger<FileProfileProvider>(),
-        sp.GetRequiredService<IHttpClientFactory>()));
+builder.Services.AddSingleton<IProfileProvider, MongoProfileProvider>();
+builder.Services.AddSingleton<IClaudeClient, ClaudeClient>();
 builder.Services.AddScoped<IJobMatchService, JobMatchService.Core.Services.JobMatchService>();
 
-// ApplicationTracker integration
-builder.Services.AddHttpClient<IApplicationTrackerClient, ApplicationTrackerClient>(client =>
-{
-    client.BaseAddress = new Uri(builder.Configuration["ApplicationTracker:BaseUrl"]
-        ?? "http://localhost:5002");
-    client.Timeout = TimeSpan.FromSeconds(25);
-});
-
-// Add OpenAPI
 builder.Services.AddOpenApi();
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
@@ -57,12 +39,11 @@ app.MapGet("/health", () => Results.Ok(new { status = "healthy", service = "job-
     .WithName("Health")
     .WithSummary("Liveness check for orchestration and smoke tests");
 
-// Job Match endpoint
 app.MapPost("/api/match", async (
     [FromBody] MatchRequest request,
     IJobMatchService jobMatchService,
     ILogger<Program> logger,
-    CancellationToken cancellationToken) =>
+    CancellationToken ct) =>
 {
     if (string.IsNullOrWhiteSpace(request?.JobDescription))
     {
@@ -72,120 +53,82 @@ app.MapPost("/api/match", async (
 
     try
     {
-        var response = await jobMatchService.AnalyzeMatchAsync(
-            request.JobDescription, 
-            cancellationToken);
-        
+        var response = await jobMatchService.AnalyzeMatchAsync(request, ct);
         return Results.Ok(response);
-    }
-    catch (FileNotFoundException ex)
-    {
-        logger.LogError(ex, "Profile file not found");
-        return Results.NotFound(new { error = "Profile file not found. Please ensure Data/professional-profile.md exists." });
     }
     catch (InvalidOperationException ex) when (ex.Message.Contains("ApiKey"))
     {
         logger.LogError(ex, "Anthropic API key not configured");
         return Results.Problem(
-            detail: "Anthropic API key is not configured. Please set Anthropic:ApiKey in appsettings.json",
+            detail: "Anthropic API key is not configured. Please set Anthropic:ApiKey in configuration.",
             statusCode: 500);
     }
     catch (Exception ex)
     {
         logger.LogError(ex, "Error processing match request");
-        return Results.Problem(
-            detail: "An error occurred while processing the request",
-            statusCode: 500);
+        return Results.Problem(detail: "An error occurred while processing the request", statusCode: 500);
     }
 })
 .WithName("AnalyzeJobMatch")
-.WithSummary("Analyze job match")
-.WithDescription("Analyzes a job description and returns a detailed match assessment");
+.WithSummary("Analyze job match");
 
-app.MapGet("/api/match/tracker-ready", async (
-    IApplicationTrackerClient trackerClient,
-    CancellationToken ct) =>
-{
-    var ok = await trackerClient.IsTrackerHealthyAsync(ct);
-    return ok
-        ? Results.Ok(new { ready = true })
-        : Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
-})
-.WithName("TrackerReady")
-.WithSummary("Returns 200 when Application Tracker responds (for cold-start polling from the UI)");
-
-// Save to Application Tracker endpoint
-app.MapPost("/api/match/save-to-tracker", async (
-    [FromBody] SaveToTrackerRequest request,
-    IApplicationTrackerClient trackerClient,
+app.MapGet("/api/match/profile", async (
+    IProfileProvider provider,
     ILogger<Program> logger,
     CancellationToken ct) =>
 {
     try
     {
-        var exists = await trackerClient.IsApplicationExistsAsync(
-            request.Company,
-            request.JobTitle,
-            ct);
-
-        if (exists)
+        var doc = await provider.GetProfileDocumentAsync(ct);
+        return Results.Ok(new
         {
-            return Results.Conflict(new
-            {
-                error = "Application already exists in tracker",
-                message = $"משרה ב-{request.Company} כבר קיימת במעקב"
-            });
-        }
-
-        var success = await trackerClient.CreateApplicationAsync(
-            new CreateApplicationRequest
-            {
-                JobTitle = request.JobTitle,
-                Company = request.Company,
-                Status = request.CvSent ? "Applied" : "Analyzing",
-                MatchScore = request.MatchScore,
-                MatchVerdict = request.MatchVerdict,
-                JobDescription = request.JobDescription,
-                MatchAnalysis = request.MatchAnalysis
-            },
-            ct);
-
-        if (success)
-        {
-            logger.LogInformation("Application saved to tracker: {Company} - {JobTitle}", request.Company, request.JobTitle);
-            return Results.Ok(new
-            {
-                message = "נשמר במעקב בהצלחה",
-                status = request.CvSent ? "Applied" : "Analyzing"
-            });
-        }
-
-        return Results.Problem(
-            detail: "ApplicationTracker service is not available or returned an error",
-            statusCode: 503);
+            content = doc.Content,
+            scoring_config = doc.ScoringConfig,
+            updated_at = doc.UpdatedAt
+        });
     }
     catch (Exception ex)
     {
-        logger.LogError(ex, "Error saving to tracker");
+        logger.LogError(ex, "Failed to load profile");
         return Results.Problem(detail: ex.Message, statusCode: 500);
     }
 })
-.WithName("SaveToTracker")
-.WithSummary("Save analyzed job to Application Tracker");
+.WithName("GetProfile")
+.WithSummary("Get the stored professional profile + scoring config");
+
+app.MapPut("/api/match/profile", async (
+    [FromBody] UpdateProfileRequest request,
+    IProfileProvider provider,
+    ILogger<Program> logger,
+    CancellationToken ct) =>
+{
+    if (request is null || request.Content is null)
+        return Results.BadRequest(new { error = "content is required" });
+
+    try
+    {
+        await provider.UpsertProfileAsync(request.Content, request.ScoringConfig, ct);
+        var updated = await provider.GetProfileDocumentAsync(ct);
+        return Results.Ok(new
+        {
+            content = updated.Content,
+            scoring_config = updated.ScoringConfig,
+            updated_at = updated.UpdatedAt
+        });
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "Failed to update profile");
+        return Results.Problem(detail: ex.Message, statusCode: 500);
+    }
+})
+.WithName("UpdateProfile")
+.WithSummary("Update the stored professional profile + scoring config");
 
 app.Run();
 
-// ============================================================
-// REQUEST DTOs
-// ============================================================
-
-public sealed record SaveToTrackerRequest
+public sealed record UpdateProfileRequest
 {
-    public required string JobTitle { get; init; }
-    public required string Company { get; init; }
-    public int? MatchScore { get; init; }
-    public string? MatchVerdict { get; init; }
-    public string? JobDescription { get; init; }
-    public string? MatchAnalysis { get; init; }
-    public bool CvSent { get; init; }
+    public string? Content { get; init; }
+    public Dictionary<string, object?>? ScoringConfig { get; init; }
 }

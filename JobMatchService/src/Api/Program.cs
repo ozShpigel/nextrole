@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using JobMatchService.Core.AI;
 using JobMatchService.Core.Models;
 using JobMatchService.Core.Profile;
@@ -86,6 +87,8 @@ app.MapGet("/api/match/profile", async (
         {
             content = doc.Content,
             scoring_config = doc.ScoringConfig,
+            analyst_prompt = doc.AnalystPrompt,
+            evaluator_prompt = doc.EvaluatorPrompt,
             updated_at = doc.UpdatedAt
         });
     }
@@ -96,7 +99,7 @@ app.MapGet("/api/match/profile", async (
     }
 })
 .WithName("GetProfile")
-.WithSummary("Get the stored professional profile + scoring config");
+.WithSummary("Get the stored professional profile, scoring config, and prompts");
 
 app.MapPut("/api/match/profile", async (
     [FromBody] UpdateProfileRequest request,
@@ -104,17 +107,32 @@ app.MapPut("/api/match/profile", async (
     ILogger<Program> logger,
     CancellationToken ct) =>
 {
-    if (request is null || request.Content is null)
-        return Results.BadRequest(new { error = "content is required" });
+    if (request is null)
+        return Results.BadRequest(new { error = "request body is required" });
+
+    if (request.Content is null
+        && request.ScoringConfig is null
+        && request.AnalystPrompt is null
+        && request.EvaluatorPrompt is null)
+    {
+        return Results.BadRequest(new { error = "at least one field must be provided" });
+    }
 
     try
     {
-        await provider.UpsertProfileAsync(request.Content, request.ScoringConfig, ct);
+        await provider.UpsertProfileAsync(
+            request.Content,
+            request.ScoringConfig,
+            request.AnalystPrompt,
+            request.EvaluatorPrompt,
+            ct);
         var updated = await provider.GetProfileDocumentAsync(ct);
         return Results.Ok(new
         {
             content = updated.Content,
             scoring_config = updated.ScoringConfig,
+            analyst_prompt = updated.AnalystPrompt,
+            evaluator_prompt = updated.EvaluatorPrompt,
             updated_at = updated.UpdatedAt
         });
     }
@@ -125,12 +143,21 @@ app.MapPut("/api/match/profile", async (
     }
 })
 .WithName("UpdateProfile")
-.WithSummary("Update the stored professional profile + scoring config");
+.WithSummary("Update profile, scoring config, and/or prompts (all fields optional)");
 
 app.Run();
 
 public sealed record UpdateProfileRequest
 {
+    [JsonPropertyName("content")]
     public string? Content { get; init; }
+
+    [JsonPropertyName("scoring_config")]
     public Dictionary<string, object?>? ScoringConfig { get; init; }
+
+    [JsonPropertyName("analyst_prompt")]
+    public string? AnalystPrompt { get; init; }
+
+    [JsonPropertyName("evaluator_prompt")]
+    public string? EvaluatorPrompt { get; init; }
 }

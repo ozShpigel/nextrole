@@ -39,7 +39,8 @@ public sealed class ClaudeClient : IClaudeClient
     {
         _logger.LogInformation("Parsing job description");
 
-        var prompt = _promptBuilder.BuildAnalysisPrompt(jobDescription);
+        var analystPrompt = await _profileProvider.GetAnalystPromptAsync(cancellationToken);
+        var prompt = _promptBuilder.BuildAnalysisPrompt(jobDescription, analystPrompt);
         var cfg = await _profileProvider.GetScoringConfigAsync(cancellationToken);
 
         _logger.LogInformation("=== Claude parse request ===");
@@ -77,7 +78,8 @@ public sealed class ClaudeClient : IClaudeClient
     {
         _logger.LogInformation("Evaluating job match");
 
-        var prompt = _promptBuilder.BuildEvaluationPrompt(profile, parsedJob);
+        var evaluatorPrompt = await _profileProvider.GetEvaluatorPromptAsync(cancellationToken);
+        var prompt = _promptBuilder.BuildEvaluationPrompt(profile, parsedJob, evaluatorPrompt);
         var cfg = await _profileProvider.GetScoringConfigAsync(cancellationToken);
 
         _logger.LogInformation("=== Claude evaluate request ===");

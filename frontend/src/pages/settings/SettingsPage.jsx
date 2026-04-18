@@ -21,92 +21,151 @@ const DEFAULT_CONFIG = {
 export default function SettingsPage() {
   const [profile, setProfile] = useState('');
   const [originalProfile, setOriginalProfile] = useState('');
+  const [analystPrompt, setAnalystPrompt] = useState('');
+  const [originalAnalystPrompt, setOriginalAnalystPrompt] = useState('');
+  const [evaluatorPrompt, setEvaluatorPrompt] = useState('');
+  const [originalEvaluatorPrompt, setOriginalEvaluatorPrompt] = useState('');
   const [config, setConfig] = useState(DEFAULT_CONFIG);
   const [originalConfig, setOriginalConfig] = useState(DEFAULT_CONFIG);
+
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [savingConfig, setSavingConfig] = useState(false);
   const [error, setError] = useState(null);
-  const [saveResult, setSaveResult] = useState(null);
-  const [configSaveResult, setConfigSaveResult] = useState(null);
   const [lastUpdated, setLastUpdated] = useState(null);
 
-  useEffect(() => {
-    async function load() {
-      try {
-        const data = await profileApi('/profile');
-        const content = data?.content || '';
-        setProfile(content);
-        setOriginalProfile(content);
-        setLastUpdated(data?.updated_at);
-        if (data?.scoring_config) {
-          setConfig({ ...DEFAULT_CONFIG, ...data.scoring_config });
-          setOriginalConfig({ ...DEFAULT_CONFIG, ...data.scoring_config });
-        }
-      } catch (e) {
-        setError(e.message);
-      } finally {
-        setLoading(false);
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [savingAnalyst, setSavingAnalyst] = useState(false);
+  const [savingEvaluator, setSavingEvaluator] = useState(false);
+  const [savingConfig, setSavingConfig] = useState(false);
+
+  const [profileResult, setProfileResult] = useState(null);
+  const [analystResult, setAnalystResult] = useState(null);
+  const [evaluatorResult, setEvaluatorResult] = useState(null);
+  const [configResult, setConfigResult] = useState(null);
+
+  useEffect(() => { load(); }, []);
+
+  async function load() {
+    try {
+      const data = await profileApi('/profile');
+      const content = data?.content || '';
+      setProfile(content);
+      setOriginalProfile(content);
+
+      const analyst = data?.analyst_prompt || '';
+      setAnalystPrompt(analyst);
+      setOriginalAnalystPrompt(analyst);
+
+      const evaluator = data?.evaluator_prompt || '';
+      setEvaluatorPrompt(evaluator);
+      setOriginalEvaluatorPrompt(evaluator);
+
+      setLastUpdated(data?.updated_at);
+      if (data?.scoring_config) {
+        setConfig({ ...DEFAULT_CONFIG, ...data.scoring_config });
+        setOriginalConfig({ ...DEFAULT_CONFIG, ...data.scoring_config });
       }
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
     }
-    load();
-  }, []);
+  }
 
   const isProfileDirty = profile !== originalProfile;
+  const isAnalystDirty = analystPrompt !== originalAnalystPrompt;
+  const isEvaluatorDirty = evaluatorPrompt !== originalEvaluatorPrompt;
   const isConfigDirty = JSON.stringify(config) !== JSON.stringify(originalConfig);
 
-  async function handleSaveProfile() {
+  async function saveField(body, setSaving, setResult, onSuccess, label) {
     setSaving(true);
-    setSaveResult(null);
+    setResult(null);
     try {
       const data = await profileApi('/profile', {
         method: 'PUT',
-        body: JSON.stringify({ content: profile }),
+        body: JSON.stringify(body),
       });
-      setOriginalProfile(profile);
       setLastUpdated(data?.updated_at);
-      setSaveResult({ type: 'success', message: 'הפרופיל נשמר בהצלחה' });
+      onSuccess(data);
+      setResult({ type: 'success', message: `${label} נשמר בהצלחה` });
     } catch (e) {
-      setSaveResult({ type: 'error', message: `שגיאה בשמירה: ${e.message}` });
+      setResult({ type: 'error', message: `שגיאה בשמירה: ${e.message}` });
     } finally {
       setSaving(false);
     }
   }
 
-  async function handleSaveConfig() {
-    setSavingConfig(true);
-    setConfigSaveResult(null);
-    try {
-      const data = await profileApi('/profile', {
-        method: 'PUT',
-        body: JSON.stringify({ content: originalProfile, scoring_config: config }),
-      });
+  const saveProfile = () => saveField(
+    { content: profile },
+    setSavingProfile, setProfileResult,
+    () => setOriginalProfile(profile),
+    'הפרופיל',
+  );
+
+  const saveAnalyst = () => saveField(
+    { analyst_prompt: analystPrompt },
+    setSavingAnalyst, setAnalystResult,
+    (data) => {
+      const v = data?.analyst_prompt || '';
+      setAnalystPrompt(v);
+      setOriginalAnalystPrompt(v);
+    },
+    'פרומפט האנליסט',
+  );
+
+  const saveEvaluator = () => saveField(
+    { evaluator_prompt: evaluatorPrompt },
+    setSavingEvaluator, setEvaluatorResult,
+    (data) => {
+      const v = data?.evaluator_prompt || '';
+      setEvaluatorPrompt(v);
+      setOriginalEvaluatorPrompt(v);
+    },
+    'פרומפט ההערכה',
+  );
+
+  const saveConfig = () => saveField(
+    { scoring_config: config },
+    setSavingConfig, setConfigResult,
+    (data) => {
       if (data?.scoring_config) {
         setConfig({ ...DEFAULT_CONFIG, ...data.scoring_config });
         setOriginalConfig({ ...DEFAULT_CONFIG, ...data.scoring_config });
       }
-      setLastUpdated(data?.updated_at);
-      setConfigSaveResult({ type: 'success', message: 'תצורת הניתוח נשמרה בהצלחה' });
-    } catch (e) {
-      setConfigSaveResult({ type: 'error', message: `שגיאה בשמירה: ${e.message}` });
-    } finally {
-      setSavingConfig(false);
-    }
+    },
+    'תצורת הניתוח',
+  );
+
+  async function resetAnalystToSeed() {
+    if (!confirm('לאפס את פרומפט האנליסט לברירת המחדל? פעולה זו תמחק את הטקסט המותאם אישית.')) return;
+    await saveField(
+      { analyst_prompt: '' },
+      setSavingAnalyst, setAnalystResult,
+      (data) => {
+        const v = data?.analyst_prompt || '';
+        setAnalystPrompt(v);
+        setOriginalAnalystPrompt(v);
+      },
+      'פרומפט האנליסט אופס',
+    );
   }
 
-  function handleResetProfile() {
-    setProfile(originalProfile);
-    setSaveResult(null);
-  }
-
-  function handleResetConfig() {
-    setConfig(originalConfig);
-    setConfigSaveResult(null);
+  async function resetEvaluatorToSeed() {
+    if (!confirm('לאפס את פרומפט ההערכה לברירת המחדל? פעולה זו תמחק את הטקסט המותאם אישית.')) return;
+    await saveField(
+      { evaluator_prompt: '' },
+      setSavingEvaluator, setEvaluatorResult,
+      (data) => {
+        const v = data?.evaluator_prompt || '';
+        setEvaluatorPrompt(v);
+        setOriginalEvaluatorPrompt(v);
+      },
+      'פרומפט ההערכה אופס',
+    );
   }
 
   function updateConfig(key, value) {
     setConfig(prev => ({ ...prev, [key]: value }));
-    setConfigSaveResult(null);
+    setConfigResult(null);
   }
 
   if (loading) return <div className="settings-page"><p className="empty-state">טוען הגדרות...</p></div>;
@@ -117,7 +176,7 @@ export default function SettingsPage() {
         <span className="settings-hero__eyebrow">Configuration · 2026</span>
         <h1 className="settings-hero__title">הגדרות</h1>
         <p className="settings-hero__sub">
-          צפייה ועריכה של נתוני הקלט לניתוח Claude — הפרופיל המקצועי ופרמטרי המודל.
+          צפייה ועריכה של נתוני הקלט לניתוח Claude — הפרופיל המקצועי, הפרומפטים ופרמטרי המודל.
         </p>
         <hr className="settings-hero__rule" />
       </header>
@@ -141,7 +200,7 @@ export default function SettingsPage() {
         <textarea
           className="settings-editor"
           value={profile}
-          onChange={(e) => { setProfile(e.target.value); setSaveResult(null); }}
+          onChange={(e) => { setProfile(e.target.value); setProfileResult(null); }}
           dir="auto"
           spellCheck={false}
         />
@@ -149,28 +208,124 @@ export default function SettingsPage() {
           <span className="settings-editor__count">{profile.length.toLocaleString()} תווים</span>
           <div className="settings-editor__actions">
             {isProfileDirty && (
-              <button className="btn btn-secondary btn-sm" onClick={handleResetProfile} disabled={saving}>
+              <button className="btn btn-secondary btn-sm" onClick={() => setProfile(originalProfile)} disabled={savingProfile}>
                 ביטול שינויים
               </button>
             )}
             <button
               className="btn btn-primary"
-              onClick={handleSaveProfile}
-              disabled={saving || !isProfileDirty}
+              onClick={saveProfile}
+              disabled={savingProfile || !isProfileDirty}
             >
-              {saving ? 'שומר...' : 'שמור פרופיל'}
+              {savingProfile ? 'שומר...' : 'שמור פרופיל'}
             </button>
           </div>
         </div>
-        {saveResult && (
-          <div className={`save-result ${saveResult.type}`}>{saveResult.message}</div>
+        {profileResult && (
+          <div className={`save-result ${profileResult.type}`}>{profileResult.message}</div>
         )}
       </section>
 
-      {/* 02 — Scoring Config */}
+      {/* 02 — Analyst Prompt */}
       <section className="settings-section">
         <div className="settings-section__label">
           <span className="settings-section__num">02</span>
+          <span className="settings-section__name">פרומפט אנליסט</span>
+          <span className="settings-section__badge">שלב 1 · פרסינג</span>
+        </div>
+        <p className="settings-section__desc">
+          ההנחיה ל-Claude בשלב פרסינג המשרה — מחלצת כותרת, טכנולוגיות, רמת ניסיון ואותות תרבותיים ומחזירה JSON מובנה. ניקוי השדה יחזיר לברירת המחדל מהקובץ המצורף לשירות.
+        </p>
+        <textarea
+          className="settings-editor"
+          value={analystPrompt}
+          onChange={(e) => { setAnalystPrompt(e.target.value); setAnalystResult(null); }}
+          dir="auto"
+          spellCheck={false}
+          style={{ minHeight: '400px' }}
+        />
+        <div className="settings-editor__footer">
+          <span className="settings-editor__count">{analystPrompt.length.toLocaleString()} תווים</span>
+          <div className="settings-editor__actions">
+            <button
+              className="btn btn-secondary btn-sm"
+              onClick={resetAnalystToSeed}
+              disabled={savingAnalyst}
+              title="אפס לברירת המחדל (הקובץ המצורף לשירות)"
+            >
+              אפס לברירת מחדל
+            </button>
+            {isAnalystDirty && (
+              <button className="btn btn-secondary btn-sm" onClick={() => setAnalystPrompt(originalAnalystPrompt)} disabled={savingAnalyst}>
+                ביטול שינויים
+              </button>
+            )}
+            <button
+              className="btn btn-primary"
+              onClick={saveAnalyst}
+              disabled={savingAnalyst || !isAnalystDirty}
+            >
+              {savingAnalyst ? 'שומר...' : 'שמור פרומפט'}
+            </button>
+          </div>
+        </div>
+        {analystResult && (
+          <div className={`save-result ${analystResult.type}`}>{analystResult.message}</div>
+        )}
+      </section>
+
+      {/* 03 — Evaluator Prompt */}
+      <section className="settings-section">
+        <div className="settings-section__label">
+          <span className="settings-section__num">03</span>
+          <span className="settings-section__name">פרומפט הערכה</span>
+          <span className="settings-section__badge">שלב 2 · דירוג</span>
+        </div>
+        <p className="settings-section__desc">
+          ההנחיה ל-Claude בשלב ההערכה — מדרג התאמה במאה נקודות לפי טכנולוגיה, תרבות ומאפייני תפקיד. שני הפלייסהולדרים <code>{'{{USER_PROFILE}}'}</code> ו-<code>{'{{PARSED_JOB}}'}</code> מוחלפים בזמן ריצה ואסור למחוק אותם. ניקוי השדה יחזיר לברירת המחדל.
+        </p>
+        <textarea
+          className="settings-editor"
+          value={evaluatorPrompt}
+          onChange={(e) => { setEvaluatorPrompt(e.target.value); setEvaluatorResult(null); }}
+          dir="auto"
+          spellCheck={false}
+          style={{ minHeight: '500px' }}
+        />
+        <div className="settings-editor__footer">
+          <span className="settings-editor__count">{evaluatorPrompt.length.toLocaleString()} תווים</span>
+          <div className="settings-editor__actions">
+            <button
+              className="btn btn-secondary btn-sm"
+              onClick={resetEvaluatorToSeed}
+              disabled={savingEvaluator}
+              title="אפס לברירת המחדל (הקובץ המצורף לשירות)"
+            >
+              אפס לברירת מחדל
+            </button>
+            {isEvaluatorDirty && (
+              <button className="btn btn-secondary btn-sm" onClick={() => setEvaluatorPrompt(originalEvaluatorPrompt)} disabled={savingEvaluator}>
+                ביטול שינויים
+              </button>
+            )}
+            <button
+              className="btn btn-primary"
+              onClick={saveEvaluator}
+              disabled={savingEvaluator || !isEvaluatorDirty}
+            >
+              {savingEvaluator ? 'שומר...' : 'שמור פרומפט'}
+            </button>
+          </div>
+        </div>
+        {evaluatorResult && (
+          <div className={`save-result ${evaluatorResult.type}`}>{evaluatorResult.message}</div>
+        )}
+      </section>
+
+      {/* 04 — Scoring Config */}
+      <section className="settings-section">
+        <div className="settings-section__label">
+          <span className="settings-section__num">04</span>
           <span className="settings-section__name">תצורת ניתוח</span>
         </div>
         <p className="settings-section__desc">
@@ -249,27 +404,27 @@ export default function SettingsPage() {
         </div>
         <div className="settings-actions">
           {isConfigDirty && (
-            <button className="btn btn-secondary btn-sm" onClick={handleResetConfig} disabled={savingConfig}>
+            <button className="btn btn-secondary btn-sm" onClick={() => setConfig(originalConfig)} disabled={savingConfig}>
               ביטול שינויים
             </button>
           )}
           <button
             className="btn btn-primary"
-            onClick={handleSaveConfig}
+            onClick={saveConfig}
             disabled={savingConfig || !isConfigDirty}
           >
             {savingConfig ? 'שומר...' : 'שמור תצורה'}
           </button>
         </div>
-        {configSaveResult && (
-          <div className={`save-result ${configSaveResult.type}`}>{configSaveResult.message}</div>
+        {configResult && (
+          <div className={`save-result ${configResult.type}`}>{configResult.message}</div>
         )}
       </section>
 
-      {/* 03 — Scoring Structure */}
+      {/* 05 — Scoring Structure */}
       <section className="settings-section">
         <div className="settings-section__label">
-          <span className="settings-section__num">03</span>
+          <span className="settings-section__num">05</span>
           <span className="settings-section__name">מבנה ניתוח</span>
         </div>
         <p className="settings-section__desc">

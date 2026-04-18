@@ -15,6 +15,8 @@ public sealed class MongoProfileProvider : IProfileProvider
     private readonly IMongoCollection<BsonDocument> _collection;
     private readonly IConfiguration _configuration;
     private readonly ILogger<MongoProfileProvider> _logger;
+    private string? _analystSeedCache;
+    private string? _evaluatorSeedCache;
 
     public MongoProfileProvider(
         IMongoClient mongoClient,
@@ -42,16 +44,17 @@ public sealed class MongoProfileProvider : IProfileProvider
         if (doc is null)
         {
             _logger.LogInformation("No profile doc in Mongo; seeding from Data/professional-profile.md");
-            var seeded = await SeedFromFileAsync(cancellationToken);
-            return seeded;
+            return await SeedFromFileAsync(cancellationToken);
         }
 
         return ToProfileDocument(doc);
     }
 
     public async Task UpsertProfileAsync(
-        string content,
+        string? content,
         Dictionary<string, object?>? scoringConfig,
+        string? analystPrompt,
+        string? evaluatorPrompt,
         CancellationToken cancellationToken = default)
     {
         var filter = Builders<BsonDocument>.Filter.Eq("id", DocId);
@@ -69,13 +72,23 @@ public sealed class MongoProfileProvider : IProfileProvider
             }
         }
 
+        var effectiveContent = content
+            ?? (existing != null && existing.Contains("content") && existing["content"].IsString
+                ? existing["content"].AsString
+                : "");
+
         var update = new BsonDocument
         {
             ["id"] = DocId,
-            ["content"] = content,
+            ["content"] = effectiveContent,
             ["scoring_config"] = mergedConfig,
             ["updated_at"] = DateTime.UtcNow
         };
+
+        // Per-field semantics: null = carry forward existing (if any); non-null = overwrite
+        // (empty string clears the override → GET falls back to bundled seed)
+        CarryOrOverwrite(update, existing, "analyst_prompt", analystPrompt);
+        CarryOrOverwrite(update, existing, "evaluator_prompt", evaluatorPrompt);
 
         await _collection.ReplaceOneAsync(
             filter,
@@ -83,8 +96,12 @@ public sealed class MongoProfileProvider : IProfileProvider
             new ReplaceOptions { IsUpsert = true },
             cancellationToken);
 
-        _logger.LogInformation("Profile upserted ({Length} chars, {ConfigKeys} config keys)",
-            content.Length, mergedConfig.ElementCount);
+        _logger.LogInformation(
+            "Profile upserted (content={ContentState}, configKeys={ConfigKeys}, analyst={AnalystState}, evaluator={EvaluatorState})",
+            content is null ? "unchanged" : $"{content.Length} chars",
+            mergedConfig.ElementCount,
+            FieldStateDescription(analystPrompt),
+            FieldStateDescription(evaluatorPrompt));
     }
 
     public async Task<ScoringConfig> GetScoringConfigAsync(CancellationToken cancellationToken = default)
@@ -122,6 +139,80 @@ public sealed class MongoProfileProvider : IProfileProvider
             ThinkingBudget = Get("thinking_budget", 2048),
             MinScoreToSave = Get("min_score_to_save", 70)
         };
+    }
+
+    public async Task<string> GetAnalystPromptAsync(CancellationToken cancellationToken = default)
+    {
+        var stored = await ReadStoredPromptAsync("analyst_prompt", cancellationToken);
+        return !string.IsNullOrWhiteSpace(stored) ? stored : LoadAnalystSeed();
+    }
+
+    public async Task<string> GetEvaluatorPromptAsync(CancellationToken cancellationToken = default)
+    {
+        var stored = await ReadStoredPromptAsync("evaluator_prompt", cancellationToken);
+        return !string.IsNullOrWhiteSpace(stored) ? stored : LoadEvaluatorSeed();
+    }
+
+    private async Task<string?> ReadStoredPromptAsync(string field, CancellationToken cancellationToken)
+    {
+        var filter = Builders<BsonDocument>.Filter.Eq("id", DocId);
+        var doc = await _collection.Find(filter).FirstOrDefaultAsync(cancellationToken);
+        if (doc != null && doc.Contains(field) && doc[field].IsString)
+        {
+            return doc[field].AsString;
+        }
+        return null;
+    }
+
+    private string LoadAnalystSeed()
+    {
+        if (_analystSeedCache is not null) return _analystSeedCache;
+
+        var basePath = _configuration["ContentRoot"] ?? Directory.GetCurrentDirectory();
+        var filePath = Path.Combine(basePath, "Skills", "analyst.md");
+
+        if (File.Exists(filePath))
+        {
+            _analystSeedCache = File.ReadAllText(filePath);
+            _logger.LogInformation("Loaded analyst prompt seed from {FilePath} ({Length} chars)",
+                filePath, _analystSeedCache.Length);
+        }
+        else
+        {
+            _logger.LogWarning("Analyst seed file missing: {FilePath}. Using empty string.", filePath);
+            _analystSeedCache = "";
+        }
+
+        return _analystSeedCache;
+    }
+
+    private string LoadEvaluatorSeed()
+    {
+        if (_evaluatorSeedCache is not null) return _evaluatorSeedCache;
+
+        var basePath = _configuration["ContentRoot"] ?? Directory.GetCurrentDirectory();
+        var systemContextPath = Path.Combine(basePath, "Config", "system-context.md");
+        var evaluatorPath = Path.Combine(basePath, "Skills", "evaluator.md");
+        var templatePath = Path.Combine(basePath, "Templates", "job-match-prompt-template.md");
+
+        var systemContext = File.Exists(systemContextPath) ? File.ReadAllText(systemContextPath) : "";
+        var evaluator = File.Exists(evaluatorPath) ? File.ReadAllText(evaluatorPath) : "";
+        var template = File.Exists(templatePath) ? File.ReadAllText(templatePath) : "";
+
+        if (string.IsNullOrEmpty(template))
+        {
+            _logger.LogWarning("Evaluator template missing: {FilePath}. Using empty string.", templatePath);
+            _evaluatorSeedCache = "";
+            return _evaluatorSeedCache;
+        }
+
+        _evaluatorSeedCache = template
+            .Replace("{{SYSTEM_CONTEXT}}", systemContext)
+            .Replace("{{EVALUATOR_SKILL}}", evaluator);
+
+        _logger.LogInformation("Loaded evaluator prompt seed (merged 3 files, {Length} chars)",
+            _evaluatorSeedCache.Length);
+        return _evaluatorSeedCache;
     }
 
     private async Task<ProfileDocument> SeedFromFileAsync(CancellationToken cancellationToken)
@@ -167,7 +258,7 @@ public sealed class MongoProfileProvider : IProfileProvider
         return ToProfileDocument(doc);
     }
 
-    private static ProfileDocument ToProfileDocument(BsonDocument doc)
+    private ProfileDocument ToProfileDocument(BsonDocument doc)
     {
         var content = doc.Contains("content") && doc["content"].IsString ? doc["content"].AsString : "";
 
@@ -180,6 +271,9 @@ public sealed class MongoProfileProvider : IProfileProvider
             }
         }
 
+        var analystPrompt = ExtractEffectivePrompt(doc, "analyst_prompt", LoadAnalystSeed);
+        var evaluatorPrompt = ExtractEffectivePrompt(doc, "evaluator_prompt", LoadEvaluatorSeed);
+
         DateTime? updatedAt = null;
         if (doc.Contains("updated_at") && doc["updated_at"].IsValidDateTime)
         {
@@ -190,7 +284,33 @@ public sealed class MongoProfileProvider : IProfileProvider
         {
             Content = content,
             ScoringConfig = configDict,
+            AnalystPrompt = analystPrompt,
+            EvaluatorPrompt = evaluatorPrompt,
             UpdatedAt = updatedAt
         };
     }
+
+    private static string ExtractEffectivePrompt(BsonDocument doc, string field, Func<string> seedLoader)
+    {
+        if (doc.Contains(field) && doc[field].IsString && !string.IsNullOrWhiteSpace(doc[field].AsString))
+        {
+            return doc[field].AsString;
+        }
+        return seedLoader();
+    }
+
+    private static void CarryOrOverwrite(BsonDocument update, BsonDocument? existing, string field, string? incoming)
+    {
+        if (incoming is not null)
+        {
+            update[field] = incoming;
+        }
+        else if (existing is not null && existing.Contains(field))
+        {
+            update[field] = existing[field];
+        }
+    }
+
+    private static string FieldStateDescription(string? value) =>
+        value is null ? "unchanged" : value.Length == 0 ? "cleared" : $"{value.Length} chars";
 }

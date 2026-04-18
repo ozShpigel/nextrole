@@ -18,10 +18,6 @@ The profile below is structured as XML. When scoring, cross-reference:
 
 {{PROFILE}}
 
-## CANDIDATE VALUES & PREFERENCES
-
-{{VALUES_AND_PREFERENCES}}
-
 ## SCORING SYSTEM
 
 ### Total: 100 points across 3 dimensions

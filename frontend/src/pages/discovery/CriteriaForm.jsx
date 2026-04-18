@@ -11,8 +11,6 @@ export default function CriteriaForm({ initial, onSave, onCancel }) {
   const [country, setCountry] = useState(initial?.country || 'Israel');
   const [isRemote, setIsRemote] = useState(initial?.is_remote ?? null);
   const [minScore, setMinScore] = useState(initial?.min_score_to_save || 70);
-  const [valuesText, setValuesText] = useState((initial?.values || []).join('\n'));
-  const [preferences, setPreferences] = useState(initial?.preferences || '');
   const [saving, setSaving] = useState(false);
 
   async function submit(e) {
@@ -30,8 +28,6 @@ export default function CriteriaForm({ initial, onSave, onCancel }) {
       country,
       is_remote: isRemote,
       min_score_to_save: minScore,
-      values: valuesText.split('\n').map(s => s.trim()).filter(Boolean),
-      preferences: preferences.trim(),
     };
 
     try {
@@ -106,16 +102,6 @@ export default function CriteriaForm({ initial, onSave, onCancel }) {
           <label>סף ציון לשמירה</label>
           <input type="number" value={minScore} onChange={(e) => setMinScore(Number(e.target.value))} min={0} max={100} />
         </div>
-      </div>
-
-      <div className="form-group">
-        <label>ערכים (שורה לכל ערך)</label>
-        <textarea value={valuesText} onChange={(e) => setValuesText(e.target.value)} placeholder="ownership&#10;sustainable pace&#10;async culture" rows={3} />
-      </div>
-
-      <div className="form-group">
-        <label>העדפות נוספות (טקסט חופשי)</label>
-        <textarea value={preferences} onChange={(e) => setPreferences(e.target.value)} placeholder="מעדיף חברות בגודל בינוני, לא סטארטאפ מאוד מוקדם..." rows={2} />
       </div>
 
       <div className="btn-group">

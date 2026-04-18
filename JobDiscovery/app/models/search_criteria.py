@@ -15,8 +15,6 @@ class SearchCriteria(BaseModel):
     country: str = "Israel"
     is_remote: bool | None = None
     min_score_to_save: int = 70
-    values: list[str] = []
-    preferences: str = ""
     is_active: bool = True
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

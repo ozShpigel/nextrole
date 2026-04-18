@@ -76,8 +76,6 @@ async def run_discovery(db: AsyncIOMotorDatabase, settings: Settings, criteria_i
                     description=job_data.get("description"),
                     date_posted=job_data.get("date_posted"),
                     site=job_data.get("site", "linkedin"),
-                    values=criteria.values,
-                    preferences=criteria.preferences,
                     db=db,
                 )
 

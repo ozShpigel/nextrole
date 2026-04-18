@@ -11,8 +11,6 @@ class CreateCriteriaRequest(BaseModel):
     country: str = "Israel"
     is_remote: bool | None = None
     min_score_to_save: int = 70
-    values: list[str] = []
-    preferences: str = ""
 
 
 class UpdateCriteriaRequest(BaseModel):
@@ -25,8 +23,6 @@ class UpdateCriteriaRequest(BaseModel):
     country: str | None = None
     is_remote: bool | None = None
     min_score_to_save: int | None = None
-    values: list[str] | None = None
-    preferences: str | None = None
     is_active: bool | None = None
 
 

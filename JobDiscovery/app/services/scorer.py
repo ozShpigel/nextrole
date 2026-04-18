@@ -62,8 +62,6 @@ async def score_job(
     description: str | None,
     date_posted: str | None,
     site: str,
-    values: list[str],
-    preferences: str,
     db=None,
 ) -> dict:
     """Score a single job against the professional profile using Claude."""
@@ -80,14 +78,7 @@ async def score_job(
     profile = await _load_profile(settings, db)
     system_template, user_template = _load_prompt_templates()
 
-    values_text = ", ".join(values) if values else "לא צוינו"
-    preferences_text = preferences or "לא צוינו"
-
-    system_prompt = (
-        system_template
-        .replace("{{PROFILE}}", profile)
-        .replace("{{VALUES_AND_PREFERENCES}}", f"ערכים: {values_text}\nהעדפות: {preferences_text}")
-    )
+    system_prompt = system_template.replace("{{PROFILE}}", profile)
     user_prompt = (
         user_template
         .replace("{{TITLE}}", title)
@@ -138,7 +129,7 @@ async def score_job(
         logger.info("Temperature: %s", temperature)
     logger.info("Job: '%s' at '%s' (%s)", title, company, location or "no location")
     logger.info("Description length: %d chars", len(description))
-    logger.info("System prompt length: %d chars (profile: %d, values/prefs included)",
+    logger.info("System prompt length: %d chars (profile: %d)",
                  len(system_prompt), len(profile))
     logger.info("User prompt length: %d chars", len(user_prompt))
 

@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Http.Json;
 using ApplicationTracker.EmailSync.Models;
 using Microsoft.Extensions.Logging;
@@ -13,6 +14,16 @@ namespace ApplicationTracker.EmailSync.Services;
 /// </summary>
 public sealed class TrackerApiClient : ITrackerApiClient
 {
+    private const int MaxRetries = 3;
+
+    private static readonly HashSet<HttpStatusCode> TransientStatuses = new()
+    {
+        HttpStatusCode.TooManyRequests,     // 429
+        HttpStatusCode.BadGateway,          // 502
+        HttpStatusCode.ServiceUnavailable,  // 503
+        HttpStatusCode.GatewayTimeout       // 504
+    };
+
     private readonly HttpClient _http;
     private readonly ILogger<TrackerApiClient> _logger;
 
@@ -30,86 +41,54 @@ public sealed class TrackerApiClient : ITrackerApiClient
 
     public async Task<List<TrackerApplication>?> GetActiveApplicationsAsync(CancellationToken ct = default)
     {
-        const int maxAttempts = 4;
-        var delay = TimeSpan.FromSeconds(5);
+        using var response = await SendWithRetryAsync(
+            () => _http.GetAsync("/api/applications", ct),
+            "GetActiveApplicationsAsync",
+            ct);
 
-        for (var attempt = 1; attempt <= maxAttempts; attempt++)
+        if (response is null || !response.IsSuccessStatusCode)
         {
-            try
-            {
-                _logger.LogInformation(
-                    "Fetching applications from Tracker API (attempt {Attempt}/{Max})",
-                    attempt, maxAttempts);
-
-                var apps = await _http.GetFromJsonAsync<List<TrackerApplication>>("/api/applications", ct)
-                    ?? new List<TrackerApplication>();
-
-                var active = apps.Where(a => !TerminalStatuses.Contains(a.Status)).ToList();
-
-                _logger.LogInformation("Retrieved {Total} applications, {Active} active", apps.Count, active.Count);
-                return active;
-            }
-            catch (Exception ex) when (attempt < maxAttempts && IsTransientTrackerFailure(ex))
-            {
-                _logger.LogWarning(ex,
-                    "Tracker API attempt {Attempt}/{Max} failed (cold start or network); retrying in {Delay}s...",
-                    attempt, maxAttempts, delay.TotalSeconds);
-                await Task.Delay(delay, ct);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to get applications from Tracker API");
-                return null;
-            }
+            _logger.LogError("Failed to get applications from Tracker API. Status: {Status}",
+                response?.StatusCode.ToString() ?? "no response");
+            return null;
         }
 
-        return null;
-    }
+        var apps = await response.Content.ReadFromJsonAsync<List<TrackerApplication>>(cancellationToken: ct)
+            ?? new List<TrackerApplication>();
 
-    private static bool IsTransientTrackerFailure(Exception ex)
-    {
-        if (ex is HttpRequestException or TaskCanceledException)
-            return true;
-
-        if (ex is TimeoutException)
-            return true;
-
-        return ex.InnerException != null && IsTransientTrackerFailure(ex.InnerException);
+        var active = apps.Where(a => !TerminalStatuses.Contains(a.Status)).ToList();
+        _logger.LogInformation("Retrieved {Total} applications, {Active} active", apps.Count, active.Count);
+        return active;
     }
 
     public async Task<bool> UpdateApplicationStatusAsync(Guid appId, string newStatus, string? note = null, CancellationToken ct = default)
     {
-        try
-        {
-            // The API expects { "newStatus": "Applied", "note": "..." }
-            var response = await _http.PutAsJsonAsync(
+        using var response = await SendWithRetryAsync(
+            () => _http.PutAsJsonAsync(
                 $"/api/applications/{appId}/status",
                 new { newStatus, note },
-                ct);
+                ct),
+            $"UpdateApplicationStatusAsync({appId})",
+            ct);
 
-            if (response.IsSuccessStatusCode)
-            {
-                _logger.LogInformation("Updated application {AppId} to status {Status}", appId, newStatus);
-                return true;
-            }
-
-            _logger.LogWarning("Failed to update application {AppId}. Status: {HttpStatus}",
-                appId, response.StatusCode);
+        if (response is null)
             return false;
-        }
-        catch (Exception ex)
+
+        if (response.IsSuccessStatusCode)
         {
-            _logger.LogError(ex, "Error updating application {AppId}", appId);
-            return false;
+            _logger.LogInformation("Updated application {AppId} to status {Status}", appId, newStatus);
+            return true;
         }
+
+        _logger.LogWarning("Failed to update application {AppId}. Status: {HttpStatus}",
+            appId, response.StatusCode);
+        return false;
     }
 
     public async Task<bool> AddInterviewAsync(Guid appId, AddInterviewRequest interview, CancellationToken ct = default)
     {
-        try
-        {
-            // The API expects a full Interview object at POST /api/applications/{id}/interviews
-            var response = await _http.PostAsJsonAsync(
+        using var response = await SendWithRetryAsync(
+            () => _http.PostAsJsonAsync(
                 $"/api/applications/{appId}/interviews",
                 new
                 {
@@ -120,22 +99,76 @@ public sealed class TrackerApiClient : ITrackerApiClient
                     topics = interview.Topics,
                     notes = interview.Notes
                 },
-                ct);
+                ct),
+            $"AddInterviewAsync({appId})",
+            ct);
 
-            if (response.IsSuccessStatusCode)
-            {
-                _logger.LogInformation("Added {Type} interview for application {AppId}", interview.Type, appId);
-                return true;
-            }
-
-            _logger.LogWarning("Failed to add interview for {AppId}. Status: {HttpStatus}",
-                appId, response.StatusCode);
+        if (response is null)
             return false;
-        }
-        catch (Exception ex)
+
+        if (response.IsSuccessStatusCode)
         {
-            _logger.LogError(ex, "Error adding interview for {AppId}", appId);
-            return false;
+            _logger.LogInformation("Added {Type} interview for application {AppId}", interview.Type, appId);
+            return true;
         }
+
+        _logger.LogWarning("Failed to add interview for {AppId}. Status: {HttpStatus}",
+            appId, response.StatusCode);
+        return false;
+    }
+
+    private async Task<HttpResponseMessage?> SendWithRetryAsync(
+        Func<Task<HttpResponseMessage>> send,
+        string operationName,
+        CancellationToken ct)
+    {
+        for (var attempt = 0; attempt <= MaxRetries; attempt++)
+        {
+            HttpResponseMessage? response = null;
+            try
+            {
+                response = await send();
+
+                if (TransientStatuses.Contains(response.StatusCode) && attempt < MaxRetries)
+                {
+                    var delay = BackoffDelay(attempt);
+                    _logger.LogWarning(
+                        "{Operation} returned {Status} — retry {Attempt}/{Max} in {Delay}s",
+                        operationName, (int)response.StatusCode, attempt + 1, MaxRetries, delay.TotalSeconds);
+                    response.Dispose();
+                    await Task.Delay(delay, ct);
+                    continue;
+                }
+
+                return response;
+            }
+            catch (Exception ex) when (attempt < MaxRetries && IsTransient(ex))
+            {
+                response?.Dispose();
+                var delay = BackoffDelay(attempt);
+                _logger.LogWarning(ex,
+                    "{Operation} transport error — retry {Attempt}/{Max} in {Delay}s",
+                    operationName, attempt + 1, MaxRetries, delay.TotalSeconds);
+                await Task.Delay(delay, ct);
+            }
+            catch (Exception ex)
+            {
+                response?.Dispose();
+                _logger.LogError(ex, "{Operation} failed", operationName);
+                return null;
+            }
+        }
+
+        return null;
+    }
+
+    private static TimeSpan BackoffDelay(int attempt) =>
+        TimeSpan.FromSeconds(Math.Min(Math.Pow(2, attempt), 8));
+
+    private static bool IsTransient(Exception ex)
+    {
+        if (ex is HttpRequestException or TaskCanceledException or TimeoutException)
+            return true;
+        return ex.InnerException is not null && IsTransient(ex.InnerException);
     }
 }

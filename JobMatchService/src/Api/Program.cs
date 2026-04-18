@@ -13,8 +13,10 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Configuration["ContentRoot"] = AppContext.BaseDirectory;
 
 // MongoDB
-var mongoConn = builder.Configuration["MongoDB:ConnectionString"]
-    ?? throw new InvalidOperationException("MongoDB:ConnectionString is not configured");
+var mongoConn = builder.Configuration["MongoDB:ConnectionString"];
+if (string.IsNullOrWhiteSpace(mongoConn))
+    throw new InvalidOperationException(
+        "MongoDB:ConnectionString is not configured. Set the MONGODB_CONNECTION_STRING environment variable before starting the service.");
 builder.Services.AddSingleton<IMongoClient>(_ => new MongoClient(mongoConn));
 
 // Profile + Claude

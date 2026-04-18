@@ -10,6 +10,12 @@ obj/
 node_modules/
 dist/
 
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
 # IDE
 .vscode/
 .idea/

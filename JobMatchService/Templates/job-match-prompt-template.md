@@ -22,7 +22,7 @@ Your goal is to provide honest, strategic career guidance.
 The profile below is structured as XML. When scoring, cross-reference:
 - Technical Fit (35pt) → `<technical_strengths>`, `<technology_experience>`, `<experience>`
 - Cultural Fit (35pt) → `<core_values>`, `<collaboration_style>`, `<design_problem_solving_style>`
-- Role Characteristics (30pt) → `<looking_for>`, `<how_to_collaborate_with_me>`, `<self_awareness>`
+- Role Characteristics (30pt) → `<looking_for>`, `<how_to_collaborate_with_me>`
 
 {{USER_PROFILE}}
 

@@ -1,11 +1,7 @@
 <professional_profile>
 
 <overview>
-Senior Backend / Platform Engineer with **10+ years** of experience designing and building scalable, reliable backend systems in .NET environments, with deep expertise in **DevOps automation and infrastructure**.
-
-I specialize in **turning complex problems into simple, maintainable solutions**. I value clarity over complexity, automate to improve quality and speed, and organize workflows to enable faster, more confident delivery.
-
-I work best in environments that balance technical excellence with human considerations: **focus, ownership, trust, and sustainable pace**.
+Senior Backend / Platform Engineer with **10+ years** designing and building scalable, reliable backend systems in .NET, with deep expertise in **DevOps automation and infrastructure**.
 </overview>
 
 <core_values>
@@ -66,10 +62,6 @@ I work best in environments that balance technical excellence with human conside
     - Collaborated with internal teams and LaunchDarkly architects
   </feature_management>
 
-  <adaptability_note>
-  Technology choices are tools, not identity — I adapt quickly when fundamentals are solid.
-  </adaptability_note>
-
 </technology_experience>
 
 <experience>
@@ -105,17 +97,6 @@ I work best in environments that balance technical excellence with human conside
 
 </experience>
 
-<side_projects>
-**ThinkingDiary** — AI-powered thought capture application
-- Built with **.NET backend**, **React frontend**, and **Mistral AI**
-- Demonstrates ability to work across full stack and integrate modern AI technologies
-- Self-initiated project showing continuous learning and exploration
-</side_projects>
-
-<education>
-**B.Sc. in Computer Science** — Holon Institute of Technology (HIT), 2012
-</education>
-
 <design_problem_solving_style>
 - I approach design questions by first **clarifying assumptions and constraints**
 - I prefer to start with a **clear, minimal happy path** and then expand to edge cases
@@ -132,13 +113,6 @@ I work best in environments that balance technical excellence with human conside
 - Experience **collaborating with external vendors** (LaunchDarkly) and internal stakeholders
 - Strong at **organizing team workflows** and DevOps processes
 </collaboration_style>
-
-<self_awareness>
-Areas I actively manage — not blockers, but areas where awareness and boundaries matter:
-- **Decision-making under uncertainty** (especially when stakes feel personal)
-- **Guarding focus** when workload expands beyond healthy limits
-- **Avoiding over-investment in roles** that dilute my core engineering impact
-</self_awareness>
 
 <looking_for>
 - **Backend / platform roles** with real ownership and architectural impact

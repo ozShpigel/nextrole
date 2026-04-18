@@ -54,13 +54,13 @@
   font-weight: 600;
   font-family: inherit;
   cursor: pointer;
-  box-shadow: 0 1px 3px rgba(154, 123, 79, 0.2);
+  box-shadow: 0 1px 3px rgba(168, 130, 86, 0.2);
   transition: transform var(--transition), box-shadow var(--transition), opacity var(--transition);
   letter-spacing: 0.01em;
 }
 .match-page .analyze-btn:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 24px rgba(154, 123, 79, 0.25);
+  box-shadow: 0 6px 24px rgba(168, 130, 86, 0.25);
 }
 .match-page .analyze-btn:disabled {
   opacity: 0.35;
@@ -233,7 +233,7 @@
 /* Save to tracker */
 .save-tracker {
   background: var(--bg-card);
-  border: 1px solid rgba(154, 123, 79, 0.15);
+  border: 1px solid rgba(168, 130, 86, 0.15);
   border-radius: var(--radius-lg);
   padding: 1.75rem;
   margin-top: 1.75rem;
@@ -245,7 +245,7 @@
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(135deg, rgba(154, 123, 79, 0.03) 0%, transparent 60%);
+  background: linear-gradient(135deg, rgba(168, 130, 86, 0.03) 0%, transparent 60%);
   pointer-events: none;
 }
 .save-tracker h3 { color: var(--text-bright); margin-bottom: 0.5rem; font-size: 1.05rem; font-weight: 600; position: relative; }

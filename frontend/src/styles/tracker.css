@@ -147,7 +147,7 @@
   border-radius: 0;
 }
 .tracker .app-row:last-child { border-bottom: none; }
-.tracker .app-row:hover { background: rgba(154, 123, 79, 0.03); }
+.tracker .app-row:hover { background: rgba(168, 130, 86, 0.03); }
 .tracker .app-row .title { font-weight: 600; color: var(--text-bright); font-size: 0.9rem; }
 .tracker .app-row .company { color: var(--text-secondary); font-size: 0.84rem; }
 .tracker .app-row .score { font-weight: 600; font-size: 0.88rem; }

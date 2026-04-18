@@ -3,17 +3,20 @@ import { discoveryApi } from '../../utils/api';
 import '../../styles/settings.css';
 
 const MODEL_OPTIONS = [
+  'claude-sonnet-4-6',
   'claude-opus-4-20250514',
   'claude-sonnet-4-20250514',
   'claude-haiku-4-5-20251001',
 ];
 
 const DEFAULT_CONFIG = {
-  model: 'claude-opus-4-20250514',
+  model: 'claude-sonnet-4-6',
   temperature_match: 0.5,
   temperature_discovery: 0.3,
   max_tokens_match: 4096,
   max_tokens_discovery: 1024,
+  thinking_enabled_discovery: true,
+  thinking_budget_discovery: 1024,
 };
 
 export default function SettingsPage() {
@@ -223,6 +226,30 @@ export default function SettingsPage() {
                 value={config.max_tokens_discovery}
                 onChange={(e) => updateConfig('max_tokens_discovery', parseInt(e.target.value) || 1024)}
                 min="256" max="8192" step="256"
+              />
+            </div>
+            <div className="config-item config-item--editable">
+              <label className="config-item__label" htmlFor="cfg-thinking-disc">חשיבה מורחבת - גילוי</label>
+              <select
+                id="cfg-thinking-disc"
+                className="config-item__select"
+                value={config.thinking_enabled_discovery ? 'on' : 'off'}
+                onChange={(e) => updateConfig('thinking_enabled_discovery', e.target.value === 'on')}
+              >
+                <option value="on">מופעל (temperature=1)</option>
+                <option value="off">כבוי</option>
+              </select>
+            </div>
+            <div className="config-item config-item--editable">
+              <label className="config-item__label" htmlFor="cfg-thinking-budget">תקציב חשיבה (tokens)</label>
+              <input
+                id="cfg-thinking-budget"
+                type="number"
+                className="config-item__input"
+                value={config.thinking_budget_discovery}
+                onChange={(e) => updateConfig('thinking_budget_discovery', parseInt(e.target.value) || 1024)}
+                min="1024" max="16000" step="512"
+                disabled={!config.thinking_enabled_discovery}
               />
             </div>
           </div>

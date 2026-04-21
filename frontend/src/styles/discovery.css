@@ -734,6 +734,95 @@
   to   { opacity: 1; transform: translateY(0); }
 }
 
+/* ---- Wake-up Panel ----------------------------------------- */
+/* Shown while retries are in flight against a sleeping Render free-tier
+   service. Replaces the silent spinner with an informative editorial card. */
+.wakeup-panel {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  margin: 4rem auto 0;
+  max-width: 560px;
+  padding: 1.8rem 2rem;
+  background: linear-gradient(
+    135deg,
+    rgba(168, 130, 86, 0.04) 0%,
+    rgba(255, 253, 249, 0.7) 55%,
+    rgba(61, 155, 133, 0.035) 100%
+  );
+  border: 1px solid rgba(168, 130, 86, 0.2);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 4px 24px rgba(80, 60, 30, 0.06);
+  animation: wakeupIn 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.wakeup-panel__orbit {
+  position: relative;
+  flex-shrink: 0;
+  width: 52px;
+  height: 52px;
+}
+.wakeup-panel__orbit::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 1px dashed rgba(168, 130, 86, 0.35);
+  border-radius: 50%;
+  animation: wakeupSpin 6s linear infinite;
+}
+.wakeup-panel__dot {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  transform-origin: 0 0;
+  opacity: 0.8;
+}
+.wakeup-panel__dot:nth-child(1) { animation: wakeupOrbit 1.4s ease-in-out infinite;             background: #a88256; }
+.wakeup-panel__dot:nth-child(2) { animation: wakeupOrbit 1.4s ease-in-out 0.35s infinite;       background: #3d9b85; }
+.wakeup-panel__dot:nth-child(3) { animation: wakeupOrbit 1.4s ease-in-out 0.7s  infinite;       background: #8b6fc0; }
+.wakeup-panel__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  flex: 1;
+  min-width: 0;
+}
+.wakeup-panel__title {
+  font-family: 'Noto Serif Hebrew', serif;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text-bright);
+  letter-spacing: -0.005em;
+}
+.wakeup-panel__text {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  line-height: 1.65;
+}
+.wakeup-panel__attempt {
+  margin-top: 0.25rem;
+  font-family: 'IBM Plex Sans Hebrew', sans-serif;
+  font-size: 0.7rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+@keyframes wakeupIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes wakeupSpin {
+  to { transform: rotate(360deg); }
+}
+@keyframes wakeupOrbit {
+  0%, 100% { transform: translate(-3.5px, -18px) scale(0.9); opacity: 0.35; }
+  50%      { transform: translate(-3.5px, -18px) scale(1.25); opacity: 1; }
+}
+
 @media (max-width: 640px) {
   .discovery-page { padding: 2.5rem 1rem 3.5rem; }
   .discovery-hero__top { flex-direction: column; }
@@ -742,4 +831,9 @@
   .run-card__stats { flex-wrap: wrap; gap: 0.5rem; }
   .job-card__header { flex-direction: column; }
   .error-panel { flex-direction: column; align-items: stretch; }
+  .wakeup-panel {
+    flex-direction: column;
+    text-align: center;
+    padding: 1.5rem 1.25rem;
+  }
 }

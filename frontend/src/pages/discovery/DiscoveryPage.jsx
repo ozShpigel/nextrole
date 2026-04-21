@@ -39,6 +39,9 @@ export default function DiscoveryPage() {
   const [editItem, setEditItem] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  // Render free tier cold-start feedback: lights up once the first retry fires.
+  const [wakingUp, setWakingUp] = useState(false);
+  const [wakeAttempt, setWakeAttempt] = useState(0);
   const navigate = useNavigate();
 
   useEffect(() => { load(); }, []);
@@ -46,15 +49,22 @@ export default function DiscoveryPage() {
   async function load() {
     setLoading(true);
     setError(null);
+    setWakingUp(false);
+    setWakeAttempt(0);
+    const onRetry = ({ attempt }) => {
+      setWakingUp(true);
+      setWakeAttempt(attempt);
+    };
     try {
-      const c = await discoveryApi('/criteria');
+      const c = await discoveryApi('/criteria', { onRetry });
       setCriteria(c);
-      const r = await discoveryApi('/runs');
+      const r = await discoveryApi('/runs', { onRetry });
       setRuns(r);
     } catch (e) {
       setError(e.message);
     } finally {
       setLoading(false);
+      setWakingUp(false);
     }
   }
 
@@ -85,7 +95,32 @@ export default function DiscoveryPage() {
 
   const lastRun = useMemo(() => runs[0]?.started_at, [runs]);
 
-  if (loading) return <div className="discovery-page"><p className="empty-state">טוען...</p></div>;
+  if (loading) {
+    return (
+      <div className="discovery-page">
+        {wakingUp ? (
+          <div className="wakeup-panel" role="status" aria-live="polite">
+            <div className="wakeup-panel__orbit" aria-hidden="true">
+              <span className="wakeup-panel__dot" />
+              <span className="wakeup-panel__dot" />
+              <span className="wakeup-panel__dot" />
+            </div>
+            <div className="wakeup-panel__body">
+              <div className="wakeup-panel__title">מעירים את שירות החיפוש</div>
+              <div className="wakeup-panel__text">
+                השירות היה במצב שינה (Render Free Tier). ההתעוררות יכולה לקחת עד כדקה — אנחנו ממתינים וננסה שוב אוטומטית.
+              </div>
+              {wakeAttempt > 0 && (
+                <div className="wakeup-panel__attempt">ניסיון {wakeAttempt}</div>
+              )}
+            </div>
+          </div>
+        ) : (
+          <p className="empty-state">טוען...</p>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="discovery-page">

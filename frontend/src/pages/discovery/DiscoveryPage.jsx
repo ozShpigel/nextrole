@@ -56,6 +56,10 @@ export default function DiscoveryPage() {
       setWakeAttempt(attempt);
     };
     try {
+      // Warm-up: prime the free-tier instance before the real data calls.
+      // The retry loop rides out the cold start on this lightweight endpoint.
+      await discoveryApi('/health', { onRetry });
+      setWakingUp(false);
       const c = await discoveryApi('/criteria', { onRetry });
       setCriteria(c);
       const r = await discoveryApi('/runs', { onRetry });

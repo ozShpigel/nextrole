@@ -47,6 +47,7 @@ public sealed class ClaudeClient : IClaudeClient
         _logger.LogInformation("Model: {Model} | MaxTokens: 2048 | Temp: 0.3", cfg.Model);
         _logger.LogInformation("Job description length: {Length} chars", jobDescription.Length);
         _logger.LogInformation("Prompt length: {Length} chars", prompt.Length);
+        _logger.LogInformation("=== Full parse prompt ===\n{Prompt}\n=== End parse prompt ===", prompt);
 
         var parameters = new MessageParameters
         {
@@ -88,6 +89,7 @@ public sealed class ClaudeClient : IClaudeClient
         _logger.LogInformation("Profile length: {ProfileLen} chars | Prompt length: {PromptLen} chars",
             profile.Length, prompt.Length);
         _logger.LogInformation("Job: {Title} at {Company}", parsedJob.JobTitle, parsedJob.Company);
+        _logger.LogInformation("=== Full evaluate prompt ===\n{Prompt}\n=== End evaluate prompt ===", prompt);
 
         var parameters = new MessageParameters
         {

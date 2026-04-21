@@ -89,6 +89,8 @@ app.MapGet("/api/match/profile", async (
             scoring_config = doc.ScoringConfig,
             analyst_prompt = doc.AnalystPrompt,
             evaluator_prompt = doc.EvaluatorPrompt,
+            analyst_prompt_is_override = doc.AnalystIsOverride,
+            evaluator_prompt_is_override = doc.EvaluatorIsOverride,
             updated_at = doc.UpdatedAt
         });
     }
@@ -133,6 +135,8 @@ app.MapPut("/api/match/profile", async (
             scoring_config = updated.ScoringConfig,
             analyst_prompt = updated.AnalystPrompt,
             evaluator_prompt = updated.EvaluatorPrompt,
+            analyst_prompt_is_override = updated.AnalystIsOverride,
+            evaluator_prompt_is_override = updated.EvaluatorIsOverride,
             updated_at = updated.UpdatedAt
         });
     }

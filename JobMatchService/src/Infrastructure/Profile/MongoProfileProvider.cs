@@ -221,6 +221,8 @@ public sealed class MongoProfileProvider : IProfileProvider
 
         var analystPrompt = ExtractEffectivePrompt(doc, "analyst_prompt", PromptSeeds.Analyst);
         var evaluatorPrompt = ExtractEffectivePrompt(doc, "evaluator_prompt", PromptSeeds.Evaluator);
+        var analystIsOverride = HasStoredOverride(doc, "analyst_prompt");
+        var evaluatorIsOverride = HasStoredOverride(doc, "evaluator_prompt");
 
         DateTime? updatedAt = null;
         if (doc.Contains("updated_at") && doc["updated_at"].IsValidDateTime)
@@ -234,9 +236,14 @@ public sealed class MongoProfileProvider : IProfileProvider
             ScoringConfig = configDict,
             AnalystPrompt = analystPrompt,
             EvaluatorPrompt = evaluatorPrompt,
+            AnalystIsOverride = analystIsOverride,
+            EvaluatorIsOverride = evaluatorIsOverride,
             UpdatedAt = updatedAt
         };
     }
+
+    private static bool HasStoredOverride(BsonDocument doc, string field) =>
+        doc.Contains(field) && doc[field].IsString && !string.IsNullOrWhiteSpace(doc[field].AsString);
 
     private static string ExtractEffectivePrompt(BsonDocument doc, string field, string seed)
     {

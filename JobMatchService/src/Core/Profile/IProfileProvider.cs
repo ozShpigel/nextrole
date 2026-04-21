@@ -21,6 +21,8 @@ public sealed record ProfileDocument
     public Dictionary<string, object?> ScoringConfig { get; init; } = new();
     public string AnalystPrompt { get; init; } = "";
     public string EvaluatorPrompt { get; init; } = "";
+    public bool AnalystIsOverride { get; init; }
+    public bool EvaluatorIsOverride { get; init; }
     public DateTime? UpdatedAt { get; init; }
 }
 

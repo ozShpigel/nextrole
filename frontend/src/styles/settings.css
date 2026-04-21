@@ -185,6 +185,304 @@
   display: flex;
   gap: 0.55rem;
 }
+.settings-editor__tokens {
+  margin-inline-start: 0.45rem;
+  color: rgba(120, 100, 70, 0.55);
+  font-size: 0.72rem;
+  letter-spacing: 0.03em;
+}
+
+/* ---- Prompt Sections (02, 03) ------------------------------- */
+/* Editorial specialization on top of .settings-section —
+   a left-edge sandstone stripe visually pairs the two prompt
+   sections and separates them from the profile editor above. */
+.settings-section--prompt {
+  padding-inline-start: 1.5rem;
+  position: relative;
+}
+.settings-section--prompt::before {
+  content: '';
+  position: absolute;
+  inset-inline-start: 0;
+  top: 0.15rem;
+  bottom: 0.15rem;
+  width: 3px;
+  border-radius: 3px;
+  background: linear-gradient(
+    to bottom,
+    rgba(168, 130, 86, 0) 0%,
+    rgba(168, 130, 86, 0.35) 12%,
+    rgba(168, 130, 86, 0.35) 88%,
+    rgba(168, 130, 86, 0) 100%
+  );
+}
+
+/* Override variant of the top-right section badge */
+.settings-section__badge--override {
+  color: var(--accent);
+  border-color: rgba(168, 130, 86, 0.45);
+  background: rgba(168, 130, 86, 0.07);
+}
+
+/* ---- Pipeline Ribbon ---------------------------------------- */
+.pipeline-ribbon {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  margin: 0.35rem 0 1.2rem;
+  padding: 0.55rem 0.85rem;
+  border: 1px solid rgba(120, 100, 70, 0.1);
+  border-radius: 100px;
+  background: linear-gradient(
+    90deg,
+    rgba(168, 130, 86, 0.04) 0%,
+    rgba(255, 253, 249, 0.4) 50%,
+    rgba(61, 155, 133, 0.035) 100%
+  );
+  max-width: fit-content;
+  font-family: 'IBM Plex Sans Hebrew', sans-serif;
+}
+.pipeline-ribbon__stage {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  letter-spacing: 0.03em;
+  transition: color var(--transition);
+}
+.pipeline-ribbon__num {
+  font-family: 'Noto Serif Hebrew', serif;
+  font-size: 1.05rem;
+  color: rgba(120, 100, 70, 0.35);
+  line-height: 1;
+  transition: color var(--transition);
+}
+.pipeline-ribbon__label {
+  font-variant-numeric: tabular-nums;
+}
+.pipeline-ribbon__stage--active {
+  color: var(--text-bright);
+  font-weight: 600;
+}
+.pipeline-ribbon__stage--active .pipeline-ribbon__num {
+  color: var(--accent);
+}
+.pipeline-ribbon__stage--active .pipeline-ribbon__label {
+  border-bottom: 1px solid rgba(168, 130, 86, 0.45);
+  padding-bottom: 1px;
+}
+.pipeline-ribbon__arrow {
+  width: 1.6rem;
+  height: 1px;
+  background: linear-gradient(
+    to left,
+    rgba(120, 100, 70, 0) 0%,
+    rgba(120, 100, 70, 0.35) 50%,
+    rgba(120, 100, 70, 0) 100%
+  );
+  position: relative;
+  flex-shrink: 0;
+}
+.pipeline-ribbon__arrow::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  inset-inline-end: 0;
+  width: 5px;
+  height: 5px;
+  border-top: 1px solid rgba(120, 100, 70, 0.45);
+  border-inline-end: 1px solid rgba(120, 100, 70, 0.45);
+  transform: translateY(-50%) rotate(-135deg);
+}
+
+/* ---- Placeholder Status Row --------------------------------- */
+.prompt-placeholders {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+  margin: -0.5rem 0 1.1rem;
+  padding: 0.6rem 0.85rem;
+  border: 1px dashed rgba(120, 100, 70, 0.18);
+  border-radius: 8px;
+  background: rgba(255, 253, 249, 0.55);
+}
+.prompt-placeholders__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.22rem 0.6rem 0.22rem 0.7rem;
+  border: 1px solid rgba(45, 143, 94, 0.22);
+  border-radius: 100px;
+  background: rgba(45, 143, 94, 0.04);
+  font-family: 'IBM Plex Sans Hebrew', 'Courier New', monospace;
+  font-size: 0.74rem;
+  color: var(--green);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  transition: background var(--transition), border-color var(--transition), color var(--transition);
+}
+.prompt-placeholders__token {
+  direction: ltr;
+}
+.prompt-placeholders__mark {
+  font-family: 'Noto Serif Hebrew', serif;
+  font-size: 0.9rem;
+  line-height: 1;
+}
+.prompt-placeholders__item--missing {
+  border-color: rgba(196, 84, 84, 0.35);
+  background: rgba(196, 84, 84, 0.05);
+  color: var(--red);
+  animation: placeholderMiss 0.25s ease both;
+}
+.prompt-placeholders__missing-label {
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--red);
+}
+@keyframes placeholderMiss {
+  from { transform: translateX(-2px); }
+  40%  { transform: translateX(2px); }
+  to   { transform: translateX(0); }
+}
+
+/* ---- Prompt Outline ----------------------------------------- */
+.prompt-outline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 0.85rem;
+  padding: 0.1rem 0;
+}
+.prompt-outline__heading {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  padding: 0.28rem 0.7rem;
+  border: 1px solid rgba(120, 100, 70, 0.12);
+  border-radius: 100px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: 'IBM Plex Sans Hebrew', sans-serif;
+  font-size: 0.74rem;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: border-color var(--transition), background var(--transition), color var(--transition), transform var(--transition);
+}
+.prompt-outline__heading:hover {
+  border-color: var(--accent);
+  background: rgba(168, 130, 86, 0.06);
+  color: var(--text-bright);
+  transform: translateY(-1px);
+}
+.prompt-outline__heading:active {
+  transform: translateY(0);
+}
+.prompt-outline__hash {
+  font-family: 'Courier New', monospace;
+  font-size: 0.7rem;
+  color: var(--accent);
+  opacity: 0.55;
+  letter-spacing: -0.05em;
+}
+.prompt-outline__name {
+  font-variant-numeric: tabular-nums;
+}
+.prompt-outline__heading--l1 { font-weight: 600; color: var(--text-bright); }
+.prompt-outline__heading--l2 { font-weight: 500; }
+.prompt-outline__heading--l3 { opacity: 0.78; }
+
+/* ---- Inline Confirmation Panels ----------------------------- */
+.inline-confirm {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.25rem;
+  margin: 0 0 0.9rem;
+  padding: 0.95rem 1.15rem;
+  border-radius: var(--radius-lg);
+  animation: confirmSlide 0.22s cubic-bezier(0.22, 1, 0.36, 1) both;
+  flex-wrap: wrap;
+}
+.inline-confirm__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  flex: 1 1 260px;
+  min-width: 0;
+}
+.inline-confirm__title {
+  font-family: 'Noto Serif Hebrew', serif;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: -0.005em;
+}
+.inline-confirm__text {
+  font-size: 0.8rem;
+  line-height: 1.6;
+  color: var(--text-secondary);
+  max-width: 520px;
+}
+.inline-confirm__actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+.inline-confirm--reset {
+  background: rgba(168, 130, 86, 0.05);
+  border: 1px solid rgba(168, 130, 86, 0.3);
+}
+.inline-confirm--reset .inline-confirm__title {
+  color: var(--accent);
+}
+.inline-confirm--unsafe {
+  background: var(--red-bg);
+  border: 1px solid rgba(196, 84, 84, 0.3);
+}
+.inline-confirm--unsafe .inline-confirm__title {
+  color: var(--red);
+}
+@keyframes confirmSlide {
+  from { opacity: 0; transform: translateY(-6px); max-height: 0; }
+  to   { opacity: 1; transform: translateY(0); max-height: 240px; }
+}
+
+/* Warning state on the primary save button when placeholders missing */
+.btn-primary--warning {
+  box-shadow:
+    0 0 0 3px rgba(196, 84, 84, 0.18),
+    0 1px 2px rgba(80, 60, 30, 0.06);
+  animation: warnPulse 1.8s ease-in-out infinite;
+}
+.btn-primary--warning:hover:not(:disabled) {
+  box-shadow:
+    0 0 0 4px rgba(196, 84, 84, 0.22),
+    0 2px 6px rgba(80, 60, 30, 0.08);
+}
+@keyframes warnPulse {
+  0%, 100% { box-shadow: 0 0 0 3px rgba(196, 84, 84, 0.18), 0 1px 2px rgba(80, 60, 30, 0.06); }
+  50%      { box-shadow: 0 0 0 5px rgba(196, 84, 84, 0.1),  0 1px 2px rgba(80, 60, 30, 0.06); }
+}
+
+/* Danger button scoped to inline-confirm panels.
+   A stronger filled variant that reads as "destructive" against
+   the softer global .btn-danger used elsewhere in the app. */
+.inline-confirm .btn-danger {
+  background: var(--red);
+  color: #ffffff;
+  border: 1px solid rgba(196, 84, 84, 0.6);
+  box-shadow: 0 1px 2px rgba(196, 84, 84, 0.12);
+}
+.inline-confirm .btn-danger:hover:not(:disabled) {
+  background: #b04747;
+  box-shadow: 0 2px 8px rgba(196, 84, 84, 0.28);
+  transform: translateY(-1px);
+}
+.inline-confirm .btn-danger:active:not(:disabled) {
+  transform: translateY(0);
+}
 
 /* ---- Config Grid ---- */
 .config-grid {
@@ -403,7 +701,7 @@
     gap: 0.75rem;
     align-items: stretch;
   }
-  .settings-editor__actions { justify-content: flex-end; }
+  .settings-editor__actions { justify-content: flex-end; flex-wrap: wrap; }
   .scoring-dimension {
     grid-template-columns: auto 1fr;
     row-gap: 0.25rem;
@@ -412,4 +710,39 @@
     grid-column: 2;
     justify-self: end;
   }
+
+  /* Prompt sections: stack the ribbon vertically and widen targets */
+  .settings-section--prompt { padding-inline-start: 1.15rem; }
+  .pipeline-ribbon {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.45rem;
+    max-width: 100%;
+    border-radius: 12px;
+    padding: 0.7rem 0.85rem;
+  }
+  .pipeline-ribbon__arrow {
+    width: 1px;
+    height: 1rem;
+    background: linear-gradient(
+      to bottom,
+      rgba(120, 100, 70, 0) 0%,
+      rgba(120, 100, 70, 0.35) 50%,
+      rgba(120, 100, 70, 0) 100%
+    );
+  }
+  .pipeline-ribbon__arrow::after {
+    top: auto;
+    bottom: 0;
+    inset-inline-end: 50%;
+    transform: translateX(50%) rotate(135deg);
+  }
+  .prompt-placeholders { padding: 0.55rem 0.7rem; }
+  .prompt-outline { gap: 0.3rem; }
+  .inline-confirm {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.7rem;
+  }
+  .inline-confirm__actions { justify-content: flex-end; }
 }

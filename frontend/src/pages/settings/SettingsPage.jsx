@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { profileApi } from '../../utils/api';
 import '../../styles/settings.css';
 
@@ -18,6 +18,37 @@ const DEFAULT_CONFIG = {
   min_score_to_save: 70,
 };
 
+const EVALUATOR_PLACEHOLDERS = ['{{USER_PROFILE}}', '{{PARSED_JOB}}'];
+
+const estimateTokens = (text) => Math.ceil((text?.length || 0) / 4);
+
+const detectHeadings = (text) => {
+  if (!text) return [];
+  const out = [];
+  const re = /^(#+)\s+(.+)$/gm;
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    out.push({ level: m[1].length, text: m[2].trim(), offset: m.index });
+  }
+  return out;
+};
+
+const placeholderStatus = (text, placeholders) =>
+  placeholders.map((p) => ({ token: p, present: (text || '').includes(p) }));
+
+function scrollTextareaToOffset(ta, offset) {
+  if (!ta || offset == null) return;
+  const before = ta.value.slice(0, offset);
+  const line = before.split('\n').length - 1;
+  const cs = window.getComputedStyle(ta);
+  const lineHeight = parseFloat(cs.lineHeight) || (parseFloat(cs.fontSize) * 1.75);
+  const paddingTop = parseFloat(cs.paddingTop) || 0;
+  ta.scrollTop = Math.max(0, line * lineHeight - paddingTop);
+  ta.focus();
+  // place caret at the heading start for further editing
+  try { ta.setSelectionRange(offset, offset); } catch { /* ignore */ }
+}
+
 export default function SettingsPage() {
   const [profile, setProfile] = useState('');
   const [originalProfile, setOriginalProfile] = useState('');
@@ -25,6 +56,8 @@ export default function SettingsPage() {
   const [originalAnalystPrompt, setOriginalAnalystPrompt] = useState('');
   const [evaluatorPrompt, setEvaluatorPrompt] = useState('');
   const [originalEvaluatorPrompt, setOriginalEvaluatorPrompt] = useState('');
+  const [analystIsOverride, setAnalystIsOverride] = useState(false);
+  const [evaluatorIsOverride, setEvaluatorIsOverride] = useState(false);
   const [config, setConfig] = useState(DEFAULT_CONFIG);
   const [originalConfig, setOriginalConfig] = useState(DEFAULT_CONFIG);
 
@@ -42,6 +75,10 @@ export default function SettingsPage() {
   const [evaluatorResult, setEvaluatorResult] = useState(null);
   const [configResult, setConfigResult] = useState(null);
 
+  // UI-only confirmation state
+  const [confirmReset, setConfirmReset] = useState(null); // 'analyst' | 'evaluator' | null
+  const [confirmUnsafeSave, setConfirmUnsafeSave] = useState(false);
+
   useEffect(() => { load(); }, []);
 
   async function load() {
@@ -54,10 +91,12 @@ export default function SettingsPage() {
       const analyst = data?.analyst_prompt || '';
       setAnalystPrompt(analyst);
       setOriginalAnalystPrompt(analyst);
+      setAnalystIsOverride(!!data?.analyst_prompt_is_override);
 
       const evaluator = data?.evaluator_prompt || '';
       setEvaluatorPrompt(evaluator);
       setOriginalEvaluatorPrompt(evaluator);
+      setEvaluatorIsOverride(!!data?.evaluator_prompt_is_override);
 
       setLastUpdated(data?.updated_at);
       if (data?.scoring_config) {
@@ -85,6 +124,8 @@ export default function SettingsPage() {
         body: JSON.stringify(body),
       });
       setLastUpdated(data?.updated_at);
+      if (data?.analyst_prompt_is_override !== undefined) setAnalystIsOverride(!!data.analyst_prompt_is_override);
+      if (data?.evaluator_prompt_is_override !== undefined) setEvaluatorIsOverride(!!data.evaluator_prompt_is_override);
       onSuccess(data);
       setResult({ type: 'success', message: `${label} נשמר בהצלחה` });
     } catch (e) {
@@ -119,6 +160,7 @@ export default function SettingsPage() {
       const v = data?.evaluator_prompt || '';
       setEvaluatorPrompt(v);
       setOriginalEvaluatorPrompt(v);
+      setConfirmUnsafeSave(false);
     },
     'פרומפט ההערכה',
   );
@@ -135,37 +177,50 @@ export default function SettingsPage() {
     'תצורת הניתוח',
   );
 
-  async function resetAnalystToSeed() {
-    if (!confirm('לאפס את פרומפט האנליסט לברירת המחדל? פעולה זו תמחק את הטקסט המותאם אישית.')) return;
-    await saveField(
-      { analyst_prompt: '' },
-      setSavingAnalyst, setAnalystResult,
-      (data) => {
-        const v = data?.analyst_prompt || '';
-        setAnalystPrompt(v);
-        setOriginalAnalystPrompt(v);
-      },
-      'פרומפט האנליסט אופס',
-    );
-  }
-
-  async function resetEvaluatorToSeed() {
-    if (!confirm('לאפס את פרומפט ההערכה לברירת המחדל? פעולה זו תמחק את הטקסט המותאם אישית.')) return;
-    await saveField(
-      { evaluator_prompt: '' },
-      setSavingEvaluator, setEvaluatorResult,
-      (data) => {
-        const v = data?.evaluator_prompt || '';
-        setEvaluatorPrompt(v);
-        setOriginalEvaluatorPrompt(v);
-      },
-      'פרומפט ההערכה אופס',
-    );
+  function confirmResetAccept() {
+    if (confirmReset === 'analyst') {
+      saveField(
+        { analyst_prompt: '' },
+        setSavingAnalyst, setAnalystResult,
+        (data) => {
+          const v = data?.analyst_prompt || '';
+          setAnalystPrompt(v);
+          setOriginalAnalystPrompt(v);
+        },
+        'פרומפט האנליסט אופס',
+      );
+    } else if (confirmReset === 'evaluator') {
+      saveField(
+        { evaluator_prompt: '' },
+        setSavingEvaluator, setEvaluatorResult,
+        (data) => {
+          const v = data?.evaluator_prompt || '';
+          setEvaluatorPrompt(v);
+          setOriginalEvaluatorPrompt(v);
+        },
+        'פרומפט ההערכה אופס',
+      );
+    }
+    setConfirmReset(null);
   }
 
   function updateConfig(key, value) {
     setConfig(prev => ({ ...prev, [key]: value }));
     setConfigResult(null);
+  }
+
+  const evaluatorPlaceholderStates = useMemo(
+    () => placeholderStatus(evaluatorPrompt, EVALUATOR_PLACEHOLDERS),
+    [evaluatorPrompt],
+  );
+  const evaluatorMissingPlaceholder = evaluatorPlaceholderStates.some((p) => !p.present);
+
+  function handleEvaluatorSaveClick() {
+    if (evaluatorMissingPlaceholder && !confirmUnsafeSave) {
+      setConfirmUnsafeSave(true);
+      return;
+    }
+    saveEvaluator();
   }
 
   if (loading) return <div className="settings-page"><p className="empty-state">טוען הגדרות...</p></div>;
@@ -205,7 +260,10 @@ export default function SettingsPage() {
           spellCheck={false}
         />
         <div className="settings-editor__footer">
-          <span className="settings-editor__count">{profile.length.toLocaleString()} תווים</span>
+          <span className="settings-editor__count">
+            {profile.length.toLocaleString()} תווים
+            <span className="settings-editor__tokens">· ≈{estimateTokens(profile).toLocaleString()} tokens</span>
+          </span>
           <div className="settings-editor__actions">
             {isProfileDirty && (
               <button className="btn btn-secondary btn-sm" onClick={() => setProfile(originalProfile)} disabled={savingProfile}>
@@ -227,100 +285,60 @@ export default function SettingsPage() {
       </section>
 
       {/* 02 — Analyst Prompt */}
-      <section className="settings-section">
-        <div className="settings-section__label">
-          <span className="settings-section__num">02</span>
-          <span className="settings-section__name">פרומפט אנליסט</span>
-          <span className="settings-section__badge">שלב 1 · פרסינג</span>
-        </div>
-        <p className="settings-section__desc">
-          ההנחיה ל-Claude בשלב פרסינג המשרה — מחלצת כותרת, טכנולוגיות, רמת ניסיון ואותות תרבותיים ומחזירה JSON מובנה. ניקוי השדה יחזיר לברירת המחדל מהקובץ המצורף לשירות.
-        </p>
-        <textarea
-          className="settings-editor"
-          value={analystPrompt}
-          onChange={(e) => { setAnalystPrompt(e.target.value); setAnalystResult(null); }}
-          dir="auto"
-          spellCheck={false}
-          style={{ minHeight: '400px' }}
-        />
-        <div className="settings-editor__footer">
-          <span className="settings-editor__count">{analystPrompt.length.toLocaleString()} תווים</span>
-          <div className="settings-editor__actions">
-            <button
-              className="btn btn-secondary btn-sm"
-              onClick={resetAnalystToSeed}
-              disabled={savingAnalyst}
-              title="אפס לברירת המחדל (הקובץ המצורף לשירות)"
-            >
-              אפס לברירת מחדל
-            </button>
-            {isAnalystDirty && (
-              <button className="btn btn-secondary btn-sm" onClick={() => setAnalystPrompt(originalAnalystPrompt)} disabled={savingAnalyst}>
-                ביטול שינויים
-              </button>
-            )}
-            <button
-              className="btn btn-primary"
-              onClick={saveAnalyst}
-              disabled={savingAnalyst || !isAnalystDirty}
-            >
-              {savingAnalyst ? 'שומר...' : 'שמור פרומפט'}
-            </button>
-          </div>
-        </div>
-        {analystResult && (
-          <div className={`save-result ${analystResult.type}`}>{analystResult.message}</div>
-        )}
-      </section>
+      <PromptSection
+        num="02"
+        name="פרומפט אנליסט"
+        desc="ההנחיה ל-Claude בשלב פרסינג המשרה — מחלצת כותרת, טכנולוגיות, רמת ניסיון ואותות תרבותיים ומחזירה JSON מובנה."
+        activeStage="parse"
+        isOverride={analystIsOverride}
+        value={analystPrompt}
+        setValue={(v) => { setAnalystPrompt(v); setAnalystResult(null); }}
+        isDirty={isAnalystDirty}
+        saving={savingAnalyst}
+        onSave={saveAnalyst}
+        onCancel={() => setAnalystPrompt(originalAnalystPrompt)}
+        onResetRequest={() => setConfirmReset('analyst')}
+        confirmingReset={confirmReset === 'analyst'}
+        onConfirmResetCancel={() => setConfirmReset(null)}
+        onConfirmResetAccept={confirmResetAccept}
+        result={analystResult}
+        editorMinHeight={400}
+      />
 
       {/* 03 — Evaluator Prompt */}
-      <section className="settings-section">
-        <div className="settings-section__label">
-          <span className="settings-section__num">03</span>
-          <span className="settings-section__name">פרומפט הערכה</span>
-          <span className="settings-section__badge">שלב 2 · דירוג</span>
-        </div>
-        <p className="settings-section__desc">
-          ההנחיה ל-Claude בשלב ההערכה — מדרג התאמה במאה נקודות לפי טכנולוגיה, תרבות ומאפייני תפקיד. שני הפלייסהולדרים <code>{'{{USER_PROFILE}}'}</code> ו-<code>{'{{PARSED_JOB}}'}</code> מוחלפים בזמן ריצה ואסור למחוק אותם. ניקוי השדה יחזיר לברירת המחדל.
-        </p>
-        <textarea
-          className="settings-editor"
-          value={evaluatorPrompt}
-          onChange={(e) => { setEvaluatorPrompt(e.target.value); setEvaluatorResult(null); }}
-          dir="auto"
-          spellCheck={false}
-          style={{ minHeight: '500px' }}
-        />
-        <div className="settings-editor__footer">
-          <span className="settings-editor__count">{evaluatorPrompt.length.toLocaleString()} תווים</span>
-          <div className="settings-editor__actions">
-            <button
-              className="btn btn-secondary btn-sm"
-              onClick={resetEvaluatorToSeed}
-              disabled={savingEvaluator}
-              title="אפס לברירת המחדל (הקובץ המצורף לשירות)"
-            >
-              אפס לברירת מחדל
-            </button>
-            {isEvaluatorDirty && (
-              <button className="btn btn-secondary btn-sm" onClick={() => setEvaluatorPrompt(originalEvaluatorPrompt)} disabled={savingEvaluator}>
-                ביטול שינויים
-              </button>
-            )}
-            <button
-              className="btn btn-primary"
-              onClick={saveEvaluator}
-              disabled={savingEvaluator || !isEvaluatorDirty}
-            >
-              {savingEvaluator ? 'שומר...' : 'שמור פרומפט'}
-            </button>
-          </div>
-        </div>
-        {evaluatorResult && (
-          <div className={`save-result ${evaluatorResult.type}`}>{evaluatorResult.message}</div>
-        )}
-      </section>
+      <PromptSection
+        num="03"
+        name="פרומפט הערכה"
+        desc={
+          <>
+            ההנחיה ל-Claude בשלב ההערכה — מדרג התאמה במאה נקודות לפי טכנולוגיה, תרבות ומאפייני תפקיד.
+            שני הפלייסהולדרים <code>{'{{USER_PROFILE}}'}</code> ו-<code>{'{{PARSED_JOB}}'}</code> מוחלפים בזמן ריצה ואסור למחוק אותם.
+          </>
+        }
+        activeStage="evaluate"
+        isOverride={evaluatorIsOverride}
+        value={evaluatorPrompt}
+        setValue={(v) => {
+          setEvaluatorPrompt(v);
+          setEvaluatorResult(null);
+          if (confirmUnsafeSave) setConfirmUnsafeSave(false);
+        }}
+        isDirty={isEvaluatorDirty}
+        saving={savingEvaluator}
+        onSave={handleEvaluatorSaveClick}
+        onCancel={() => { setEvaluatorPrompt(originalEvaluatorPrompt); setConfirmUnsafeSave(false); }}
+        onResetRequest={() => setConfirmReset('evaluator')}
+        confirmingReset={confirmReset === 'evaluator'}
+        onConfirmResetCancel={() => setConfirmReset(null)}
+        onConfirmResetAccept={confirmResetAccept}
+        result={evaluatorResult}
+        editorMinHeight={500}
+        placeholders={evaluatorPlaceholderStates}
+        saveWarning={evaluatorMissingPlaceholder}
+        confirmUnsafeSave={confirmUnsafeSave}
+        onConfirmUnsafeAccept={saveEvaluator}
+        onConfirmUnsafeCancel={() => setConfirmUnsafeSave(false)}
+      />
 
       {/* 04 — Scoring Config */}
       <section className="settings-section">
@@ -473,5 +491,160 @@ export default function SettingsPage() {
         </div>
       </section>
     </div>
+  );
+}
+
+function PromptSection({
+  num, name, desc, activeStage, isOverride,
+  value, setValue, isDirty, saving,
+  onSave, onCancel, onResetRequest,
+  confirmingReset, onConfirmResetCancel, onConfirmResetAccept,
+  result, editorMinHeight,
+  placeholders, saveWarning, confirmUnsafeSave,
+  onConfirmUnsafeAccept, onConfirmUnsafeCancel,
+}) {
+  const textareaRef = useRef(null);
+  const headings = useMemo(() => detectHeadings(value), [value]);
+
+  return (
+    <section className="settings-section settings-section--prompt">
+      <div className="settings-section__label">
+        <span className="settings-section__num">{num}</span>
+        <span className="settings-section__name">{name}</span>
+        <span className={`settings-section__badge ${isOverride ? 'settings-section__badge--override' : ''}`}>
+          {isOverride ? 'מותאם אישית' : 'ברירת מחדל'}
+        </span>
+      </div>
+
+      <div className="pipeline-ribbon" aria-label="שלבי ניתוח">
+        <span className={`pipeline-ribbon__stage ${activeStage === 'parse' ? 'pipeline-ribbon__stage--active' : ''}`}>
+          <span className="pipeline-ribbon__num">①</span>
+          <span className="pipeline-ribbon__label">Parse · אנליסט</span>
+        </span>
+        <span className="pipeline-ribbon__arrow" aria-hidden="true" />
+        <span className={`pipeline-ribbon__stage ${activeStage === 'evaluate' ? 'pipeline-ribbon__stage--active' : ''}`}>
+          <span className="pipeline-ribbon__num">②</span>
+          <span className="pipeline-ribbon__label">Evaluate · הערכה</span>
+        </span>
+      </div>
+
+      <p className="settings-section__desc">{desc}</p>
+
+      {placeholders && placeholders.length > 0 && (
+        <div className="prompt-placeholders" role="status" aria-live="polite">
+          {placeholders.map(({ token, present }) => (
+            <span
+              key={token}
+              className={`prompt-placeholders__item ${present ? '' : 'prompt-placeholders__item--missing'}`}
+            >
+              <span className="prompt-placeholders__token">{token}</span>
+              <span className="prompt-placeholders__mark" aria-hidden="true">
+                {present ? '✓' : '✗'}
+              </span>
+              {!present && <span className="prompt-placeholders__missing-label">חסר</span>}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {headings.length > 0 && (
+        <div className="prompt-outline" aria-label="מבנה הפרומפט">
+          {headings.map((h, i) => (
+            <button
+              key={`${h.offset}-${i}`}
+              type="button"
+              className={`prompt-outline__heading prompt-outline__heading--l${Math.min(h.level, 3)}`}
+              onClick={() => scrollTextareaToOffset(textareaRef.current, h.offset)}
+              title={`קפוץ אל "${h.text}"`}
+            >
+              <span className="prompt-outline__hash" aria-hidden="true">{'#'.repeat(h.level)}</span>
+              <span className="prompt-outline__name">{h.text}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {confirmingReset && (
+        <div className="inline-confirm inline-confirm--reset" role="alertdialog" aria-live="assertive">
+          <div className="inline-confirm__body">
+            <strong className="inline-confirm__title">לאפס לברירת מחדל?</strong>
+            <span className="inline-confirm__text">
+              הפרומפט המותאם אישית יימחק ויוחלף בברירת המחדל המצורפת לשירות. פעולה זו לא ניתנת לביטול.
+            </span>
+          </div>
+          <div className="inline-confirm__actions">
+            <button className="btn btn-secondary btn-sm" onClick={onConfirmResetCancel} disabled={saving}>
+              ביטול
+            </button>
+            <button className="btn btn-danger btn-sm" onClick={onConfirmResetAccept} disabled={saving}>
+              {saving ? 'מאפס...' : 'כן, אפס'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      <textarea
+        ref={textareaRef}
+        className="settings-editor"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        dir="auto"
+        spellCheck={false}
+        style={{ minHeight: `${editorMinHeight}px` }}
+      />
+
+      {confirmUnsafeSave && (
+        <div className="inline-confirm inline-confirm--unsafe" role="alertdialog" aria-live="assertive">
+          <div className="inline-confirm__body">
+            <strong className="inline-confirm__title">חסר פלייסהולדר בפרומפט</strong>
+            <span className="inline-confirm__text">
+              ללא הפלייסהולדרים Claude לא יקבל את הפרופיל או את פרטי המשרה. אפשר לשמור בכל זאת, אך הניתוח יהיה שבור.
+            </span>
+          </div>
+          <div className="inline-confirm__actions">
+            <button className="btn btn-secondary btn-sm" onClick={onConfirmUnsafeCancel} disabled={saving}>
+              ביטול
+            </button>
+            <button className="btn btn-danger btn-sm" onClick={onConfirmUnsafeAccept} disabled={saving}>
+              {saving ? 'שומר...' : 'שמור בכל זאת'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="settings-editor__footer">
+        <span className="settings-editor__count">
+          {(value?.length || 0).toLocaleString()} תווים
+          <span className="settings-editor__tokens">· ≈{estimateTokens(value).toLocaleString()} tokens</span>
+        </span>
+        <div className="settings-editor__actions">
+          <button
+            className="btn btn-secondary btn-sm"
+            onClick={onResetRequest}
+            disabled={saving || confirmingReset}
+            title="אפס לברירת המחדל המצורפת לשירות"
+          >
+            אפס לברירת מחדל
+          </button>
+          {isDirty && (
+            <button className="btn btn-secondary btn-sm" onClick={onCancel} disabled={saving}>
+              ביטול שינויים
+            </button>
+          )}
+          <button
+            className={`btn btn-primary ${saveWarning ? 'btn-primary--warning' : ''}`}
+            onClick={onSave}
+            disabled={saving || !isDirty}
+            title={saveWarning ? 'חסר פלייסהולדר — יידרש אישור נוסף' : undefined}
+          >
+            {saving ? 'שומר...' : 'שמור פרומפט'}
+          </button>
+        </div>
+      </div>
+
+      {result && (
+        <div className={`save-result ${result.type}`}>{result.message}</div>
+      )}
+    </section>
   );
 }

@@ -17,9 +17,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Content Include="..\..\Templates\**" LinkBase="Templates" CopyToOutputDirectory="PreserveNewest" />
-    <Content Include="..\..\Config\**" LinkBase="Config" CopyToOutputDirectory="PreserveNewest" />
-    <Content Include="..\..\Skills\**" LinkBase="Skills" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="..\..\Data\**" LinkBase="Data" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 

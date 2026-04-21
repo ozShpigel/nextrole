@@ -1,4 +1,5 @@
 using JobMatchService.Core.Profile;
+using JobMatchService.Infrastructure.AI;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using MongoDB.Bson;
@@ -15,8 +16,6 @@ public sealed class MongoProfileProvider : IProfileProvider
     private readonly IMongoCollection<BsonDocument> _collection;
     private readonly IConfiguration _configuration;
     private readonly ILogger<MongoProfileProvider> _logger;
-    private string? _analystSeedCache;
-    private string? _evaluatorSeedCache;
 
     public MongoProfileProvider(
         IMongoClient mongoClient,
@@ -144,13 +143,13 @@ public sealed class MongoProfileProvider : IProfileProvider
     public async Task<string> GetAnalystPromptAsync(CancellationToken cancellationToken = default)
     {
         var stored = await ReadStoredPromptAsync("analyst_prompt", cancellationToken);
-        return !string.IsNullOrWhiteSpace(stored) ? stored : LoadAnalystSeed();
+        return !string.IsNullOrWhiteSpace(stored) ? stored : PromptSeeds.Analyst;
     }
 
     public async Task<string> GetEvaluatorPromptAsync(CancellationToken cancellationToken = default)
     {
         var stored = await ReadStoredPromptAsync("evaluator_prompt", cancellationToken);
-        return !string.IsNullOrWhiteSpace(stored) ? stored : LoadEvaluatorSeed();
+        return !string.IsNullOrWhiteSpace(stored) ? stored : PromptSeeds.Evaluator;
     }
 
     private async Task<string?> ReadStoredPromptAsync(string field, CancellationToken cancellationToken)
@@ -162,57 +161,6 @@ public sealed class MongoProfileProvider : IProfileProvider
             return doc[field].AsString;
         }
         return null;
-    }
-
-    private string LoadAnalystSeed()
-    {
-        if (_analystSeedCache is not null) return _analystSeedCache;
-
-        var basePath = _configuration["ContentRoot"] ?? Directory.GetCurrentDirectory();
-        var filePath = Path.Combine(basePath, "Skills", "analyst.md");
-
-        if (File.Exists(filePath))
-        {
-            _analystSeedCache = File.ReadAllText(filePath);
-            _logger.LogInformation("Loaded analyst prompt seed from {FilePath} ({Length} chars)",
-                filePath, _analystSeedCache.Length);
-        }
-        else
-        {
-            _logger.LogWarning("Analyst seed file missing: {FilePath}. Using empty string.", filePath);
-            _analystSeedCache = "";
-        }
-
-        return _analystSeedCache;
-    }
-
-    private string LoadEvaluatorSeed()
-    {
-        if (_evaluatorSeedCache is not null) return _evaluatorSeedCache;
-
-        var basePath = _configuration["ContentRoot"] ?? Directory.GetCurrentDirectory();
-        var systemContextPath = Path.Combine(basePath, "Config", "system-context.md");
-        var evaluatorPath = Path.Combine(basePath, "Skills", "evaluator.md");
-        var templatePath = Path.Combine(basePath, "Templates", "job-match-prompt-template.md");
-
-        var systemContext = File.Exists(systemContextPath) ? File.ReadAllText(systemContextPath) : "";
-        var evaluator = File.Exists(evaluatorPath) ? File.ReadAllText(evaluatorPath) : "";
-        var template = File.Exists(templatePath) ? File.ReadAllText(templatePath) : "";
-
-        if (string.IsNullOrEmpty(template))
-        {
-            _logger.LogWarning("Evaluator template missing: {FilePath}. Using empty string.", templatePath);
-            _evaluatorSeedCache = "";
-            return _evaluatorSeedCache;
-        }
-
-        _evaluatorSeedCache = template
-            .Replace("{{SYSTEM_CONTEXT}}", systemContext)
-            .Replace("{{EVALUATOR_SKILL}}", evaluator);
-
-        _logger.LogInformation("Loaded evaluator prompt seed (merged 3 files, {Length} chars)",
-            _evaluatorSeedCache.Length);
-        return _evaluatorSeedCache;
     }
 
     private async Task<ProfileDocument> SeedFromFileAsync(CancellationToken cancellationToken)
@@ -271,8 +219,8 @@ public sealed class MongoProfileProvider : IProfileProvider
             }
         }
 
-        var analystPrompt = ExtractEffectivePrompt(doc, "analyst_prompt", LoadAnalystSeed);
-        var evaluatorPrompt = ExtractEffectivePrompt(doc, "evaluator_prompt", LoadEvaluatorSeed);
+        var analystPrompt = ExtractEffectivePrompt(doc, "analyst_prompt", PromptSeeds.Analyst);
+        var evaluatorPrompt = ExtractEffectivePrompt(doc, "evaluator_prompt", PromptSeeds.Evaluator);
 
         DateTime? updatedAt = null;
         if (doc.Contains("updated_at") && doc["updated_at"].IsValidDateTime)
@@ -290,13 +238,13 @@ public sealed class MongoProfileProvider : IProfileProvider
         };
     }
 
-    private static string ExtractEffectivePrompt(BsonDocument doc, string field, Func<string> seedLoader)
+    private static string ExtractEffectivePrompt(BsonDocument doc, string field, string seed)
     {
         if (doc.Contains(field) && doc[field].IsString && !string.IsNullOrWhiteSpace(doc[field].AsString))
         {
             return doc[field].AsString;
         }
-        return seedLoader();
+        return seed;
     }
 
     private static void CarryOrOverwrite(BsonDocument update, BsonDocument? existing, string field, string? incoming)

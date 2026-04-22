@@ -1,3 +1,4 @@
+using System.Text.Json;
 using ApplicationTracker.Core.Profile;
 using ApplicationTracker.Infrastructure.AI;
 using Microsoft.Extensions.Configuration;
@@ -72,7 +73,7 @@ public sealed class MongoProfileProvider : IProfileProvider
         {
             foreach (var (k, v) in scoringConfig)
             {
-                mergedConfig[k] = v is null ? BsonNull.Value : BsonValue.Create(v);
+                mergedConfig[k] = ToBsonValue(v);
             }
         }
 
@@ -273,4 +274,30 @@ public sealed class MongoProfileProvider : IProfileProvider
 
     private static string FieldStateDescription(string? value) =>
         value is null ? "unchanged" : value.Length == 0 ? "cleared" : $"{value.Length} chars";
+
+    // Incoming scoring_config values arrive as JsonElement (System.Text.Json
+    // produces these when deserializing into Dictionary<string, object?>).
+    // BsonValue.Create doesn't understand JsonElement, so unwrap to primitives
+    // before handing off to the Mongo driver.
+    private static BsonValue ToBsonValue(object? value) => value switch
+    {
+        null => BsonNull.Value,
+        JsonElement el => JsonElementToBson(el),
+        _ => BsonValue.Create(value)
+    };
+
+    private static BsonValue JsonElementToBson(JsonElement el) => el.ValueKind switch
+    {
+        JsonValueKind.Null or JsonValueKind.Undefined => BsonNull.Value,
+        JsonValueKind.True => BsonBoolean.True,
+        JsonValueKind.False => BsonBoolean.False,
+        JsonValueKind.String => new BsonString(el.GetString() ?? ""),
+        JsonValueKind.Number when el.TryGetInt32(out var i) => new BsonInt32(i),
+        JsonValueKind.Number when el.TryGetInt64(out var l) => new BsonInt64(l),
+        JsonValueKind.Number => new BsonDouble(el.GetDouble()),
+        JsonValueKind.Array => new BsonArray(el.EnumerateArray().Select(JsonElementToBson)),
+        JsonValueKind.Object => new BsonDocument(
+            el.EnumerateObject().Select(p => new BsonElement(p.Name, JsonElementToBson(p.Value)))),
+        _ => BsonNull.Value
+    };
 }

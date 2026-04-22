@@ -1,24 +1,33 @@
+/* =========================================================
+   Landing — editorial quarterly "issue cover"
+   A personal design-journal cover for the platform.
+   Restrained sandstone palette, serif display, small-caps
+   chrome, and hairline ornaments.
+   ========================================================= */
+
 .landing {
   position: relative;
   min-height: calc(100vh - 56px);
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 2rem;
+  padding: clamp(1.5rem, 3.5vw, 3rem) clamp(1.25rem, 4vw, 3rem) 2rem;
   background: var(--bg-deep);
   color: var(--text-primary);
   isolation: isolate;
+  overflow-x: clip;
 }
 
-/* Background effects */
+/* ---- Ambient background -------------------------------- */
 .landing-bg-grain {
   position: fixed;
   inset: 0;
   z-index: 0;
-  opacity: 0.025;
+  opacity: 0.032;
   pointer-events: none;
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
   background-size: 200px;
+  mix-blend-mode: multiply;
 }
 
 .landing-bg-glow {
@@ -27,76 +36,53 @@
   pointer-events: none;
   z-index: 0;
   filter: blur(120px);
-  animation: glowPulse 8s ease-in-out infinite alternate;
+  animation: glowPulse 14s ease-in-out infinite alternate;
 }
 @keyframes glowPulse {
-  0% { opacity: 1; }
-  100% { opacity: 0.4; }
+  0%   { opacity: 0.95; transform: translate3d(0, 0, 0); }
+  100% { opacity: 0.55; transform: translate3d(18px, -12px, 0); }
 }
 .landing-bg-glow--1 {
-  width: 700px; height: 700px;
-  top: -250px; right: -150px;
-  background: radial-gradient(circle, rgba(168, 130, 86, 0.08) 0%, transparent 70%);
+  width: 720px; height: 720px;
+  top: -260px; right: -180px;
+  background: radial-gradient(circle, rgba(168, 130, 86, 0.1) 0%, transparent 70%);
 }
 .landing-bg-glow--2 {
-  width: 600px; height: 600px;
-  bottom: -200px; left: -150px;
-  background: radial-gradient(circle, rgba(61, 155, 133, 0.06) 0%, transparent 70%);
-  animation-delay: -4s;
+  width: 620px; height: 620px;
+  bottom: -200px; left: -170px;
+  background: radial-gradient(circle, rgba(61, 155, 133, 0.065) 0%, transparent 70%);
+  animation-delay: -7s;
 }
 
-/* Geometric decorations */
-.landing-geo {
-  position: fixed;
-  pointer-events: none;
-  z-index: 0;
-  border: 1px solid rgba(168, 130, 86, 0.08);
+/* ---- Corner crop marks --------------------------------- */
+/* Editorial "registration" marks at the four page corners.
+   Small L-shaped hairlines that evoke print production. */
+.landing-marks { position: fixed; inset: 0; pointer-events: none; z-index: 1; }
+.landing-marks__mark {
+  position: absolute;
+  width: 28px;
+  height: 28px;
   opacity: 0;
-  transition: opacity 1.4s ease;
+  transition: opacity 1.2s ease 0.7s;
 }
-.landing--loaded .landing-geo { opacity: 1; }
+.landing--loaded .landing-marks__mark { opacity: 0.42; }
 
-.landing-geo--1 {
-  width: 300px; height: 300px;
-  top: 8%; left: 4%;
-  transform: rotate(45deg);
-  border-radius: 6px;
-  transition-delay: 0.5s;
-}
-.landing--loaded .landing-geo--1 {
-  animation: geoSpin1 60s linear infinite;
-}
-@keyframes geoSpin1 {
-  from { transform: rotate(45deg); }
-  to { transform: rotate(405deg); }
-}
-.landing-geo--2 {
-  width: 140px; height: 140px;
-  bottom: 14%; right: 7%;
-  border-radius: 50%;
-  transition-delay: 0.8s;
-}
-.landing-geo--3 {
-  width: 0; height: 0;
-  top: 22%; right: 11%;
-  border: 1px solid transparent;
-  border-left: 55px solid transparent;
-  border-right: 55px solid transparent;
-  border-bottom: 95px solid transparent;
-  border-bottom-color: rgba(168, 130, 86, 0.08);
-  background: none;
-  transition-delay: 1.1s;
-}
+.landing-marks__mark--tl { top: 18px; left: 18px; border-top: 1px solid var(--accent); border-left: 1px solid var(--accent); }
+.landing-marks__mark--tr { top: 18px; right: 18px; border-top: 1px solid var(--accent); border-right: 1px solid var(--accent); }
+.landing-marks__mark--bl { bottom: 18px; left: 18px; border-bottom: 1px solid var(--accent); border-left: 1px solid var(--accent); }
+.landing-marks__mark--br { bottom: 18px; right: 18px; border-bottom: 1px solid var(--accent); border-right: 1px solid var(--accent); }
 
-/* Header */
+/* =========================================================
+   Masthead / header — the "issue cover" hero
+   ========================================================= */
 .landing-header {
   position: relative;
-  z-index: 1;
+  z-index: 2;
   text-align: center;
-  margin-top: clamp(3rem, 10vh, 7rem);
-  margin-bottom: 4rem;
+  margin-top: clamp(2rem, 7vh, 5rem);
+  margin-bottom: 3.25rem;
   opacity: 0;
-  transform: translateY(24px);
+  transform: translateY(18px);
   transition: opacity 1s ease, transform 1s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .landing--loaded .landing-header {
@@ -104,185 +90,501 @@
   transform: translateY(0);
 }
 
-.landing-header__badge {
-  display: inline-block;
+/* Edition ribbon — Latin metadata, set in true small-caps */
+.landing-header__edition {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-family: 'IBM Plex Sans Hebrew', 'Courier New', monospace;
   font-size: 0.62rem;
-  letter-spacing: 0.2em;
+  letter-spacing: 0.32em;
+  font-weight: 500;
+  color: var(--accent);
+  padding: 0.42rem 1.1rem;
+  border: 1px solid rgba(168, 130, 86, 0.22);
+  border-radius: 100px;
+  background: rgba(168, 130, 86, 0.035);
+  margin-bottom: 2.25rem;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  font-variant-numeric: tabular-nums;
+  text-transform: uppercase;
+}
+.landing-header__edition-dot {
+  font-size: 0.35rem;
+  color: var(--accent);
+  opacity: 0.65;
+  line-height: 1;
+}
+.landing-header__edition-text { white-space: nowrap; }
+
+/* Title: a serif masthead with a tiny sans pre-line flanked by dashes */
+.landing-header__title {
+  margin: 0;
+  font-weight: 400;
+  line-height: 1;
+}
+.landing-header__title-pre {
+  display: block;
+  font-family: 'IBM Plex Sans Hebrew', sans-serif;
+  font-size: clamp(0.78rem, 1.3vw, 0.95rem);
+  letter-spacing: 0.45em;
   text-transform: uppercase;
   color: var(--accent);
-  border: 1px solid var(--border-strong);
-  padding: 0.3rem 1.1rem;
-  border-radius: 100px;
-  margin-bottom: 2rem;
-  font-family: 'IBM Plex Sans Hebrew', sans-serif;
   font-weight: 500;
-  background: rgba(168, 130, 86, 0.04);
+  margin-bottom: clamp(1rem, 2vw, 1.5rem);
+  opacity: 0.85;
+  /* native RTL padding so the em-dashes line up cleanly */
+  padding-inline: 0.6em;
 }
-
-.landing-header__title {
-  font-weight: 900;
-  line-height: 1.05;
-  margin: 0;
-}
-.landing-header__title-line {
-  display: block;
-  font-size: clamp(2.4rem, 5.5vw, 4rem);
-  color: var(--text-bright);
-  letter-spacing: -0.03em;
-  font-family: 'Heebo', sans-serif;
-}
-.landing-header__title-line--accent {
+.landing-header__title-main {
+  display: inline-flex;
+  gap: clamp(0.5rem, 1.3vw, 1.1rem);
+  align-items: baseline;
   font-family: 'Noto Serif Hebrew', 'Heebo', serif;
   font-weight: 700;
-  font-size: clamp(2.8rem, 6.5vw, 4.6rem);
-  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-hover) 40%, var(--teal) 100%);
+  font-size: clamp(3.2rem, 8.5vw, 6.2rem);
+  line-height: 0.92;
+  letter-spacing: -0.035em;
+}
+.landing-header__title-word {
+  display: inline-block;
+  color: var(--text-bright);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+.landing-header__title-word--accent {
+  background: linear-gradient(130deg, var(--accent) 0%, var(--accent-hover) 55%, #9d7d55 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  animation: gradientShift 6s ease infinite;
-  background-size: 200% 200%;
+  color: transparent;
+  text-shadow: none;
+  position: relative;
 }
-@keyframes gradientShift {
-  0%, 100% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
+/* A soft warm halo behind the accent word, like a spot lamp */
+.landing-header__title-word--accent::after {
+  content: '';
+  position: absolute;
+  inset: -18% -8%;
+  background: radial-gradient(circle, rgba(168, 130, 86, 0.12) 0%, transparent 68%);
+  z-index: -1;
+  pointer-events: none;
+  filter: blur(14px);
 }
 
 .landing-header__sub {
-  font-size: clamp(0.95rem, 1.5vw, 1.08rem);
+  margin: 1.85rem auto 0;
+  max-width: 460px;
+  font-family: 'Noto Serif Hebrew', 'Heebo', serif;
+  font-size: clamp(0.98rem, 1.5vw, 1.12rem);
+  line-height: 1.75;
   color: var(--text-secondary);
-  margin-top: 1.25rem;
-  font-weight: 300;
-  max-width: 420px;
-  margin-inline: auto;
-  line-height: 1.8;
+  font-weight: 400;
+}
+.landing-header__sub em {
+  font-style: italic;
+  color: var(--text-primary);
+  font-weight: 500;
+  letter-spacing: 0.005em;
 }
 
-.landing-header__rule {
-  width: 40px;
+/* Ornament: ·—◇—· */
+.landing-header__ornament {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  margin-top: 2.25rem;
+  color: rgba(168, 130, 86, 0.5);
+}
+.landing-header__ornament-dot {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.landing-header__ornament-bar {
+  width: clamp(24px, 5vw, 44px);
   height: 1px;
-  background: linear-gradient(90deg, transparent, var(--accent), transparent);
-  margin: 2.5rem auto 0;
+  background: linear-gradient(90deg, transparent, currentColor 30%, currentColor 70%, transparent);
+}
+.landing-header__ornament-diamond {
+  width: 6px;
+  height: 6px;
+  background: currentColor;
+  transform: rotate(45deg);
+  opacity: 0.72;
 }
 
-/* Cards */
+/* =========================================================
+   Contents label — bridges masthead to the cards
+   ========================================================= */
+.landing-toc {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  width: 100%;
+  max-width: 980px;
+  margin: 0 auto 2.25rem;
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity 0.8s ease 0.35s, transform 0.8s cubic-bezier(0.22, 1, 0.36, 1) 0.35s;
+}
+.landing--loaded .landing-toc {
+  opacity: 1;
+  transform: translateY(0);
+}
+.landing-toc__rule {
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(168, 130, 86, 0.35) 40%, rgba(168, 130, 86, 0.35) 60%, transparent);
+}
+.landing-toc__label {
+  font-family: 'IBM Plex Sans Hebrew', 'Courier New', monospace;
+  font-size: 0.68rem;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  font-weight: 500;
+  white-space: nowrap;
+  padding: 0 0.25rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* =========================================================
+   Cards — "chapters" on the contents page
+   ========================================================= */
 .landing-cards {
   position: relative;
-  z-index: 1;
-  display: flex;
-  gap: 1.5rem;
-  flex-wrap: wrap;
-  justify-content: center;
-  max-width: 820px;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
+  gap: clamp(1rem, 1.5vw, 1.5rem);
   width: 100%;
+  max-width: 980px;
+  margin: 0 auto;
 }
 
 .landing-card {
+  --card-accent: var(--accent);
   position: relative;
   display: flex;
-  align-items: center;
-  gap: 1.25rem;
-  width: 100%;
-  max-width: 380px;
-  padding: 1.75rem 2rem;
-  background: rgba(255, 255, 255, 0.82);
+  flex-direction: column;
+  gap: 1.1rem;
+  padding: 1.85rem 1.75rem 1.5rem;
+  min-height: 260px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.92) 0%, rgba(253, 249, 242, 0.82) 100%);
   border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+  border-radius: 14px;
   color: var(--text-primary);
-  cursor: pointer;
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-  box-shadow: var(--shadow-sm);
+  text-decoration: none;
+  overflow: hidden;
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.6) inset,
+    0 1px 3px rgba(80, 60, 30, 0.04);
   opacity: 0;
-  transform: translateY(28px);
-  transition: opacity 0.8s ease calc(var(--i) * 0.12s + 0.3s),
-              transform 0.8s cubic-bezier(0.22, 1, 0.36, 1) calc(var(--i) * 0.12s + 0.3s),
-              border-color 0.35s ease,
-              box-shadow 0.35s ease;
+  transform: translateY(24px);
+  transition:
+    opacity 0.75s ease calc(var(--i) * 0.1s + 0.5s),
+    transform 0.75s cubic-bezier(0.22, 1, 0.36, 1) calc(var(--i) * 0.1s + 0.5s),
+    border-color 0.4s ease,
+    box-shadow 0.4s ease,
+    background 0.4s ease;
 }
 .landing--loaded .landing-card {
   opacity: 1;
   transform: translateY(0);
 }
 
+/* Sandstone top-stripe appears on hover — evokes a bookmark */
 .landing-card::before {
   content: '';
   position: absolute;
-  inset: 0;
-  border-radius: var(--radius-lg);
-  background: radial-gradient(ellipse at top right, rgba(168, 130, 86, 0.04) 0%, transparent 55%);
+  inset-block-start: 0;
+  inset-inline: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  transform: scaleX(0.15);
+  transform-origin: center;
   opacity: 0;
-  transition: opacity 0.4s ease;
+  transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.3s ease;
+}
+.landing-card:hover::before,
+.landing-card:focus-visible::before {
+  transform: scaleX(1);
+  opacity: 1;
+}
+
+/* Faint radial on hover */
+.landing-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 20% 0%, rgba(168, 130, 86, 0.06) 0%, transparent 55%);
+  opacity: 0;
   pointer-events: none;
+  transition: opacity 0.45s ease;
+}
+.landing-card:hover::after { opacity: 1; }
+
+.landing-card:hover,
+.landing-card:focus-visible {
+  border-color: rgba(168, 130, 86, 0.38);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.6) inset,
+    0 18px 40px -22px rgba(120, 90, 50, 0.22),
+    0 6px 14px -8px rgba(120, 90, 50, 0.12);
+  transform: translateY(-4px);
+  outline: none;
 }
 
-.landing-card:hover {
-  transform: translateY(-6px);
-  border-color: var(--border-hover);
-  box-shadow: var(--shadow-lg);
-}
-.landing-card:hover::before { opacity: 1; }
-
-.landing-card__icon {
-  flex-shrink: 0;
-  width: 52px;
-  height: 52px;
+/* --- Card top: chapter number + kicker ------------------ */
+.landing-card__top {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 12px;
-  background: var(--accent-muted);
-  border: 1px solid var(--border);
-  color: var(--accent);
-  transition: background 0.35s ease, border-color 0.35s ease, transform 0.35s ease;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.2rem;
 }
-.landing-card:hover .landing-card__icon {
-  background: rgba(168, 130, 86, 0.14);
-  border-color: var(--border-hover);
-  transform: scale(1.05);
+.landing-card__num {
+  font-family: 'Noto Serif Hebrew', serif;
+  font-size: 2.4rem;
+  font-weight: 700;
+  line-height: 0.9;
+  color: var(--accent);
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum', 'lnum';
+  position: relative;
+  display: inline-block;
+  transition: color 0.4s ease, transform 0.4s ease;
+}
+.landing-card__num::after {
+  content: '';
+  position: absolute;
+  inset-block-end: -6px;
+  inset-inline-start: 0;
+  width: 28px;
+  height: 1px;
+  background: var(--accent);
+  opacity: 0.35;
+  transform-origin: inline-start;
+  transform: scaleX(0.4);
+  transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.4s ease;
+}
+.landing-card:hover .landing-card__num::after,
+.landing-card:focus-visible .landing-card__num::after {
+  transform: scaleX(1);
+  opacity: 0.8;
+}
+.landing-card__kicker {
+  font-family: 'IBM Plex Sans Hebrew', 'Courier New', monospace;
+  font-size: 0.62rem;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  font-weight: 500;
+  padding-block-start: 0.5rem;
 }
 
-.landing-card__body { flex: 1; min-width: 0; }
+/* --- Card body: title, rule, description ---------------- */
+.landing-card__body { display: flex; flex-direction: column; gap: 0.75rem; flex: 1; }
 
 .landing-card__title {
-  font-size: 1.05rem;
+  font-family: 'Noto Serif Hebrew', 'Heebo', serif;
+  font-size: 1.35rem;
   font-weight: 700;
-  margin: 0 0 0.35rem;
   color: var(--text-bright);
+  margin: 0;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
 }
-
+.landing-card__rule {
+  display: block;
+  width: 24px;
+  height: 1px;
+  background: var(--accent);
+  opacity: 0.5;
+  transition: width 0.4s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.4s ease;
+}
+.landing-card:hover .landing-card__rule,
+.landing-card:focus-visible .landing-card__rule {
+  width: 56px;
+  opacity: 0.8;
+}
 .landing-card__desc {
+  font-family: 'IBM Plex Sans Hebrew', sans-serif;
   font-size: 0.85rem;
   color: var(--text-secondary);
-  line-height: 1.7;
+  line-height: 1.75;
   margin: 0;
+  font-weight: 300;
 }
 
-.landing-card__arrow {
-  flex-shrink: 0;
+/* --- Card foot: tiny icon + CTA ------------------------- */
+.landing-card__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-block-start: 0.35rem;
+  padding-block-start: 1rem;
+  border-block-start: 1px dashed rgba(120, 100, 70, 0.14);
+}
+.landing-card__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   color: var(--text-dim);
-  transition: color 0.35s ease, transform 0.35s ease;
+  opacity: 0.75;
+  transition: color 0.4s ease, opacity 0.4s ease, transform 0.4s ease;
 }
-.landing-card:hover .landing-card__arrow {
+.landing-card:hover .landing-card__icon,
+.landing-card:focus-visible .landing-card__icon {
   color: var(--accent);
-  transform: translateX(-6px);
+  opacity: 1;
+  transform: rotate(-4deg);
+}
+.landing-card__cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: 'IBM Plex Sans Hebrew', sans-serif;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  letter-spacing: 0.02em;
+  transition: color 0.35s ease, gap 0.35s ease;
+}
+.landing-card:hover .landing-card__cta,
+.landing-card:focus-visible .landing-card__cta {
+  color: var(--accent);
+  gap: 0.8rem;
+}
+.landing-card__arrow {
+  display: inline-flex;
+  transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.landing-card:hover .landing-card__arrow,
+.landing-card:focus-visible .landing-card__arrow {
+  transform: translateX(-4px);
 }
 
-/* Footer */
+/* Decorative corner ornament — a faint serif flourish */
+.landing-card__corner {
+  position: absolute;
+  inset-block-end: -30px;
+  inset-inline-end: -30px;
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(168, 130, 86, 0.07) 0%, transparent 65%);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.5s ease, transform 0.5s ease;
+}
+.landing-card:hover .landing-card__corner,
+.landing-card:focus-visible .landing-card__corner {
+  opacity: 1;
+  transform: scale(1.1);
+}
+
+/* =========================================================
+   Footer — editorial monogram + copyright
+   ========================================================= */
 .landing-footer {
   position: relative;
-  z-index: 1;
+  z-index: 2;
   margin-top: auto;
-  padding-top: 4rem;
+  padding-top: clamp(3rem, 6vw, 5rem);
+  padding-bottom: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.85rem;
   color: var(--text-dim);
-  font-size: 0.78rem;
-  letter-spacing: 0.04em;
   opacity: 0;
-  transition: opacity 1s ease 0.9s;
+  transition: opacity 1.1s ease 1s;
 }
 .landing--loaded .landing-footer { opacity: 1; }
 
+.landing-footer__mono {
+  font-family: 'Noto Serif Hebrew', serif;
+  font-size: 1.25rem;
+  letter-spacing: 0.4em;
+  font-weight: 600;
+  color: var(--accent);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  opacity: 0.82;
+}
+.landing-footer__mono-dim {
+  color: var(--text-dim);
+  opacity: 0.55;
+  font-weight: 400;
+}
+.landing-footer__mono-dot {
+  font-size: 0.9rem;
+  color: var(--accent);
+  opacity: 0.45;
+}
+.landing-footer__text {
+  font-family: 'IBM Plex Sans Hebrew', sans-serif;
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  font-weight: 400;
+}
+
+/* =========================================================
+   Responsive
+   ========================================================= */
+@media (max-width: 720px) {
+  .landing-header__title-main {
+    flex-direction: column;
+    gap: 0.3rem;
+    align-items: center;
+  }
+  .landing-header__edition { font-size: 0.58rem; letter-spacing: 0.25em; }
+  .landing-header__sub br { display: none; }
+  .landing-toc { margin-bottom: 1.75rem; }
+  .landing-toc__label { font-size: 0.6rem; letter-spacing: 0.22em; }
+}
+
 @media (max-width: 540px) {
-  .landing-cards { gap: 1rem; }
-  .landing-card { max-width: 100%; padding: 1.25rem 1.5rem; }
-  .landing-geo { display: none; }
+  .landing-marks__mark { width: 20px; height: 20px; }
+  .landing-marks__mark--tl, .landing-marks__mark--tr { top: 12px; }
+  .landing-marks__mark--bl, .landing-marks__mark--br { bottom: 12px; }
+  .landing-marks__mark--tl, .landing-marks__mark--bl { left: 12px; }
+  .landing-marks__mark--tr, .landing-marks__mark--br { right: 12px; }
+
+  .landing-cards {
+    grid-template-columns: 1fr;
+    gap: 0.9rem;
+  }
+  .landing-card { min-height: auto; padding: 1.4rem 1.3rem 1.15rem; }
+  .landing-card__num { font-size: 2rem; }
+  .landing-card__title { font-size: 1.2rem; }
+  .landing-footer__mono { font-size: 1.05rem; letter-spacing: 0.3em; }
+  .landing-footer__text { font-size: 0.65rem; }
+}
+
+/* Respect reduced-motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  .landing-bg-glow,
+  .landing-card,
+  .landing-header,
+  .landing-toc,
+  .landing-footer,
+  .landing-marks__mark {
+    animation: none !important;
+    transition: opacity 0.2s ease, transform 0.2s ease !important;
+  }
 }

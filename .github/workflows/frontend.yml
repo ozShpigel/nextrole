@@ -31,5 +31,7 @@ jobs:
           file: frontend/Dockerfile
           push: true
           tags: ghcr.io/${{ env.OWNER }}/${{ env.IMAGE_NAME }}:latest
+          build-args: |
+            VITE_JOB_DISCOVERY_URL=${{ vars.VITE_JOB_DISCOVERY_URL }}
       - name: Deploy to Render
         run: curl -s "${{ secrets.RENDER_DEPLOY_HOOK_FRONTEND }}"

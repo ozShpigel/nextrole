@@ -70,9 +70,18 @@ export async function profileApi(path, options = {}) {
   return res.json();
 }
 
+// If VITE_JOB_DISCOVERY_URL is baked into the build, the frontend calls the
+// service directly from the browser (CORS). Otherwise it falls back to the
+// nginx-proxied `/api/discovery` path — kept for local `docker compose` where
+// the browser can't resolve the internal service hostname.
+const DISCOVERY_BASE = (import.meta.env.VITE_JOB_DISCOVERY_URL || '').replace(/\/$/, '');
+
 export async function discoveryApi(path, options = {}) {
   const { fetchOptions, headers, retries, onRetry, retryMinDelayMs, retryMaxDelayMs } = extractRetryOptions(options);
-  const res = await fetchWithRetry(`/api/discovery${path}`, {
+  const url = DISCOVERY_BASE
+    ? `${DISCOVERY_BASE}/api/discovery${path}`
+    : `/api/discovery${path}`;
+  const res = await fetchWithRetry(url, {
     headers: { 'Content-Type': 'application/json', ...headers },
     ...fetchOptions,
   }, retries, onRetry, retryMinDelayMs, retryMaxDelayMs);

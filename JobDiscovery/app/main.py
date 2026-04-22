@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 
 from fastapi import BackgroundTasks, FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 
 from app.config import Settings
@@ -34,12 +35,28 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Job Discovery Service", lifespan=lifespan)
 
+# Enable CORS so the frontend can call this service directly from the browser
+# (mirrors the candy-babies pattern). Removing the nginx middleman eliminates
+# the double-hop retry amplification that was causing Cloudflare 429s on cold
+# starts.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.parsed_cors_origins(),
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 # ---------------------------------------------------------------------------
 # Health
 # ---------------------------------------------------------------------------
 
+# Two paths return the same payload: `/health` is the conventional Render probe
+# target; `/api/discovery/health` matches the prefix the frontend uses for every
+# other call, so the client doesn't need to special-case wake-up probes.
 @app.get("/health")
+@app.get("/api/discovery/health")
 async def health():
     return {"status": "ok", "service": "job-discovery"}
 

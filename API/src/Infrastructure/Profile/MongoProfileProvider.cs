@@ -135,7 +135,7 @@ public sealed class MongoProfileProvider : IProfileProvider
             }
         }
 
-        return new ScoringConfig
+        var resolved = new ScoringConfig
         {
             Model = Get("model", "claude-opus-4-20250514"),
             Temperature = Get("temperature", 0.5m),
@@ -144,6 +144,16 @@ public sealed class MongoProfileProvider : IProfileProvider
             ThinkingBudget = Get("thinking_budget", 2048),
             MinScoreToSave = Get("min_score_to_save", 70)
         };
+
+        // Logged per-fetch (i.e. per /api/match call) so the model in use is
+        // always visible in Render logs. Since this reads fresh from Mongo
+        // every time, seeing the value change here after a Settings-page save
+        // is confirmation that hot-reload works without a service restart.
+        _logger.LogInformation(
+            "Loaded scoring config from Mongo: model={Model}, temp={Temp}, maxTokens={MaxTokens}, thinking={Thinking}, minScore={MinScore}",
+            resolved.Model, resolved.Temperature, resolved.MaxTokens, resolved.ThinkingEnabled, resolved.MinScoreToSave);
+
+        return resolved;
     }
 
     public async Task<string> GetAnalystPromptAsync(CancellationToken cancellationToken = default)

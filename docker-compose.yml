@@ -1,21 +1,14 @@
 services:
-  job-match-service:
+  api:
     build:
       context: .
-      dockerfile: JobMatchService/Dockerfile
+      dockerfile: API/Dockerfile
     ports:
-      - "5136:8080"
+      - "5002:8080"
     environment:
       - Anthropic__ApiKey=${ANTHROPIC_API_KEY}
       - MongoDB__ConnectionString=${MONGODB_CONNECTION_STRING}
       - MongoDB__Database=${JOBMATCH_MONGO_DB:-jobmatch}
-
-  application-tracker:
-    build:
-      context: .
-      dockerfile: ApplicationTracker/Dockerfile
-    ports:
-      - "5002:8080"
 
   job-discovery:
     build:
@@ -25,15 +18,15 @@ services:
       - "5137:8080"
     environment:
       - MONGODB_CONNECTION_STRING=${MONGODB_CONNECTION_STRING}
-      - APPLICATION_TRACKER_BASE_URL=http://application-tracker:8080
-      - JOB_MATCH_SERVICE_URL=http://job-match-service:8080
+      - APPLICATION_TRACKER_BASE_URL=http://api:8080
+      - JOB_MATCH_SERVICE_URL=http://api:8080
 
   email-sync:
     build:
       context: .
       dockerfile: EmailSync/Dockerfile
     environment:
-      - Tracker__BaseUrl=http://application-tracker:8080
+      - Tracker__BaseUrl=http://api:8080
       - Anthropic__ApiKey=${ANTHROPIC_API_KEY}
 
   frontend:

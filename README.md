@@ -1,55 +1,55 @@
 # Job Application Platform
 
-An AI-powered toolkit for managing your entire job search — from discovering opportunities to tracking applications. Built as a microservices monorepo with a unified React frontend.
+An AI-powered toolkit for managing your entire job search — from discovering opportunities to tracking applications. Built as a monorepo with a unified React frontend.
 
 ## Architecture
 
-Five loosely-coupled services communicate over HTTP, fronted by a single-page React app with Nginx reverse proxy:
+Three loosely-coupled services communicate over HTTP, fronted by a single-page React app with Nginx reverse proxy:
 
 ```
                          ┌──────────────────┐
                          │  Frontend (React) │  :3000
                          │  Nginx reverse    │
                          │  proxy + SPA      │
-                         └────┬────┬────┬────┘
-                              │    │    │
-              ┌───────────────┤    │    ├───────────────┐
-              ▼               ▼    │    ▼               │
-   ┌──────────────────┐ ┌─────────┴────────┐ ┌────────┴─────────┐
-   │  JobMatchService  │ │ ApplicationTracker│ │   JobDiscovery    │
-   │  ASP.NET Core 10  │ │ ASP.NET Core 10   │ │  Python FastAPI   │
-   │  :5136            │ │ :5002              │ │  :5137            │
-   └──────┬───────────┘ └──────┬────────────┘ └──┬──────┬────────┘
-          │                     │                  │      │
-          │  Claude API         │  MongoDB         │      │ Claude API
-          │  (Anthropic)        │                  │      │ (Anthropic)
-          └─────────────────────┼──────────────────┘      │
-                                │                          │
-                         ┌──────┴──────┐            ┌─────┴──────┐
-                         │   MongoDB    │            │  LinkedIn   │
-                         │              │            │  Indeed     │
-                         └──────┬──────┘            │  (JobSpy)   │
-                                │                    └────────────┘
-                         ┌──────┴──────┐
-                         │  EmailSync   │
-                         │  .NET Console│
-                         │  (cron)      │
-                         └──────┬──────┘
-                                │
-                         ┌──────┴──────┐
-                         │   Gmail API  │
-                         └─────────────┘
+                         └────┬─────────┬────┘
+                              │         │
+                              ▼         ▼
+                   ┌────────────────┐ ┌────────────────┐
+                   │      API        │ │  JobDiscovery   │
+                   │  ASP.NET Core 10│ │  Python FastAPI │
+                   │  :5002          │ │  :5137          │
+                   │  Match + Track  │ │  Scrape + Orch. │
+                   └────┬───────────┘ └────┬──────┬─────┘
+                        │                   │      │
+              Claude API│ MongoDB           │      │ LinkedIn
+              (Anthropic)│                  │      │ Indeed
+                        │                   │      │ (JobSpy)
+                 ┌──────┴──────┐            │      │
+                 │   MongoDB    │◄───────────┘      │
+                 │              │                    │
+                 └──────┬──────┘                    │
+                        │                            │
+                 ┌──────┴──────┐                    │
+                 │  EmailSync   │                    │
+                 │  .NET Console│                    │
+                 │  (cron)      │                    │
+                 └──────┬──────┘                    │
+                        │                            │
+                 ┌──────┴──────┐                    │
+                 │   Gmail API  │                    │
+                 └─────────────┘                    │
+                                                     │
+                                              Claude API
 ```
 
 ### Services
 
 | Service | Stack | Port | Purpose |
 |---------|-------|------|---------|
-| **JobMatchService** | ASP.NET Core 10 | 5136 | Paste a job description, get an AI-powered fit score against your professional profile |
-| **ApplicationTracker** | ASP.NET Core 10 | 5002 | CRUD for applications, interviews, notes, status tracking, and statistics |
-| **JobDiscovery** | Python FastAPI | 5137 | Scrape LinkedIn/Indeed via JobSpy, score each listing with Claude, auto-save matches |
-| **EmailSync** | .NET 10 Console | — | One-shot process: fetch Gmail, parse with Claude, push status updates to tracker |
-| **Frontend** | React 19 + Vite | 3000 | Hebrew RTL SPA with Nginx reverse proxy to all backend services |
+| **API** | ASP.NET Core 10 | 5002 | Unified backend — AI job matching (paste a job description, get a fit score) **and** application/interview/note/status tracking with stats |
+| **JobDiscovery** | Python FastAPI | 5137 | Scrape LinkedIn/Indeed via JobSpy, delegate scoring to the API, auto-save matches |
+| **EmailSync** | .NET 10 Console | — | One-shot process: fetch Gmail, parse with Claude, push status updates to the API |
+| **Frontend** | React 19 + Vite | 3000 | Hebrew RTL SPA with Nginx reverse proxy |
 
 ## Features
 
@@ -65,7 +65,7 @@ Five loosely-coupled services communicate over HTTP, fronted by a single-page Re
 - [.NET 10 SDK](https://dotnet.microsoft.com/download) (for running .NET services locally)
 - [Python 3.12+](https://www.python.org/) (for running JobDiscovery locally)
 - [Node.js 20+](https://nodejs.org/) (for frontend development)
-- [MongoDB](https://www.mongodb.com/) instance (ApplicationTracker and JobDiscovery)
+- [MongoDB](https://www.mongodb.com/) instance
 - [Anthropic API key](https://console.anthropic.com/) (for AI features)
 
 ## Quick Start
@@ -84,11 +84,8 @@ Open [http://localhost:3000](http://localhost:3000) to access the frontend.
 ### Run Services Individually
 
 ```bash
-# Job Match Service
-dotnet run --project JobMatchService/src/Api
-
-# Application Tracker
-dotnet run --project ApplicationTracker/src/Api
+# API (match + tracking)
+dotnet run --project API/src/Api
 
 # Email Sync (one-shot)
 dotnet run --project EmailSync
@@ -114,58 +111,48 @@ dotnet build job-application-platform.sln
 
 | Variable | Used By | Description |
 |----------|---------|-------------|
-| `ANTHROPIC_API_KEY` / `Anthropic__ApiKey` | JobMatchService, EmailSync, JobDiscovery | Claude API key |
-| `MongoDB__ConnectionString` | ApplicationTracker | MongoDB connection string |
+| `ANTHROPIC_API_KEY` / `Anthropic__ApiKey` | API, EmailSync | Claude API key |
+| `MongoDB__ConnectionString` | API | MongoDB connection string |
+| `MongoDB__DatabaseName` | API | Application tracking DB (default `job-tracker`) |
+| `MongoDB__Database` | API | Profile/scoring DB (default `jobmatch`) |
 | `MONGODB_CONNECTION_STRING` | JobDiscovery | MongoDB connection string |
-| `ApplicationTracker__BaseUrl` | JobMatchService | Tracker URL for saving match results |
-| `APPLICATION_TRACKER_BASE_URL` | JobDiscovery | Tracker URL for saving discovered jobs |
-| `Tracker__BaseUrl` | EmailSync | Tracker URL for status updates |
-| `JOB_MATCH_SERVICE_URL` | Frontend (Nginx) | Upstream URL for job match proxy |
-| `APPLICATION_TRACKER_URL` | Frontend (Nginx) | Upstream URL for tracker proxy |
+| `APPLICATION_TRACKER_BASE_URL` | JobDiscovery | API URL for dedup + save |
+| `JOB_MATCH_SERVICE_URL` | JobDiscovery | API URL for AI scoring (same as `APPLICATION_TRACKER_BASE_URL`) |
+| `Tracker__BaseUrl` | EmailSync | API URL for status updates |
+| `APPLICATION_TRACKER_URL` | Frontend (Nginx) | Upstream URL for API proxy |
 | `JOB_DISCOVERY_URL` | Frontend (Nginx) | Upstream URL for discovery proxy |
 
 ## Project Structure
 
 ```
 job-application-platform/
-├── JobMatchService/              # AI job matching service
+├── API/                          # Unified backend (matching + tracking)
+│   ├── Data/
+│   │   └── professional-profile.md
 │   ├── Dockerfile
 │   └── src/
 │       ├── Api/                  # Entry point + endpoints
-│       ├── Core/                 # Domain models + interfaces
-│       └── Infrastructure/       # External integrations (Claude, HTTP)
-├── ApplicationTracker/           # Application tracking service
-│   ├── Dockerfile
-│   └── src/
-│       ├── Api/
-│       ├── Core/
-│       └── Infrastructure/       # MongoDB integration
-├── JobDiscovery/                 # Job discovery + scoring service
+│       ├── Core/                 # Domain models + interfaces (Matching, Profile, Models)
+│       └── Infrastructure/       # MongoDB repos, Claude client, profile provider
+├── JobDiscovery/                 # Scraping + orchestration (Python)
 │   ├── Dockerfile
 │   ├── requirements.txt
 │   └── app/
-│       ├── main.py               # FastAPI app + endpoints
-│       ├── config.py             # Settings (pydantic-settings)
-│       ├── models/               # Pydantic data models
-│       ├── services/             # Scraper, scorer, orchestrator
-│       └── prompts/              # Claude scoring prompt template
+│       ├── main.py
+│       ├── config.py
+│       ├── models/
+│       └── services/
 ├── EmailSync/                    # Gmail sync console app
 │   └── Dockerfile
 ├── frontend/                     # React SPA
 │   ├── Dockerfile
-│   ├── nginx.conf                # Reverse proxy config
+│   ├── nginx.conf
 │   ├── package.json
 │   ├── vite.config.js
 │   └── src/
-│       ├── App.jsx               # Shell layout + navigation
-│       ├── main.jsx              # Routes
-│       ├── components/           # Modal, ErrorBoundary, etc.
-│       ├── pages/                # Landing, Match, Discovery, Tracker
-│       ├── styles/               # CSS (global, landing, discovery, etc.)
-│       └── utils/                # API wrappers, formatters
 ├── docker-compose.yml
-├── job-application-platform.sln  # .NET solution file
-└── .github/workflows/            # CI/CD per service
+├── job-application-platform.sln
+└── .github/workflows/
 ```
 
 ## CI/CD
@@ -178,8 +165,7 @@ Each service has its own GitHub Actions workflow (`.github/workflows/`) with pat
 
 | Workflow | Trigger Path | Image |
 |----------|-------------|-------|
-| `job-match-service.yml` | `JobMatchService/**` | `ghcr.io/ozshpigel/job-match-service` |
-| `application-tracker.yml` | `ApplicationTracker/**` | `ghcr.io/ozshpigel/application-tracker` |
+| `application-tracker.yml` | `API/**` | `ghcr.io/ozshpigel/application-tracker` |
 | `job-discovery.yml` | `JobDiscovery/**` | `ghcr.io/ozshpigel/job-discovery` |
 | `email-sync.yml` | `EmailSync/**` | `ghcr.io/ozshpigel/email-sync` |
 | `frontend.yml` | `frontend/**` | `ghcr.io/ozshpigel/frontend` |
@@ -195,7 +181,6 @@ Each service has its own GitHub Actions workflow (`.github/workflows/`) with pat
 **Backend (Python)**
 - FastAPI + Uvicorn
 - python-jobspy (LinkedIn/Indeed scraping)
-- Anthropic Python SDK
 - Motor (async MongoDB driver)
 - pydantic-settings
 

@@ -1,9 +1,20 @@
 import logging
+from typing import Literal, NamedTuple
 
 from app.config import Settings
 from app.services.tracker_client import _request_with_retry
 
 logger = logging.getLogger(__name__)
+
+
+class MatchResult(NamedTuple):
+    # "ok": data is the rich MatchResponse dict.
+    # "too_short": description below the analyst floor — not worth burning
+    #              tokens on; treat as terminal INSUFFICIENT_DATA.
+    # "api_error": the API call itself failed (timeout / non-200 / all
+    #              retries exhausted). Retryable once the API is warm.
+    status: Literal["ok", "too_short", "api_error"]
+    data: dict | None
 
 
 async def score_job(
@@ -14,14 +25,16 @@ async def score_job(
     description: str | None,
     date_posted: str | None,
     site: str,
-) -> dict | None:
+) -> MatchResult:
     """Call the unified API to score a scraped job.
 
-    Returns the raw rich MatchResponse dict, or None on failure / insufficient data.
+    Returns a MatchResult so the orchestrator can tell the difference between
+    a job that's genuinely un-scorable (description too short) and one that
+    failed transiently (API cold-start / rate-limit / timeout).
     """
     if not description or len(description) < 50:
         logger.info("Skipping '%s' at '%s' — description too short for analysis", title, company)
-        return None
+        return MatchResult("too_short", None)
 
     payload = {
         "jobDescription": description,
@@ -36,7 +49,7 @@ async def score_job(
     # (Sonnet with extended thinking budget up to ~5k tokens). Timeouts here
     # almost always mean the single call is too slow — retrying wedges the
     # orchestrator for another full window, so we skip it and move on. The
-    # job gets written as INSUFFICIENT_DATA and the run continues.
+    # job gets written as MATCH_FAILED and the user can re-trigger later.
     resp = await _request_with_retry(
         "POST",
         f"{settings.api_base_url}/api/match",
@@ -47,11 +60,11 @@ async def score_job(
     )
     if resp is None:
         logger.error("API match call failed for '%s' at '%s' (all retries exhausted)", title, company)
-        return None
+        return MatchResult("api_error", None)
     if resp.status_code == 200:
-        return resp.json()
+        return MatchResult("ok", resp.json())
     logger.warning(
         "API match returned %d for '%s' at '%s': %s",
         resp.status_code, title, company, resp.text,
     )
-    return None
+    return MatchResult("api_error", None)

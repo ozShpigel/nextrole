@@ -42,5 +42,6 @@ export const VERDICT_HE = {
   NO: 'לא',
   STRONG_NO: 'בהחלט לא',
   INSUFFICIENT_DATA: 'אין מספיק נתונים',
+  MATCH_FAILED: 'דירוג נכשל',
   ERROR: 'שגיאה',
 };

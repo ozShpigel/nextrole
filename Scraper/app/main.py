@@ -10,7 +10,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from app.config import Settings
 from app.models.api_models import CreateCriteriaRequest, UpdateCriteriaRequest
 from app.models.search_criteria import SearchCriteria
-from app.services import orchestrator, tracker_client
+from app.services import match_client, orchestrator, tracker_client
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -182,6 +182,72 @@ async def abort_run(run_id: str):
 # ---------------------------------------------------------------------------
 # Discovered Jobs Actions
 # ---------------------------------------------------------------------------
+
+def _extract_flat(match_analysis: dict) -> tuple[int | None, str | None, bool | None]:
+    """Mirror of orchestrator._extract_flat — pull flat fields for persistence."""
+    score = match_analysis.get("overallScore")
+    verdict = match_analysis.get("verdict")
+    recommendation = match_analysis.get("recommendation") or {}
+    should_apply = recommendation.get("shouldApply")
+    return score, verdict, should_apply
+
+
+@app.post("/api/discovery/jobs/{job_id}/rescore")
+async def rescore_job(job_id: str):
+    """Re-run match scoring on a single MATCH_FAILED job.
+
+    Intended for the retry button on the run detail page — lets the user
+    recover from transient API failures (cold-start, rate-limit, timeout)
+    without re-scraping. Only acts on jobs that failed the match call;
+    INSUFFICIENT_DATA (description too short) and already-scored jobs are
+    rejected so this can't accidentally overwrite real analysis.
+    """
+    doc = await db.discovered_jobs.find_one({"id": job_id})
+    if not doc:
+        raise HTTPException(404, "Job not found")
+    # Accept INSUFFICIENT_DATA too — legacy rows from runs that failed before
+    # we split the two verdicts are tagged INSUFFICIENT_DATA even when the
+    # root cause was an API outage. If the description really is too short,
+    # score_job returns "too_short" cheaply and we re-tag it as-is.
+    if doc.get("verdict") not in ("MATCH_FAILED", "INSUFFICIENT_DATA"):
+        raise HTTPException(409, "Job is not in a rescorable state")
+    if doc.get("score") is not None:
+        raise HTTPException(409, "Job already has a score")
+
+    result = await match_client.score_job(
+        settings=settings,
+        title=doc["title"],
+        company=doc["company"],
+        location=doc.get("location"),
+        description=doc.get("description"),
+        date_posted=doc.get("date_posted"),
+        site=doc.get("site", "linkedin"),
+    )
+
+    if result.status == "too_short":
+        # Edge case — wouldn't normally hit this path since we already
+        # returned MATCH_FAILED above, but stay defensive.
+        await db.discovered_jobs.update_one(
+            {"id": job_id},
+            {"$set": {"verdict": "INSUFFICIENT_DATA"}},
+        )
+        return {"status": "insufficient_data"}
+
+    if result.status == "api_error":
+        raise HTTPException(503, "API still unreachable — try again in a moment")
+
+    score, verdict, should_apply = _extract_flat(result.data)
+    await db.discovered_jobs.update_one(
+        {"id": job_id},
+        {"$set": {
+            "score": score,
+            "verdict": verdict,
+            "should_apply": should_apply,
+            "match_analysis": result.data,
+        }},
+    )
+    return {"status": "ok", "score": score, "verdict": verdict}
+
 
 @app.post("/api/discovery/jobs/{job_id}/save")
 async def save_job(job_id: str):

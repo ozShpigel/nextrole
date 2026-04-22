@@ -79,7 +79,7 @@ async def run_discovery(db: AsyncIOMotorDatabase, settings: Settings, criteria_i
                     run.jobs_skipped_duplicate += 1
                     continue
 
-                match_response = await match_client.score_job(
+                match_result = await match_client.score_job(
                     settings=settings,
                     title=title,
                     company=company,
@@ -89,7 +89,11 @@ async def run_discovery(db: AsyncIOMotorDatabase, settings: Settings, criteria_i
                     site=job_data.get("site", "linkedin"),
                 )
 
-                if match_response is None:
+                # Two failure modes, two verdicts. INSUFFICIENT_DATA is terminal
+                # (description too thin for the analyst); MATCH_FAILED is the API
+                # itself dying (timeout / 429 / cold-start 502) and the user can
+                # rescore from the UI once the API is healthy.
+                if match_result.status != "ok":
                     disc_job = DiscoveredJob(
                         run_id=run.id,
                         criteria_id=criteria.id,
@@ -100,11 +104,12 @@ async def run_discovery(db: AsyncIOMotorDatabase, settings: Settings, criteria_i
                         job_url=job_data.get("job_url"),
                         date_posted=job_data.get("date_posted"),
                         site=job_data.get("site", "linkedin"),
-                        verdict="INSUFFICIENT_DATA",
+                        verdict="INSUFFICIENT_DATA" if match_result.status == "too_short" else "MATCH_FAILED",
                     )
                     await db.discovered_jobs.insert_one(disc_job.model_dump())
                     continue
 
+                match_response = match_result.data
                 score, verdict, should_apply = _extract_flat(match_response)
 
                 disc_job = DiscoveredJob(

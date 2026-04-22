@@ -8,6 +8,7 @@ function verdictColor(verdict) {
   if (verdict === 'STRONG_YES' || verdict === 'YES') return 'var(--green)';
   if (verdict === 'MAYBE') return 'var(--yellow)';
   if (verdict === 'NO' || verdict === 'STRONG_NO') return 'var(--red)';
+  if (verdict === 'MATCH_FAILED') return 'var(--red)';
   return 'var(--text-dim)';
 }
 
@@ -17,6 +18,8 @@ export default function RunDetail() {
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [rescoringIds, setRescoringIds] = useState(() => new Set());
+  const [bulkRescoring, setBulkRescoring] = useState(false);
   const pollRef = useRef(null);
 
   async function load() {
@@ -66,6 +69,44 @@ export default function RunDetail() {
     }
   }
 
+  async function rescoreJob(jobId) {
+    setRescoringIds((prev) => new Set(prev).add(jobId));
+    try {
+      await discoveryApi(`/jobs/${jobId}/rescore`, { method: 'POST' });
+      await load();
+    } catch (e) {
+      alert('דירוג מחדש נכשל: ' + e.message);
+    } finally {
+      setRescoringIds((prev) => {
+        const next = new Set(prev);
+        next.delete(jobId);
+        return next;
+      });
+    }
+  }
+
+  async function rescoreAllFailed() {
+    // Sequential, not parallel — the API is the bottleneck and the whole
+    // reason we're here is that it was struggling. Firing 12 requests at
+    // once would just re-trigger the rate-limit cascade.
+    const failed = visibleJobs.filter(isRescorable);
+    if (failed.length === 0) return;
+    if (!confirm(`לדרג מחדש ${failed.length} משרות שנכשלו?`)) return;
+    setBulkRescoring(true);
+    for (const j of failed) {
+      try {
+        await discoveryApi(`/jobs/${j.id}/rescore`, { method: 'POST' });
+      } catch (e) {
+        // On the first transport failure we assume the API is still down
+        // and stop — no sense pushing the whole list through.
+        alert(`דירוג מחדש נעצר: ${e.message}`);
+        break;
+      }
+    }
+    setBulkRescoring(false);
+    load();
+  }
+
   if (loading) return <div className="discovery-page"><p className="empty-state">טוען...</p></div>;
   if (error) return <div className="discovery-page"><div className="match-error">{error}</div></div>;
   if (!run) return null;
@@ -73,6 +114,16 @@ export default function RunDetail() {
   const statusMap = { pending: 'ממתין', scraping: 'סורק משרות...', scoring: 'מדרג עם AI...', completed: 'הושלם', failed: 'נכשל' };
   const isActive = run.status === 'pending' || run.status === 'scraping' || run.status === 'scoring';
   const visibleJobs = jobs.filter((j) => !j.dismissed && !j.is_duplicate);
+  // A job is rescorable if it has no score yet and either failed at the API
+  // (MATCH_FAILED) or was tagged INSUFFICIENT_DATA but has a substantive
+  // description (legacy pre-fix runs often mistagged API failures as
+  // INSUFFICIENT_DATA). The 50-char floor matches match_client's own guard.
+  const isRescorable = (j) =>
+    j.score == null && (
+      j.verdict === 'MATCH_FAILED' ||
+      (j.verdict === 'INSUFFICIENT_DATA' && (j.description?.length || 0) >= 50)
+    );
+  const failedCount = visibleJobs.filter(isRescorable).length;
 
   return (
     <div className="discovery-page">
@@ -91,6 +142,18 @@ export default function RunDetail() {
         </div>
         {isActive && <div className="match-loading">מעבד... הדף יתעדכן אוטומטית</div>}
         {run.error && <div className="match-error">{run.error}</div>}
+        {!isActive && failedCount > 0 && (
+          <div className="rescore-banner">
+            <span>{failedCount} משרות לא דורגו — ניתן לנסות שוב</span>
+            <button
+              className="btn btn-sm btn-primary"
+              onClick={rescoreAllFailed}
+              disabled={bulkRescoring}
+            >
+              {bulkRescoring ? 'מדרג מחדש...' : 'דרג הכל מחדש'}
+            </button>
+          </div>
+        )}
       </div>
 
       {visibleJobs.length === 0 && !isActive ? (
@@ -134,6 +197,15 @@ export default function RunDetail() {
 
               <div className="job-card__actions">
                 {j.job_url && <a href={j.job_url} target="_blank" rel="noopener noreferrer" className="btn btn-sm btn-secondary">צפה במשרה</a>}
+                {isRescorable(j) && (
+                  <button
+                    className="btn btn-sm btn-primary"
+                    onClick={() => rescoreJob(j.id)}
+                    disabled={rescoringIds.has(j.id) || bulkRescoring}
+                  >
+                    {rescoringIds.has(j.id) ? 'מדרג...' : 'דרג מחדש'}
+                  </button>
+                )}
                 {!j.saved_to_tracker && j.score != null && (
                   <button className="btn btn-sm btn-primary" onClick={() => saveJob(j.id)}>שמור למעקב</button>
                 )}

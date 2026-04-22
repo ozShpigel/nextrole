@@ -27,17 +27,37 @@ async def _request_with_retry(
     *,
     timeout: float,
     operation: str,
+    retry_on_timeout: bool = True,
     **request_kwargs,
 ) -> httpx.Response | None:
     """Send an HTTP request, retrying on transient failures (429/502/503/504 + transport errors).
 
     Returns the final Response (whether success or non-transient error), or None if
     all retries were exhausted by transport exceptions.
+
+    Set `retry_on_timeout=False` for long LLM-backed calls where a timeout almost
+    certainly means the downstream op is too slow — retrying just wedges the caller
+    for another full timeout window each attempt.
     """
     async with httpx.AsyncClient(timeout=timeout) as client:
         for attempt in range(_MAX_RETRIES + 1):
             try:
                 resp = await client.request(method, url, **request_kwargs)
+            except httpx.TimeoutException as e:
+                if not retry_on_timeout or attempt >= _MAX_RETRIES:
+                    logger.error(
+                        "Tracker %s (%s %s) timed out after %.0fs%s",
+                        operation, method, url, timeout,
+                        "" if retry_on_timeout else " (retry disabled for this op)",
+                    )
+                    return None
+                delay = min(2 ** attempt, 8)
+                logger.warning(
+                    "Tracker %s (%s %s) timed out: %s — retry %d/%d in %ds",
+                    operation, method, url, e, attempt + 1, _MAX_RETRIES, delay,
+                )
+                await asyncio.sleep(delay)
+                continue
             except httpx.RequestError as e:
                 if attempt >= _MAX_RETRIES:
                     logger.error(

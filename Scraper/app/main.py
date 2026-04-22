@@ -27,6 +27,26 @@ async def lifespan(app: FastAPI):
     db_client = AsyncIOMotorClient(settings.mongodb_connection_string)
     db = db_client[settings.mongodb_database_name]
     logger.info("Connected to database: %s", settings.mongodb_database_name)
+
+    # Discovery runs live in FastAPI BackgroundTasks — they die with the
+    # process. Render free-tier restarts (deploys, idle eviction, OOM) leave
+    # runs frozen in pending/scraping/scoring forever, which shows up in the
+    # UI as phantom "in-progress" rows. We're a single-instance service, so
+    # on startup any non-terminal run is guaranteed orphaned.
+    reconciled = await db.discovery_runs.update_many(
+        {"status": {"$in": ["pending", "scraping", "scoring"]}},
+        {"$set": {
+            "status": "failed",
+            "error": "Run orphaned — scraper restarted before completion",
+            "completed_at": datetime.now(timezone.utc),
+        }},
+    )
+    if reconciled.modified_count:
+        logger.warning(
+            "Reconciled %d orphaned discovery run(s) to failed on startup",
+            reconciled.modified_count,
+        )
+
     yield
     if db_client:
         db_client.close()

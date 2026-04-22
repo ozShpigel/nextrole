@@ -32,11 +32,17 @@ async def score_job(
         "site": site,
     }
 
+    # Budget covers a warm Render instance doing Analyst (Haiku) + Evaluator
+    # (Sonnet with extended thinking budget up to ~5k tokens). Timeouts here
+    # almost always mean the single call is too slow — retrying wedges the
+    # orchestrator for another full window, so we skip it and move on. The
+    # job gets written as INSUFFICIENT_DATA and the run continues.
     resp = await _request_with_retry(
         "POST",
         f"{settings.api_base_url}/api/match",
-        timeout=120.0,
+        timeout=300.0,
         operation="match",
+        retry_on_timeout=False,
         json=payload,
     )
     if resp is None:

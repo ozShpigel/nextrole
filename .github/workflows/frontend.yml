@@ -33,7 +33,6 @@ jobs:
           tags: ghcr.io/${{ env.OWNER }}/${{ env.IMAGE_NAME }}:latest
           build-args: |
             VITE_JOB_DISCOVERY_URL=${{ vars.VITE_JOB_DISCOVERY_URL }}
-            VITE_JOB_MATCH_SERVICE_URL=${{ vars.VITE_JOB_MATCH_SERVICE_URL }}
-            VITE_APPLICATION_TRACKER_URL=${{ vars.VITE_APPLICATION_TRACKER_URL }}
+            VITE_API_URL=${{ vars.VITE_API_URL }}
       - name: Deploy to Render
         run: curl -s "${{ secrets.RENDER_DEPLOY_HOOK_FRONTEND }}"

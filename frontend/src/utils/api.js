@@ -45,13 +45,12 @@ function extractRetryOptions(options = {}) {
 // pattern that avoids amplifying Render cold-start 502s through the nginx
 // reverse-proxy. Empty = fall back to the nginx-proxied path for local
 // `docker compose` where the browser can't resolve internal hostnames.
-const TRACKER_BASE    = (import.meta.env.VITE_APPLICATION_TRACKER_URL || '').replace(/\/$/, '');
-const MATCH_BASE      = (import.meta.env.VITE_JOB_MATCH_SERVICE_URL   || '').replace(/\/$/, '');
-const DISCOVERY_BASE  = (import.meta.env.VITE_JOB_DISCOVERY_URL       || '').replace(/\/$/, '');
+const API_BASE        = (import.meta.env.VITE_API_URL          || '').replace(/\/$/, '');
+const DISCOVERY_BASE  = (import.meta.env.VITE_JOB_DISCOVERY_URL || '').replace(/\/$/, '');
 
 export async function api(path, options = {}) {
   const { fetchOptions, headers, retries, onRetry, retryMinDelayMs, retryMaxDelayMs } = extractRetryOptions(options);
-  const url = TRACKER_BASE ? `${TRACKER_BASE}/api${path}` : `/api${path}`;
+  const url = API_BASE ? `${API_BASE}/api${path}` : `/api${path}`;
   const res = await fetchWithRetry(url, {
     headers: { 'Content-Type': 'application/json', ...headers },
     ...fetchOptions,
@@ -66,7 +65,7 @@ export async function api(path, options = {}) {
 
 export async function profileApi(path, options = {}) {
   const { fetchOptions, headers, retries, onRetry, retryMinDelayMs, retryMaxDelayMs } = extractRetryOptions(options);
-  const url = MATCH_BASE ? `${MATCH_BASE}/api/match${path}` : `/api/match${path}`;
+  const url = API_BASE ? `${API_BASE}/api/match${path}` : `/api/match${path}`;
   const res = await fetchWithRetry(url, {
     headers: { 'Content-Type': 'application/json', ...headers },
     ...fetchOptions,

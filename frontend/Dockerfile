@@ -8,11 +8,9 @@ COPY frontend/ .
 # the nginx reverse-proxy and the Cloudflare cold-start amplification that
 # comes with a two-hop wake-up path. Leave any empty to keep its nginx fallback.
 ARG VITE_JOB_DISCOVERY_URL=""
-ARG VITE_JOB_MATCH_SERVICE_URL=""
-ARG VITE_APPLICATION_TRACKER_URL=""
+ARG VITE_API_URL=""
 ENV VITE_JOB_DISCOVERY_URL=${VITE_JOB_DISCOVERY_URL}
-ENV VITE_JOB_MATCH_SERVICE_URL=${VITE_JOB_MATCH_SERVICE_URL}
-ENV VITE_APPLICATION_TRACKER_URL=${VITE_APPLICATION_TRACKER_URL}
+ENV VITE_API_URL=${VITE_API_URL}
 RUN npm run build
 
 FROM nginx:alpine

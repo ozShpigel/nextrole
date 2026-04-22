@@ -116,11 +116,12 @@ dotnet build job-application-platform.sln
 | `MongoDB__DatabaseName` | API | Application tracking DB (default `job-tracker`) |
 | `MongoDB__Database` | API | Profile/scoring DB (default `jobmatch`) |
 | `MONGODB_CONNECTION_STRING` | JobDiscovery | MongoDB connection string |
-| `APPLICATION_TRACKER_BASE_URL` | JobDiscovery | API URL for dedup + save |
-| `JOB_MATCH_SERVICE_URL` | JobDiscovery | API URL for AI scoring (same as `APPLICATION_TRACKER_BASE_URL`) |
+| `API_BASE_URL` | JobDiscovery | Unified API URL — used for AI scoring, dedup, and save |
 | `Tracker__BaseUrl` | EmailSync | API URL for status updates |
-| `APPLICATION_TRACKER_URL` | Frontend (Nginx) | Upstream URL for API proxy |
+| `API_URL` | Frontend (Nginx) | Upstream URL for API proxy |
 | `JOB_DISCOVERY_URL` | Frontend (Nginx) | Upstream URL for discovery proxy |
+| `VITE_API_URL` | Frontend (build arg) | Direct-call URL baked into the SPA — bypasses nginx when set |
+| `VITE_JOB_DISCOVERY_URL` | Frontend (build arg) | Same, for JobDiscovery |
 
 ## Project Structure
 

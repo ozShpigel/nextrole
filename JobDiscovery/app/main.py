@@ -61,10 +61,9 @@ async def health():
     return {"status": "ok", "service": "job-discovery"}
 
 
-# Temporary probe: hits JobMatchService + ApplicationTracker via Render's
-# private-network hostnames to verify that inter-service calls can skip
-# Cloudflare. Remove once JOB_MATCH_SERVICE_URL / APPLICATION_TRACKER_BASE_URL
-# have been switched to the internal URLs.
+# Temporary probe: hits the API via Render's private-network hostnames to
+# verify that inter-service calls can skip Cloudflare. Remove once
+# API_BASE_URL has been switched to the internal URL.
 @app.get("/api/discovery/debug/internal-probe")
 async def internal_probe():
     import httpx

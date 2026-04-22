@@ -45,11 +45,10 @@ The API follows a three-layer structure: `src/Api` (entry point + endpoints), `s
 - `MongoDB__Database` — job-match profile DB name (defaults to `jobmatch`)
 - `Tracker__BaseUrl` — API URL used by EmailSync
 - `MONGODB_CONNECTION_STRING` — MongoDB connection string (JobDiscovery)
-- `APPLICATION_TRACKER_BASE_URL` — API URL used by JobDiscovery (dedup + save)
-- `JOB_MATCH_SERVICE_URL` — API URL used by JobDiscovery for AI scoring. Now points at the same service as `APPLICATION_TRACKER_BASE_URL`; kept as a separate var for backward-compat with existing deploy configs.
-- `APPLICATION_TRACKER_URL`, `JOB_DISCOVERY_URL` — Nginx upstream URLs for frontend proxy
+- `API_BASE_URL` — Unified API URL used by JobDiscovery for both AI scoring (`/api/match`) and tracker writes (`/api/applications/exists`, `/api/applications`)
+- `API_URL`, `JOB_DISCOVERY_URL` — Nginx upstream URLs for frontend proxy
 - `CORS_ORIGINS` / `CorsOrigins` — Comma-separated allowed browser origins. Used by JobDiscovery (`CORS_ORIGINS`) and by the API (`CorsOrigins`). Defaults to `*`; set to the public frontend URL in production so the SPA can call each service directly.
-- `VITE_JOB_DISCOVERY_URL`, `VITE_JOB_MATCH_SERVICE_URL`, `VITE_APPLICATION_TRACKER_URL` — Build-time args (GitHub Actions repo variables of the same name). When set, the SPA calls that service directly from the browser instead of through the nginx reverse-proxy. `VITE_JOB_MATCH_SERVICE_URL` and `VITE_APPLICATION_TRACKER_URL` should point at the same unified API URL. Leave empty for local `docker compose` so the proxy fallback is used.
+- `VITE_JOB_DISCOVERY_URL`, `VITE_API_URL` — Build-time args (GitHub Actions repo variables of the same name). When set, the SPA calls the corresponding service directly from the browser instead of through the nginx reverse-proxy. Leave empty for local `docker compose` so the proxy fallback is used.
 
 ## CI/CD
 

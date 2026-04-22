@@ -58,10 +58,10 @@ async def _request_with_retry(
 
 
 async def check_duplicate(settings: Settings, company: str, job_title: str) -> bool:
-    """Check if an application already exists in ApplicationTracker."""
+    """Check if an application already exists in the tracker."""
     resp = await _request_with_retry(
         "GET",
-        f"{settings.application_tracker_base_url}/api/applications/exists",
+        f"{settings.api_base_url}/api/applications/exists",
         timeout=10.0,
         operation="dedup check",
         params={"company": company, "jobTitle": job_title},
@@ -89,7 +89,7 @@ async def save_to_tracker(
     verdict: str | None,
     analysis_json: str | None,
 ) -> bool:
-    """Save a discovered job to ApplicationTracker."""
+    """Save a discovered job to the tracker."""
     payload = {
         "jobTitle": title,
         "company": company,
@@ -103,7 +103,7 @@ async def save_to_tracker(
 
     resp = await _request_with_retry(
         "POST",
-        f"{settings.application_tracker_base_url}/api/applications",
+        f"{settings.api_base_url}/api/applications",
         timeout=15.0,
         operation="save",
         json=payload,

@@ -18,8 +18,7 @@ services:
       - "5137:8080"
     environment:
       - MONGODB_CONNECTION_STRING=${MONGODB_CONNECTION_STRING}
-      - APPLICATION_TRACKER_BASE_URL=http://api:8080
-      - JOB_MATCH_SERVICE_URL=http://api:8080
+      - API_BASE_URL=http://api:8080
 
   email-sync:
     build:

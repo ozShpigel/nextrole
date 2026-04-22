@@ -32,4 +32,4 @@ jobs:
           push: true
           tags: ghcr.io/${{ env.OWNER }}/${{ env.IMAGE_NAME }}:latest
       - name: Deploy to Render
-        run: curl -s "${{ secrets.RENDER_DEPLOY_HOOK_AT }}"
+        run: curl -s "${{ secrets.RENDER_DEPLOY_HOOK_API }}"

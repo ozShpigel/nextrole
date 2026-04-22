@@ -10,7 +10,7 @@ services:
       - MongoDB__ConnectionString=${MONGODB_CONNECTION_STRING}
       - MongoDB__Database=${JOBMATCH_MONGO_DB:-jobmatch}
 
-  job-discovery:
+  scraper:
     build:
       context: .
       dockerfile: JobDiscovery/Dockerfile

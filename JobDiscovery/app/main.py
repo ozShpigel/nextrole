@@ -33,7 +33,7 @@ async def lifespan(app: FastAPI):
         logger.info("MongoDB connection closed")
 
 
-app = FastAPI(title="Job Discovery Service", lifespan=lifespan)
+app = FastAPI(title="Scraper Service", lifespan=lifespan)
 
 # Enable CORS so the frontend can call this service directly from the browser
 # (mirrors the candy-babies pattern). Removing the nginx middleman eliminates
@@ -58,7 +58,7 @@ app.add_middleware(
 @app.get("/health")
 @app.get("/api/discovery/health")
 async def health():
-    return {"status": "ok", "service": "job-discovery"}
+    return {"status": "ok", "service": "scraper"}
 
 
 # Temporary probe: hits the API via Render's private-network hostnames to

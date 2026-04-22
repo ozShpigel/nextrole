@@ -15,7 +15,7 @@ Three loosely-coupled services communicate over HTTP, fronted by a single-page R
                               │         │
                               ▼         ▼
                    ┌────────────────┐ ┌────────────────┐
-                   │      API        │ │  JobDiscovery   │
+                   │      API        │ │    Scraper      │
                    │  ASP.NET Core 10│ │  Python FastAPI │
                    │  :5002          │ │  :5137          │
                    │  Match + Track  │ │  Scrape + Orch. │
@@ -47,7 +47,7 @@ Three loosely-coupled services communicate over HTTP, fronted by a single-page R
 | Service | Stack | Port | Purpose |
 |---------|-------|------|---------|
 | **API** | ASP.NET Core 10 | 5002 | Unified backend — AI job matching (paste a job description, get a fit score) **and** application/interview/note/status tracking with stats |
-| **JobDiscovery** | Python FastAPI | 5137 | Scrape LinkedIn/Indeed via JobSpy, delegate scoring to the API, auto-save matches |
+| **Scraper** | Python FastAPI | 5137 | Scrape LinkedIn/Indeed via JobSpy, delegate scoring to the API, auto-save matches |
 | **EmailSync** | .NET 10 Console | — | One-shot process: fetch Gmail, parse with Claude, push status updates to the API |
 | **Frontend** | React 19 + Vite | 3000 | Hebrew RTL SPA with Nginx reverse proxy |
 
@@ -63,7 +63,7 @@ Three loosely-coupled services communicate over HTTP, fronted by a single-page R
 
 - [Docker](https://www.docker.com/) (recommended)
 - [.NET 10 SDK](https://dotnet.microsoft.com/download) (for running .NET services locally)
-- [Python 3.12+](https://www.python.org/) (for running JobDiscovery locally)
+- [Python 3.12+](https://www.python.org/) (for running the Scraper locally)
 - [Node.js 20+](https://nodejs.org/) (for frontend development)
 - [MongoDB](https://www.mongodb.com/) instance
 - [Anthropic API key](https://console.anthropic.com/) (for AI features)
@@ -90,7 +90,7 @@ dotnet run --project API/src/Api
 # Email Sync (one-shot)
 dotnet run --project EmailSync
 
-# Job Discovery
+# Scraper
 cd JobDiscovery
 pip install -r requirements.txt
 uvicorn app.main:app --port 5137
@@ -115,13 +115,13 @@ dotnet build job-application-platform.sln
 | `MongoDB__ConnectionString` | API | MongoDB connection string |
 | `MongoDB__DatabaseName` | API | Application tracking DB (default `job-tracker`) |
 | `MongoDB__Database` | API | Profile/scoring DB (default `jobmatch`) |
-| `MONGODB_CONNECTION_STRING` | JobDiscovery | MongoDB connection string |
-| `API_BASE_URL` | JobDiscovery | Unified API URL — used for AI scoring, dedup, and save |
+| `MONGODB_CONNECTION_STRING` | Scraper | MongoDB connection string |
+| `API_BASE_URL` | Scraper | Unified API URL — used for AI scoring, dedup, and save |
 | `Tracker__BaseUrl` | EmailSync | API URL for status updates |
 | `API_URL` | Frontend (Nginx) | Upstream URL for API proxy |
-| `JOB_DISCOVERY_URL` | Frontend (Nginx) | Upstream URL for discovery proxy |
+| `SCRAPER_URL` | Frontend (Nginx) | Upstream URL for Scraper proxy |
 | `VITE_API_URL` | Frontend (build arg) | Direct-call URL baked into the SPA — bypasses nginx when set |
-| `VITE_JOB_DISCOVERY_URL` | Frontend (build arg) | Same, for JobDiscovery |
+| `VITE_SCRAPER_URL` | Frontend (build arg) | Same, for the Scraper |
 
 ## Project Structure
 
@@ -167,7 +167,7 @@ Each service has its own GitHub Actions workflow (`.github/workflows/`) with pat
 | Workflow | Trigger Path | Image |
 |----------|-------------|-------|
 | `api.yml` | `API/**` | `ghcr.io/ozshpigel/api` |
-| `job-discovery.yml` | `JobDiscovery/**` | `ghcr.io/ozshpigel/job-discovery` |
+| `scraper.yml` | `JobDiscovery/**` | `ghcr.io/ozshpigel/scraper` |
 | `email-sync.yml` | `EmailSync/**` | `ghcr.io/ozshpigel/email-sync` |
 | `frontend.yml` | `frontend/**` | `ghcr.io/ozshpigel/frontend` |
 

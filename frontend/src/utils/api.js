@@ -45,8 +45,8 @@ function extractRetryOptions(options = {}) {
 // pattern that avoids amplifying Render cold-start 502s through the nginx
 // reverse-proxy. Empty = fall back to the nginx-proxied path for local
 // `docker compose` where the browser can't resolve internal hostnames.
-const API_BASE        = (import.meta.env.VITE_API_URL          || '').replace(/\/$/, '');
-const DISCOVERY_BASE  = (import.meta.env.VITE_JOB_DISCOVERY_URL || '').replace(/\/$/, '');
+const API_BASE      = (import.meta.env.VITE_API_URL     || '').replace(/\/$/, '');
+const SCRAPER_BASE  = (import.meta.env.VITE_SCRAPER_URL || '').replace(/\/$/, '');
 
 export async function api(path, options = {}) {
   const { fetchOptions, headers, retries, onRetry, retryMinDelayMs, retryMaxDelayMs } = extractRetryOptions(options);
@@ -82,7 +82,7 @@ export async function profileApi(path, options = {}) {
 
 export async function discoveryApi(path, options = {}) {
   const { fetchOptions, headers, retries, onRetry, retryMinDelayMs, retryMaxDelayMs } = extractRetryOptions(options);
-  const url = DISCOVERY_BASE ? `${DISCOVERY_BASE}/api/discovery${path}` : `/api/discovery${path}`;
+  const url = SCRAPER_BASE ? `${SCRAPER_BASE}/api/discovery${path}` : `/api/discovery${path}`;
   const res = await fetchWithRetry(url, {
     headers: { 'Content-Type': 'application/json', ...headers },
     ...fetchOptions,

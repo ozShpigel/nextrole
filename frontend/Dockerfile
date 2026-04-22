@@ -7,9 +7,9 @@ COPY frontend/ .
 # service URL makes the browser call that service directly (CORS), bypassing
 # the nginx reverse-proxy and the Cloudflare cold-start amplification that
 # comes with a two-hop wake-up path. Leave any empty to keep its nginx fallback.
-ARG VITE_JOB_DISCOVERY_URL=""
+ARG VITE_SCRAPER_URL=""
 ARG VITE_API_URL=""
-ENV VITE_JOB_DISCOVERY_URL=${VITE_JOB_DISCOVERY_URL}
+ENV VITE_SCRAPER_URL=${VITE_SCRAPER_URL}
 ENV VITE_API_URL=${VITE_API_URL}
 RUN npm run build
 

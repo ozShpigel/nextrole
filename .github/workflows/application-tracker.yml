@@ -8,7 +8,7 @@ on:
       - '.github/workflows/application-tracker.yml'
 
 env:
-  IMAGE_NAME: application-tracker
+  IMAGE_NAME: job-match-service
 
 jobs:
   build-and-push:

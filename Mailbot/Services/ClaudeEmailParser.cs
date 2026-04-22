@@ -1,11 +1,11 @@
 using System.Text.Json;
 using Anthropic.SDK;
 using Anthropic.SDK.Messaging;
-using ApplicationTracker.EmailSync.Models;
+using Mailbot.Models;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
-namespace ApplicationTracker.EmailSync.Services;
+namespace Mailbot.Services;
 
 /// <summary>
 /// Uses Claude to parse job-related emails and extract structured updates.

@@ -1,9 +1,9 @@
 using System.Net;
 using System.Net.Http.Json;
-using ApplicationTracker.EmailSync.Models;
+using Mailbot.Models;
 using Microsoft.Extensions.Logging;
 
-namespace ApplicationTracker.EmailSync.Services;
+namespace Mailbot.Services;
 
 /// <summary>
 /// HTTP client for the ApplicationTracker API.

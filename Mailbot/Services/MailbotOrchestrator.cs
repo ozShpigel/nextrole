@@ -1,7 +1,7 @@
-using ApplicationTracker.EmailSync.Models;
+using Mailbot.Models;
 using Microsoft.Extensions.Logging;
 
-namespace ApplicationTracker.EmailSync.Services;
+namespace Mailbot.Services;
 
 /// <summary>
 /// Orchestrates the full email sync flow:
@@ -10,18 +10,18 @@ namespace ApplicationTracker.EmailSync.Services;
 /// 3. Parse relevant emails with Claude
 /// 4. Apply updates to Tracker
 /// </summary>
-public sealed class EmailSyncOrchestrator
+public sealed class MailbotOrchestrator
 {
     private readonly IGmailEmailService _gmail;
     private readonly IEmailParser _parser;
     private readonly ITrackerApiClient _tracker;
-    private readonly ILogger<EmailSyncOrchestrator> _logger;
+    private readonly ILogger<MailbotOrchestrator> _logger;
 
-    public EmailSyncOrchestrator(
+    public MailbotOrchestrator(
         IGmailEmailService gmail,
         IEmailParser parser,
         ITrackerApiClient tracker,
-        ILogger<EmailSyncOrchestrator> logger)
+        ILogger<MailbotOrchestrator> logger)
     {
         _gmail = gmail;
         _parser = parser;
@@ -31,7 +31,7 @@ public sealed class EmailSyncOrchestrator
 
     public async Task<SyncResult> RunSyncAsync(CancellationToken ct = default)
     {
-        _logger.LogInformation("=== Starting Email Sync ===");
+        _logger.LogInformation("=== Starting Mailbot sync ===");
 
         var result = new SyncResult();
 

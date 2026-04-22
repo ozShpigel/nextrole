@@ -1,4 +1,4 @@
-using ApplicationTracker.EmailSync.Services;
+using Mailbot.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -13,7 +13,7 @@ try
     var credentialsSecretPath = "/etc/secrets/credentials.json";
     var credentialsLocalPath = Path.Combine(exeDir, "credentials.json");
 
-    Console.WriteLine($"EmailSync starting. exeDir: {exeDir}");
+    Console.WriteLine($"Mailbot starting. exeDir: {exeDir}");
     Console.WriteLine($"Checking credentials secret path: {credentialsSecretPath}");
     Console.WriteLine($"Secret credentials.json exists: {File.Exists(credentialsSecretPath)}");
     Console.WriteLine($"Checking local credentials path: {credentialsLocalPath}");
@@ -32,7 +32,7 @@ try
     // Services
     builder.Services.AddSingleton<IGmailEmailService, GmailEmailService>();
     builder.Services.AddSingleton<IEmailParser, ClaudeEmailParser>();
-    builder.Services.AddSingleton<EmailSyncOrchestrator>();
+    builder.Services.AddSingleton<MailbotOrchestrator>();
 
     builder.Services.AddHttpClient<ITrackerApiClient, TrackerApiClient>(client =>
     {
@@ -49,7 +49,7 @@ try
     if (string.IsNullOrEmpty(anthropicKey))
     {
         logger.LogWarning(
-            "Anthropic API key is missing. Set environment variable Anthropic__ApiKey on Render (email-sync-cron). Claude parsing will fail.");
+            "Anthropic API key is missing. Set environment variable Anthropic__ApiKey on the Mailbot service on Render. Claude parsing will fail.");
     }
     else
     {
@@ -58,9 +58,9 @@ try
             anthropicKey.Length);
     }
 
-    var orchestrator = host.Services.GetRequiredService<EmailSyncOrchestrator>();
+    var orchestrator = host.Services.GetRequiredService<MailbotOrchestrator>();
 
-    logger.LogInformation("ApplicationTracker Email Sync Service started");
+    logger.LogInformation("Mailbot service started");
     logger.LogInformation("Current time: {Time}", DateTime.Now);
 
     // Run sync immediately on start
@@ -69,7 +69,7 @@ try
     logger.LogInformation("Sync Result: {Result}",
         System.Text.Json.JsonSerializer.Serialize(result));
 
-    logger.LogInformation("Email sync completed. Service will exit.");
+    logger.LogInformation("Mailbot sync completed. Service will exit.");
     logger.LogInformation("Schedule this to run daily using Windows Task Scheduler, cron, or systemd timer");
 
     // Exit after one run (will be scheduled externally)
@@ -77,7 +77,7 @@ try
 }
 catch (Exception ex)
 {
-    Console.Error.WriteLine("Fatal error in EmailSync worker:");
+    Console.Error.WriteLine("Fatal error in Mailbot worker:");
     Console.Error.WriteLine(ex.ToString());
     return 1;
 }

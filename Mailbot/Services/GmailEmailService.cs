@@ -1,4 +1,4 @@
-using ApplicationTracker.EmailSync.Models;
+using Mailbot.Models;
 using Google.Apis.Auth.OAuth2;
 using Google.Apis.Auth.OAuth2.Flows;
 using Google.Apis.Auth.OAuth2.Responses;
@@ -10,7 +10,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using System.Text.Json;
 
-namespace ApplicationTracker.EmailSync.Services;
+namespace Mailbot.Services;
 
 /// <summary>
 /// Fetches emails from Gmail API. Uses OAuth2 for authentication.
@@ -115,7 +115,7 @@ public sealed class GmailEmailService : IGmailEmailService
         _gmail = new GmailService(new BaseClientService.Initializer
         {
             HttpClientInitializer = credential,
-            ApplicationName = "ApplicationTracker.EmailSync"
+            ApplicationName = "Mailbot"
         });
 
         _query = config["Gmail:Query"];

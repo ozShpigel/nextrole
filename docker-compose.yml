@@ -20,10 +20,10 @@ services:
       - MONGODB_CONNECTION_STRING=${MONGODB_CONNECTION_STRING}
       - API_BASE_URL=http://api:8080
 
-  email-sync:
+  mailbot:
     build:
       context: .
-      dockerfile: EmailSync/Dockerfile
+      dockerfile: Mailbot/Dockerfile
     environment:
       - Tracker__BaseUrl=http://api:8080
       - Anthropic__ApiKey=${ANTHROPIC_API_KEY}

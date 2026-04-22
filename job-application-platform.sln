@@ -19,9 +19,9 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Infrastructure", "Infrastru
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ApplicationTracker.Infrastructure", "API\src\Infrastructure\ApplicationTracker.Infrastructure.csproj", "{389958D3-5FEE-4051-9925-26953B4F5D72}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "EmailSync", "EmailSync", "{7A4E244E-49DD-CBCA-F1BE-F965FBA7A743}"
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Mailbot", "Mailbot", "{7A4E244E-49DD-CBCA-F1BE-F965FBA7A743}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ApplicationTracker.EmailSync", "EmailSync\ApplicationTracker.EmailSync.csproj", "{0D0DD859-BA26-4A1E-9F5D-4F794BCB74EC}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Mailbot", "Mailbot\Mailbot.csproj", "{0D0DD859-BA26-4A1E-9F5D-4F794BCB74EC}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

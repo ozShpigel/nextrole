@@ -12,7 +12,7 @@ docker compose up --build
 
 # Individual .NET services
 dotnet run --project API/src/Api
-dotnet run --project EmailSync
+dotnet run --project Mailbot
 
 # Scraper (Python)
 cd JobDiscovery && pip install -r requirements.txt && uvicorn app.main:app --port 5137
@@ -31,7 +31,7 @@ There are no test projects in this repo currently.
 Monorepo with 3 loosely-coupled services communicating over HTTP:
 
 - **API** (ASP.NET Core 10, port 5002) — Unified backend. Owns CRUD for applications/interviews/notes/status/stats AND AI-powered job matching. All Claude/Anthropic calls live here. The professional profile and scoring config are stored in a separate Mongo database (`jobmatch` by default — see `MongoDB:Database`) from the application tracking data (`job-tracker` by default — see `MongoDB:DatabaseName`). Endpoints include: `POST /api/match` (scores a job description; accepts optional pre-parsed title/company/etc. to skip the parse step), `GET|PUT /api/match/profile` (profile + scoring_config + prompt overrides CRUD), `POST /api/applications`, `GET /api/applications`, `GET /api/applications/exists`, status/interview/note/stats/timeline endpoints, and `GET /health`. Prompt seeds live in `API/src/Infrastructure/AI/PromptSeeds.cs`; the professional profile seed lives in `API/Data/professional-profile.md`.
-- **EmailSync** (.NET 10 console app, no port) — One-shot process: fetches Gmail emails (labeled `JobApplications`, last 24h), parses them with Claude, and pushes status updates to the API. Run externally via cron/scheduler. Self-contained namespace (`ApplicationTracker.EmailSync.*`) — no project reference to the API.
+- **Mailbot** (.NET 10 console app, no port, folder `Mailbot/`) — One-shot process: fetches Gmail emails (labeled `JobApplications`, last 24h), parses them with Claude, and pushes status updates to the API. Run externally via cron/scheduler. Self-contained namespace (`Mailbot.*`) — no project reference to the API.
 - **Scraper** (Python FastAPI, port 5137, folder `JobDiscovery/`) — Automated job discovery and orchestration only. Scrapes LinkedIn/Indeed using JobSpy, delegates AI scoring to the API (`POST /api/match`), stores search criteria + discovered jobs in MongoDB, dedupes against and auto-saves qualifying matches to the API. **No Claude SDK, no prompts, no profile here.**
 - **Frontend** (React 19 + Vite, port 3000) — Hebrew RTL SPA. Nginx reverse-proxies `/api/match`, `/api/applications|stats|interviews|notes` to the API, and `/api/discovery` to the Scraper. In production the SPA can call each service directly via `VITE_*` env vars, bypassing nginx entirely (see the build-time args below).
 
@@ -39,11 +39,11 @@ The API follows a three-layer structure: `src/Api` (entry point + endpoints), `s
 
 ## Key Environment Variables
 
-- `ANTHROPIC_API_KEY` / `Anthropic__ApiKey` — Claude API key (used by API and EmailSync)
+- `ANTHROPIC_API_KEY` / `Anthropic__ApiKey` — Claude API key (used by API and Mailbot)
 - `MongoDB__ConnectionString` — MongoDB connection string (API — one connection, two databases)
 - `MongoDB__DatabaseName` — application tracking DB name (defaults to `job-tracker`)
 - `MongoDB__Database` — job-match profile DB name (defaults to `jobmatch`)
-- `Tracker__BaseUrl` — API URL used by EmailSync
+- `Tracker__BaseUrl` — API URL used by Mailbot
 - `MONGODB_CONNECTION_STRING` — MongoDB connection string (Scraper)
 - `API_BASE_URL` — Unified API URL used by the Scraper for both AI scoring (`/api/match`) and tracker writes (`/api/applications/exists`, `/api/applications`)
 - `API_URL`, `SCRAPER_URL` — Nginx upstream URLs for frontend proxy
@@ -59,7 +59,7 @@ Each service has a separate GitHub Actions workflow (`.github/workflows/`) with 
 - Scraper → API: delegates AI job scoring via `POST /api/match`, dedup checks via `GET /api/applications/exists`, saves qualifying discovered jobs via `POST /api/applications`
 - Scraper → LinkedIn/Indeed: scrapes jobs via JobSpy
 - API → Claude API: parses + evaluates jobs
-- EmailSync → API: reads active applications and posts status updates via HTTP
-- EmailSync → Gmail: reads emails via Google Gmail API
-- EmailSync → Claude API: parses emails into status updates
+- Mailbot → API: reads active applications and posts status updates via HTTP
+- Mailbot → Gmail: reads emails via Google Gmail API
+- Mailbot → Claude API: parses emails into status updates
 - Frontend (Nginx) → API, Scraper: reverse proxy

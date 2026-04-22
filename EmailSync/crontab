@@ -1,1 +1,0 @@
-0 2 * * * cd /app && dotnet ApplicationTracker.EmailSync.dll >> /var/log/emailsync.log 2>&1

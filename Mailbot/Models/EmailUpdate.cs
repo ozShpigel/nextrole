@@ -1,4 +1,4 @@
-namespace ApplicationTracker.EmailSync.Models;
+namespace Mailbot.Models;
 
 public sealed record EmailUpdate
 {

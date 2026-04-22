@@ -1,15 +1,15 @@
-name: Email Sync
+name: Mailbot
 
 on:
   push:
     branches: [main]
     paths:
-      - 'EmailSync/**'
-      - '.github/workflows/email-sync.yml'
+      - 'Mailbot/**'
+      - '.github/workflows/mailbot.yml'
   workflow_dispatch:
 
 env:
-  IMAGE_NAME: email-sync
+  IMAGE_NAME: mailbot
 
 jobs:
   build-and-push:
@@ -29,8 +29,8 @@ jobs:
       - uses: docker/build-push-action@v6
         with:
           context: .
-          file: EmailSync/Dockerfile
+          file: Mailbot/Dockerfile
           push: true
           tags: ghcr.io/${{ env.OWNER }}/${{ env.IMAGE_NAME }}:latest
-      - name: Deploy to Render
-        run: curl -s "${{ secrets.RENDER_DEPLOY_HOOK_ES }}"
+      # No Render deploy hook: Render Cron Jobs pull the latest image on their
+      # next scheduled run, so pushing to ghcr.io is enough to ship a new build.

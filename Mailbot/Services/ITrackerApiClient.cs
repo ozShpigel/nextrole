@@ -1,6 +1,6 @@
-using ApplicationTracker.EmailSync.Models;
+using Mailbot.Models;
 
-namespace ApplicationTracker.EmailSync.Services;
+namespace Mailbot.Services;
 
 public interface ITrackerApiClient
 {

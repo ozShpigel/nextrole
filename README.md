@@ -30,7 +30,7 @@ Three loosely-coupled services communicate over HTTP, fronted by a single-page R
                  └──────┬──────┘                    │
                         │                            │
                  ┌──────┴──────┐                    │
-                 │  EmailSync   │                    │
+                 │   Mailbot    │                    │
                  │  .NET Console│                    │
                  │  (cron)      │                    │
                  └──────┬──────┘                    │
@@ -48,7 +48,7 @@ Three loosely-coupled services communicate over HTTP, fronted by a single-page R
 |---------|-------|------|---------|
 | **API** | ASP.NET Core 10 | 5002 | Unified backend — AI job matching (paste a job description, get a fit score) **and** application/interview/note/status tracking with stats |
 | **Scraper** | Python FastAPI | 5137 | Scrape LinkedIn/Indeed via JobSpy, delegate scoring to the API, auto-save matches |
-| **EmailSync** | .NET 10 Console | — | One-shot process: fetch Gmail, parse with Claude, push status updates to the API |
+| **Mailbot** | .NET 10 Console | — | One-shot process: fetch Gmail, parse with Claude, push status updates to the API |
 | **Frontend** | React 19 + Vite | 3000 | Hebrew RTL SPA with Nginx reverse proxy |
 
 ## Features
@@ -56,7 +56,7 @@ Three loosely-coupled services communicate over HTTP, fronted by a single-page R
 - **AI Job Matching** — Paste any job description and get a detailed compatibility score with strengths, concerns, and an honest assessment powered by Claude
 - **Automated Job Discovery** — Define search criteria (titles, locations, values, preferences) and let the system scrape LinkedIn/Indeed, score results with AI, and auto-save qualifying matches
 - **Application Tracking** — Full lifecycle tracking: applications, interviews, notes, status updates, and dashboard statistics
-- **Email Sync** — Automatically detect application status changes from Gmail and update the tracker
+- **Mailbot** — Automatically detect application status changes from Gmail and update the tracker
 - **Unified Dashboard** — Hebrew RTL interface with a warm dark theme, accessible navigation, and responsive design
 
 ## Prerequisites
@@ -87,8 +87,8 @@ Open [http://localhost:3000](http://localhost:3000) to access the frontend.
 # API (match + tracking)
 dotnet run --project API/src/Api
 
-# Email Sync (one-shot)
-dotnet run --project EmailSync
+# Mailbot (one-shot)
+dotnet run --project Mailbot
 
 # Scraper
 cd JobDiscovery
@@ -111,13 +111,13 @@ dotnet build job-application-platform.sln
 
 | Variable | Used By | Description |
 |----------|---------|-------------|
-| `ANTHROPIC_API_KEY` / `Anthropic__ApiKey` | API, EmailSync | Claude API key |
+| `ANTHROPIC_API_KEY` / `Anthropic__ApiKey` | API, Mailbot | Claude API key |
 | `MongoDB__ConnectionString` | API | MongoDB connection string |
 | `MongoDB__DatabaseName` | API | Application tracking DB (default `job-tracker`) |
 | `MongoDB__Database` | API | Profile/scoring DB (default `jobmatch`) |
 | `MONGODB_CONNECTION_STRING` | Scraper | MongoDB connection string |
 | `API_BASE_URL` | Scraper | Unified API URL — used for AI scoring, dedup, and save |
-| `Tracker__BaseUrl` | EmailSync | API URL for status updates |
+| `Tracker__BaseUrl` | Mailbot | API URL for status updates |
 | `API_URL` | Frontend (Nginx) | Upstream URL for API proxy |
 | `SCRAPER_URL` | Frontend (Nginx) | Upstream URL for Scraper proxy |
 | `VITE_API_URL` | Frontend (build arg) | Direct-call URL baked into the SPA — bypasses nginx when set |
@@ -143,7 +143,7 @@ job-application-platform/
 │       ├── config.py
 │       ├── models/
 │       └── services/
-├── EmailSync/                    # Gmail sync console app
+├── Mailbot/                      # Gmail sync console app
 │   └── Dockerfile
 ├── frontend/                     # React SPA
 │   ├── Dockerfile
@@ -168,7 +168,7 @@ Each service has its own GitHub Actions workflow (`.github/workflows/`) with pat
 |----------|-------------|-------|
 | `api.yml` | `API/**` | `ghcr.io/ozshpigel/api` |
 | `scraper.yml` | `JobDiscovery/**` | `ghcr.io/ozshpigel/scraper` |
-| `email-sync.yml` | `EmailSync/**` | `ghcr.io/ozshpigel/email-sync` |
+| `mailbot.yml` | `Mailbot/**` | `ghcr.io/ozshpigel/mailbot` |
 | `frontend.yml` | `frontend/**` | `ghcr.io/ozshpigel/frontend` |
 
 ## Tech Stack

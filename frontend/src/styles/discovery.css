@@ -369,22 +369,6 @@
   font-weight: 500;
 }
 
-.criteria-values {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.3rem;
-  margin-bottom: 0.85rem;
-}
-.value-tag {
-  padding: 0.15rem 0.55rem;
-  background: var(--teal-bg);
-  color: var(--teal);
-  border: 1px solid rgba(61, 155, 133, 0.1);
-  border-radius: 4px;
-  font-size: 0.72rem;
-  font-weight: 500;
-}
-
 .btn-run {
   width: 100%;
   margin-top: auto;

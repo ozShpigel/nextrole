@@ -272,12 +272,6 @@ export default function DiscoveryPage() {
                   </span>
                 </div>
 
-                {c.values.length > 0 && (
-                  <div className="criteria-values">
-                    {c.values.map((v, i) => <span key={i} className="value-tag">{v}</span>)}
-                  </div>
-                )}
-
                 <button className="btn btn-primary btn-run" onClick={() => triggerRun(c.id)}>
                   הפעל חיפוש ←
                 </button>

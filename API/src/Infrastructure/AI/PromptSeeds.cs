@@ -81,6 +81,28 @@ weighing cultural fit equally with technical fit.
 
 ---
 
+# OUTPUT LANGUAGE — HEBREW (עברית) ONLY
+
+**כל ערכי המחרוזות בפלט חייבים להיות בעברית.** This is non-negotiable and
+overrides every other instruction. Every single free-text string you output
+MUST be written in Hebrew:
+
+- Every item in `strengths`, `gaps`, `positiveSignals`, `concerns`,
+  `opportunities`, `risks`, `keyReasons`, `questionsToAsk`, `redFlags`,
+  `greenFlags` — all in Hebrew.
+- The entire `honestAssessment` paragraph — in Hebrew.
+- Technology names and proper nouns (C#, .NET, Kubernetes, AWS, React, etc.)
+  stay in their original Latin script — they are names, not translatable words.
+- ONLY these remain in English: JSON keys (`overallScore`, `breakdown`, etc.)
+  and verdict enum values (`STRONG_YES`, `YES`, `MAYBE`, `NO`, `STRONG_NO`,
+  `INSUFFICIENT_DATA`).
+
+If you output any free-text string in English, the response is invalid and will
+be rejected. Write every strength, every gap, every reason, every assessment
+sentence in Hebrew.
+
+---
+
 # INPUTS
 
 ## Candidate Profile (XML)
@@ -119,23 +141,40 @@ Cross-reference by dimension:
 
 ---
 
-# OUTPUT
+# OUTPUT — HEBREW FREE-TEXT, ENGLISH KEYS
 
-Return this exact JSON schema, nothing else (no markdown fences, no commentary):
+Return this exact JSON schema, nothing else (no markdown fences, no commentary).
+**Remember: every string value below must be written in Hebrew.** Examples of
+correct Hebrew style are shown inline:
 
 {
   "overallScore": number,
   "verdict": "STRONG_YES" | "YES" | "MAYBE" | "NO" | "STRONG_NO" | "INSUFFICIENT_DATA",
   "breakdown": {
-    "technical": { "score": number, "maxScore": 35, "strengths": [...], "gaps": [...] },
-    "cultural": { "score": number, "maxScore": 35, "positiveSignals": [...], "concerns": [...] },
-    "roleCharacteristics": { "score": number, "maxScore": 30, "opportunities": [...], "risks": [...] }
+    "technical": {
+      "score": number, "maxScore": 35,
+      "strengths": ["התאמה מושלמת לסטאק: 10+ שנות ניסיון ב-C#/.NET מול 2+ הנדרשות", ...],
+      "gaps": ["אין ניסיון ב-C++ Windows שמצוין כיתרון", ...]
+    },
+    "cultural": {
+      "score": number, "maxScore": 35,
+      "positiveSignals": ["תיאור התפקיד מדגיש בעלות מקצה לקצה", ...],
+      "concerns": ["שפה כללית על 'עבודה בקצב מהיר' ללא הקשר", ...]
+    },
+    "roleCharacteristics": {
+      "score": number, "maxScore": 30,
+      "opportunities": ["חשיפה לעיצוב מערכות בקנה מידה גדול", ...],
+      "risks": ["תיאור תחום הבעיה מעורפל ולא ברור", ...]
+    }
   },
   "recommendation": {
     "shouldApply": boolean,
-    "keyReasons": [...], "questionsToAsk": [...], "redFlags": [...], "greenFlags": [...]
+    "keyReasons": ["התאמה טכנית מצוינת לליבת הסטאק", ...],
+    "questionsToAsk": ["איך נראה יום טיפוסי בצוות?", ...],
+    "redFlags": ["חוסר מידע על תחום הבעיה", ...],
+    "greenFlags": ["ניסיון CI/CD מצוין", ...]
   },
-  "honestAssessment": "2-3 paragraphs: (1) growth vs lateral, what's changing; (2) biggest risk + biggest upside; (3) does this play to strengths and values"
+  "honestAssessment": "2-3 פסקאות בעברית: (1) האם זה צמיחה או מהלך לרוחב, מה משתנה; (2) הסיכון הגדול ביותר והפוטנציאל הגדול ביותר; (3) האם התפקיד מנצל את החוזקות והערכים של המועמד"
 }
 
 ---
@@ -144,9 +183,12 @@ Return this exact JSON schema, nothing else (no markdown fences, no commentary):
 
 - overallScore MUST equal the sum of the three breakdown.score values
 - verdict MUST match overallScore's band
-- All string values in Hebrew; JSON keys in English
-- Be specific: "3-6 month Python ramp-up" not "some learning needed"
-- Flag contradictions (e.g. "fast-paced but sustainable" → unclear)
-- Generate 3-5 interview questions targeting unknowns in the job description
+- **Every free-text string MUST be in Hebrew — no exceptions.** If you find
+  yourself writing an English sentence in `strengths`, `gaps`, `concerns`,
+  `keyReasons`, `questionsToAsk`, `honestAssessment`, etc., stop and rewrite
+  it in Hebrew before continuing.
+- Be specific: "3-6 חודשי למידה ב-Python" not "נדרשת למידה כלשהי"
+- Flag contradictions (e.g. "קצב מהיר אך בר-קיימא" → לא ברור)
+- Generate 3-5 interview questions (in Hebrew) targeting unknowns in the job description
 """;
 }

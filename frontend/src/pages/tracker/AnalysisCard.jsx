@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { barColor } from '../../utils/format';
+import { VERDICT_HE } from '../../utils/constants';
 
 function AnalysisScoreBar({ label, score, maxScore }) {
   if (score == null || maxScore == null) return null;
@@ -57,7 +58,7 @@ export default function AnalysisCard({ matchAnalysisJson }) {
         <div style={{ marginTop: '1rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
             <div>
-              <div className={`analysis-verdict ${verdictClass}`}>{(a.verdict || 'INSUFFICIENT DATA').replace(/_/g, ' ')}</div>
+              <div className={`analysis-verdict ${verdictClass}`}>{VERDICT_HE[a.verdict] || VERDICT_HE.INSUFFICIENT_DATA}</div>
               <div className="analysis-overall-score">ציון כללי: {a.overallScore ?? 'N/A'} / 100</div>
             </div>
           </div>

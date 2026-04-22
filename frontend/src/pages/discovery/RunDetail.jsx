@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { discoveryApi } from '../../utils/api';
+import { VERDICT_HE } from '../../utils/constants';
 import '../../styles/discovery.css';
 
 function verdictColor(verdict) {
@@ -8,19 +9,6 @@ function verdictColor(verdict) {
   if (verdict === 'MAYBE') return 'var(--yellow)';
   if (verdict === 'NO' || verdict === 'STRONG_NO') return 'var(--red)';
   return 'var(--text-dim)';
-}
-
-function verdictHe(verdict) {
-  const map = {
-    STRONG_YES: 'בהחלט כן',
-    YES: 'כן',
-    MAYBE: 'אולי',
-    NO: 'לא',
-    STRONG_NO: 'בהחלט לא',
-    INSUFFICIENT_DATA: 'אין מספיק מידע',
-    ERROR: 'שגיאה',
-  };
-  return map[verdict] || verdict || '-';
 }
 
 export default function RunDetail() {
@@ -121,10 +109,10 @@ export default function RunDetail() {
                   {j.score != null ? (
                     <>
                       <div className="job-card__score" style={{ color: verdictColor(j.verdict) }}>{j.score}</div>
-                      <div className="job-card__verdict" style={{ color: verdictColor(j.verdict) }}>{verdictHe(j.verdict)}</div>
+                      <div className="job-card__verdict" style={{ color: verdictColor(j.verdict) }}>{VERDICT_HE[j.verdict] || j.verdict || '-'}</div>
                     </>
                   ) : (
-                    <div className="job-card__verdict" style={{ color: 'var(--text-dim)' }}>{verdictHe(j.verdict)}</div>
+                    <div className="job-card__verdict" style={{ color: 'var(--text-dim)' }}>{VERDICT_HE[j.verdict] || j.verdict || '-'}</div>
                   )}
                 </div>
               </div>

@@ -64,11 +64,20 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 // OpenAPI
 builder.Services.AddOpenApi();
 
-// CORS for development
+// CORS — configurable origins via CorsOrigins (comma-separated). "*" opens
+// it up for dev; in prod this should be the public frontend URL so the SPA
+// can call the tracker directly from the browser.
+var corsOrigins = (builder.Configuration["CorsOrigins"] ?? "*")
+    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
-        policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
+    {
+        if (corsOrigins.Length == 1 && corsOrigins[0] == "*")
+            policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader();
+        else
+            policy.WithOrigins(corsOrigins).AllowAnyMethod().AllowAnyHeader();
+    });
 });
 
 var app = builder.Build();

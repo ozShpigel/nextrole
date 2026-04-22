@@ -3,12 +3,16 @@ WORKDIR /app
 COPY frontend/package.json frontend/package-lock.json* ./
 RUN npm install
 COPY frontend/ .
-# Vite inlines VITE_* env vars at build time. Setting this to the public
-# JobDiscovery URL makes the browser call the service directly (CORS),
-# bypassing the nginx reverse-proxy and the Cloudflare cold-start amplification
-# that comes with a two-hop wake-up path. Leave empty to keep the nginx fallback.
+# Vite inlines VITE_* env vars at build time. Setting any of these to a public
+# service URL makes the browser call that service directly (CORS), bypassing
+# the nginx reverse-proxy and the Cloudflare cold-start amplification that
+# comes with a two-hop wake-up path. Leave any empty to keep its nginx fallback.
 ARG VITE_JOB_DISCOVERY_URL=""
+ARG VITE_JOB_MATCH_SERVICE_URL=""
+ARG VITE_APPLICATION_TRACKER_URL=""
 ENV VITE_JOB_DISCOVERY_URL=${VITE_JOB_DISCOVERY_URL}
+ENV VITE_JOB_MATCH_SERVICE_URL=${VITE_JOB_MATCH_SERVICE_URL}
+ENV VITE_APPLICATION_TRACKER_URL=${VITE_APPLICATION_TRACKER_URL}
 RUN npm run build
 
 FROM nginx:alpine

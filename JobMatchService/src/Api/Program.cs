@@ -28,6 +28,23 @@ builder.Services.AddScoped<IJobMatchService, JobMatchService.Core.Services.JobMa
 
 builder.Services.AddOpenApi();
 
+// CORS so the SPA can call this service directly from the browser, bypassing
+// the nginx reverse-proxy that was amplifying Render cold-start 502s into
+// Cloudflare 429s. Origins come from CorsOrigins (comma-separated); default
+// "*" is fine for dev.
+var corsOrigins = (builder.Configuration["CorsOrigins"] ?? "*")
+    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+builder.Services.AddCors(options =>
+{
+    options.AddDefaultPolicy(policy =>
+    {
+        if (corsOrigins.Length == 1 && corsOrigins[0] == "*")
+            policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader();
+        else
+            policy.WithOrigins(corsOrigins).AllowAnyMethod().AllowAnyHeader();
+    });
+});
+
 var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
@@ -37,6 +54,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.UseCors();
 
 app.MapGet("/health", () => Results.Ok(new { status = "healthy", service = "job-match" }))
     .WithName("Health")

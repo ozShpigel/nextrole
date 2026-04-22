@@ -49,8 +49,8 @@ Each .NET service follows a three-layer structure: `src/Api` (entry point + endp
 - `APPLICATION_TRACKER_BASE_URL` — Tracker URL used by JobDiscovery
 - `JOB_MATCH_SERVICE_URL` — JobMatchService URL used by JobDiscovery for AI scoring
 - `JOB_MATCH_SERVICE_URL`, `APPLICATION_TRACKER_URL`, `JOB_DISCOVERY_URL` — Nginx upstream URLs for frontend proxy
-- `CORS_ORIGINS` — Comma-separated allowed browser origins for JobDiscovery (defaults to `*`). Set to the public frontend URL in production so the SPA can call `/api/discovery/*` directly.
-- `VITE_JOB_DISCOVERY_URL` — Build-time arg (GitHub Actions repo variable of the same name); when set, the SPA calls JobDiscovery directly from the browser instead of going through the nginx reverse-proxy. Leave empty for local `docker compose` so the proxy fallback is used.
+- `CORS_ORIGINS` / `CorsOrigins` — Comma-separated allowed browser origins. Used by JobDiscovery (`CORS_ORIGINS`) and by JobMatchService + ApplicationTracker (`CorsOrigins`). Defaults to `*`; set to the public frontend URL in production so the SPA can call each service directly.
+- `VITE_JOB_DISCOVERY_URL`, `VITE_JOB_MATCH_SERVICE_URL`, `VITE_APPLICATION_TRACKER_URL` — Build-time args (GitHub Actions repo variables of the same name). When set, the SPA calls that service directly from the browser instead of through the nginx reverse-proxy. Leave empty for local `docker compose` so the proxy fallback is used.
 
 ## CI/CD
 

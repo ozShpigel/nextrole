@@ -9,14 +9,37 @@ const MODEL_OPTIONS = [
   'claude-haiku-4-5-20251001',
 ];
 
-const DEFAULT_CONFIG = {
+const DEFAULT_ROLE_CONFIG = {
   model: 'claude-sonnet-4-6',
   temperature: 0.5,
   max_tokens: 4096,
   thinking_enabled: false,
   thinking_budget: 2048,
+};
+
+const DEFAULT_CONFIG = {
+  analyst: {
+    ...DEFAULT_ROLE_CONFIG,
+    model: 'claude-haiku-4-5-20251001',
+    temperature: 0.3,
+    max_tokens: 2048,
+  },
+  evaluator: { ...DEFAULT_ROLE_CONFIG },
   min_score_to_save: 70,
 };
+
+function mergeScoringConfig(incoming) {
+  const sc = incoming || {};
+  // Legacy flat shape → map flat keys onto the Evaluator role (that was the
+  // only call that actually honored them). Analyst falls back to defaults.
+  const hasNested = sc.analyst || sc.evaluator;
+  const evaluatorSource = hasNested ? (sc.evaluator || {}) : sc;
+  return {
+    analyst: { ...DEFAULT_CONFIG.analyst, ...(sc.analyst || {}) },
+    evaluator: { ...DEFAULT_CONFIG.evaluator, ...evaluatorSource },
+    min_score_to_save: sc.min_score_to_save ?? DEFAULT_CONFIG.min_score_to_save,
+  };
+}
 
 const EVALUATOR_PLACEHOLDERS = ['{{USER_PROFILE}}', '{{PARSED_JOB}}'];
 
@@ -100,8 +123,9 @@ export default function SettingsPage() {
 
       setLastUpdated(data?.updated_at);
       if (data?.scoring_config) {
-        setConfig({ ...DEFAULT_CONFIG, ...data.scoring_config });
-        setOriginalConfig({ ...DEFAULT_CONFIG, ...data.scoring_config });
+        const merged = mergeScoringConfig(data.scoring_config);
+        setConfig(merged);
+        setOriginalConfig(merged);
       }
     } catch (e) {
       setError(e.message);
@@ -170,8 +194,9 @@ export default function SettingsPage() {
     setSavingConfig, setConfigResult,
     (data) => {
       if (data?.scoring_config) {
-        setConfig({ ...DEFAULT_CONFIG, ...data.scoring_config });
-        setOriginalConfig({ ...DEFAULT_CONFIG, ...data.scoring_config });
+        const merged = mergeScoringConfig(data.scoring_config);
+        setConfig(merged);
+        setOriginalConfig(merged);
       }
     },
     'תצורת הניתוח',
@@ -204,8 +229,13 @@ export default function SettingsPage() {
     setConfirmReset(null);
   }
 
-  function updateConfig(key, value) {
-    setConfig(prev => ({ ...prev, [key]: value }));
+  // path: 'analyst.model' | 'evaluator.temperature' | 'min_score_to_save'
+  function updateConfig(path, value) {
+    setConfig(prev => {
+      if (!path.includes('.')) return { ...prev, [path]: value };
+      const [role, key] = path.split('.');
+      return { ...prev, [role]: { ...prev[role], [key]: value } };
+    });
     setConfigResult(null);
   }
 
@@ -347,67 +377,28 @@ export default function SettingsPage() {
           <span className="settings-section__name">תצורת ניתוח</span>
         </div>
         <p className="settings-section__desc">
-          הגדרות מודל Claude ופרמטרי הניתוח. חשיבה מורחבת מאלצת טמפרטורה של 1.
+          כל שלב בצנרת מוגדר בנפרד — האנליסט (שלב הפרסינג) וההערכה (שלב הציון).
+          חשיבה מורחבת מאלצת טמפרטורה של 1.
         </p>
-        <div className="config-grid">
-          <div className="config-item">
-            <label className="config-item__label" htmlFor="cfg-model">מודל Claude</label>
-            <select
-              id="cfg-model"
-              className="config-item__select"
-              value={config.model}
-              onChange={(e) => updateConfig('model', e.target.value)}
-            >
-              {MODEL_OPTIONS.map(m => <option key={m} value={m}>{m}</option>)}
-            </select>
-          </div>
-          <div className="config-item">
-            <label className="config-item__label" htmlFor="cfg-temp">טמפרטורה</label>
-            <input
-              id="cfg-temp"
-              type="number"
-              className="config-item__input"
-              value={config.temperature}
-              onChange={(e) => updateConfig('temperature', parseFloat(e.target.value) || 0)}
-              min="0" max="1" step="0.1"
-              disabled={config.thinking_enabled}
-            />
-          </div>
-          <div className="config-item">
-            <label className="config-item__label" htmlFor="cfg-tokens">Max Tokens</label>
-            <input
-              id="cfg-tokens"
-              type="number"
-              className="config-item__input"
-              value={config.max_tokens}
-              onChange={(e) => updateConfig('max_tokens', parseInt(e.target.value) || 1024)}
-              min="512" max="16384" step="512"
-            />
-          </div>
-          <div className="config-item">
-            <label className="config-item__label" htmlFor="cfg-thinking">חשיבה מורחבת</label>
-            <select
-              id="cfg-thinking"
-              className="config-item__select"
-              value={config.thinking_enabled ? 'on' : 'off'}
-              onChange={(e) => updateConfig('thinking_enabled', e.target.value === 'on')}
-            >
-              <option value="on">מופעל (temperature=1)</option>
-              <option value="off">כבוי</option>
-            </select>
-          </div>
-          <div className="config-item">
-            <label className="config-item__label" htmlFor="cfg-thinking-budget">תקציב חשיבה · tokens</label>
-            <input
-              id="cfg-thinking-budget"
-              type="number"
-              className="config-item__input"
-              value={config.thinking_budget}
-              onChange={(e) => updateConfig('thinking_budget', parseInt(e.target.value) || 2048)}
-              min="1024" max="16000" step="512"
-              disabled={!config.thinking_enabled}
-            />
-          </div>
+
+        <div className="role-configs">
+          <RoleConfigPanel
+            title="① אנליסט · Parse"
+            hint="קל ומהיר — חילוץ שדות מתיאור משרה"
+            values={config.analyst}
+            onChange={(k, v) => updateConfig(`analyst.${k}`, v)}
+            idPrefix="cfg-a"
+          />
+          <RoleConfigPanel
+            title="② הערכה · Evaluate"
+            hint="ניתוח עמוק — ציון, ברדיקט והערכה בעברית"
+            values={config.evaluator}
+            onChange={(k, v) => updateConfig(`evaluator.${k}`, v)}
+            idPrefix="cfg-e"
+          />
+        </div>
+
+        <div className="config-global">
           <div className="config-item">
             <label className="config-item__label" htmlFor="cfg-min-score">ציון מינימום לשמירה</label>
             <input
@@ -418,8 +409,10 @@ export default function SettingsPage() {
               onChange={(e) => updateConfig('min_score_to_save', parseInt(e.target.value) || 70)}
               min="0" max="100" step="5"
             />
+            <span className="config-item__help">סף אחד לצנרת כולה — חל על תוצאות ההערכה</span>
           </div>
         </div>
+
         <div className="settings-actions">
           {isConfigDirty && (
             <button className="btn btn-secondary btn-sm" onClick={() => setConfig(originalConfig)} disabled={savingConfig}>
@@ -646,5 +639,87 @@ function PromptSection({
         <div className={`save-result ${result.type}`}>{result.message}</div>
       )}
     </section>
+  );
+}
+
+function RoleConfigPanel({ title, hint, values, onChange, idPrefix }) {
+  const modelId = `${idPrefix}-model`;
+  const tempId = `${idPrefix}-temp`;
+  const tokensId = `${idPrefix}-tokens`;
+  const thinkId = `${idPrefix}-thinking`;
+  const budgetId = `${idPrefix}-thinking-budget`;
+
+  return (
+    <div className="role-config">
+      <div className="role-config__head">
+        <h3 className="role-config__title">{title}</h3>
+        <p className="role-config__hint">{hint}</p>
+      </div>
+
+      <div className="config-grid">
+        <div className="config-item">
+          <label className="config-item__label" htmlFor={modelId}>מודל Claude</label>
+          <select
+            id={modelId}
+            className="config-item__select"
+            value={values.model}
+            onChange={(e) => onChange('model', e.target.value)}
+          >
+            {MODEL_OPTIONS.map(m => <option key={m} value={m}>{m}</option>)}
+          </select>
+        </div>
+
+        <div className="config-item">
+          <label className="config-item__label" htmlFor={tempId}>טמפרטורה</label>
+          <input
+            id={tempId}
+            type="number"
+            className="config-item__input"
+            value={values.temperature}
+            onChange={(e) => onChange('temperature', parseFloat(e.target.value) || 0)}
+            min="0" max="1" step="0.1"
+            disabled={values.thinking_enabled}
+          />
+        </div>
+
+        <div className="config-item">
+          <label className="config-item__label" htmlFor={tokensId}>Max Tokens</label>
+          <input
+            id={tokensId}
+            type="number"
+            className="config-item__input"
+            value={values.max_tokens}
+            onChange={(e) => onChange('max_tokens', parseInt(e.target.value) || 1024)}
+            min="512" max="16384" step="512"
+          />
+        </div>
+
+        <div className="config-item">
+          <label className="config-item__label" htmlFor={thinkId}>חשיבה מורחבת</label>
+          <select
+            id={thinkId}
+            className="config-item__select"
+            value={values.thinking_enabled ? 'on' : 'off'}
+            onChange={(e) => onChange('thinking_enabled', e.target.value === 'on')}
+          >
+            <option value="on">מופעל (temperature=1)</option>
+            <option value="off">כבוי</option>
+          </select>
+        </div>
+
+        <div className="config-item">
+          <label className="config-item__label" htmlFor={budgetId}>תקציב חשיבה · tokens</label>
+          <input
+            id={budgetId}
+            type="number"
+            className="config-item__input"
+            value={values.thinking_budget}
+            onChange={(e) => onChange('thinking_budget', parseInt(e.target.value) || 2048)}
+            min="1024" max="16000" step="512"
+            disabled={!values.thinking_enabled}
+          />
+        </div>
+      </div>
+    </div>
   );
 }

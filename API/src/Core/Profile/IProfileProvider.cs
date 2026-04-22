@@ -26,12 +26,25 @@ public sealed record ProfileDocument
     public DateTime? UpdatedAt { get; init; }
 }
 
-public sealed record ScoringConfig
+public sealed record RoleScoringConfig
 {
-    public string Model { get; init; } = "claude-opus-4-20250514";
+    public string Model { get; init; } = "claude-sonnet-4-6";
     public decimal Temperature { get; init; } = 0.5m;
     public int MaxTokens { get; init; } = 4096;
     public bool ThinkingEnabled { get; init; }
     public int ThinkingBudget { get; init; } = 2048;
+}
+
+public sealed record ScoringConfig
+{
+    public RoleScoringConfig Analyst { get; init; } = new()
+    {
+        Model = "claude-haiku-4-5-20251001",
+        Temperature = 0.3m,
+        MaxTokens = 2048,
+    };
+
+    public RoleScoringConfig Evaluator { get; init; } = new();
+
     public int MinScoreToSave { get; init; } = 70;
 }

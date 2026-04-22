@@ -114,46 +114,92 @@ public sealed class MongoProfileProvider : IProfileProvider
         var doc = await GetProfileDocumentAsync(cancellationToken);
         var cfg = doc.ScoringConfig;
 
-        T Get<T>(string key, T fallback)
-        {
-            if (!cfg.TryGetValue(key, out var v) || v is null) return fallback;
-            try
-            {
-                if (typeof(T) == typeof(decimal))
-                    return (T)(object)Convert.ToDecimal(v);
-                if (typeof(T) == typeof(int))
-                    return (T)(object)Convert.ToInt32(v);
-                if (typeof(T) == typeof(bool))
-                    return (T)(object)Convert.ToBoolean(v);
-                if (typeof(T) == typeof(string))
-                    return (T)(object)Convert.ToString(v)!;
-                return (T)v;
-            }
-            catch
-            {
-                return fallback;
-            }
-        }
+        var defaults = new ScoringConfig();
+
+        // Accepts two shapes:
+        //   New (nested):  { analyst: {...}, evaluator: {...}, min_score_to_save: N }
+        //   Legacy (flat): { model, temperature, max_tokens, thinking_enabled, thinking_budget, min_score_to_save }
+        // Flat keys map to the Evaluator role (that was the only call that
+        // actually honored those fields), while Analyst falls back to defaults.
+        var analystDict = ExtractRoleDict(cfg, "analyst");
+        var evaluatorDict = ExtractRoleDict(cfg, "evaluator") ?? cfg;
+
+        var analyst = BuildRoleConfig(analystDict, defaults.Analyst);
+        var evaluator = BuildRoleConfig(evaluatorDict, defaults.Evaluator);
+        var minScore = Convert<int>(cfg, "min_score_to_save", defaults.MinScoreToSave);
 
         var resolved = new ScoringConfig
         {
-            Model = Get("model", "claude-opus-4-20250514"),
-            Temperature = Get("temperature", 0.5m),
-            MaxTokens = Get("max_tokens", 4096),
-            ThinkingEnabled = Get("thinking_enabled", false),
-            ThinkingBudget = Get("thinking_budget", 2048),
-            MinScoreToSave = Get("min_score_to_save", 70)
+            Analyst = analyst,
+            Evaluator = evaluator,
+            MinScoreToSave = minScore,
         };
 
-        // Logged per-fetch (i.e. per /api/match call) so the model in use is
+        // Logged per-fetch (i.e. per /api/match call) so the models in use are
         // always visible in Render logs. Since this reads fresh from Mongo
         // every time, seeing the value change here after a Settings-page save
         // is confirmation that hot-reload works without a service restart.
         _logger.LogInformation(
-            "Loaded scoring config from Mongo: model={Model}, temp={Temp}, maxTokens={MaxTokens}, thinking={Thinking}, minScore={MinScore}",
-            resolved.Model, resolved.Temperature, resolved.MaxTokens, resolved.ThinkingEnabled, resolved.MinScoreToSave);
+            "Loaded scoring config: analyst={AnalystModel}/t={AnalystTemp}/think={AnalystThink} | evaluator={EvalModel}/t={EvalTemp}/think={EvalThink} | minScore={MinScore}",
+            resolved.Analyst.Model, resolved.Analyst.Temperature, resolved.Analyst.ThinkingEnabled,
+            resolved.Evaluator.Model, resolved.Evaluator.Temperature, resolved.Evaluator.ThinkingEnabled,
+            resolved.MinScoreToSave);
 
         return resolved;
+    }
+
+    private static Dictionary<string, object?>? ExtractRoleDict(Dictionary<string, object?> cfg, string key)
+    {
+        if (!cfg.TryGetValue(key, out var v) || v is null) return null;
+        // BsonTypeMapper gives us Dictionary<string, object>; JSON deserialization
+        // gives us Dictionary<string, object?>; be permissive and accept anything dict-shaped.
+        if (v is System.Collections.IDictionary dict)
+        {
+            var map = new Dictionary<string, object?>();
+            foreach (var dk in dict.Keys)
+            {
+                if (dk is string ks) map[ks] = dict[dk];
+            }
+            return map;
+        }
+        if (v is MongoDB.Bson.BsonDocument bson)
+        {
+            var map = new Dictionary<string, object?>();
+            foreach (var el in bson) map[el.Name] = MongoDB.Bson.BsonTypeMapper.MapToDotNetValue(el.Value);
+            return map;
+        }
+        return null;
+    }
+
+    private static RoleScoringConfig BuildRoleConfig(Dictionary<string, object?>? src, RoleScoringConfig fallback) =>
+        new()
+        {
+            Model = Convert(src, "model", fallback.Model),
+            Temperature = Convert(src, "temperature", fallback.Temperature),
+            MaxTokens = Convert(src, "max_tokens", fallback.MaxTokens),
+            ThinkingEnabled = Convert(src, "thinking_enabled", fallback.ThinkingEnabled),
+            ThinkingBudget = Convert(src, "thinking_budget", fallback.ThinkingBudget),
+        };
+
+    private static T Convert<T>(Dictionary<string, object?>? src, string key, T fallback)
+    {
+        if (src is null || !src.TryGetValue(key, out var v) || v is null) return fallback;
+        try
+        {
+            if (typeof(T) == typeof(decimal))
+                return (T)(object)System.Convert.ToDecimal(v);
+            if (typeof(T) == typeof(int))
+                return (T)(object)System.Convert.ToInt32(v);
+            if (typeof(T) == typeof(bool))
+                return (T)(object)System.Convert.ToBoolean(v);
+            if (typeof(T) == typeof(string))
+                return (T)(object)System.Convert.ToString(v)!;
+            return (T)v;
+        }
+        catch
+        {
+            return fallback;
+        }
     }
 
     public async Task<string> GetAnalystPromptAsync(CancellationToken cancellationToken = default)

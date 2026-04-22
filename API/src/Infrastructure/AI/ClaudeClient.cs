@@ -41,10 +41,11 @@ public sealed class ClaudeClient : IClaudeClient
 
         var analystPrompt = await _profileProvider.GetAnalystPromptAsync(cancellationToken);
         var prompt = _promptBuilder.BuildAnalysisPrompt(jobDescription, analystPrompt);
-        var cfg = await _profileProvider.GetScoringConfigAsync(cancellationToken);
+        var cfg = (await _profileProvider.GetScoringConfigAsync(cancellationToken)).Analyst;
 
         _logger.LogInformation("=== Claude parse request ===");
-        _logger.LogInformation("Model: {Model} | MaxTokens: 2048 | Temp: 0.3", cfg.Model);
+        _logger.LogInformation("Model: {Model} | MaxTokens: {MaxTokens} | Temp: {Temp} | Thinking: {Thinking}",
+            cfg.Model, cfg.MaxTokens, cfg.Temperature, cfg.ThinkingEnabled);
         _logger.LogInformation("Job description length: {Length} chars", jobDescription.Length);
         _logger.LogInformation("Prompt length: {Length} chars", prompt.Length);
         _logger.LogDebug("=== Full parse prompt ===\n{Prompt}\n=== End parse prompt ===", prompt);
@@ -52,11 +53,20 @@ public sealed class ClaudeClient : IClaudeClient
         var parameters = new MessageParameters
         {
             Messages = new List<Message> { new(RoleType.User, prompt) },
-            MaxTokens = 2048,
+            MaxTokens = cfg.MaxTokens,
             Model = cfg.Model,
             Stream = false,
-            Temperature = 0.3m
+            Temperature = cfg.Temperature
         };
+
+        if (cfg.ThinkingEnabled && cfg.ThinkingBudget > 0 && cfg.MaxTokens > cfg.ThinkingBudget)
+        {
+            parameters.Thinking = new ThinkingParameters
+            {
+                BudgetTokens = cfg.ThinkingBudget
+            };
+            parameters.Temperature = 1m;
+        }
 
         var response = await _client.Messages.GetClaudeMessageAsync(parameters, cancellationToken);
         if (response?.Message == null)
@@ -81,7 +91,7 @@ public sealed class ClaudeClient : IClaudeClient
 
         var evaluatorPrompt = await _profileProvider.GetEvaluatorPromptAsync(cancellationToken);
         var prompt = _promptBuilder.BuildEvaluationPrompt(profile, parsedJob, evaluatorPrompt);
-        var cfg = await _profileProvider.GetScoringConfigAsync(cancellationToken);
+        var cfg = (await _profileProvider.GetScoringConfigAsync(cancellationToken)).Evaluator;
 
         _logger.LogInformation("=== Claude evaluate request ===");
         _logger.LogInformation("Model: {Model} | MaxTokens: {MaxTokens} | Temp: {Temp} | Thinking: {Thinking}",

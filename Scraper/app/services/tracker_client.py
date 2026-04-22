@@ -21,6 +21,21 @@ _WARMUP_DELAY_SECONDS = 20.0
 _WARMUP_TIMEOUT = 10.0
 
 
+def _retry_after_seconds(resp: httpx.Response, floor: float, ceiling: float = 60.0) -> float:
+    """Parse Retry-After (seconds or HTTP-date). Clamp to [floor, ceiling].
+
+    Cloudflare on a 429 usually sends an integer seconds value. If the header
+    is missing or unparseable, fall back to the caller's floor.
+    """
+    header = resp.headers.get("Retry-After")
+    if not header:
+        return floor
+    try:
+        return max(floor, min(ceiling, float(header.strip())))
+    except ValueError:
+        return floor
+
+
 async def _request_with_retry(
     method: str,
     url: str,
@@ -74,9 +89,13 @@ async def _request_with_retry(
                 continue
 
             if resp.status_code in _TRANSIENT_STATUSES and attempt < _MAX_RETRIES:
-                delay = min(2 ** attempt, 8)
+                base_delay = min(2 ** attempt, 8)
+                # On 429, Cloudflare usually dictates exactly how long to back
+                # off — respect that instead of our exponential guess so we
+                # don't keep feeding the same throttle bucket.
+                delay = _retry_after_seconds(resp, floor=base_delay) if resp.status_code == 429 else base_delay
                 logger.warning(
-                    "Tracker %s (%s %s) returned %d — retry %d/%d in %ds",
+                    "Tracker %s (%s %s) returned %d — retry %d/%d in %.1fs",
                     operation, method, url, resp.status_code,
                     attempt + 1, _MAX_RETRIES, delay,
                 )
@@ -103,6 +122,18 @@ async def warm_up_api(settings: Settings) -> bool:
                 if resp.status_code == 200:
                     if attempt > 1:
                         logger.info("API warm-up succeeded on attempt %d", attempt)
+                    return True
+                # 429 from Cloudflare's edge tells us the edge is reachable
+                # but throttling us — it says nothing about whether the
+                # container is warm. Continuing to probe just feeds the same
+                # rate-limit bucket, so bail out and let the per-call retry
+                # loop (which honors Retry-After) handle whatever comes next.
+                if resp.status_code == 429:
+                    logger.warning(
+                        "API warm-up %s got 429 on attempt %d — edge is throttling, "
+                        "skipping further probes and letting scoring loop proceed",
+                        url, attempt,
+                    )
                     return True
                 logger.warning(
                     "API warm-up %s returned %d on attempt %d/%d",

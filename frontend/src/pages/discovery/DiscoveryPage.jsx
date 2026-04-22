@@ -42,23 +42,47 @@ export default function DiscoveryPage() {
   // Render free tier cold-start feedback: lights up once the first retry fires.
   const [wakingUp, setWakingUp] = useState(false);
   const [wakeAttempt, setWakeAttempt] = useState(0);
+  const [wakeStartedAt, setWakeStartedAt] = useState(null);
+  const [wakeElapsed, setWakeElapsed] = useState(0);
   const navigate = useNavigate();
 
   useEffect(() => { load(); }, []);
+
+  // Tick the elapsed counter while a wake-up is in progress.
+  useEffect(() => {
+    if (!wakingUp || !wakeStartedAt) return;
+    const id = setInterval(() => {
+      setWakeElapsed(Math.floor((Date.now() - wakeStartedAt) / 1000));
+    }, 1000);
+    return () => clearInterval(id);
+  }, [wakingUp, wakeStartedAt]);
 
   async function load() {
     setLoading(true);
     setError(null);
     setWakingUp(false);
     setWakeAttempt(0);
+    setWakeStartedAt(null);
+    setWakeElapsed(0);
     const onRetry = ({ attempt }) => {
       setWakingUp(true);
       setWakeAttempt(attempt);
+      setWakeStartedAt((prev) => prev ?? Date.now());
     };
     try {
       // Warm-up: prime the free-tier instance before the real data calls.
-      // The retry loop rides out the cold start on this lightweight endpoint.
-      await discoveryApi('/health', { onRetry });
+      // Render's edge (Cloudflare) returns 502 *instantly* for sleeping
+      // services — it doesn't hold the connection — and rate-limits fast
+      // retries with 429. So use a slow, wide cadence: fixed ~20s spacing
+      // for ~100s total budget, which stays under the rate-limit threshold
+      // and gives Render enough quiet time to finish its 30–60s cold start
+      // between attempts.
+      await discoveryApi('/health', {
+        onRetry,
+        retries: 5,
+        retryMinDelayMs: 20000,
+        retryMaxDelayMs: 25000,
+      });
       setWakingUp(false);
       const c = await discoveryApi('/criteria', { onRetry });
       setCriteria(c);
@@ -115,7 +139,10 @@ export default function DiscoveryPage() {
                 השירות היה במצב שינה (Render Free Tier). ההתעוררות יכולה לקחת עד כדקה — אנחנו ממתינים וננסה שוב אוטומטית.
               </div>
               {wakeAttempt > 0 && (
-                <div className="wakeup-panel__attempt">ניסיון {wakeAttempt}</div>
+                <div className="wakeup-panel__attempt">
+                  ניסיון {wakeAttempt}
+                  {wakeElapsed > 0 && <span className="wakeup-panel__elapsed"> · {wakeElapsed}s</span>}
+                </div>
               )}
             </div>
           </div>

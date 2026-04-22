@@ -3,21 +3,24 @@ const RETRY_STATUSES = new Set([408, 429, 502, 503, 504]);
 // Budget: 1+2+4+8+16+20+20+20 ≈ 91s across 9 attempts, enough to ride out a wake-up.
 const MAX_RETRIES = 8;
 const MAX_BACKOFF_MS = 20000;
+const MIN_BACKOFF_MS = 0;
 
-function computeDelay(attempt, retryAfterHeader) {
+function computeDelay(attempt, retryAfterHeader, maxMs = MAX_BACKOFF_MS, minMs = MIN_BACKOFF_MS) {
   if (retryAfterHeader) {
     const secs = parseInt(retryAfterHeader, 10);
-    if (!Number.isNaN(secs) && secs > 0) return Math.min(secs * 1000, MAX_BACKOFF_MS);
+    if (!Number.isNaN(secs) && secs > 0) return Math.min(Math.max(secs * 1000, minMs), maxMs);
   }
-  return Math.min(1000 * 2 ** attempt, MAX_BACKOFF_MS);
+  return Math.min(Math.max(1000 * 2 ** attempt, minMs), maxMs);
 }
 
-async function fetchWithRetry(url, fetchOptions, retries = MAX_RETRIES, onRetry) {
+async function fetchWithRetry(url, fetchOptions, retries = MAX_RETRIES, onRetry, minDelayMs, maxDelayMs) {
+  const maxMs = maxDelayMs ?? MAX_BACKOFF_MS;
+  const minMs = minDelayMs ?? MIN_BACKOFF_MS;
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
       const res = await fetch(url, fetchOptions);
       if (RETRY_STATUSES.has(res.status) && attempt < retries) {
-        const delay = computeDelay(attempt, res.headers.get('Retry-After'));
+        const delay = computeDelay(attempt, res.headers.get('Retry-After'), maxMs, minMs);
         if (onRetry) onRetry({ attempt: attempt + 1, delayMs: delay, reason: 'status', status: res.status });
         await new Promise(r => setTimeout(r, delay));
         continue;
@@ -25,7 +28,7 @@ async function fetchWithRetry(url, fetchOptions, retries = MAX_RETRIES, onRetry)
       return res;
     } catch (err) {
       if (attempt >= retries) throw err;
-      const delay = computeDelay(attempt);
+      const delay = computeDelay(attempt, null, maxMs, minMs);
       if (onRetry) onRetry({ attempt: attempt + 1, delayMs: delay, reason: 'network' });
       await new Promise(r => setTimeout(r, delay));
     }
@@ -33,16 +36,16 @@ async function fetchWithRetry(url, fetchOptions, retries = MAX_RETRIES, onRetry)
 }
 
 function extractRetryOptions(options = {}) {
-  const { headers, retries, onRetry, ...rest } = options;
-  return { fetchOptions: rest, headers, retries, onRetry };
+  const { headers, retries, onRetry, retryMinDelayMs, retryMaxDelayMs, ...rest } = options;
+  return { fetchOptions: rest, headers, retries, onRetry, retryMinDelayMs, retryMaxDelayMs };
 }
 
 export async function api(path, options = {}) {
-  const { fetchOptions, headers, retries, onRetry } = extractRetryOptions(options);
+  const { fetchOptions, headers, retries, onRetry, retryMinDelayMs, retryMaxDelayMs } = extractRetryOptions(options);
   const res = await fetchWithRetry(`/api${path}`, {
     headers: { 'Content-Type': 'application/json', ...headers },
     ...fetchOptions,
-  }, retries, onRetry);
+  }, retries, onRetry, retryMinDelayMs, retryMaxDelayMs);
   if (!res.ok && res.status !== 204) {
     const err = await res.text();
     throw new Error(err || `HTTP ${res.status}`);
@@ -52,11 +55,11 @@ export async function api(path, options = {}) {
 }
 
 export async function profileApi(path, options = {}) {
-  const { fetchOptions, headers, retries, onRetry } = extractRetryOptions(options);
+  const { fetchOptions, headers, retries, onRetry, retryMinDelayMs, retryMaxDelayMs } = extractRetryOptions(options);
   const res = await fetchWithRetry(`/api/match${path}`, {
     headers: { 'Content-Type': 'application/json', ...headers },
     ...fetchOptions,
-  }, retries, onRetry);
+  }, retries, onRetry, retryMinDelayMs, retryMaxDelayMs);
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
     const err = new Error(data.detail || data.error || `HTTP ${res.status}`);
@@ -68,11 +71,11 @@ export async function profileApi(path, options = {}) {
 }
 
 export async function discoveryApi(path, options = {}) {
-  const { fetchOptions, headers, retries, onRetry } = extractRetryOptions(options);
+  const { fetchOptions, headers, retries, onRetry, retryMinDelayMs, retryMaxDelayMs } = extractRetryOptions(options);
   const res = await fetchWithRetry(`/api/discovery${path}`, {
     headers: { 'Content-Type': 'application/json', ...headers },
     ...fetchOptions,
-  }, retries, onRetry);
+  }, retries, onRetry, retryMinDelayMs, retryMaxDelayMs);
   if (!res.ok && res.status !== 204) {
     const data = await res.json().catch(() => ({}));
     const err = new Error(data.detail || data.error || `HTTP ${res.status}`);

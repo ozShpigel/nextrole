@@ -811,6 +811,10 @@
   color: var(--accent);
   font-variant-numeric: tabular-nums;
 }
+.wakeup-panel__elapsed {
+  color: var(--text-dim);
+  letter-spacing: 0.08em;
+}
 @keyframes wakeupIn {
   from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: translateY(0); }

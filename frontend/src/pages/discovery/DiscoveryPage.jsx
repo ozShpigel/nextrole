@@ -115,6 +115,17 @@ export default function DiscoveryPage() {
     }
   }
 
+  async function abortRun(runId, e) {
+    e.stopPropagation();
+    if (!confirm('לבטל את החיפוש הזה?')) return;
+    try {
+      await discoveryApi(`/runs/${runId}/abort`, { method: 'POST' });
+      load();
+    } catch (err) {
+      alert('ביטול נכשל: ' + err.message);
+    }
+  }
+
   function onSaved() {
     setShowForm(false);
     setEditItem(null);
@@ -300,6 +311,7 @@ export default function DiscoveryPage() {
           <div className="runs-timeline">
             {runs.map((r, i) => {
               const sCls = statusClass(r.status);
+              const isActive = r.status === 'scraping' || r.status === 'scoring' || r.status === 'pending';
               return (
                 <div key={r.id} className="timeline-row" style={{ '--i': i }}>
                   <span className={`timeline-dot ${sCls}`} />
@@ -307,6 +319,17 @@ export default function DiscoveryPage() {
                     <div className="run-card__header">
                       <span className="run-card__name">{r.criteria_name}</span>
                       <span className={`run-status ${sCls}`}>{STATUS_LABEL[r.status] || r.status}</span>
+                      {isActive && (
+                        <button
+                          type="button"
+                          className="run-card__abort"
+                          onClick={(e) => abortRun(r.id, e)}
+                          title="בטל חיפוש"
+                          aria-label="בטל חיפוש"
+                        >
+                          ✕
+                        </button>
+                      )}
                     </div>
                     <div className="run-card__stats">
                       <span className="run-card__stat">

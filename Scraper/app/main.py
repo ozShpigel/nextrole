@@ -159,6 +159,26 @@ async def get_run_jobs(run_id: str):
     return docs
 
 
+@app.post("/api/discovery/runs/{run_id}/abort")
+async def abort_run(run_id: str):
+    # Can't actually cancel the in-process BackgroundTask — FastAPI doesn't
+    # expose a handle. But marking the row failed removes the phantom from
+    # the UI and frees the user to start a fresh run. If the zombie task is
+    # somehow still alive, its final update_one will just no-op on a row
+    # that's already in a terminal state.
+    result = await db.discovery_runs.update_one(
+        {"id": run_id, "status": {"$in": ["pending", "scraping", "scoring"]}},
+        {"$set": {
+            "status": "failed",
+            "error": "Aborted by user",
+            "completed_at": datetime.now(timezone.utc),
+        }},
+    )
+    if result.matched_count == 0:
+        raise HTTPException(404, "Run not found or already finished")
+    return {"status": "aborted"}
+
+
 # ---------------------------------------------------------------------------
 # Discovered Jobs Actions
 # ---------------------------------------------------------------------------

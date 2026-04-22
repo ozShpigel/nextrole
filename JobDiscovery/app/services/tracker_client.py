@@ -70,7 +70,9 @@ async def check_duplicate(settings: Settings, company: str, job_title: str) -> b
         logger.warning("Dedup check failed for '%s' at '%s' (all retries exhausted)", job_title, company)
         return False
     if resp.status_code == 200:
-        return resp.json().get("exists", False)
+        # ApplicationTracker returns a bare JSON boolean (Results.Ok(bool)),
+        # not an { exists: bool } object.
+        return bool(resp.json())
     logger.warning(
         "Dedup check for '%s' at '%s' returned %d: %s",
         job_title, company, resp.status_code, resp.text,

@@ -2,10 +2,10 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-COPY JobDiscovery/requirements.txt .
+COPY Scraper/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY JobDiscovery/app/ ./app/
+COPY Scraper/app/ ./app/
 
 EXPOSE 8080
 

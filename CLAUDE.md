@@ -15,7 +15,7 @@ dotnet run --project API/src/Api
 dotnet run --project Mailbot
 
 # Scraper (Python)
-cd JobDiscovery && pip install -r requirements.txt && uvicorn app.main:app --port 5137
+cd Scraper && pip install -r requirements.txt && uvicorn app.main:app --port 5137
 
 # Build entire solution
 dotnet build job-application-platform.sln
@@ -32,7 +32,7 @@ Monorepo with 3 loosely-coupled services communicating over HTTP:
 
 - **API** (ASP.NET Core 10, port 5002) — Unified backend. Owns CRUD for applications/interviews/notes/status/stats AND AI-powered job matching. All Claude/Anthropic calls live here. The professional profile and scoring config are stored in a separate Mongo database (`jobmatch` by default — see `MongoDB:Database`) from the application tracking data (`job-tracker` by default — see `MongoDB:DatabaseName`). Endpoints include: `POST /api/match` (scores a job description; accepts optional pre-parsed title/company/etc. to skip the parse step), `GET|PUT /api/match/profile` (profile + scoring_config + prompt overrides CRUD), `POST /api/applications`, `GET /api/applications`, `GET /api/applications/exists`, status/interview/note/stats/timeline endpoints, and `GET /health`. Prompt seeds live in `API/src/Infrastructure/AI/PromptSeeds.cs`; the professional profile seed lives in `API/Data/professional-profile.md`.
 - **Mailbot** (.NET 10 console app, no port, folder `Mailbot/`) — One-shot process: fetches Gmail emails (labeled `JobApplications`, last 24h), parses them with Claude, and pushes status updates to the API. Run externally via cron/scheduler. Self-contained namespace (`Mailbot.*`) — no project reference to the API.
-- **Scraper** (Python FastAPI, port 5137, folder `JobDiscovery/`) — Automated job discovery and orchestration only. Scrapes LinkedIn/Indeed using JobSpy, delegates AI scoring to the API (`POST /api/match`), stores search criteria + discovered jobs in MongoDB, dedupes against and auto-saves qualifying matches to the API. **No Claude SDK, no prompts, no profile here.**
+- **Scraper** (Python FastAPI, port 5137, folder `Scraper/`) — Automated job discovery and orchestration only. Scrapes LinkedIn/Indeed using JobSpy, delegates AI scoring to the API (`POST /api/match`), stores search criteria + discovered jobs in MongoDB, dedupes against and auto-saves qualifying matches to the API. **No Claude SDK, no prompts, no profile here.**
 - **Frontend** (React 19 + Vite, port 3000) — Hebrew RTL SPA. Nginx reverse-proxies `/api/match`, `/api/applications|stats|interviews|notes` to the API, and `/api/discovery` to the Scraper. In production the SPA can call each service directly via `VITE_*` env vars, bypassing nginx entirely (see the build-time args below).
 
 The API follows a three-layer structure: `src/Api` (entry point + endpoints), `src/Core` (domain models + interfaces), `src/Infrastructure` (MongoDB repos, Claude client, profile provider).

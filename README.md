@@ -91,7 +91,7 @@ dotnet run --project API/src/Api
 dotnet run --project Mailbot
 
 # Scraper
-cd JobDiscovery
+cd Scraper
 pip install -r requirements.txt
 uvicorn app.main:app --port 5137
 
@@ -135,7 +135,7 @@ job-application-platform/
 │       ├── Api/                  # Entry point + endpoints
 │       ├── Core/                 # Domain models + interfaces (Matching, Profile, Models)
 │       └── Infrastructure/       # MongoDB repos, Claude client, profile provider
-├── JobDiscovery/                 # Scraping + orchestration (Python)
+├── Scraper/                      # Scraping + orchestration (Python)
 │   ├── Dockerfile
 │   ├── requirements.txt
 │   └── app/
@@ -167,7 +167,7 @@ Each service has its own GitHub Actions workflow (`.github/workflows/`) with pat
 | Workflow | Trigger Path | Image |
 |----------|-------------|-------|
 | `api.yml` | `API/**` | `ghcr.io/ozshpigel/api` |
-| `scraper.yml` | `JobDiscovery/**` | `ghcr.io/ozshpigel/scraper` |
+| `scraper.yml` | `Scraper/**` | `ghcr.io/ozshpigel/scraper` |
 | `mailbot.yml` | `Mailbot/**` | `ghcr.io/ozshpigel/mailbot` |
 | `frontend.yml` | `frontend/**` | `ghcr.io/ozshpigel/frontend` |
 

@@ -13,7 +13,7 @@ services:
   scraper:
     build:
       context: .
-      dockerfile: JobDiscovery/Dockerfile
+      dockerfile: Scraper/Dockerfile
     ports:
       - "5137:8080"
     environment:

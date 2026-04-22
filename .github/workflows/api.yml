@@ -1,14 +1,14 @@
-name: Application Tracker
+name: API
 
 on:
   push:
     branches: [main]
     paths:
       - 'API/**'
-      - '.github/workflows/application-tracker.yml'
+      - '.github/workflows/api.yml'
 
 env:
-  IMAGE_NAME: job-match-service
+  IMAGE_NAME: api
 
 jobs:
   build-and-push:

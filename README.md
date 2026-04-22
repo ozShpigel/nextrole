@@ -165,7 +165,7 @@ Each service has its own GitHub Actions workflow (`.github/workflows/`) with pat
 
 | Workflow | Trigger Path | Image |
 |----------|-------------|-------|
-| `application-tracker.yml` | `API/**` | `ghcr.io/ozshpigel/application-tracker` |
+| `api.yml` | `API/**` | `ghcr.io/ozshpigel/api` |
 | `job-discovery.yml` | `JobDiscovery/**` | `ghcr.io/ozshpigel/job-discovery` |
 | `email-sync.yml` | `EmailSync/**` | `ghcr.io/ozshpigel/email-sync` |
 | `frontend.yml` | `frontend/**` | `ghcr.io/ozshpigel/frontend` |

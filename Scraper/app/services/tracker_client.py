@@ -10,6 +10,16 @@ logger = logging.getLogger(__name__)
 _TRANSIENT_STATUSES = {429, 502, 503, 504}
 _MAX_RETRIES = 3
 
+# Slow-and-wide warm-up cadence for Render free-tier cold starts.
+# Render's edge (Cloudflare) bounces requests with 502 while the container
+# is still booting and rate-limits fast retries with 429. ~20s spacing
+# stays under the rate-limit threshold and gives Render enough quiet time
+# to finish a 30-60s cold start between attempts. Mirrors the frontend's
+# Scraper wake-up probe.
+_WARMUP_MAX_ATTEMPTS = 5
+_WARMUP_DELAY_SECONDS = 20.0
+_WARMUP_TIMEOUT = 10.0
+
 
 async def _request_with_retry(
     method: str,
@@ -55,6 +65,41 @@ async def _request_with_retry(
 
             return resp
     return None
+
+
+async def warm_up_api(settings: Settings) -> bool:
+    """Probe the API's /health with slow, wide retries to wake a cold Render instance.
+
+    The per-call retry helper (`_request_with_retry`) only budgets ~15s total,
+    which isn't enough to cover a 30-60s Render cold start. This runs once at
+    the top of a discovery run so the scoring loop starts against a warm API.
+    Returns True on 200, False if the service is still unresponsive after the budget.
+    """
+    url = f"{settings.api_base_url}/health"
+    async with httpx.AsyncClient(timeout=_WARMUP_TIMEOUT) as client:
+        for attempt in range(1, _WARMUP_MAX_ATTEMPTS + 1):
+            try:
+                resp = await client.get(url)
+                if resp.status_code == 200:
+                    if attempt > 1:
+                        logger.info("API warm-up succeeded on attempt %d", attempt)
+                    return True
+                logger.warning(
+                    "API warm-up %s returned %d on attempt %d/%d",
+                    url, resp.status_code, attempt, _WARMUP_MAX_ATTEMPTS,
+                )
+            except httpx.RequestError as e:
+                logger.warning(
+                    "API warm-up %s transport error on attempt %d/%d: %s",
+                    url, attempt, _WARMUP_MAX_ATTEMPTS, e,
+                )
+            if attempt < _WARMUP_MAX_ATTEMPTS:
+                await asyncio.sleep(_WARMUP_DELAY_SECONDS)
+    logger.error(
+        "API warm-up failed after %d attempts — service still not responding",
+        _WARMUP_MAX_ATTEMPTS,
+    )
+    return False
 
 
 async def check_duplicate(settings: Settings, company: str, job_title: str) -> bool:

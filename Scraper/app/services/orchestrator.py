@@ -48,6 +48,13 @@ async def run_discovery(db: AsyncIOMotorDatabase, settings: Settings, criteria_i
             {"$set": {"status": "scoring", "jobs_scraped": len(jobs)}},
         )
 
+        # Wake the API before the scoring loop. On Render free tier the
+        # per-call retry budget (~15s) is too small to cover a 30-60s cold
+        # start, so we'd burn it on the first few jobs and lose them.
+        logger.info("Run %s: warming up API before scoring", run.id)
+        if not await tracker_client.warm_up_api(settings):
+            raise RuntimeError("API unreachable after warm-up — aborting run")
+
         logger.info("Run %s: scoring %d jobs", run.id, len(jobs))
         for i, job_data in enumerate(jobs):
             try:

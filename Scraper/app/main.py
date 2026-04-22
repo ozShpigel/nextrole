@@ -61,42 +61,6 @@ async def health():
     return {"status": "ok", "service": "scraper"}
 
 
-# Temporary probe: hits the API via Render's private-network hostnames to
-# verify that inter-service calls can skip Cloudflare. Remove once
-# API_BASE_URL has been switched to the internal URL.
-@app.get("/api/discovery/debug/internal-probe")
-async def internal_probe():
-    import httpx
-
-    # Render's private DNS uses the service's slug. Service slug is often the
-    # display name kebab-cased, but rename history can pin it to the original.
-    # Cast a wide net — whichever resolves wins.
-    targets = {
-        "match_job-matcher":                "http://job-matcher:8080/health",
-        "match_job-match-service-latest":   "http://job-match-service-latest:8080/health",
-        "tracker_tracker":                  "http://tracker:8080/health",
-        "tracker_application-tracker-latest": "http://application-tracker-latest:8080/health",
-        "tracker_application-tracker-latest-b8l9": "http://application-tracker-latest-b8l9:8080/health",
-        # Public baseline: if these don't return 200 either, it's a warm-up
-        # issue, not a routing issue.
-        "match_public":     "https://job-match-service-latest.onrender.com/health",
-        "tracker_public":   "https://application-tracker-latest-b8l9.onrender.com/health",
-    }
-    results = {}
-    async with httpx.AsyncClient(timeout=8.0) as client:
-        for name, url in targets.items():
-            try:
-                resp = await client.get(url)
-                results[name] = {
-                    "url": url,
-                    "status": resp.status_code,
-                    "body": resp.text[:200],
-                }
-            except Exception as e:
-                results[name] = {"url": url, "error": f"{type(e).__name__}: {e}"}
-    return results
-
-
 # ---------------------------------------------------------------------------
 # Search Criteria CRUD
 # ---------------------------------------------------------------------------

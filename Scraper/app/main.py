@@ -194,25 +194,15 @@ def _extract_flat(match_analysis: dict) -> tuple[int | None, str | None, bool | 
 
 @app.post("/api/discovery/jobs/{job_id}/rescore")
 async def rescore_job(job_id: str):
-    """Re-run match scoring on a single MATCH_FAILED job.
+    """Re-run match scoring on a single job — overwrites any existing score.
 
-    Intended for the retry button on the run detail page — lets the user
-    recover from transient API failures (cold-start, rate-limit, timeout)
-    without re-scraping. Only acts on jobs that failed the match call;
-    INSUFFICIENT_DATA (description too short) and already-scored jobs are
-    rejected so this can't accidentally overwrite real analysis.
+    Originally a retry for MATCH_FAILED, now also used to iterate on the
+    Evaluator prompt: re-running the same job reveals how prompt changes
+    move the score. The existing result is replaced in place.
     """
     doc = await db.discovered_jobs.find_one({"id": job_id})
     if not doc:
         raise HTTPException(404, "Job not found")
-    # Accept INSUFFICIENT_DATA too — legacy rows from runs that failed before
-    # we split the two verdicts are tagged INSUFFICIENT_DATA even when the
-    # root cause was an API outage. If the description really is too short,
-    # score_job returns "too_short" cheaply and we re-tag it as-is.
-    if doc.get("verdict") not in ("MATCH_FAILED", "INSUFFICIENT_DATA"):
-        raise HTTPException(409, "Job is not in a rescorable state")
-    if doc.get("score") is not None:
-        raise HTTPException(409, "Job already has a score")
 
     result = await match_client.score_job(
         settings=settings,

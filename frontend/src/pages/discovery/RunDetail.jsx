@@ -1,9 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { discoveryApi } from '../../utils/api';
+import { discoveryApi, profileApi } from '../../utils/api';
 import { VERDICT_HE } from '../../utils/constants';
 import SnapshotsModal from '../../components/SnapshotsModal';
 import '../../styles/discovery.css';
+
+const EVALUATOR_PLACEHOLDERS = ['{{USER_PROFILE}}', '{{PARSED_JOB}}'];
 
 function verdictColor(verdict) {
   if (verdict === 'STRONG_YES' || verdict === 'YES') return 'var(--green)';
@@ -22,6 +24,21 @@ export default function RunDetail() {
   const [rescoringIds, setRescoringIds] = useState(() => new Set());
   const [bulkRescoring, setBulkRescoring] = useState(false);
   const [snapshotsJob, setSnapshotsJob] = useState(null);
+
+  // Inline Evaluator-prompt editor state — lazy-loaded from /api/match/profile
+  // the first time the panel opens. Saving writes through to the same Mongo
+  // override the Settings page uses, so the next rescore picks it up with no
+  // navigation.
+  const [promptOpen, setPromptOpen] = useState(false);
+  const [promptLoading, setPromptLoading] = useState(false);
+  const [evaluatorPrompt, setEvaluatorPrompt] = useState('');
+  const [originalPrompt, setOriginalPrompt] = useState('');
+  const [promptIsOverride, setPromptIsOverride] = useState(false);
+  const [promptLastSaved, setPromptLastSaved] = useState(null);
+  const [savingPrompt, setSavingPrompt] = useState(false);
+  const [promptResult, setPromptResult] = useState(null);
+  const [promptLoaded, setPromptLoaded] = useState(false);
+
   const pollRef = useRef(null);
 
   async function load() {
@@ -71,17 +88,21 @@ export default function RunDetail() {
     }
   }
 
-  async function rescoreJob(jobId) {
-    setRescoringIds((prev) => new Set(prev).add(jobId));
+  async function rescoreJob(job) {
+    // Already-scored job: warn that the existing result will be overwritten.
+    // This path exists primarily for iterating on the Evaluator prompt and
+    // re-running the same job to compare.
+    if (job.score != null && !confirm('לדרג מחדש? הציון הנוכחי יימחק ויוחלף.')) return;
+    setRescoringIds((prev) => new Set(prev).add(job.id));
     try {
-      await discoveryApi(`/jobs/${jobId}/rescore`, { method: 'POST' });
+      await discoveryApi(`/jobs/${job.id}/rescore`, { method: 'POST' });
       await load();
     } catch (e) {
       alert('דירוג מחדש נכשל: ' + e.message);
     } finally {
       setRescoringIds((prev) => {
         const next = new Set(prev);
-        next.delete(jobId);
+        next.delete(job.id);
         return next;
       });
     }
@@ -91,7 +112,7 @@ export default function RunDetail() {
     // Sequential, not parallel — the API is the bottleneck and the whole
     // reason we're here is that it was struggling. Firing 12 requests at
     // once would just re-trigger the rate-limit cascade.
-    const failed = visibleJobs.filter(isRescorable);
+    const failed = visibleJobs.filter(isFailed);
     if (failed.length === 0) return;
     if (!confirm(`לדרג מחדש ${failed.length} משרות שנכשלו?`)) return;
     setBulkRescoring(true);
@@ -109,6 +130,60 @@ export default function RunDetail() {
     load();
   }
 
+  async function togglePromptPanel() {
+    const next = !promptOpen;
+    setPromptOpen(next);
+    if (!next || promptLoaded) return;
+    setPromptLoading(true);
+    try {
+      const data = await profileApi('/profile');
+      const p = data?.evaluator_prompt || '';
+      setEvaluatorPrompt(p);
+      setOriginalPrompt(p);
+      setPromptIsOverride(!!data?.evaluator_prompt_is_override);
+      setPromptLastSaved(data?.updated_at);
+      setPromptLoaded(true);
+    } catch (e) {
+      setPromptResult({ type: 'error', message: 'טעינת הפרומפט נכשלה: ' + e.message });
+    } finally {
+      setPromptLoading(false);
+    }
+  }
+
+  async function persistPrompt(body, successMsg) {
+    setSavingPrompt(true);
+    setPromptResult(null);
+    try {
+      const data = await profileApi('/profile', { method: 'PUT', body: JSON.stringify(body) });
+      const p = data?.evaluator_prompt || '';
+      setEvaluatorPrompt(p);
+      setOriginalPrompt(p);
+      setPromptIsOverride(!!data?.evaluator_prompt_is_override);
+      setPromptLastSaved(data?.updated_at);
+      setPromptResult({ type: 'success', message: successMsg });
+    } catch (e) {
+      setPromptResult({ type: 'error', message: 'שמירה נכשלה: ' + e.message });
+    } finally {
+      setSavingPrompt(false);
+    }
+  }
+
+  const missingPlaceholders = EVALUATOR_PLACEHOLDERS.filter((p) => !evaluatorPrompt.includes(p));
+  const isPromptDirty = evaluatorPrompt !== originalPrompt;
+
+  async function savePrompt() {
+    if (missingPlaceholders.length > 0) {
+      const msg = `חסרים פלייסהולדרים: ${missingPlaceholders.join(', ')}. ללא פלייסהולדרים הניתוח ישבר. לשמור בכל זאת?`;
+      if (!confirm(msg)) return;
+    }
+    await persistPrompt({ evaluator_prompt: evaluatorPrompt }, 'הפרומפט נשמר. רצה דירוג מחדש כדי לראות את ההשפעה.');
+  }
+
+  async function resetPrompt() {
+    if (!confirm('לאפס את הפרומפט לברירת המחדל של השירות? ההתאמה האישית תימחק.')) return;
+    await persistPrompt({ evaluator_prompt: '' }, 'הפרומפט אופס לברירת המחדל.');
+  }
+
   if (loading) return (
     <div className="discovery-page">
       <RunDetailLoadingSkeleton />
@@ -120,16 +195,18 @@ export default function RunDetail() {
   const statusMap = { pending: 'ממתין', scraping: 'סורק משרות...', scoring: 'מדרג עם AI...', completed: 'הושלם', failed: 'נכשל' };
   const isActive = run.status === 'pending' || run.status === 'scraping' || run.status === 'scoring';
   const visibleJobs = jobs.filter((j) => !j.dismissed && !j.is_duplicate);
-  // A job is rescorable if it has no score yet and either failed at the API
-  // (MATCH_FAILED) or was tagged INSUFFICIENT_DATA but has a substantive
-  // description (legacy pre-fix runs often mistagged API failures as
-  // INSUFFICIENT_DATA). The 50-char floor matches match_client's own guard.
-  const isRescorable = (j) =>
+  // Any job with a non-trivial description can be re-scored — the button
+  // doubles as a prompt-iteration tool. The 50-char floor mirrors
+  // match_client's own guard.
+  const isRescorable = (j) => (j.description?.length || 0) >= 50;
+  // The "rescore all failed" bulk banner only targets jobs that actually
+  // failed — we don't want to nuke real scores en masse.
+  const isFailed = (j) =>
     j.score == null && (
       j.verdict === 'MATCH_FAILED' ||
       (j.verdict === 'INSUFFICIENT_DATA' && (j.description?.length || 0) >= 50)
     );
-  const failedCount = visibleJobs.filter(isRescorable).length;
+  const failedCount = visibleJobs.filter(isFailed).length;
 
   return (
     <div className="discovery-page">
@@ -159,6 +236,86 @@ export default function RunDetail() {
               {bulkRescoring ? 'מדרג מחדש...' : 'דרג הכל מחדש'}
             </button>
           </div>
+        )}
+      </div>
+
+      <div className="card eval-prompt-panel">
+        <div className="eval-prompt-panel__head">
+          <button
+            type="button"
+            className="eval-prompt-panel__toggle"
+            onClick={togglePromptPanel}
+            aria-expanded={promptOpen}
+          >
+            <span className="eval-prompt-panel__glyph" aria-hidden="true">{promptOpen ? '▾' : '◂'}</span>
+            <span className="eval-prompt-panel__title">פרומפט הערכה</span>
+            <span className={`eval-prompt-panel__badge${promptIsOverride ? ' is-override' : ''}`}>
+              {promptIsOverride ? 'מותאם אישית' : 'ברירת מחדל'}
+            </span>
+          </button>
+          {promptLastSaved && (
+            <span className="eval-prompt-panel__updated">
+              עודכן {new Date(promptLastSaved).toLocaleString('he-IL')}
+            </span>
+          )}
+        </div>
+
+        {promptOpen && (
+          promptLoading ? (
+            <div className="eval-prompt-panel__loading">טוען פרומפט…</div>
+          ) : (
+            <div className="eval-prompt-panel__body">
+              <p className="eval-prompt-panel__hint">
+                ערוך את פרומפט ההערכה. השינויים משפיעים על כל דירוג מחדש הבא — אין צורך לנווט להגדרות.
+              </p>
+              {missingPlaceholders.length > 0 && (
+                <div className="eval-prompt-panel__warning">
+                  חסרים פלייסהולדרים: {missingPlaceholders.map((p) => <code key={p}>{p}</code>).reduce((acc, cur, i) => i === 0 ? [cur] : [...acc, ' · ', cur], [])}
+                </div>
+              )}
+              <textarea
+                className="eval-prompt-panel__editor"
+                value={evaluatorPrompt}
+                onChange={(e) => { setEvaluatorPrompt(e.target.value); setPromptResult(null); }}
+                dir="auto"
+                spellCheck={false}
+              />
+              <div className="eval-prompt-panel__actions">
+                <span className="eval-prompt-panel__meta">
+                  {evaluatorPrompt.length.toLocaleString()} תווים · ≈{Math.ceil(evaluatorPrompt.length / 4).toLocaleString()} tokens
+                </span>
+                <button
+                  className="btn btn-sm btn-secondary"
+                  onClick={resetPrompt}
+                  disabled={savingPrompt}
+                  title="החזר את פרומפט ההערכה לברירת המחדל המובנית"
+                >
+                  אפס לברירת מחדל
+                </button>
+                {isPromptDirty && (
+                  <button
+                    className="btn btn-sm btn-secondary"
+                    onClick={() => { setEvaluatorPrompt(originalPrompt); setPromptResult(null); }}
+                    disabled={savingPrompt}
+                  >
+                    ביטול שינויים
+                  </button>
+                )}
+                <button
+                  className="btn btn-sm btn-primary"
+                  onClick={savePrompt}
+                  disabled={savingPrompt || !isPromptDirty}
+                >
+                  {savingPrompt ? 'שומר…' : 'שמור'}
+                </button>
+              </div>
+              {promptResult && (
+                <div className={`eval-prompt-panel__result eval-prompt-panel__result--${promptResult.type}`}>
+                  {promptResult.message}
+                </div>
+              )}
+            </div>
+          )
         )}
       </div>
 
@@ -205,8 +362,8 @@ export default function RunDetail() {
                 {j.job_url && <a href={j.job_url} target="_blank" rel="noopener noreferrer" className="btn btn-sm btn-secondary">צפה במשרה</a>}
                 {isRescorable(j) && (
                   <button
-                    className="btn btn-sm btn-primary"
-                    onClick={() => rescoreJob(j.id)}
+                    className="btn btn-sm btn-secondary"
+                    onClick={() => rescoreJob(j)}
                     disabled={rescoringIds.has(j.id) || bulkRescoring}
                   >
                     {rescoringIds.has(j.id) ? 'מדרג...' : 'דרג מחדש'}

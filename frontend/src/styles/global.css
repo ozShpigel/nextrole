@@ -219,3 +219,120 @@ a { text-decoration: none; color: inherit; }
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
+
+/* ---- Snapshots card (raw Claude call artifacts) ---- */
+.snapshots-card {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+.snapshots-card__stage {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.9rem 1.1rem;
+  background: var(--bg-surface);
+}
+.snapshots-card__stage-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 0.6rem;
+  padding-bottom: 0.45rem;
+  border-bottom: 1px dashed var(--border);
+}
+.snapshots-card__stage-label {
+  font-family: 'Noto Serif Hebrew', 'Heebo', serif;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-bright);
+  letter-spacing: 0.01em;
+}
+.snapshots-card__stage-hint {
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  letter-spacing: 0.08em;
+}
+.snapshots-card__panel {
+  padding-top: 0.75rem;
+  margin-top: 0.55rem;
+}
+.snapshots-card__panel:first-of-type {
+  margin-top: 0;
+  padding-top: 0;
+}
+.snapshots-card__panel-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.4rem;
+}
+.snapshots-card__panel-label {
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  font-weight: 600;
+}
+.snapshots-card__copy {
+  font-size: 0.7rem;
+  padding: 0.2rem 0.6rem;
+  min-height: auto;
+}
+.snapshots-card__pre {
+  direction: ltr;
+  text-align: left;
+  font-family: 'JetBrains Mono', 'SF Mono', 'Consolas', 'Courier New', monospace;
+  font-size: 0.76rem;
+  line-height: 1.55;
+  color: var(--text-primary);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.7rem 0.9rem;
+  max-height: 360px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 0;
+}
+.snapshots-card__empty {
+  font-size: 0.82rem;
+  color: var(--text-dim);
+  font-style: italic;
+  padding: 0.4rem 0;
+}
+
+/* ---- Snapshots modal (used in discovery RunDetail) ---- */
+.modal:has(.snapshots-modal__panel) {
+  max-width: 880px;
+  width: 92vw;
+  padding: 1.5rem;
+}
+.snapshots-modal__panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+.snapshots-modal__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.75rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border);
+  position: relative;
+}
+.snapshots-modal__subtitle {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  flex: 1;
+}
+.snapshots-modal__close {
+  margin-inline-start: auto;
+  font-size: 0.85rem;
+  padding: 0.25rem 0.6rem;
+}
+.snapshots-modal__body {
+  max-height: 72vh;
+  overflow: auto;
+}

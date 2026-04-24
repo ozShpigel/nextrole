@@ -244,6 +244,10 @@ async def rescore_job(job_id: str):
             "verdict": verdict,
             "should_apply": should_apply,
             "match_analysis": result.data,
+            "analyst_snapshot_input": result.data.get("analystSnapshotInput"),
+            "analyst_snapshot_output": result.data.get("analystSnapshotOutput"),
+            "evaluator_snapshot_input": result.data.get("evaluatorSnapshotInput"),
+            "evaluator_snapshot_output": result.data.get("evaluatorSnapshotOutput"),
         }},
     )
     return {"status": "ok", "score": score, "verdict": verdict}
@@ -268,6 +272,10 @@ async def save_job(job_id: str):
         score=doc.get("score"),
         verdict=doc.get("verdict"),
         analysis_json=analysis_json,
+        analyst_snapshot_input=doc.get("analyst_snapshot_input"),
+        analyst_snapshot_output=doc.get("analyst_snapshot_output"),
+        evaluator_snapshot_input=doc.get("evaluator_snapshot_input"),
+        evaluator_snapshot_output=doc.get("evaluator_snapshot_output"),
     )
     if saved:
         await db.discovered_jobs.update_one({"id": job_id}, {"$set": {"saved_to_tracker": True}})

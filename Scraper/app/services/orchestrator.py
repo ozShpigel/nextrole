@@ -126,6 +126,10 @@ async def run_discovery(db: AsyncIOMotorDatabase, settings: Settings, criteria_i
                     verdict=verdict,
                     should_apply=should_apply,
                     match_analysis=match_response,
+                    analyst_snapshot_input=match_response.get("analystSnapshotInput"),
+                    analyst_snapshot_output=match_response.get("analystSnapshotOutput"),
+                    evaluator_snapshot_input=match_response.get("evaluatorSnapshotInput"),
+                    evaluator_snapshot_output=match_response.get("evaluatorSnapshotOutput"),
                 )
                 await db.discovered_jobs.insert_one(disc_job.model_dump())
                 run.jobs_scored += 1
@@ -144,6 +148,10 @@ async def run_discovery(db: AsyncIOMotorDatabase, settings: Settings, criteria_i
                         score=score,
                         verdict=verdict,
                         analysis_json=analysis_json,
+                        analyst_snapshot_input=disc_job.analyst_snapshot_input,
+                        analyst_snapshot_output=disc_job.analyst_snapshot_output,
+                        evaluator_snapshot_input=disc_job.evaluator_snapshot_input,
+                        evaluator_snapshot_output=disc_job.evaluator_snapshot_output,
                     )
                     if saved:
                         disc_job.saved_to_tracker = True

@@ -184,6 +184,10 @@ async def save_to_tracker(
     score: int | None,
     verdict: str | None,
     analysis_json: str | None,
+    analyst_snapshot_input: str | None = None,
+    analyst_snapshot_output: str | None = None,
+    evaluator_snapshot_input: str | None = None,
+    evaluator_snapshot_output: str | None = None,
 ) -> bool:
     """Save a discovered job to the tracker."""
     payload = {
@@ -194,6 +198,10 @@ async def save_to_tracker(
         "matchScore": score,
         "matchVerdict": verdict,
         "matchAnalysis": analysis_json,
+        "analystSnapshotInput": analyst_snapshot_input,
+        "analystSnapshotOutput": analyst_snapshot_output,
+        "evaluatorSnapshotInput": evaluator_snapshot_input,
+        "evaluatorSnapshotOutput": evaluator_snapshot_output,
         "source": "discovery",
     }
 

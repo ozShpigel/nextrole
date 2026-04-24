@@ -27,6 +27,7 @@ public sealed class JobMatchService : IJobMatchService
         var profile = await _profileProvider.GetProfileAsync(cancellationToken);
 
         ParsedJob parsedJob;
+        ClaudeCallSnapshot? analystSnap = null;
         if (!string.IsNullOrWhiteSpace(request.Title))
         {
             _logger.LogInformation("Pre-parsed metadata supplied — skipping parse step ({Title} @ {Company})",
@@ -40,17 +41,23 @@ public sealed class JobMatchService : IJobMatchService
         }
         else
         {
-            parsedJob = await _claudeClient.ParseJobDescriptionAsync(request.JobDescription, cancellationToken);
+            var (parsed, snap) = await _claudeClient.ParseJobDescriptionAsync(request.JobDescription, cancellationToken);
+            parsedJob = parsed;
+            analystSnap = snap;
         }
 
-        var matchResponse = await _claudeClient.EvaluateMatchAsync(profile, parsedJob, cancellationToken);
+        var (matchResponse, evalSnap) = await _claudeClient.EvaluateMatchAsync(profile, parsedJob, cancellationToken);
         _logger.LogInformation("Match evaluation completed. Verdict: {Verdict}, Score: {Score}",
             matchResponse.Verdict, matchResponse.OverallScore);
 
         return matchResponse with
         {
             JobTitle = parsedJob.JobTitle,
-            Company = parsedJob.Company
+            Company = parsedJob.Company,
+            AnalystSnapshotInput = analystSnap?.Input,
+            AnalystSnapshotOutput = analystSnap?.Output,
+            EvaluatorSnapshotInput = evalSnap.Input,
+            EvaluatorSnapshotOutput = evalSnap.Output
         };
     }
 }

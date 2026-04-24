@@ -42,7 +42,7 @@ public sealed class ClaudeClient : IClaudeClient
         _logger = logger;
     }
 
-    public async Task<ParsedJob> ParseJobDescriptionAsync(string jobDescription, CancellationToken cancellationToken = default)
+    public async Task<(ParsedJob Parsed, ClaudeCallSnapshot Snapshot)> ParseJobDescriptionAsync(string jobDescription, CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Parsing job description");
 
@@ -75,12 +75,14 @@ public sealed class ClaudeClient : IClaudeClient
             parameters.Temperature = 1m;
         }
 
+        var inputJson = SerializeCallInput(parameters, prompt);
+
         var response = await _client.Messages.GetClaudeMessageAsync(parameters, cancellationToken);
         if (response?.Message == null)
             throw new InvalidOperationException("Empty response from Claude API");
 
-        var content = response.Message.ToString();
-        _logger.LogDebug("Received parse response from Claude. Length: {Length} chars", content?.Length ?? 0);
+        var content = response.Message.ToString() ?? "";
+        _logger.LogDebug("Received parse response from Claude. Length: {Length} chars", content.Length);
 
         var jsonContent = ExtractJson(content);
         var parsedJob = JsonSerializer.Deserialize<ParsedJob>(jsonContent, new JsonSerializerOptions
@@ -89,10 +91,10 @@ public sealed class ClaudeClient : IClaudeClient
         }) ?? throw new InvalidOperationException("Failed to deserialize ParsedJob");
 
         _logger.LogInformation("Job parsed. Title: {Title}", parsedJob.JobTitle);
-        return parsedJob;
+        return (parsedJob, new ClaudeCallSnapshot(inputJson, content));
     }
 
-    public async Task<MatchResponse> EvaluateMatchAsync(string profile, ParsedJob parsedJob, CancellationToken cancellationToken = default)
+    public async Task<(MatchResponse Response, ClaudeCallSnapshot Snapshot)> EvaluateMatchAsync(string profile, ParsedJob parsedJob, CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Evaluating job match");
 
@@ -126,12 +128,14 @@ public sealed class ClaudeClient : IClaudeClient
             parameters.Temperature = 1m;
         }
 
+        var inputJson = SerializeCallInput(parameters, prompt);
+
         var response = await _client.Messages.GetClaudeMessageAsync(parameters, cancellationToken);
         if (response?.Message == null)
             throw new InvalidOperationException("Empty response from Claude API");
 
-        var content = response.Message.ToString();
-        _logger.LogDebug("Received evaluate response from Claude. Length: {Length} chars", content?.Length ?? 0);
+        var content = response.Message.ToString() ?? "";
+        _logger.LogDebug("Received evaluate response from Claude. Length: {Length} chars", content.Length);
 
         var jsonContent = ExtractJson(content);
         var matchResponse = JsonSerializer.Deserialize<MatchResponse>(jsonContent, new JsonSerializerOptions
@@ -141,7 +145,39 @@ public sealed class ClaudeClient : IClaudeClient
 
         _logger.LogInformation("Match evaluation completed. Verdict: {Verdict}, Score: {Score}",
             matchResponse.Verdict, matchResponse.OverallScore);
-        return matchResponse;
+        return (matchResponse, new ClaudeCallSnapshot(inputJson, content));
+    }
+
+    private static string SerializeCallInput(MessageParameters parameters, string userPrompt)
+    {
+        // Capture what's actually sent to Claude so we can later replay or
+        // diff a failed call. We serialize via reflection for `System`
+        // because its shape (string vs. list-of-blocks) has shifted across
+        // Anthropic.SDK major versions; a reflected read keeps us working
+        // if the SDK changes the type without forcing us to re-write this.
+        object? systemValue = null;
+        try
+        {
+            var systemProp = parameters.GetType().GetProperty("System");
+            systemValue = systemProp?.GetValue(parameters);
+        }
+        catch
+        {
+            // If reflection fails for any reason, just omit it — we still
+            // have the full user prompt which is the primary artifact.
+        }
+
+        return JsonSerializer.Serialize(new
+        {
+            system = systemValue,
+            user = userPrompt,
+            model = parameters.Model,
+            maxTokens = parameters.MaxTokens,
+            temperature = parameters.Temperature,
+            thinking = parameters.Thinking == null
+                ? null
+                : new { budgetTokens = parameters.Thinking.BudgetTokens } as object
+        }, new JsonSerializerOptions { WriteIndented = false });
     }
 
     private static string ExtractJson(string? content)

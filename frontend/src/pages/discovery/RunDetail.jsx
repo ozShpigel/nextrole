@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { discoveryApi } from '../../utils/api';
 import { VERDICT_HE } from '../../utils/constants';
+import SnapshotsModal from '../../components/SnapshotsModal';
 import '../../styles/discovery.css';
 
 function verdictColor(verdict) {
@@ -20,6 +21,7 @@ export default function RunDetail() {
   const [error, setError] = useState(null);
   const [rescoringIds, setRescoringIds] = useState(() => new Set());
   const [bulkRescoring, setBulkRescoring] = useState(false);
+  const [snapshotsJob, setSnapshotsJob] = useState(null);
   const pollRef = useRef(null);
 
   async function load() {
@@ -210,6 +212,14 @@ export default function RunDetail() {
                     {rescoringIds.has(j.id) ? 'מדרג...' : 'דרג מחדש'}
                   </button>
                 )}
+                {(j.evaluator_snapshot_input || j.analyst_snapshot_input) && (
+                  <button
+                    className="btn btn-sm btn-secondary"
+                    onClick={() => setSnapshotsJob(j)}
+                  >
+                    קריאות Claude
+                  </button>
+                )}
                 {!j.saved_to_tracker && j.score != null && (
                   <button className="btn btn-sm btn-primary" onClick={() => saveJob(j.id)}>שמור למעקב</button>
                 )}
@@ -219,6 +229,19 @@ export default function RunDetail() {
             </div>
           ))}
         </div>
+      )}
+
+      {snapshotsJob && (
+        <SnapshotsModal
+          title={`${snapshotsJob.title} · ${snapshotsJob.company}`}
+          snapshots={{
+            analystInput:    snapshotsJob.analyst_snapshot_input,
+            analystOutput:   snapshotsJob.analyst_snapshot_output,
+            evaluatorInput:  snapshotsJob.evaluator_snapshot_input,
+            evaluatorOutput: snapshotsJob.evaluator_snapshot_output,
+          }}
+          onClose={() => setSnapshotsJob(null)}
+        />
       )}
     </div>
   );

@@ -9,6 +9,10 @@ public sealed record MatchResponse
     public Breakdown Breakdown { get; init; } = new();
     public Recommendation Recommendation { get; init; } = new();
     public string HonestAssessment { get; init; } = "";
+    public string? AnalystSnapshotInput { get; init; }
+    public string? AnalystSnapshotOutput { get; init; }
+    public string? EvaluatorSnapshotInput { get; init; }
+    public string? EvaluatorSnapshotOutput { get; init; }
 }
 
 public sealed record Breakdown

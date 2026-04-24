@@ -4,6 +4,7 @@ import { api } from '../../utils/api';
 import { scoreColor } from '../../utils/format';
 import StatusBadge from '../../components/StatusBadge';
 import CollapsibleSection from '../../components/CollapsibleSection';
+import SnapshotsCard from '../../components/SnapshotsCard';
 import AnalysisCard from './AnalysisCard';
 import Timeline from './Timeline';
 import InterviewList from './InterviewList';
@@ -82,6 +83,18 @@ export default function ApplicationDetail() {
 
         {/* AI Analysis */}
         <AnalysisCard matchAnalysisJson={app.matchAnalysis} />
+
+        {/* Raw Claude call artifacts — collapsed by default since it's debug data */}
+        {(app.analystSnapshotInput || app.evaluatorSnapshotInput) && (
+          <CollapsibleSection title="קריאות Claude גולמיות" defaultOpen={false}>
+            <SnapshotsCard snapshots={{
+              analystInput:    app.analystSnapshotInput,
+              analystOutput:   app.analystSnapshotOutput,
+              evaluatorInput:  app.evaluatorSnapshotInput,
+              evaluatorOutput: app.evaluatorSnapshotOutput,
+            }} />
+          </CollapsibleSection>
+        )}
 
         {/* Timeline */}
         <div className="card">

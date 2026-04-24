@@ -15,6 +15,10 @@ public sealed record Application
     public string? MatchVerdict { get; init; }
     public string? JobDescription { get; init; }
     public string? MatchAnalysis { get; init; }
+    public string? AnalystSnapshotInput { get; init; }
+    public string? AnalystSnapshotOutput { get; init; }
+    public string? EvaluatorSnapshotInput { get; init; }
+    public string? EvaluatorSnapshotOutput { get; init; }
     public DateTime CreatedAt { get; init; } = DateTime.UtcNow;
     public DateTime? AppliedAt { get; init; }
     public DateTime UpdatedAt { get; init; } = DateTime.UtcNow;

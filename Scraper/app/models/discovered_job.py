@@ -22,6 +22,13 @@ class DiscoveredJob(BaseModel):
     verdict: str | None = None
     should_apply: bool | None = None
     match_analysis: dict | None = None
+    # Raw Claude call artifacts — null for the Analyst pair on scraper-
+    # discovered jobs because we pass title/company from JobSpy and skip
+    # the Analyst call entirely.
+    analyst_snapshot_input: str | None = None
+    analyst_snapshot_output: str | None = None
+    evaluator_snapshot_input: str | None = None
+    evaluator_snapshot_output: str | None = None
     # Tracking
     is_duplicate: bool = False
     saved_to_tracker: bool = False

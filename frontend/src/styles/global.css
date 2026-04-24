@@ -45,7 +45,7 @@
 html { font-size: 16px; }
 
 body {
-  font-family: 'IBM Plex Sans Hebrew', 'Heebo', 'Noto Sans Hebrew', system-ui, sans-serif;
+  font-family: 'Heebo', system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overflow-x: hidden;

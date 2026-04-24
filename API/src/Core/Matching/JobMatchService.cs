@@ -26,25 +26,19 @@ public sealed class JobMatchService : IJobMatchService
 
         var profile = await _profileProvider.GetProfileAsync(cancellationToken);
 
-        ParsedJob parsedJob;
-        ClaudeCallSnapshot? analystSnap = null;
-        if (!string.IsNullOrWhiteSpace(request.Title))
+        // Always run the Analyst — even when the caller (scraper) pre-supplies
+        // title/company from JobSpy. Without the Analyst pass the Evaluator
+        // gets an empty ParsedJob (no skills, cultural signals, tech stack)
+        // and scores on vibes alone. We keep the scraper's canonical
+        // title/company when supplied, since those come from the source
+        // listing and are more authoritative than an Analyst inference.
+        var (parsed, analystSnap) = await _claudeClient.ParseJobDescriptionAsync(request.JobDescription, cancellationToken);
+        var parsedJob = parsed with
         {
-            _logger.LogInformation("Pre-parsed metadata supplied — skipping parse step ({Title} @ {Company})",
-                request.Title, request.Company);
-            parsedJob = new ParsedJob
-            {
-                JobTitle = request.Title!,
-                Company = request.Company,
-                RawDescription = request.JobDescription
-            };
-        }
-        else
-        {
-            var (parsed, snap) = await _claudeClient.ParseJobDescriptionAsync(request.JobDescription, cancellationToken);
-            parsedJob = parsed;
-            analystSnap = snap;
-        }
+            JobTitle = !string.IsNullOrWhiteSpace(request.Title) ? request.Title! : parsed.JobTitle,
+            Company = !string.IsNullOrWhiteSpace(request.Company) ? request.Company : parsed.Company,
+            RawDescription = request.JobDescription
+        };
 
         var (matchResponse, evalSnap) = await _claudeClient.EvaluateMatchAsync(profile, parsedJob, cancellationToken);
         _logger.LogInformation("Match evaluation completed. Verdict: {Verdict}, Score: {Score}",
@@ -54,8 +48,8 @@ public sealed class JobMatchService : IJobMatchService
         {
             JobTitle = parsedJob.JobTitle,
             Company = parsedJob.Company,
-            AnalystSnapshotInput = analystSnap?.Input,
-            AnalystSnapshotOutput = analystSnap?.Output,
+            AnalystSnapshotInput = analystSnap.Input,
+            AnalystSnapshotOutput = analystSnap.Output,
             EvaluatorSnapshotInput = evalSnap.Input,
             EvaluatorSnapshotOutput = evalSnap.Output
         };

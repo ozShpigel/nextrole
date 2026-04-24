@@ -34,7 +34,7 @@ export default function Dashboard() {
     load();
   }, []);
 
-  if (loading) return <p className="empty-state">טוען...</p>;
+  if (loading) return <DashboardLoadingSkeleton />;
   if (error) return <div className="card"><p className="text-dim">שגיאה בטעינת הנתונים: {error}</p></div>;
 
   return (
@@ -82,5 +82,76 @@ export default function Dashboard() {
         )}
       </div>
     </>
+  );
+}
+
+const DASHBOARD_HERO_LETTERS = ['ד', 'ש', 'ב', 'ו', 'ר', 'ד'];
+
+function DashboardLoadingSkeleton() {
+  return (
+    <div className="tracker-loading" role="status" aria-live="polite" aria-label="טוען דשבורד">
+      <header className="tracker-loading__hero" aria-hidden="true">
+        <span className="tracker-loading__eyebrow">Overview · 2026</span>
+        <h2 className="tracker-loading__title">
+          {DASHBOARD_HERO_LETTERS.map((ch, i) => (
+            <span key={i} className="tracker-loading__title-letter" style={{ '--i': i }}>{ch}</span>
+          ))}
+        </h2>
+        <div className="tracker-loading__track">
+          <span className="tracker-loading__track-wipe" />
+        </div>
+      </header>
+
+      <div className="tracker-loading__summary" aria-hidden="true">
+        {[0, 1, 2, 3].map((i) => (
+          <div key={i} className="tracker-loading__summary-card" style={{ '--i': i }}>
+            <span className="skeleton skeleton-value" />
+            <span className="skeleton skeleton-label" />
+          </div>
+        ))}
+      </div>
+
+      <div className="tracker-loading__card" style={{ '--i': 4 }} aria-hidden="true">
+        <div className="tracker-loading__section-head">
+          <span className="tracker-loading__section-num">01</span>
+          <span className="skeleton skeleton-section-title" />
+        </div>
+        {[0, 1].map((i) => (
+          <div key={i} className="tracker-loading__item">
+            <div className="tracker-loading__item-row">
+              <span className="skeleton skeleton-item-title" />
+              <span className="skeleton skeleton-item-meta" />
+            </div>
+            <span className="skeleton skeleton-line skeleton-line--long" />
+          </div>
+        ))}
+      </div>
+
+      <div className="tracker-loading__card" style={{ '--i': 5 }} aria-hidden="true">
+        <div className="tracker-loading__section-head">
+          <span className="tracker-loading__section-num">02</span>
+          <span className="skeleton skeleton-section-title" />
+        </div>
+        {[0, 1, 2].map((i) => (
+          <div key={i} className="tracker-loading__timeline-item">
+            <span className="skeleton skeleton-icon" />
+            <div className="tracker-loading__timeline-body">
+              <span className="skeleton skeleton-line skeleton-line--long" />
+              <span className="skeleton skeleton-line skeleton-line--short" />
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="tracker-loading__subtitle">
+        <span className="tracker-loading__glyph" aria-hidden="true">§</span>
+        <span className="tracker-loading__cycle" aria-hidden="true">
+          <span className="tracker-loading__cycle-item">מאחזר משרות פעילות</span>
+          <span className="tracker-loading__cycle-item">מסכם סטטיסטיקות</span>
+          <span className="tracker-loading__cycle-item">ממפה ראיונות קרובים</span>
+        </span>
+        <span className="sr-only">טוען דשבורד</span>
+      </div>
+    </div>
   );
 }

@@ -107,7 +107,11 @@ export default function RunDetail() {
     load();
   }
 
-  if (loading) return <div className="discovery-page"><p className="empty-state">טוען...</p></div>;
+  if (loading) return (
+    <div className="discovery-page">
+      <RunDetailLoadingSkeleton />
+    </div>
+  );
   if (error) return <div className="discovery-page"><div className="match-error">{error}</div></div>;
   if (!run) return null;
 
@@ -216,6 +220,63 @@ export default function RunDetail() {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+function RunDetailLoadingSkeleton() {
+  return (
+    <div className="discovery-loading discovery-loading--run" role="status" aria-live="polite" aria-label="טוען פרטי ריצה">
+      <div className="discovery-loading__back skeleton skeleton-back" aria-hidden="true" />
+
+      <div className="discovery-loading__run-header" aria-hidden="true">
+        <div className="skeleton skeleton-run-title" />
+        <div className="discovery-loading__run-meta">
+          <span className="skeleton skeleton-status" />
+          <span className="skeleton skeleton-stat-pill" />
+          <span className="skeleton skeleton-stat-pill" />
+          <span className="skeleton skeleton-stat-pill" />
+          <span className="skeleton skeleton-stat-pill" />
+        </div>
+        <div className="discovery-loading__track" aria-hidden="true">
+          <span className="discovery-loading__track-wipe" />
+        </div>
+      </div>
+
+      <div className="discovery-loading__jobs">
+        {[0, 1, 2].map((i) => (
+          <div key={i} className="discovery-loading__job-card" style={{ '--i': i }} aria-hidden="true">
+            <div className="discovery-loading__job-row">
+              <div className="discovery-loading__job-titles">
+                <div className="skeleton skeleton-job-title" />
+                <div className="skeleton skeleton-job-company" />
+                <div className="skeleton skeleton-job-location" />
+              </div>
+              <div className="discovery-loading__job-score">
+                <div className="skeleton skeleton-score" />
+                <div className="skeleton skeleton-verdict" />
+              </div>
+            </div>
+            <div className="discovery-loading__job-tags">
+              <span className="skeleton skeleton-tag" />
+              <span className="skeleton skeleton-tag skeleton-tag--sm" />
+              <span className="skeleton skeleton-tag" />
+            </div>
+            <div className="skeleton skeleton-line skeleton-line--full" />
+            <div className="skeleton skeleton-line skeleton-line--long" />
+          </div>
+        ))}
+      </div>
+
+      <div className="discovery-loading__subtitle">
+        <span className="discovery-loading__glyph" aria-hidden="true">§</span>
+        <span className="discovery-loading__cycle" aria-hidden="true">
+          <span className="discovery-loading__cycle-item">מאחזר את הריצה</span>
+          <span className="discovery-loading__cycle-item">טוען משרות מדורגות</span>
+          <span className="discovery-loading__cycle-item">ממיין לפי ציון</span>
+        </span>
+        <span className="sr-only">טוען</span>
+      </div>
     </div>
   );
 }

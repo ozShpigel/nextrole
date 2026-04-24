@@ -301,7 +301,7 @@ export default function SettingsPage() {
   };
   const dirtyList = SECTIONS.filter((s) => dirtyMap[s.num]);
 
-  if (loading) return <div className="settings-page"><p className="empty-state">טוען הגדרות...</p></div>;
+  if (loading) return <SettingsLoadingSkeleton />;
 
   return (
     <div className="settings-page">
@@ -856,6 +856,93 @@ function UnsavedDock({ dirtyList }) {
             </button>
           ))}
         </div>
+      </div>
+    </div>
+  );
+}
+
+const SETTINGS_HERO_LETTERS = ['ה', 'ג', 'ד', 'ר', 'ו', 'ת'];
+
+function SettingsLoadingSkeleton() {
+  return (
+    <div className="settings-page settings-loading" role="status" aria-live="polite" aria-label="טוען הגדרות">
+      <header className="settings-loading__hero" aria-hidden="true">
+        <span className="settings-loading__eyebrow">Configuration · 2026</span>
+        <h1 className="settings-loading__title">
+          {SETTINGS_HERO_LETTERS.map((ch, i) => (
+            <span key={i} className="settings-loading__title-letter" style={{ '--i': i }}>{ch}</span>
+          ))}
+        </h1>
+        <div className="skeleton skeleton-settings-sub" />
+        <div className="settings-loading__track">
+          <span className="settings-loading__track-wipe" />
+        </div>
+      </header>
+
+      <section className="settings-loading__section" style={{ '--i': 0 }} aria-hidden="true">
+        <div className="settings-loading__section-label">
+          <span className="settings-loading__section-num">01</span>
+          <span className="skeleton skeleton-settings-name" />
+          <span className="skeleton skeleton-settings-badge" />
+        </div>
+        <div className="skeleton skeleton-line skeleton-line--long" />
+        <div className="settings-loading__editor">
+          <div className="settings-loading__editor-gutter">
+            {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => (
+              <span key={i} className="settings-loading__editor-rule" />
+            ))}
+          </div>
+          <div className="settings-loading__editor-body">
+            <span className="skeleton skeleton-line skeleton-line--long" />
+            <span className="skeleton skeleton-line skeleton-line--full" />
+            <span className="skeleton skeleton-line skeleton-line--short" />
+            <span className="skeleton skeleton-line skeleton-line--full" />
+            <span className="skeleton skeleton-line skeleton-line--long" />
+          </div>
+        </div>
+      </section>
+
+      <section className="settings-loading__section" style={{ '--i': 1 }} aria-hidden="true">
+        <div className="settings-loading__section-label">
+          <span className="settings-loading__section-num">04</span>
+          <span className="skeleton skeleton-settings-name" />
+        </div>
+        <div className="settings-loading__roles">
+          <div className="settings-loading__role settings-loading__role--analyst">
+            <div className="settings-loading__role-header">
+              <span className="settings-loading__role-dot" />
+              <span className="skeleton skeleton-role-title" />
+            </div>
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className="settings-loading__field">
+                <span className="skeleton skeleton-field-label" />
+                <span className="skeleton skeleton-field-input" />
+              </div>
+            ))}
+          </div>
+          <div className="settings-loading__role settings-loading__role--evaluator">
+            <div className="settings-loading__role-header">
+              <span className="settings-loading__role-dot" />
+              <span className="skeleton skeleton-role-title" />
+            </div>
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className="settings-loading__field">
+                <span className="skeleton skeleton-field-label" />
+                <span className="skeleton skeleton-field-input" />
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <div className="settings-loading__subtitle">
+        <span className="settings-loading__glyph" aria-hidden="true">§</span>
+        <span className="settings-loading__cycle" aria-hidden="true">
+          <span className="settings-loading__cycle-item">מביא את הפרופיל</span>
+          <span className="settings-loading__cycle-item">קורא פרומפטים ותצורה</span>
+          <span className="settings-loading__cycle-item">מכין את הלוח</span>
+        </span>
+        <span className="sr-only">טוען הגדרות</span>
       </div>
     </div>
   );

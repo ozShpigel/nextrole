@@ -158,7 +158,7 @@ export default function DiscoveryPage() {
             </div>
           </div>
         ) : (
-          <p className="empty-state">טוען...</p>
+          <DiscoveryLoadingSkeleton />
         )}
       </div>
     );
@@ -359,6 +359,89 @@ export default function DiscoveryPage() {
           </div>
         )}
       </section>
+    </div>
+  );
+}
+
+function DiscoveryLoadingSkeleton() {
+  return (
+    <div className="discovery-loading" role="status" aria-live="polite" aria-label="טוען את דף גילוי המשרות">
+      {/* Hero preview — matches the real hero so the transition to loaded
+          content is continuous. Title fades in, skeleton stand-ins hold
+          the spot where sub-copy and stats will appear. */}
+      <header className="discovery-loading__hero">
+        <div className="skeleton skeleton-pill" aria-hidden="true" />
+        <h1 className="discovery-loading__title" aria-hidden="true">
+          <span className="discovery-loading__title-letter" style={{ '--i': 0 }}>ג</span>
+          <span className="discovery-loading__title-letter" style={{ '--i': 1 }}>י</span>
+          <span className="discovery-loading__title-letter" style={{ '--i': 2 }}>ל</span>
+          <span className="discovery-loading__title-letter" style={{ '--i': 3 }}>ו</span>
+          <span className="discovery-loading__title-letter" style={{ '--i': 4 }}>י</span>
+          <span className="discovery-loading__title-space">&nbsp;</span>
+          <span className="discovery-loading__title-letter" style={{ '--i': 5 }}>מ</span>
+          <span className="discovery-loading__title-letter" style={{ '--i': 6 }}>ש</span>
+          <span className="discovery-loading__title-letter" style={{ '--i': 7 }}>ר</span>
+          <span className="discovery-loading__title-letter" style={{ '--i': 8 }}>ו</span>
+          <span className="discovery-loading__title-letter" style={{ '--i': 9 }}>ת</span>
+        </h1>
+        <div className="skeleton skeleton-line skeleton-line--long" aria-hidden="true" />
+        <div className="skeleton skeleton-line skeleton-line--short" aria-hidden="true" />
+        <div className="discovery-loading__track" aria-hidden="true">
+          <span className="discovery-loading__track-wipe" />
+        </div>
+      </header>
+
+      {/* Stat-strip skeleton */}
+      <div className="discovery-loading__strip" aria-hidden="true">
+        <div className="discovery-loading__strip-cell">
+          <div className="skeleton skeleton-stat" />
+          <div className="skeleton skeleton-label" />
+        </div>
+        <div className="discovery-loading__strip-cell">
+          <div className="skeleton skeleton-stat" />
+          <div className="skeleton skeleton-label" />
+        </div>
+        <div className="discovery-loading__strip-cell">
+          <div className="skeleton skeleton-stat" />
+          <div className="skeleton skeleton-label" />
+        </div>
+      </div>
+
+      {/* Section heading + card grid skeleton */}
+      <div className="discovery-loading__section">
+        <div className="discovery-loading__section-head" aria-hidden="true">
+          <span className="discovery-loading__section-num">01</span>
+          <span className="skeleton skeleton-heading" />
+        </div>
+        <div className="discovery-loading__cards">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="discovery-loading__card" style={{ '--i': i }} aria-hidden="true">
+              <div className="discovery-loading__card-row">
+                <div className="skeleton skeleton-card-title" />
+                <div className="skeleton skeleton-card-action" />
+              </div>
+              <div className="discovery-loading__card-tags">
+                <span className="skeleton skeleton-tag" />
+                <span className="skeleton skeleton-tag skeleton-tag--sm" />
+                <span className="skeleton skeleton-tag" />
+              </div>
+              <div className="skeleton skeleton-line skeleton-line--full" />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Contextual subtitle — cycles through hints so the wait feels
+          intentional rather than broken. Pure CSS cycling, 6s total. */}
+      <div className="discovery-loading__subtitle">
+        <span className="discovery-loading__glyph" aria-hidden="true">§</span>
+        <span className="discovery-loading__cycle" aria-hidden="true">
+          <span className="discovery-loading__cycle-item">מושכים את קריטריוני החיפוש</span>
+          <span className="discovery-loading__cycle-item">טוענים ריצות אחרונות</span>
+          <span className="discovery-loading__cycle-item">מסנכרנים עם שירות הגילוי</span>
+        </span>
+        <span className="sr-only">טוען את הדף</span>
+      </div>
     </div>
   );
 }

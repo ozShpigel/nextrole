@@ -43,7 +43,13 @@ export default function ApplicationDetail() {
     }
   }
 
-  if (!data) return <div className="tracker"><div className="container"><p className="empty-state">טוען...</p></div></div>;
+  if (!data) return (
+    <div className="tracker">
+      <div className="container">
+        <ApplicationDetailLoadingSkeleton />
+      </div>
+    </div>
+  );
 
   const { application: app, interviews, notes, statusUpdates } = data;
 
@@ -117,6 +123,79 @@ export default function ApplicationDetail() {
         {modal?.type === 'note' && (
           <NoteModal appId={app.id} onClose={() => setModal(null)} onSaved={closeAndReload} />
         )}
+      </div>
+    </div>
+  );
+}
+
+function ApplicationDetailLoadingSkeleton() {
+  return (
+    <div className="tracker-loading tracker-loading--detail" role="status" aria-live="polite" aria-label="טוען פרטי משרה">
+      <div className="skeleton skeleton-back" aria-hidden="true" />
+
+      <div className="tracker-loading__card tracker-loading__card--hero" style={{ '--i': 0 }} aria-hidden="true">
+        <div className="tracker-loading__detail-head">
+          <div className="tracker-loading__detail-titles">
+            <span className="skeleton skeleton-detail-title" />
+            <span className="skeleton skeleton-detail-company" />
+            <span className="skeleton skeleton-badge" />
+          </div>
+          <div className="tracker-loading__detail-score">
+            <span className="skeleton skeleton-score-big" />
+            <span className="skeleton skeleton-verdict-sm" />
+          </div>
+        </div>
+        <div className="tracker-loading__btn-group">
+          <span className="skeleton skeleton-btn" />
+          <span className="skeleton skeleton-btn" />
+          <span className="skeleton skeleton-btn" />
+          <span className="skeleton skeleton-btn skeleton-btn--sm" />
+        </div>
+        <div className="tracker-loading__track">
+          <span className="tracker-loading__track-wipe" />
+        </div>
+      </div>
+
+      <div className="tracker-loading__card" style={{ '--i': 1 }} aria-hidden="true">
+        <div className="tracker-loading__section-head">
+          <span className="tracker-loading__section-num">A</span>
+          <span className="skeleton skeleton-section-title" />
+        </div>
+        <div className="tracker-loading__analysis-row">
+          <span className="skeleton skeleton-flag" />
+          <span className="skeleton skeleton-flag skeleton-flag--sm" />
+          <span className="skeleton skeleton-flag" />
+          <span className="skeleton skeleton-flag skeleton-flag--sm" />
+        </div>
+        <span className="skeleton skeleton-line skeleton-line--full" />
+        <span className="skeleton skeleton-line skeleton-line--long" />
+        <span className="skeleton skeleton-line skeleton-line--short" />
+      </div>
+
+      <div className="tracker-loading__card" style={{ '--i': 2 }} aria-hidden="true">
+        <div className="tracker-loading__section-head">
+          <span className="tracker-loading__section-num">§</span>
+          <span className="skeleton skeleton-section-title" />
+        </div>
+        {[0, 1, 2].map((i) => (
+          <div key={i} className="tracker-loading__timeline-item">
+            <span className="skeleton skeleton-icon" />
+            <div className="tracker-loading__timeline-body">
+              <span className="skeleton skeleton-line skeleton-line--long" />
+              <span className="skeleton skeleton-line skeleton-line--short" />
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="tracker-loading__subtitle">
+        <span className="tracker-loading__glyph" aria-hidden="true">§</span>
+        <span className="tracker-loading__cycle" aria-hidden="true">
+          <span className="tracker-loading__cycle-item">שולף נתוני משרה</span>
+          <span className="tracker-loading__cycle-item">קורא ראיונות והערות</span>
+          <span className="tracker-loading__cycle-item">מרכיב את הציר</span>
+        </span>
+        <span className="sr-only">טוען פרטי משרה</span>
       </div>
     </div>
   );

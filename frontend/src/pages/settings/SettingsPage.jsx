@@ -72,6 +72,23 @@ function scrollTextareaToOffset(ta, offset) {
   try { ta.setSelectionRange(offset, offset); } catch { /* ignore */ }
 }
 
+const SECTIONS = [
+  { id: 'settings-section-01', num: '01', name: 'פרופיל מקצועי', short: 'Profile' },
+  { id: 'settings-section-02', num: '02', name: 'פרומפט אנליסט', short: 'Analyst' },
+  { id: 'settings-section-03', num: '03', name: 'פרומפט הערכה', short: 'Evaluator' },
+  { id: 'settings-section-04', num: '04', name: 'תצורת ניתוח', short: 'Tuning' },
+  { id: 'settings-section-05', num: '05', name: 'מבנה ניתוח', short: 'Scoring' },
+];
+
+function scrollToSection(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const nav = document.querySelector('.app-nav');
+  const navH = nav ? nav.getBoundingClientRect().height : 0;
+  const y = el.getBoundingClientRect().top + window.pageYOffset - navH - 24;
+  window.scrollTo({ top: y, behavior: 'smooth' });
+}
+
 export default function SettingsPage() {
   const [profile, setProfile] = useState('');
   const [originalProfile, setOriginalProfile] = useState('');
@@ -87,6 +104,7 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [lastUpdated, setLastUpdated] = useState(null);
+  const [activeSection, setActiveSection] = useState(SECTIONS[0].id);
 
   const [savingProfile, setSavingProfile] = useState(false);
   const [savingAnalyst, setSavingAnalyst] = useState(false);
@@ -103,6 +121,27 @@ export default function SettingsPage() {
   const [confirmUnsafeSave, setConfirmUnsafeSave] = useState(false);
 
   useEffect(() => { load(); }, []);
+
+  // Scrollspy — track which section the reader is currently on. Top-band
+  // activation zone so a section "wins" as soon as its heading crosses the
+  // upper third of the viewport, not when the section is centered.
+  useEffect(() => {
+    if (typeof IntersectionObserver === 'undefined') return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((e) => e.isIntersecting)
+          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+        if (visible[0]) setActiveSection(visible[0].target.id);
+      },
+      { rootMargin: '-18% 0px -70% 0px', threshold: 0 },
+    );
+    SECTIONS.forEach((s) => {
+      const el = document.getElementById(s.id);
+      if (el) observer.observe(el);
+    });
+    return () => observer.disconnect();
+  }, [loading]);
 
   async function load() {
     try {
@@ -253,10 +292,21 @@ export default function SettingsPage() {
     saveEvaluator();
   }
 
+  const dirtyMap = {
+    '01': isProfileDirty,
+    '02': isAnalystDirty,
+    '03': isEvaluatorDirty,
+    '04': isConfigDirty,
+    '05': false,
+  };
+  const dirtyList = SECTIONS.filter((s) => dirtyMap[s.num]);
+
   if (loading) return <div className="settings-page"><p className="empty-state">טוען הגדרות...</p></div>;
 
   return (
     <div className="settings-page">
+      <FolioRail activeId={activeSection} dirtyMap={dirtyMap} />
+      <UnsavedDock dirtyList={dirtyList} />
       <header className="settings-hero">
         <span className="settings-hero__eyebrow">Configuration · 2026</span>
         <h1 className="settings-hero__title">הגדרות</h1>
@@ -269,7 +319,7 @@ export default function SettingsPage() {
       {error && <div className="settings-error">{error}</div>}
 
       {/* 01 — Profile Editor */}
-      <section className="settings-section">
+      <section className="settings-section" id="settings-section-01">
         <div className="settings-section__label">
           <span className="settings-section__num">01</span>
           <span className="settings-section__name">פרופיל מקצועי</span>
@@ -316,6 +366,7 @@ export default function SettingsPage() {
 
       {/* 02 — Analyst Prompt */}
       <PromptSection
+        sectionId="settings-section-02"
         num="02"
         name="פרומפט אנליסט"
         desc="ההנחיה ל-Claude בשלב פרסינג המשרה — מחלצת כותרת, טכנולוגיות, רמת ניסיון ואותות תרבותיים ומחזירה JSON מובנה."
@@ -337,6 +388,7 @@ export default function SettingsPage() {
 
       {/* 03 — Evaluator Prompt */}
       <PromptSection
+        sectionId="settings-section-03"
         num="03"
         name="פרומפט הערכה"
         desc={
@@ -371,7 +423,7 @@ export default function SettingsPage() {
       />
 
       {/* 04 — Scoring Config */}
-      <section className="settings-section">
+      <section className="settings-section" id="settings-section-04">
         <div className="settings-section__label">
           <span className="settings-section__num">04</span>
           <span className="settings-section__name">תצורת ניתוח</span>
@@ -383,14 +435,20 @@ export default function SettingsPage() {
 
         <div className="role-configs">
           <RoleConfigPanel
-            title="① אנליסט · Parse"
+            role="analyst"
+            stage="①"
+            titleHe="אנליסט"
+            titleEn="Parse"
             hint="קל ומהיר — חילוץ שדות מתיאור משרה"
             values={config.analyst}
             onChange={(k, v) => updateConfig(`analyst.${k}`, v)}
             idPrefix="cfg-a"
           />
           <RoleConfigPanel
-            title="② הערכה · Evaluate"
+            role="evaluator"
+            stage="②"
+            titleHe="הערכה"
+            titleEn="Evaluate"
             hint="ניתוח עמוק — ציון, ברדיקט והערכה בעברית"
             values={config.evaluator}
             onChange={(k, v) => updateConfig(`evaluator.${k}`, v)}
@@ -433,7 +491,7 @@ export default function SettingsPage() {
       </section>
 
       {/* 05 — Scoring Structure */}
-      <section className="settings-section">
+      <section className="settings-section" id="settings-section-05">
         <div className="settings-section__label">
           <span className="settings-section__num">05</span>
           <span className="settings-section__name">מבנה ניתוח</span>
@@ -488,7 +546,7 @@ export default function SettingsPage() {
 }
 
 function PromptSection({
-  num, name, desc, activeStage, isOverride,
+  sectionId, num, name, desc, activeStage, isOverride,
   value, setValue, isDirty, saving,
   onSave, onCancel, onResetRequest,
   confirmingReset, onConfirmResetCancel, onConfirmResetAccept,
@@ -500,7 +558,7 @@ function PromptSection({
   const headings = useMemo(() => detectHeadings(value), [value]);
 
   return (
-    <section className="settings-section settings-section--prompt">
+    <section className="settings-section settings-section--prompt" id={sectionId}>
       <div className="settings-section__label">
         <span className="settings-section__num">{num}</span>
         <span className="settings-section__name">{name}</span>
@@ -642,7 +700,7 @@ function PromptSection({
   );
 }
 
-function RoleConfigPanel({ title, hint, values, onChange, idPrefix }) {
+function RoleConfigPanel({ role, stage, titleHe, titleEn, hint, values, onChange, idPrefix }) {
   const modelId = `${idPrefix}-model`;
   const tempId = `${idPrefix}-temp`;
   const tokensId = `${idPrefix}-tokens`;
@@ -650,9 +708,17 @@ function RoleConfigPanel({ title, hint, values, onChange, idPrefix }) {
   const budgetId = `${idPrefix}-thinking-budget`;
 
   return (
-    <div className="role-config">
+    <div className={`role-config role-config--${role}`}>
       <div className="role-config__head">
-        <h3 className="role-config__title">{title}</h3>
+        <div className="role-config__title-row">
+          <span className="role-config__stage" aria-hidden="true">{stage}</span>
+          <h3 className="role-config__title">
+            <span className="role-config__title-he">{titleHe}</span>
+            <span className="role-config__title-sep" aria-hidden="true">·</span>
+            <span className="role-config__title-en">{titleEn}</span>
+          </h3>
+          <span className={`role-config__dot role-config__dot--${role}`} aria-hidden="true" />
+        </div>
         <p className="role-config__hint">{hint}</p>
       </div>
 
@@ -718,6 +784,77 @@ function RoleConfigPanel({ title, hint, values, onChange, idPrefix }) {
             min="1024" max="16000" step="512"
             disabled={!values.thinking_enabled}
           />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FolioRail({ activeId, dirtyMap }) {
+  return (
+    <aside className="folio-rail" aria-label="ניווט בעמוד">
+      <div className="folio-rail__mark" aria-hidden="true">§</div>
+      <ol className="folio-rail__list">
+        {SECTIONS.map((s) => {
+          const isActive = activeId === s.id;
+          const isDirty = dirtyMap[s.num];
+          return (
+            <li key={s.id} className="folio-rail__item">
+              <button
+                type="button"
+                className={`folio-rail__link ${isActive ? 'is-active' : ''} ${isDirty ? 'is-dirty' : ''}`}
+                onClick={() => scrollToSection(s.id)}
+                aria-current={isActive ? 'true' : undefined}
+                aria-label={`${s.num} — ${s.name}${isDirty ? ' (לא נשמר)' : ''}`}
+              >
+                <span className="folio-rail__num">{s.num}</span>
+                <span className="folio-rail__bar" aria-hidden="true" />
+                <span className="folio-rail__name">{s.short}</span>
+                {isDirty && <span className="folio-rail__dirty-dot" aria-hidden="true" />}
+              </button>
+            </li>
+          );
+        })}
+      </ol>
+      <div className="folio-rail__foot" aria-hidden="true">
+        <span className="folio-rail__count">{SECTIONS.length.toString().padStart(2, '0')}</span>
+        <span className="folio-rail__slash">/</span>
+        <span className="folio-rail__count folio-rail__count--total">{SECTIONS.length.toString().padStart(2, '0')}</span>
+      </div>
+    </aside>
+  );
+}
+
+function UnsavedDock({ dirtyList }) {
+  const visible = dirtyList.length > 0;
+  return (
+    <div
+      className={`unsaved-dock ${visible ? 'is-visible' : ''}`}
+      role="status"
+      aria-live="polite"
+      aria-hidden={!visible}
+    >
+      <div className="unsaved-dock__inner">
+        <div className="unsaved-dock__label">
+          <span className="unsaved-dock__pulse" aria-hidden="true" />
+          <span className="unsaved-dock__count">{dirtyList.length}</span>
+          <span className="unsaved-dock__text">
+            {dirtyList.length === 1 ? 'שינוי לא שמור' : 'שינויים לא שמורים'}
+          </span>
+        </div>
+        <div className="unsaved-dock__chips">
+          {dirtyList.map((s) => (
+            <button
+              key={s.id}
+              type="button"
+              className="unsaved-dock__chip"
+              onClick={() => scrollToSection(s.id)}
+              title={`קפוץ ל-${s.name}`}
+            >
+              <span className="unsaved-dock__chip-num">{s.num}</span>
+              <span className="unsaved-dock__chip-name">{s.name}</span>
+            </button>
+          ))}
         </div>
       </div>
     </div>

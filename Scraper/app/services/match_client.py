@@ -11,9 +11,10 @@ class MatchResult(NamedTuple):
     # "ok": data is the rich MatchResponse dict.
     # "too_short": description below the analyst floor — not worth burning
     #              tokens on; treat as terminal INSUFFICIENT_DATA.
-    # "api_error": the API call itself failed (timeout / non-200 / all
-    #              retries exhausted). Retryable once the API is warm.
-    status: Literal["ok", "too_short", "api_error"]
+    # "rate_limited": API returned 429. Caller should back off before retrying.
+    # "api_error": the API call itself failed (timeout / non-429 non-200 /
+    #              all retries exhausted). Retryable once the API is warm.
+    status: Literal["ok", "too_short", "rate_limited", "api_error"]
     data: dict | None
 
 
@@ -63,6 +64,9 @@ async def score_job(
         return MatchResult("api_error", None)
     if resp.status_code == 200:
         return MatchResult("ok", resp.json())
+    if resp.status_code == 429:
+        logger.warning("Rate-limited by API for '%s' at '%s' — all retries exhausted", title, company)
+        return MatchResult("rate_limited", None)
     logger.warning(
         "API match returned %d for '%s' at '%s': %s",
         resp.status_code, title, company, resp.text,

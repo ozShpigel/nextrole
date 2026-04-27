@@ -89,10 +89,11 @@ async def run_discovery(db: AsyncIOMotorDatabase, settings: Settings, criteria_i
                     site=job_data.get("site", "linkedin"),
                 )
 
-                # Two failure modes, two verdicts. INSUFFICIENT_DATA is terminal
-                # (description too thin for the analyst); MATCH_FAILED is the API
-                # itself dying (timeout / 429 / cold-start 502) and the user can
-                # rescore from the UI once the API is healthy.
+                # Three failure modes, two verdicts:
+                # - "too_short": description too thin for the analyst → INSUFFICIENT_DATA (terminal).
+                # - "rate_limited": Anthropic 429 on the API → MATCH_FAILED; pause before next job
+                #   so the rate-limit window has time to reset.
+                # - "api_error": timeout / 502 / cold-start → MATCH_FAILED; rescore later from UI.
                 if match_result.status != "ok":
                     disc_job = DiscoveredJob(
                         run_id=run.id,
@@ -107,6 +108,12 @@ async def run_discovery(db: AsyncIOMotorDatabase, settings: Settings, criteria_i
                         verdict="INSUFFICIENT_DATA" if match_result.status == "too_short" else "MATCH_FAILED",
                     )
                     await db.discovered_jobs.insert_one(disc_job.model_dump())
+                    if i < len(jobs) - 1:
+                        if match_result.status == "rate_limited":
+                            logger.warning("Rate-limited — pausing 60s before next job to let the window reset")
+                            await asyncio.sleep(60.0)
+                        elif match_result.status == "api_error":
+                            await asyncio.sleep(settings.scoring_delay_seconds)
                     continue
 
                 match_response = match_result.data

@@ -1,5 +1,9 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { profileApi } from '../../utils/api';
+import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
+import { Button } from '../../components/ui/button';
+import { Badge } from '../../components/ui/badge';
+import { Separator } from '../../components/ui/separator';
 
 const MODEL_OPTIONS = [
   'claude-sonnet-4-6',
@@ -304,46 +308,21 @@ export default function SettingsPage() {
 
   return (
     <div className="relative max-w-[960px] mx-auto px-7 pt-16 pb-32 animate-page-in isolate max-sm:px-4 max-sm:pt-10 max-sm:pb-14">
-      {/* Atmospheric aura — top-right sandstone */}
-      <div
-        className="absolute -z-1 pointer-events-none"
-        style={{
-          top: '-140px',
-          right: '-220px',
-          width: '560px',
-          height: '560px',
-          background: 'radial-gradient(circle, rgba(168,130,86,0.075) 0%, transparent 65%), radial-gradient(circle at 70% 30%, rgba(191,152,104,0.05) 0%, transparent 55%)',
-          filter: 'blur(70px)',
-        }}
-      />
-      {/* Atmospheric aura — bottom-left teal */}
-      <div
-        className="absolute -z-1 pointer-events-none"
-        style={{
-          bottom: '8%',
-          left: '-220px',
-          width: '440px',
-          height: '440px',
-          background: 'radial-gradient(circle, rgba(61,155,133,0.055) 0%, transparent 65%)',
-          filter: 'blur(70px)',
-        }}
-      />
-
       <FolioRail activeId={activeSection} dirtyMap={dirtyMap} />
       <UnsavedDock dirtyList={dirtyList} />
 
       <header className="mb-14 relative py-[0.4rem]">
-        <span className="inline-flex items-center gap-[0.55rem] font-mono text-[0.66rem] tracking-[0.3em] uppercase text-accent font-medium py-[0.32rem] pe-[0.95rem] ps-[0.7rem] border border-[rgba(168,130,86,0.24)] rounded-full bg-[rgba(168,130,86,0.04)] mb-[1.35rem] shadow-[inset_0_1px_0_rgba(255,255,255,0.6)]">
-          <span className="w-1.5 h-1.5 rounded-full bg-accent shadow-[0_0_0_3px_rgba(168,130,86,0.15)] shrink-0" />
+        <span className="inline-flex items-center gap-[0.55rem] font-mono text-[0.66rem] tracking-[0.3em] uppercase text-muted-foreground font-medium py-[0.32rem] pe-[0.95rem] ps-[0.7rem] border border-border rounded-full bg-muted/30 mb-[1.35rem]">
+          <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground shadow-[0_0_0_3px_rgba(0,0,0,0.06)] shrink-0" />
           Configuration · 2026
         </span>
-        <h1 className="font-serif text-[clamp(2.2rem,4.6vw,3.1rem)] font-bold text-text-bright leading-[1.05] mb-3 tracking-[-0.018em]">הגדרות</h1>
-        <p className="text-text-secondary text-[0.98rem] max-w-[560px] leading-[1.65]">
+        <h1 className="font-serif text-[clamp(2.2rem,4.6vw,3.1rem)] font-bold text-foreground leading-[1.05] mb-3 tracking-[-0.018em]">הגדרות</h1>
+        <p className="text-muted-foreground text-[0.98rem] max-w-[560px] leading-[1.65]">
           צפייה ועריכה של נתוני הקלט לניתוח Claude — הפרופיל המקצועי, הפרומפטים ופרמטרי המודל.
         </p>
-        <div className="mt-8 h-px relative" style={{ background: 'linear-gradient(to left, transparent 0%, rgba(168,130,86,0.32) 38%, rgba(61,155,133,0.25) 62%, transparent 100%)' }}>
+        <div className="mt-8 h-px relative" style={{ background: 'linear-gradient(to left, transparent 0%, oklch(0.7 0 0 / 0.3) 50%, transparent 100%)' }}>
           <span
-            className="absolute top-1/2 right-1/2 translate-x-1/2 -translate-y-1/2 font-serif text-[0.9rem] text-accent bg-bg-deep px-3 opacity-75"
+            className="absolute top-1/2 right-1/2 translate-x-1/2 -translate-y-1/2 font-serif text-[0.9rem] text-muted-foreground bg-background px-3 opacity-75"
           >
             §
           </span>
@@ -351,7 +330,7 @@ export default function SettingsPage() {
       </header>
 
       {error && (
-        <div className="bg-red-bg border border-[rgba(196,84,84,0.15)] py-[0.85rem] px-[1.15rem] rounded mb-8 text-red text-[0.85rem]">
+        <div className="bg-destructive/5 border border-destructive/15 py-[0.85rem] px-[1.15rem] rounded mb-8 text-destructive text-[0.85rem]">
           {error}
         </div>
       )}
@@ -359,55 +338,49 @@ export default function SettingsPage() {
       {/* 01 — Profile Editor */}
       <section className="mb-16 relative animate-section-in" id="settings-section-01">
         <div className="flex items-end gap-4 mb-[0.65rem] flex-wrap pb-[0.55rem] border-b border-border relative">
-          <span className="absolute bottom-[-1px] start-0 w-11 h-0.5 bg-gradient-to-r from-accent to-transparent rounded-sm" />
-          <span className="font-serif text-[2.4rem] font-bold text-accent tracking-[-0.03em] tabular-nums leading-[0.85] shrink-0 min-w-[2.6ch] ltr relative group">
-            <span className="absolute bottom-[0.35em] left-0 w-[0.55em] h-0.5 bg-accent opacity-25 origin-left transition-all" />
+          <span className="absolute bottom-[-1px] start-0 w-11 h-0.5 bg-gradient-to-r from-muted-foreground to-transparent rounded-sm" />
+          <span className="font-serif text-[2.4rem] font-bold text-muted-foreground tracking-[-0.03em] tabular-nums leading-[0.85] shrink-0 min-w-[2.6ch] ltr relative group">
+            <span className="absolute bottom-[0.35em] left-0 w-[0.55em] h-0.5 bg-muted-foreground opacity-25 origin-left transition-all" />
             01
           </span>
-          <span className="font-serif text-[1.55rem] font-bold text-text-bright tracking-[-0.012em] leading-[1.15] pb-[0.1rem]">פרופיל מקצועי</span>
-          <span className="ms-auto text-[0.7rem] text-text-dim py-[0.28rem] px-[0.8rem] rounded-full bg-[rgba(120,100,70,0.04)] border border-border-strong tracking-[0.04em] tabular-nums font-medium mb-[0.2rem] transition-all hover:border-[rgba(168,130,86,0.35)] hover:text-text-secondary">
+          <span className="font-serif text-[1.55rem] font-bold text-foreground tracking-[-0.012em] leading-[1.15] pb-[0.1rem]">פרופיל מקצועי</span>
+          <span className="ms-auto text-[0.7rem] text-muted-foreground py-[0.28rem] px-[0.8rem] rounded-full bg-muted/40 border border-border tracking-[0.04em] tabular-nums font-medium mb-[0.2rem] transition-all hover:border-muted-foreground/30 hover:text-muted-foreground">
             {lastUpdated
               ? `עודכן ${new Date(lastUpdated).toLocaleDateString('he-IL')}`
               : 'מקור: קובץ מקומי'}
           </span>
         </div>
-        <p className="text-[0.92rem] text-text-secondary leading-[1.75] mt-[0.85rem] mb-6 max-w-[640px]">
+        <p className="text-[0.92rem] text-muted-foreground leading-[1.75] mt-[0.85rem] mb-6 max-w-[640px]">
           הפרופיל המקצועי שנשלח ל-Claude לצורך ניתוח והתאמת משרות. השינויים נכנסים לתוקף מיידית לאחר שמירה.
         </p>
         <textarea
-          className="w-full min-h-[420px] p-[1.5rem_1.65rem] border border-border-strong rounded-lg text-text-primary font-code text-[0.85rem] resize-y outline-none leading-[1.8] ltr text-left whitespace-pre-wrap transition-all hover:border-[rgba(168,130,86,0.28)] focus:border-accent focus:bg-white focus:shadow-[0_0_0_4px_rgba(168,130,86,0.1),0_3px_14px_rgba(80,60,30,0.06),inset_0_1px_0_rgba(255,255,255,0.8)] selection:bg-[rgba(168,130,86,0.2)] selection:text-text-bright"
+          className="w-full min-h-[420px] p-[1.5rem_1.65rem] border border-border rounded-lg text-foreground font-code text-[0.85rem] resize-y outline-none leading-[1.8] ltr text-left whitespace-pre-wrap transition-all hover:border-muted-foreground/30 focus:border-ring focus:bg-white focus:shadow-[0_0_0_4px_rgba(0,0,0,0.04)] selection:bg-primary/10 selection:text-foreground"
           value={profile}
           onChange={(e) => { setProfile(e.target.value); setProfileResult(null); }}
           dir="auto"
           spellCheck={false}
           style={{
-            background: 'linear-gradient(#fffdf9, #fffdf9) padding-box, linear-gradient(180deg, rgba(168,130,86,0.12), rgba(168,130,86,0.02)) border-box',
-            boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.75), inset 0 0 0 1px rgba(255,255,255,0.5), 0 1px 2px rgba(80,60,30,0.03)',
-            backgroundImage: 'linear-gradient(rgba(168,130,86,0.045) 1px, transparent 1px)',
-            backgroundSize: '100% 1.8em',
-            backgroundPosition: '0 1.45em',
-            backgroundRepeat: 'repeat-y',
+            background: 'var(--card)',
           }}
         />
-        <div className="flex justify-between items-center mt-[1.1rem] pt-4 border-t border-dashed border-[rgba(120,100,70,0.14)] relative max-sm:flex-col max-sm:gap-3 max-sm:items-stretch">
-          <span className="absolute top-[-1px] start-0 w-9 h-px bg-accent opacity-50" />
-          <span className="text-[0.76rem] text-text-secondary tabular-nums tracking-[0.05em] font-medium inline-flex items-baseline gap-[0.35rem]">
+        <div className="flex justify-between items-center mt-[1.1rem] pt-4 border-t border-dashed border-border relative max-sm:flex-col max-sm:gap-3 max-sm:items-stretch">
+          <span className="absolute top-[-1px] start-0 w-9 h-px bg-muted-foreground opacity-50" />
+          <span className="text-[0.76rem] text-muted-foreground tabular-nums tracking-[0.05em] font-medium inline-flex items-baseline gap-[0.35rem]">
             {profile.length.toLocaleString()} תווים
-            <span className="ms-2 text-text-dim text-[0.72rem] tracking-[0.04em] font-normal ps-[0.6rem] border-s border-[rgba(120,100,70,0.15)]">· ≈{estimateTokens(profile).toLocaleString()} tokens</span>
+            <span className="ms-2 text-muted-foreground text-[0.72rem] tracking-[0.04em] font-normal ps-[0.6rem] border-s border-border">· ≈{estimateTokens(profile).toLocaleString()} tokens</span>
           </span>
           <div className="flex gap-[0.55rem] max-sm:justify-end max-sm:flex-wrap">
             {isProfileDirty && (
-              <button className="btn btn-secondary btn-sm" onClick={() => setProfile(originalProfile)} disabled={savingProfile}>
+              <Button variant="outline" size="sm" onClick={() => setProfile(originalProfile)} disabled={savingProfile}>
                 ביטול שינויים
-              </button>
+              </Button>
             )}
-            <button
-              className="btn btn-primary"
+            <Button
               onClick={saveProfile}
               disabled={savingProfile || !isProfileDirty}
             >
               {savingProfile ? 'שומר...' : 'שמור פרופיל'}
-            </button>
+            </Button>
           </div>
         </div>
         {profileResult && (
@@ -446,7 +419,7 @@ export default function SettingsPage() {
         desc={
           <>
             ההנחיה ל-Claude בשלב ההערכה — מדרג התאמה במאה נקודות לפי טכנולוגיה, תרבות ומאפייני תפקיד.
-            שני הפלייסהולדרים <code className="font-code text-[0.82em] py-[0.08em] px-[0.4em] bg-[rgba(168,130,86,0.07)] border border-[rgba(168,130,86,0.15)] rounded-[4px] text-accent ltr isolate">{'{{USER_PROFILE}}'}</code> ו-<code className="font-code text-[0.82em] py-[0.08em] px-[0.4em] bg-[rgba(168,130,86,0.07)] border border-[rgba(168,130,86,0.15)] rounded-[4px] text-accent ltr isolate">{'{{PARSED_JOB}}'}</code> מוחלפים בזמן ריצה ואסור למחוק אותם.
+            שני הפלייסהולדרים <code className="font-code text-[0.82em] py-[0.08em] px-[0.4em] bg-muted/50 border border-border rounded-[4px] text-muted-foreground ltr isolate">{'{{USER_PROFILE}}'}</code> ו-<code className="font-code text-[0.82em] py-[0.08em] px-[0.4em] bg-muted/50 border border-border rounded-[4px] text-muted-foreground ltr isolate">{'{{PARSED_JOB}}'}</code> מוחלפים בזמן ריצה ואסור למחוק אותם.
           </>
         }
         activeStage="evaluate"
@@ -478,14 +451,14 @@ export default function SettingsPage() {
       {/* 04 — Scoring Config */}
       <section className="mb-16 relative animate-section-in" id="settings-section-04" style={{ animationDelay: '0.12s' }}>
         <div className="flex items-end gap-4 mb-[0.65rem] flex-wrap pb-[0.55rem] border-b border-border relative">
-          <span className="absolute bottom-[-1px] start-0 w-11 h-0.5 bg-gradient-to-r from-accent to-transparent rounded-sm" />
-          <span className="font-serif text-[2.4rem] font-bold text-accent tracking-[-0.03em] tabular-nums leading-[0.85] shrink-0 min-w-[2.6ch] ltr relative">
-            <span className="absolute bottom-[0.35em] left-0 w-[0.55em] h-0.5 bg-accent opacity-25 origin-left transition-all" />
+          <span className="absolute bottom-[-1px] start-0 w-11 h-0.5 bg-gradient-to-r from-muted-foreground to-transparent rounded-sm" />
+          <span className="font-serif text-[2.4rem] font-bold text-muted-foreground tracking-[-0.03em] tabular-nums leading-[0.85] shrink-0 min-w-[2.6ch] ltr relative">
+            <span className="absolute bottom-[0.35em] left-0 w-[0.55em] h-0.5 bg-muted-foreground opacity-25 origin-left transition-all" />
             04
           </span>
-          <span className="font-serif text-[1.55rem] font-bold text-text-bright tracking-[-0.012em] leading-[1.15] pb-[0.1rem]">תצורת ניתוח</span>
+          <span className="font-serif text-[1.55rem] font-bold text-foreground tracking-[-0.012em] leading-[1.15] pb-[0.1rem]">תצורת ניתוח</span>
         </div>
-        <p className="text-[0.92rem] text-text-secondary leading-[1.75] mt-[0.85rem] mb-6 max-w-[640px]">
+        <p className="text-[0.92rem] text-muted-foreground leading-[1.75] mt-[0.85rem] mb-6 max-w-[640px]">
           כל שלב בצנרת מוגדר בנפרד — האנליסט (שלב הפרסינג) וההערכה (שלב הציון).
           חשיבה מורחבת מאלצת טמפרטורה של 1.
         </p>
@@ -515,36 +488,35 @@ export default function SettingsPage() {
 
         <div className="mt-5 pt-4 border-t border-dashed border-border max-w-[22rem]">
           <div className="flex flex-col gap-[0.55rem]">
-            <label className="text-[0.7rem] text-text-secondary tracking-[0.14em] uppercase font-semibold flex items-center gap-[0.4rem]" htmlFor="cfg-min-score">
-              <span className="w-[3px] h-[3px] rounded-full bg-accent opacity-45 shrink-0" />
+            <label className="text-[0.7rem] text-muted-foreground tracking-[0.14em] uppercase font-semibold flex items-center gap-[0.4rem]" htmlFor="cfg-min-score">
+              <span className="w-[3px] h-[3px] rounded-full bg-muted-foreground opacity-45 shrink-0" />
               ציון מינימום לשמירה
             </label>
             <input
               id="cfg-min-score"
               type="number"
-              className="py-[0.55rem] px-[0.8rem] bg-transparent border border-[rgba(120,100,70,0.12)] rounded-[7px] text-text-primary text-[0.88rem] font-mono tabular-nums ltr text-left transition-all w-full hover:border-[rgba(168,130,86,0.28)] hover:bg-[rgba(255,255,255,0.6)] focus:border-accent focus:bg-white focus:ring-[3px] focus:ring-accent-glow focus:outline-none disabled:opacity-45 disabled:cursor-not-allowed"
+              className="py-[0.55rem] px-[0.8rem] bg-transparent border border-input rounded-[7px] text-foreground text-[0.88rem] font-mono tabular-nums ltr text-left transition-all w-full hover:border-muted-foreground/30 focus:border-ring focus:bg-white focus:ring-[3px] focus:ring-ring/20 focus:outline-none disabled:opacity-45 disabled:cursor-not-allowed"
               value={config.min_score_to_save}
               onChange={(e) => updateConfig('min_score_to_save', parseInt(e.target.value) || 70)}
               min="0" max="100" step="5"
             />
-            <span className="text-[0.72rem] text-text-dim opacity-85 mt-[0.3rem]">סף אחד לצנרת כולה — חל על תוצאות ההערכה</span>
+            <span className="text-[0.72rem] text-muted-foreground opacity-85 mt-[0.3rem]">סף אחד לצנרת כולה — חל על תוצאות ההערכה</span>
           </div>
         </div>
 
-        <div className="flex justify-end items-center gap-[0.6rem] mt-6 pt-[1.1rem] border-t border-dashed border-[rgba(120,100,70,0.14)] relative">
-          <span className="absolute top-[-1px] end-0 w-9 h-px bg-accent opacity-50" />
+        <div className="flex justify-end items-center gap-[0.6rem] mt-6 pt-[1.1rem] border-t border-dashed border-border relative">
+          <span className="absolute top-[-1px] end-0 w-9 h-px bg-muted-foreground opacity-50" />
           {isConfigDirty && (
-            <button className="btn btn-secondary btn-sm" onClick={() => setConfig(originalConfig)} disabled={savingConfig}>
+            <Button variant="outline" size="sm" onClick={() => setConfig(originalConfig)} disabled={savingConfig}>
               ביטול שינויים
-            </button>
+            </Button>
           )}
-          <button
-            className="btn btn-primary"
+          <Button
             onClick={saveConfig}
             disabled={savingConfig || !isConfigDirty}
           >
             {savingConfig ? 'שומר...' : 'שמור תצורה'}
-          </button>
+          </Button>
         </div>
         {configResult && (
           <SaveResult result={configResult} />
@@ -554,14 +526,14 @@ export default function SettingsPage() {
       {/* 05 — Scoring Structure */}
       <section className="mb-16 relative animate-section-in" id="settings-section-05" style={{ animationDelay: '0.16s' }}>
         <div className="flex items-end gap-4 mb-[0.65rem] flex-wrap pb-[0.55rem] border-b border-border relative">
-          <span className="absolute bottom-[-1px] start-0 w-11 h-0.5 bg-gradient-to-r from-accent to-transparent rounded-sm" />
-          <span className="font-serif text-[2.4rem] font-bold text-accent tracking-[-0.03em] tabular-nums leading-[0.85] shrink-0 min-w-[2.6ch] ltr relative">
-            <span className="absolute bottom-[0.35em] left-0 w-[0.55em] h-0.5 bg-accent opacity-25 origin-left transition-all" />
+          <span className="absolute bottom-[-1px] start-0 w-11 h-0.5 bg-gradient-to-r from-muted-foreground to-transparent rounded-sm" />
+          <span className="font-serif text-[2.4rem] font-bold text-muted-foreground tracking-[-0.03em] tabular-nums leading-[0.85] shrink-0 min-w-[2.6ch] ltr relative">
+            <span className="absolute bottom-[0.35em] left-0 w-[0.55em] h-0.5 bg-muted-foreground opacity-25 origin-left transition-all" />
             05
           </span>
-          <span className="font-serif text-[1.55rem] font-bold text-text-bright tracking-[-0.012em] leading-[1.15] pb-[0.1rem]">מבנה ניתוח</span>
+          <span className="font-serif text-[1.55rem] font-bold text-foreground tracking-[-0.012em] leading-[1.15] pb-[0.1rem]">מבנה ניתוח</span>
         </div>
-        <p className="text-[0.92rem] text-text-secondary leading-[1.75] mt-[0.85rem] mb-6 max-w-[640px]">
+        <p className="text-[0.92rem] text-muted-foreground leading-[1.75] mt-[0.85rem] mb-6 max-w-[640px]">
           הציון הכולל מתחלק לשלושה ממדים. כל ממד מורכב ממספר קריטריונים משוקללים.
         </p>
 
@@ -569,8 +541,8 @@ export default function SettingsPage() {
           className="flex h-3 rounded-full overflow-hidden mb-[1.4rem] relative"
           aria-label="התפלגות ציון"
           style={{
-            background: 'rgba(120,100,70,0.06)',
-            boxShadow: 'inset 0 1px 3px rgba(80,60,30,0.06), 0 1px 0 rgba(255,255,255,0.5)',
+            background: 'oklch(0.97 0 0)',
+            boxShadow: 'none',
           }}
         >
           <div
@@ -659,7 +631,7 @@ function VerdictItem({ className, label }) {
 function ScoringDimension({ color, ringColor, name, details, points }) {
   return (
     <div
-      className="group grid grid-cols-[auto_1fr_auto] items-center gap-[1.1rem] py-[1.15rem] px-[0.35rem] border-b border-border transition-all relative hover:bg-[rgba(168,130,86,0.025)] hover:ps-[0.65rem] max-sm:grid-cols-[auto_1fr] max-sm:row-gap-1"
+      className="group grid grid-cols-[auto_1fr_auto] items-center gap-[1.1rem] py-[1.15rem] px-[0.35rem] border-b border-border transition-all relative hover:bg-accent hover:ps-[0.65rem] max-sm:grid-cols-[auto_1fr] max-sm:row-gap-1"
       style={{ color }}
     >
       {/* Left accent line on hover */}
@@ -669,11 +641,11 @@ function ScoringDimension({ color, ringColor, name, details, points }) {
         style={{ background: color, boxShadow: `0 0 0 3px ${ringColor}` }}
       />
       <div className="flex flex-col gap-[0.15rem] min-w-0">
-        <span className="text-[0.95rem] font-semibold text-text-bright font-serif tracking-[-0.005em]">{name}</span>
-        <span className="text-[0.78rem] text-text-dim font-mono tabular-nums tracking-[0.02em] ltr text-right">{details}</span>
+        <span className="text-[0.95rem] font-semibold text-foreground font-serif tracking-[-0.005em]">{name}</span>
+        <span className="text-[0.78rem] text-muted-foreground font-mono tabular-nums tracking-[0.02em] ltr text-right">{details}</span>
       </div>
-      <span className="font-serif text-[1.15rem] font-bold text-text-bright tabular-nums tracking-[-0.01em] max-sm:col-start-2 max-sm:justify-self-end">
-        {points}<small className="text-[0.65rem] text-text-dim tracking-[0.15em] uppercase font-medium font-mono ms-1">pt</small>
+      <span className="font-serif text-[1.15rem] font-bold text-foreground tabular-nums tracking-[-0.01em] max-sm:col-start-2 max-sm:justify-self-end">
+        {points}<small className="text-[0.65rem] text-muted-foreground tracking-[0.15em] uppercase font-medium font-mono ms-1">pt</small>
       </span>
     </div>
   );
@@ -688,8 +660,8 @@ function SaveResult({ result }) {
     <div
       className={`flex items-center gap-[0.65rem] mt-4 p-[0.8rem_1.1rem] rounded text-[0.84rem] font-medium border animate-result-in relative overflow-hidden ${
         isSuccess
-          ? 'bg-green-bg border-[rgba(45,143,94,0.18)] text-green'
-          : 'bg-red-bg border-[rgba(196,84,84,0.18)] text-red'
+          ? 'bg-emerald-50/70 border-emerald-200/50 text-emerald-700'
+          : 'bg-red-50/70 border-red-200/50 text-red-700'
       }`}
     >
       <span className="w-[18px] h-[18px] rounded-full bg-current opacity-15 shrink-0 relative" />
@@ -736,59 +708,58 @@ function PromptSection({
         style={{
           top: '0.15rem',
           bottom: '0.15rem',
-          background: 'linear-gradient(to bottom, rgba(168,130,86,0) 0%, rgba(168,130,86,0.35) 12%, rgba(168,130,86,0.35) 88%, rgba(168,130,86,0) 100%)',
+          background: 'linear-gradient(to bottom, transparent 0%, oklch(0.7 0 0 / 0.25) 12%, oklch(0.7 0 0 / 0.25) 88%, transparent 100%)',
         }}
       />
 
       <div className="flex items-end gap-4 mb-[0.65rem] flex-wrap pb-[0.55rem] border-b border-border relative">
-        <span className="absolute bottom-[-1px] start-0 w-11 h-0.5 bg-gradient-to-r from-accent to-transparent rounded-sm" />
-        <span className="font-serif text-[2.4rem] font-bold text-accent tracking-[-0.03em] tabular-nums leading-[0.85] shrink-0 min-w-[2.6ch] ltr relative">
-          <span className="absolute bottom-[0.35em] left-0 w-[0.55em] h-0.5 bg-accent opacity-25 origin-left transition-all" />
+        <span className="absolute bottom-[-1px] start-0 w-11 h-0.5 bg-gradient-to-r from-muted-foreground to-transparent rounded-sm" />
+        <span className="font-serif text-[2.4rem] font-bold text-muted-foreground tracking-[-0.03em] tabular-nums leading-[0.85] shrink-0 min-w-[2.6ch] ltr relative">
+          <span className="absolute bottom-[0.35em] left-0 w-[0.55em] h-0.5 bg-muted-foreground opacity-25 origin-left transition-all" />
           {num}
         </span>
-        <span className="font-serif text-[1.55rem] font-bold text-text-bright tracking-[-0.012em] leading-[1.15] pb-[0.1rem]">{name}</span>
-        <span className={`ms-auto text-[0.7rem] py-[0.28rem] px-[0.8rem] rounded-full border tracking-[0.04em] tabular-nums font-medium mb-[0.2rem] transition-all hover:border-[rgba(168,130,86,0.35)] hover:text-text-secondary ${
+        <span className="font-serif text-[1.55rem] font-bold text-foreground tracking-[-0.012em] leading-[1.15] pb-[0.1rem]">{name}</span>
+        <span className={`ms-auto text-[0.7rem] py-[0.28rem] px-[0.8rem] rounded-full border tracking-[0.04em] tabular-nums font-medium mb-[0.2rem] transition-all hover:border-muted-foreground/30 hover:text-muted-foreground ${
           isOverride
-            ? 'text-accent border-[rgba(168,130,86,0.45)] bg-[rgba(168,130,86,0.07)]'
-            : 'text-text-dim bg-[rgba(120,100,70,0.04)] border-border-strong'
+            ? 'text-foreground border-primary/30 bg-primary/5'
+            : 'text-muted-foreground bg-muted/40 border-border'
         }`}>
           {isOverride ? 'מותאם אישית' : 'ברירת מחדל'}
         </span>
       </div>
 
       <div
-        className="flex items-center gap-4 my-[0.6rem] mb-[1.4rem] py-[0.6rem] px-4 border border-[rgba(120,100,70,0.12)] rounded-full max-w-fit font-mono max-sm:flex-col max-sm:items-start max-sm:gap-[0.45rem] max-sm:max-w-full max-sm:rounded-xl max-sm:px-[0.85rem] max-sm:py-[0.7rem]"
+        className="flex items-center gap-4 my-[0.6rem] mb-[1.4rem] py-[0.6rem] px-4 border border-border rounded-full max-w-fit font-mono max-sm:flex-col max-sm:items-start max-sm:gap-[0.45rem] max-sm:max-w-full max-sm:rounded-xl max-sm:px-[0.85rem] max-sm:py-[0.7rem]"
         aria-label="שלבי ניתוח"
         style={{
-          background: 'linear-gradient(90deg, rgba(168,130,86,0.055) 0%, rgba(255,253,249,0.5) 50%, rgba(61,155,133,0.05) 100%)',
-          boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.7), 0 1px 2px rgba(80,60,30,0.02)',
+          background: 'var(--muted)',
         }}
       >
-        <span className={`inline-flex items-center gap-2 text-[0.8rem] tracking-[0.03em] transition-colors ${activeStage === 'parse' ? 'text-text-bright font-semibold' : 'text-text-dim'}`}>
-          <span className={`font-serif text-[1.1rem] leading-none transition-all tabular-nums ${activeStage === 'parse' ? 'text-accent' : 'text-[rgba(120,100,70,0.4)]'}`} style={activeStage === 'parse' ? { textShadow: '0 0 12px rgba(168,130,86,0.3)' } : undefined}>①</span>
-          <span className={`tabular-nums ${activeStage === 'parse' ? 'border-b border-[rgba(168,130,86,0.5)] pb-0.5' : ''}`}>Parse · אנליסט</span>
+        <span className={`inline-flex items-center gap-2 text-[0.8rem] tracking-[0.03em] transition-colors ${activeStage === 'parse' ? 'text-foreground font-semibold' : 'text-muted-foreground'}`}>
+          <span className={`font-serif text-[1.1rem] leading-none transition-all tabular-nums ${activeStage === 'parse' ? 'text-foreground' : 'text-muted-foreground/40'}`}>①</span>
+          <span className={`tabular-nums ${activeStage === 'parse' ? 'border-b border-foreground/40 pb-0.5' : ''}`}>Parse · אנליסט</span>
         </span>
         {/* Arrow */}
-        <span className="w-[1.6rem] h-px shrink-0 relative max-sm:w-px max-sm:h-4" style={{ background: 'linear-gradient(to left, rgba(120,100,70,0) 0%, rgba(120,100,70,0.35) 50%, rgba(120,100,70,0) 100%)' }}>
+        <span className="w-[1.6rem] h-px shrink-0 relative max-sm:w-px max-sm:h-4" style={{ background: 'linear-gradient(to left, transparent 0%, oklch(0.7 0 0 / 0.35) 50%, transparent 100%)' }}>
           <span
             className="absolute top-1/2 end-0 w-[5px] h-[5px] -translate-y-1/2 max-sm:top-auto max-sm:bottom-0 max-sm:end-1/2 max-sm:translate-x-1/2"
             style={{
-              borderTop: '1px solid rgba(120,100,70,0.45)',
-              borderInlineEnd: '1px solid rgba(120,100,70,0.45)',
+              borderTop: '1px solid oklch(0.7 0 0 / 0.45)',
+              borderInlineEnd: '1px solid oklch(0.7 0 0 / 0.45)',
               transform: 'translateY(-50%) rotate(-135deg)',
             }}
           />
         </span>
-        <span className={`inline-flex items-center gap-2 text-[0.8rem] tracking-[0.03em] transition-colors ${activeStage === 'evaluate' ? 'text-text-bright font-semibold' : 'text-text-dim'}`}>
-          <span className={`font-serif text-[1.1rem] leading-none transition-all tabular-nums ${activeStage === 'evaluate' ? 'text-accent' : 'text-[rgba(120,100,70,0.4)]'}`} style={activeStage === 'evaluate' ? { textShadow: '0 0 12px rgba(168,130,86,0.3)' } : undefined}>②</span>
-          <span className={`tabular-nums ${activeStage === 'evaluate' ? 'border-b border-[rgba(168,130,86,0.5)] pb-0.5' : ''}`}>Evaluate · הערכה</span>
+        <span className={`inline-flex items-center gap-2 text-[0.8rem] tracking-[0.03em] transition-colors ${activeStage === 'evaluate' ? 'text-foreground font-semibold' : 'text-muted-foreground'}`}>
+          <span className={`font-serif text-[1.1rem] leading-none transition-all tabular-nums ${activeStage === 'evaluate' ? 'text-foreground' : 'text-muted-foreground/40'}`}>②</span>
+          <span className={`tabular-nums ${activeStage === 'evaluate' ? 'border-b border-foreground/40 pb-0.5' : ''}`}>Evaluate · הערכה</span>
         </span>
       </div>
 
-      <p className="text-[0.92rem] text-text-secondary leading-[1.75] mt-[0.85rem] mb-6 max-w-[640px]">{desc}</p>
+      <p className="text-[0.92rem] text-muted-foreground leading-[1.75] mt-[0.85rem] mb-6 max-w-[640px]">{desc}</p>
 
       {placeholders && placeholders.length > 0 && (
-        <div className="flex flex-wrap gap-[0.7rem] -mt-2 mb-[1.1rem] p-[0.6rem_0.85rem] border border-dashed border-[rgba(120,100,70,0.18)] rounded-lg bg-[rgba(255,253,249,0.55)] max-sm:p-[0.55rem_0.7rem]" role="status" aria-live="polite">
+        <div className="flex flex-wrap gap-[0.7rem] -mt-2 mb-[1.1rem] p-[0.6rem_0.85rem] border border-dashed border-border rounded-lg bg-muted/20 max-sm:p-[0.55rem_0.7rem]" role="status" aria-live="polite">
           {placeholders.map(({ token, present }) => (
             <span
               key={token}
@@ -814,13 +785,13 @@ function PromptSection({
             <button
               key={`${h.offset}-${i}`}
               type="button"
-              className={`inline-flex items-baseline gap-[0.35rem] py-[0.28rem] px-[0.7rem] border border-[rgba(120,100,70,0.12)] rounded-full bg-transparent text-text-secondary font-mono text-[0.74rem] tracking-[0.02em] cursor-pointer transition-all hover:border-accent hover:bg-[rgba(168,130,86,0.06)] hover:text-text-bright hover:-translate-y-px active:translate-y-0 ${
-                h.level === 1 ? 'font-semibold text-text-bright' : h.level === 2 ? 'font-medium' : 'opacity-[0.78]'
+              className={`inline-flex items-baseline gap-[0.35rem] py-[0.28rem] px-[0.7rem] border border-border rounded-full bg-transparent text-muted-foreground font-mono text-[0.74rem] tracking-[0.02em] cursor-pointer transition-all hover:border-foreground/30 hover:bg-accent hover:text-foreground hover:-translate-y-px active:translate-y-0 ${
+                h.level === 1 ? 'font-semibold text-foreground' : h.level === 2 ? 'font-medium' : 'opacity-[0.78]'
               }`}
               onClick={() => scrollTextareaToOffset(textareaRef.current, h.offset)}
               title={`קפוץ אל "${h.text}"`}
             >
-              <span className="font-[Courier_New,monospace] text-[0.7rem] text-accent opacity-55 tracking-[-0.05em]" aria-hidden="true">{'#'.repeat(h.level)}</span>
+              <span className="font-[Courier_New,monospace] text-[0.7rem] text-muted-foreground opacity-55 tracking-[-0.05em]" aria-hidden="true">{'#'.repeat(h.level)}</span>
               <span className="tabular-nums">{h.text}</span>
             </button>
           ))}
@@ -828,97 +799,95 @@ function PromptSection({
       )}
 
       {confirmingReset && (
-        <div className="flex items-center justify-between gap-5 mb-[0.9rem] p-[0.95rem_1.15rem] rounded-lg animate-confirm-slide flex-wrap bg-[rgba(168,130,86,0.05)] border border-[rgba(168,130,86,0.3)] max-sm:flex-col max-sm:items-stretch max-sm:gap-[0.7rem]" role="alertdialog" aria-live="assertive">
+        <div className="flex items-center justify-between gap-5 mb-[0.9rem] p-[0.95rem_1.15rem] rounded-lg animate-confirm-slide flex-wrap bg-muted/30 border border-border max-sm:flex-col max-sm:items-stretch max-sm:gap-[0.7rem]" role="alertdialog" aria-live="assertive">
           <div className="flex flex-col gap-1 flex-[1_1_260px] min-w-0">
-            <strong className="font-serif text-[0.95rem] font-bold tracking-[-0.005em] text-accent">לאפס לברירת מחדל?</strong>
-            <span className="text-[0.8rem] leading-[1.6] text-text-secondary max-w-[520px]">
+            <strong className="font-serif text-[0.95rem] font-bold tracking-[-0.005em] text-foreground">לאפס לברירת מחדל?</strong>
+            <span className="text-[0.8rem] leading-[1.6] text-muted-foreground max-w-[520px]">
               הפרומפט המותאם אישית יימחק ויוחלף בברירת המחדל המצורפת לשירות. פעולה זו לא ניתנת לביטול.
             </span>
           </div>
           <div className="flex gap-2 shrink-0 max-sm:justify-end">
-            <button className="btn btn-secondary btn-sm" onClick={onConfirmResetCancel} disabled={saving}>
+            <Button variant="outline" size="sm" onClick={onConfirmResetCancel} disabled={saving}>
               ביטול
-            </button>
-            <button
-              className="btn btn-sm bg-red text-white border border-[rgba(196,84,84,0.6)] shadow-[0_1px_2px_rgba(196,84,84,0.12)] hover:bg-[#b04747] hover:shadow-md hover:-translate-y-px active:translate-y-0"
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
               onClick={onConfirmResetAccept}
               disabled={saving}
             >
               {saving ? 'מאפס...' : 'כן, אפס'}
-            </button>
+            </Button>
           </div>
         </div>
       )}
 
       <textarea
         ref={textareaRef}
-        className="w-full p-[1.5rem_1.65rem] border border-border-strong rounded-lg text-text-primary font-code text-[0.85rem] resize-y outline-none leading-[1.8] ltr text-left whitespace-pre-wrap transition-all hover:border-[rgba(168,130,86,0.28)] focus:border-accent focus:bg-white focus:shadow-[0_0_0_4px_rgba(168,130,86,0.1),0_3px_14px_rgba(80,60,30,0.06),inset_0_1px_0_rgba(255,255,255,0.8)] selection:bg-[rgba(168,130,86,0.2)] selection:text-text-bright"
+        className="w-full p-[1.5rem_1.65rem] border border-input rounded-lg text-foreground font-code text-[0.85rem] resize-y outline-none leading-[1.8] ltr text-left whitespace-pre-wrap transition-all hover:border-muted-foreground/30 focus:border-ring focus:bg-white focus:shadow-[0_0_0_4px_rgba(0,0,0,0.04)] selection:bg-primary/10 selection:text-foreground"
         value={value}
         onChange={(e) => setValue(e.target.value)}
         dir="auto"
         spellCheck={false}
         style={{
           minHeight: `${editorMinHeight}px`,
-          background: 'linear-gradient(#fffdf9, #fffdf9) padding-box, linear-gradient(180deg, rgba(168,130,86,0.12), rgba(168,130,86,0.02)) border-box',
-          boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.75), inset 0 0 0 1px rgba(255,255,255,0.5), 0 1px 2px rgba(80,60,30,0.03)',
-          backgroundImage: 'linear-gradient(rgba(168,130,86,0.045) 1px, transparent 1px)',
-          backgroundSize: '100% 1.8em',
-          backgroundPosition: '0 1.45em',
-          backgroundRepeat: 'repeat-y',
+          background: 'var(--card)',
         }}
       />
 
       {confirmUnsafeSave && (
-        <div className="flex items-center justify-between gap-5 mb-[0.9rem] p-[0.95rem_1.15rem] rounded-lg animate-confirm-slide flex-wrap bg-red-bg border border-[rgba(196,84,84,0.3)] max-sm:flex-col max-sm:items-stretch max-sm:gap-[0.7rem]" role="alertdialog" aria-live="assertive">
+        <div className="flex items-center justify-between gap-5 mb-[0.9rem] p-[0.95rem_1.15rem] rounded-lg animate-confirm-slide flex-wrap bg-destructive/5 border border-destructive/20 max-sm:flex-col max-sm:items-stretch max-sm:gap-[0.7rem]" role="alertdialog" aria-live="assertive">
           <div className="flex flex-col gap-1 flex-[1_1_260px] min-w-0">
-            <strong className="font-serif text-[0.95rem] font-bold tracking-[-0.005em] text-red">חסר פלייסהולדר בפרומפט</strong>
-            <span className="text-[0.8rem] leading-[1.6] text-text-secondary max-w-[520px]">
+            <strong className="font-serif text-[0.95rem] font-bold tracking-[-0.005em] text-destructive">חסר פלייסהולדר בפרומפט</strong>
+            <span className="text-[0.8rem] leading-[1.6] text-muted-foreground max-w-[520px]">
               ללא הפלייסהולדרים Claude לא יקבל את הפרופיל או את פרטי המשרה. אפשר לשמור בכל זאת, אך הניתוח יהיה שבור.
             </span>
           </div>
           <div className="flex gap-2 shrink-0 max-sm:justify-end">
-            <button className="btn btn-secondary btn-sm" onClick={onConfirmUnsafeCancel} disabled={saving}>
+            <Button variant="outline" size="sm" onClick={onConfirmUnsafeCancel} disabled={saving}>
               ביטול
-            </button>
-            <button
-              className="btn btn-sm bg-red text-white border border-[rgba(196,84,84,0.6)] shadow-[0_1px_2px_rgba(196,84,84,0.12)] hover:bg-[#b04747] hover:shadow-md hover:-translate-y-px active:translate-y-0"
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
               onClick={onConfirmUnsafeAccept}
               disabled={saving}
             >
               {saving ? 'שומר...' : 'שמור בכל זאת'}
-            </button>
+            </Button>
           </div>
         </div>
       )}
 
-      <div className="flex justify-between items-center mt-[1.1rem] pt-4 border-t border-dashed border-[rgba(120,100,70,0.14)] relative max-sm:flex-col max-sm:gap-3 max-sm:items-stretch">
-        <span className="absolute top-[-1px] start-0 w-9 h-px bg-accent opacity-50" />
-        <span className="text-[0.76rem] text-text-secondary tabular-nums tracking-[0.05em] font-medium inline-flex items-baseline gap-[0.35rem]">
+      <div className="flex justify-between items-center mt-[1.1rem] pt-4 border-t border-dashed border-border relative max-sm:flex-col max-sm:gap-3 max-sm:items-stretch">
+        <span className="absolute top-[-1px] start-0 w-9 h-px bg-muted-foreground opacity-50" />
+        <span className="text-[0.76rem] text-muted-foreground tabular-nums tracking-[0.05em] font-medium inline-flex items-baseline gap-[0.35rem]">
           {(value?.length || 0).toLocaleString()} תווים
-          <span className="ms-2 text-text-dim text-[0.72rem] tracking-[0.04em] font-normal ps-[0.6rem] border-s border-[rgba(120,100,70,0.15)]">· ≈{estimateTokens(value).toLocaleString()} tokens</span>
+          <span className="ms-2 text-muted-foreground text-[0.72rem] tracking-[0.04em] font-normal ps-[0.6rem] border-s border-border">· ≈{estimateTokens(value).toLocaleString()} tokens</span>
         </span>
         <div className="flex gap-[0.55rem] max-sm:justify-end max-sm:flex-wrap">
-          <button
-            className="btn btn-secondary btn-sm"
+          <Button
+            variant="outline"
+            size="sm"
             onClick={onResetRequest}
             disabled={saving || confirmingReset}
             title="אפס לברירת המחדל המצורפת לשירות"
           >
             אפס לברירת מחדל
-          </button>
+          </Button>
           {isDirty && (
-            <button className="btn btn-secondary btn-sm" onClick={onCancel} disabled={saving}>
+            <Button variant="outline" size="sm" onClick={onCancel} disabled={saving}>
               ביטול שינויים
-            </button>
+            </Button>
           )}
-          <button
-            className={`btn btn-primary ${saveWarning ? 'shadow-[0_0_0_3px_rgba(196,84,84,0.18),0_1px_2px_rgba(80,60,30,0.06)] animate-warn-pulse hover:shadow-[0_0_0_4px_rgba(196,84,84,0.22),0_2px_6px_rgba(80,60,30,0.08)]' : ''}`}
+          <Button
+            className={saveWarning ? 'shadow-[0_0_0_3px_hsl(var(--destructive)/0.18),0_1px_2px_rgba(0,0,0,0.06)] animate-warn-pulse hover:shadow-[0_0_0_4px_hsl(var(--destructive)/0.22),0_2px_6px_rgba(0,0,0,0.08)]' : ''}
             onClick={onSave}
             disabled={saving || !isDirty}
             title={saveWarning ? 'חסר פלייסהולדר — יידרש אישור נוסף' : undefined}
           >
             {saving ? 'שומר...' : 'שמור פרומפט'}
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -944,13 +913,13 @@ function RoleConfigPanel({ role, stage, titleHe, titleEn, hint, values, onChange
       '--role-color': '#a88256',
       '--role-color-soft': 'rgba(168,130,86,0.09)',
       '--role-color-ring': 'rgba(168,130,86,0.3)',
-      background: 'linear-gradient(180deg, #fffdf9 0%, #fefcf8 100%)',
+      background: 'var(--card)',
     },
     evaluator: {
       '--role-color': '#3d9b85',
       '--role-color-soft': 'rgba(61,155,133,0.08)',
       '--role-color-ring': 'rgba(61,155,133,0.28)',
-      background: 'linear-gradient(180deg, #fffdf9 0%, #fefcf8 100%)',
+      background: 'var(--card)',
     },
   };
 
@@ -958,17 +927,17 @@ function RoleConfigPanel({ role, stage, titleHe, titleEn, hint, values, onChange
   const roleColorSoft = role === 'analyst' ? 'rgba(168,130,86,0.09)' : 'rgba(61,155,133,0.08)';
   const roleColorRing = role === 'analyst' ? 'rgba(168,130,86,0.3)' : 'rgba(61,155,133,0.28)';
 
-  const inputClasses = "py-[0.55rem] px-[0.8rem] bg-transparent border border-[rgba(120,100,70,0.12)] rounded-[7px] text-text-primary text-[0.88rem] font-mono tabular-nums ltr text-left transition-all w-full hover:border-[rgba(168,130,86,0.28)] hover:bg-[rgba(255,255,255,0.6)] focus:outline-none disabled:opacity-45 disabled:cursor-not-allowed";
+  const inputClasses = "py-[0.55rem] px-[0.8rem] bg-transparent border border-input rounded-[7px] text-foreground text-[0.88rem] font-mono tabular-nums ltr text-left transition-all w-full hover:border-muted-foreground/30 hover:bg-background focus:outline-none disabled:opacity-45 disabled:cursor-not-allowed";
 
   return (
     <div
-      className="flex flex-col gap-[0.95rem] p-[1.35rem_1.4rem_1.2rem] border border-border-strong rounded-lg relative overflow-hidden transition-all hover:shadow-[0_2px_10px_rgba(80,60,30,0.04)]"
+      className="flex flex-col gap-[0.95rem] p-[1.35rem_1.4rem_1.2rem] border border-input rounded-lg relative overflow-hidden transition-all hover:shadow-sm"
       style={{
         ...roleStyles[role],
       }}
       onMouseEnter={(e) => {
         e.currentTarget.style.borderColor = roleColorRing;
-        e.currentTarget.style.boxShadow = `0 2px 10px rgba(80,60,30,0.04), 0 0 0 1px ${roleColorRing}`;
+        e.currentTarget.style.boxShadow = `0 2px 10px rgba(0,0,0,0.04), 0 0 0 1px ${roleColorRing}`;
       }}
       onMouseLeave={(e) => {
         e.currentTarget.style.borderColor = '';
@@ -980,24 +949,13 @@ function RoleConfigPanel({ role, stage, titleHe, titleEn, hint, values, onChange
         className="absolute top-0 left-0 right-0 h-[3px] opacity-70"
         style={{ background: `linear-gradient(90deg, ${roleColor} 0%, transparent 100%)` }}
       />
-      {/* Corner glow */}
-      <span
-        className="absolute pointer-events-none opacity-70 transition-opacity"
-        style={{
-          top: '-40px',
-          insetInlineEnd: '-40px',
-          width: '120px',
-          height: '120px',
-          background: `radial-gradient(circle, ${roleColorSoft} 0%, transparent 70%)`,
-        }}
-      />
 
-      <div className="flex flex-col gap-[0.4rem] pb-[0.85rem] border-b border-dashed border-border-strong relative">
+      <div className="flex flex-col gap-[0.4rem] pb-[0.85rem] border-b border-dashed border-border relative">
         <div className="flex items-center gap-[0.65rem]">
           <span className="font-serif text-[1.35rem] leading-none font-bold opacity-85 shrink-0 tabular-nums" style={{ color: roleColor }}>{stage}</span>
-          <h3 className="inline-flex items-baseline gap-2 text-[0.95rem] text-text-bright font-serif font-bold m-0 tracking-[-0.005em] flex-1 min-w-0">
+          <h3 className="inline-flex items-baseline gap-2 text-[0.95rem] text-foreground font-serif font-bold m-0 tracking-[-0.005em] flex-1 min-w-0">
             <span className="font-bold">{titleHe}</span>
-            <span className="text-text-dim opacity-60 font-normal text-[0.85em]" aria-hidden="true">·</span>
+            <span className="text-muted-foreground opacity-60 font-normal text-[0.85em]" aria-hidden="true">·</span>
             <span className="font-mono text-[0.72rem] tracking-[0.22em] uppercase font-semibold ltr" style={{ color: roleColor }}>{titleEn}</span>
           </h3>
           <span
@@ -1010,13 +968,13 @@ function RoleConfigPanel({ role, stage, titleHe, titleEn, hint, values, onChange
             aria-hidden="true"
           />
         </div>
-        <p className="text-[0.78rem] text-text-dim leading-[1.55] m-0 ps-[1.9rem]">{hint}</p>
+        <p className="text-[0.78rem] text-muted-foreground leading-[1.55] m-0 ps-[1.9rem]">{hint}</p>
       </div>
 
       <div className="flex flex-col gap-[0.95rem]">
         <div className="flex flex-col gap-[0.55rem]">
-          <label className="text-[0.7rem] text-text-secondary tracking-[0.14em] uppercase font-semibold flex items-center gap-[0.4rem]" htmlFor={modelId}>
-            <span className="w-[3px] h-[3px] rounded-full bg-accent opacity-45 shrink-0" />
+          <label className="text-[0.7rem] text-muted-foreground tracking-[0.14em] uppercase font-semibold flex items-center gap-[0.4rem]" htmlFor={modelId}>
+            <span className="w-[3px] h-[3px] rounded-full bg-muted-foreground opacity-45 shrink-0" />
             מודל Claude
           </label>
           <select
@@ -1033,8 +991,8 @@ function RoleConfigPanel({ role, stage, titleHe, titleEn, hint, values, onChange
         </div>
 
         <div className="flex flex-col gap-[0.55rem]">
-          <label className="text-[0.7rem] text-text-secondary tracking-[0.14em] uppercase font-semibold flex items-center gap-[0.4rem]" htmlFor={tempId}>
-            <span className="w-[3px] h-[3px] rounded-full bg-accent opacity-45 shrink-0" />
+          <label className="text-[0.7rem] text-muted-foreground tracking-[0.14em] uppercase font-semibold flex items-center gap-[0.4rem]" htmlFor={tempId}>
+            <span className="w-[3px] h-[3px] rounded-full bg-muted-foreground opacity-45 shrink-0" />
             טמפרטורה
           </label>
           <input
@@ -1051,8 +1009,8 @@ function RoleConfigPanel({ role, stage, titleHe, titleEn, hint, values, onChange
         </div>
 
         <div className="flex flex-col gap-[0.55rem]">
-          <label className="text-[0.7rem] text-text-secondary tracking-[0.14em] uppercase font-semibold flex items-center gap-[0.4rem]" htmlFor={tokensId}>
-            <span className="w-[3px] h-[3px] rounded-full bg-accent opacity-45 shrink-0" />
+          <label className="text-[0.7rem] text-muted-foreground tracking-[0.14em] uppercase font-semibold flex items-center gap-[0.4rem]" htmlFor={tokensId}>
+            <span className="w-[3px] h-[3px] rounded-full bg-muted-foreground opacity-45 shrink-0" />
             Max Tokens
           </label>
           <input
@@ -1068,8 +1026,8 @@ function RoleConfigPanel({ role, stage, titleHe, titleEn, hint, values, onChange
         </div>
 
         <div className="flex flex-col gap-[0.55rem]">
-          <label className="text-[0.7rem] text-text-secondary tracking-[0.14em] uppercase font-semibold flex items-center gap-[0.4rem]" htmlFor={thinkId}>
-            <span className="w-[3px] h-[3px] rounded-full bg-accent opacity-45 shrink-0" />
+          <label className="text-[0.7rem] text-muted-foreground tracking-[0.14em] uppercase font-semibold flex items-center gap-[0.4rem]" htmlFor={thinkId}>
+            <span className="w-[3px] h-[3px] rounded-full bg-muted-foreground opacity-45 shrink-0" />
             חשיבה מורחבת
           </label>
           <select
@@ -1086,8 +1044,8 @@ function RoleConfigPanel({ role, stage, titleHe, titleEn, hint, values, onChange
         </div>
 
         <div className="flex flex-col gap-[0.55rem]">
-          <label className="text-[0.7rem] text-text-secondary tracking-[0.14em] uppercase font-semibold flex items-center gap-[0.4rem]" htmlFor={budgetId}>
-            <span className="w-[3px] h-[3px] rounded-full bg-accent opacity-45 shrink-0" />
+          <label className="text-[0.7rem] text-muted-foreground tracking-[0.14em] uppercase font-semibold flex items-center gap-[0.4rem]" htmlFor={budgetId}>
+            <span className="w-[3px] h-[3px] rounded-full bg-muted-foreground opacity-45 shrink-0" />
             תקציב חשיבה · tokens
           </label>
           <input
@@ -1116,9 +1074,9 @@ function FolioRail({ activeId, dirtyMap }) {
       {/* Vertical line */}
       <span
         className="absolute top-0 bottom-0 end-0 w-px"
-        style={{ background: 'linear-gradient(to bottom, transparent 0%, rgba(168,130,86,0.2) 18%, rgba(168,130,86,0.2) 82%, transparent 100%)' }}
+        style={{ background: 'linear-gradient(to bottom, transparent 0%, oklch(0.7 0 0 / 0.15) 18%, oklch(0.7 0 0 / 0.15) 82%, transparent 100%)' }}
       />
-      <div className="font-serif text-[1.3rem] text-accent text-start mb-4 ps-1 opacity-75" aria-hidden="true">§</div>
+      <div className="font-serif text-[1.3rem] text-muted-foreground text-start mb-4 ps-1 opacity-75" aria-hidden="true">§</div>
       <ol className="list-none m-0 p-0 flex flex-col gap-[0.1rem]">
         {SECTIONS.map((s) => {
           const isActive = activeId === s.id;
@@ -1128,32 +1086,32 @@ function FolioRail({ activeId, dirtyMap }) {
               <button
                 type="button"
                 className={`grid grid-cols-[auto_14px_1fr_auto] items-center gap-[0.55rem] w-full py-2 px-[0.35rem] bg-transparent border-none cursor-pointer font-sans text-start transition-all relative hover:translate-x-[2px] rtl:hover:-translate-x-[2px] ${
-                  isActive ? 'text-text-bright' : 'text-text-dim hover:text-text-primary'
+                  isActive ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'
                 }`}
                 onClick={() => scrollToSection(s.id)}
                 aria-current={isActive ? 'true' : undefined}
                 aria-label={`${s.num} — ${s.name}${isDirty ? ' (לא נשמר)' : ''}`}
               >
                 <span className={`font-serif font-semibold tabular-nums leading-none min-w-[1.6ch] ltr transition-all ${
-                  isActive ? 'text-[1.1rem] text-accent' : 'text-[0.9rem]'
+                  isActive ? 'text-[1.1rem] text-foreground' : 'text-[0.9rem]'
                 }`} style={{ color: isActive ? undefined : 'inherit' }}>{s.num}</span>
                 <span
-                  className={`h-px transition-all ${isActive ? 'w-[14px] opacity-90 bg-accent h-0.5' : 'w-2 opacity-35 bg-current'}`}
+                  className={`h-px transition-all ${isActive ? 'w-[14px] opacity-90 bg-foreground h-0.5' : 'w-2 opacity-35 bg-current'}`}
                   aria-hidden="true"
                 />
                 <span className={`text-[0.66rem] tracking-[0.18em] uppercase font-medium ltr whitespace-nowrap transition-all ${
-                  isActive ? 'opacity-100 text-text-bright font-semibold' : 'opacity-70'
+                  isActive ? 'opacity-100 text-foreground font-semibold' : 'opacity-70'
                 }`} style={{ color: isActive ? undefined : 'inherit' }}>{s.short}</span>
-                {isDirty && <span className="w-1.5 h-1.5 rounded-full bg-red shadow-[0_0_0_3px_rgba(196,84,84,0.15)] shrink-0 animate-dirty-pulse" aria-hidden="true" />}
+                {isDirty && <span className="w-1.5 h-1.5 rounded-full bg-destructive shadow-[0_0_0_3px_oklch(0.6_0.2_25/0.15)] shrink-0 animate-dirty-pulse" aria-hidden="true" />}
               </button>
             </li>
           );
         })}
       </ol>
-      <div className="mt-4 ps-[0.35rem] flex items-baseline gap-[0.2rem] font-code text-[0.68rem] text-text-dim tracking-[0.1em] tabular-nums opacity-60 ltr" aria-hidden="true">
+      <div className="mt-4 ps-[0.35rem] flex items-baseline gap-[0.2rem] font-code text-[0.68rem] text-muted-foreground tracking-[0.1em] tabular-nums opacity-60 ltr" aria-hidden="true">
         <span>{SECTIONS.length.toString().padStart(2, '0')}</span>
-        <span className="text-accent opacity-60">/</span>
-        <span className="text-text-secondary">{SECTIONS.length.toString().padStart(2, '0')}</span>
+        <span className="text-muted-foreground opacity-60">/</span>
+        <span className="text-muted-foreground">{SECTIONS.length.toString().padStart(2, '0')}</span>
       </div>
     </aside>
   );
@@ -1176,20 +1134,20 @@ function UnsavedDock({ dirtyList }) {
       aria-hidden={!visible}
     >
       <div
-        className="flex items-center gap-4 py-[0.65rem] pe-3 ps-4 backdrop-blur-[20px] border border-border-strong rounded-full flex-wrap max-[860px]:p-[0.5rem_0.65rem_0.5rem_0.85rem] max-[860px]:rounded-[18px] max-[860px]:gap-[0.7rem]"
+        className="flex items-center gap-4 py-[0.65rem] pe-3 ps-4 backdrop-blur-[20px] border border-border rounded-full flex-wrap max-[860px]:p-[0.5rem_0.65rem_0.5rem_0.85rem] max-[860px]:rounded-[18px] max-[860px]:gap-[0.7rem]"
         style={{
-          background: 'rgba(254,252,248,0.88)',
+          background: 'oklch(1 0 0 / 0.88)',
           WebkitBackdropFilter: 'blur(20px) saturate(1.25)',
           backdropFilter: 'blur(20px) saturate(1.25)',
-          boxShadow: '0 18px 48px rgba(80,60,30,0.08), 0 4px 14px rgba(80,60,30,0.05), inset 0 1px 0 rgba(255,255,255,0.85)',
+          boxShadow: '0 18px 48px rgba(0,0,0,0.06), 0 4px 14px rgba(0,0,0,0.04), inset 0 1px 0 rgba(255,255,255,0.85)',
         }}
       >
-        <div className="inline-flex items-center gap-[0.55rem] pe-[0.9rem] border-e border-border-strong font-mono text-[0.82rem] text-text-primary font-medium max-[860px]:pe-[0.7rem] max-[860px]:text-[0.76rem]">
-          <span className="w-2 h-2 rounded-full bg-yellow relative shrink-0">
-            <span className="absolute inset-[-4px] rounded-full bg-yellow opacity-30 animate-dock-pulse" />
+        <div className="inline-flex items-center gap-[0.55rem] pe-[0.9rem] border-e border-border font-mono text-[0.82rem] text-foreground font-medium max-[860px]:pe-[0.7rem] max-[860px]:text-[0.76rem]">
+          <span className="w-2 h-2 rounded-full bg-amber-400 relative shrink-0">
+            <span className="absolute inset-[-4px] rounded-full bg-amber-400 opacity-30 animate-dock-pulse" />
           </span>
-          <span className="font-serif text-[1.1rem] font-bold text-accent leading-none tabular-nums ltr">{dirtyList.length}</span>
-          <span className="text-text-secondary tracking-[0.01em]">
+          <span className="font-serif text-[1.1rem] font-bold text-foreground leading-none tabular-nums ltr">{dirtyList.length}</span>
+          <span className="text-muted-foreground tracking-[0.01em]">
             {dirtyList.length === 1 ? 'שינוי לא שמור' : 'שינויים לא שמורים'}
           </span>
         </div>
@@ -1198,11 +1156,11 @@ function UnsavedDock({ dirtyList }) {
             <button
               key={s.id}
               type="button"
-              className="inline-flex items-center gap-[0.4rem] py-[0.32rem] pe-[0.85rem] ps-[0.55rem] border border-border-strong rounded-full bg-white text-text-primary font-mono text-[0.76rem] font-medium cursor-pointer transition-all hover:border-accent hover:-translate-y-px hover:shadow-md max-[860px]:py-[0.28rem] max-[860px]:pe-[0.7rem] max-[860px]:ps-[0.45rem] max-[860px]:text-[0.72rem]"
+              className="inline-flex items-center gap-[0.4rem] py-[0.32rem] pe-[0.85rem] ps-[0.55rem] border border-border rounded-full bg-white text-foreground font-mono text-[0.76rem] font-medium cursor-pointer transition-all hover:border-foreground/30 hover:-translate-y-px hover:shadow-md max-[860px]:py-[0.28rem] max-[860px]:pe-[0.7rem] max-[860px]:ps-[0.45rem] max-[860px]:text-[0.72rem]"
               onClick={() => scrollToSection(s.id)}
               title={`קפוץ ל-${s.name}`}
             >
-              <span className="font-serif font-bold text-accent tabular-nums ltr py-[0.08rem] px-[0.45rem] bg-[rgba(168,130,86,0.08)] rounded-full text-[0.72rem] leading-[1.4]">{s.num}</span>
+              <span className="font-serif font-bold text-foreground tabular-nums ltr py-[0.08rem] px-[0.45rem] bg-muted rounded-full text-[0.72rem] leading-[1.4]">{s.num}</span>
               <span className="tracking-[0.01em] max-[860px]:hidden">{s.name}</span>
             </button>
           ))}
@@ -1221,8 +1179,8 @@ function SettingsLoadingSkeleton() {
   return (
     <div className="relative max-w-[960px] mx-auto px-7 pt-16 pb-32 animate-page-in isolate" role="status" aria-live="polite" aria-label="טוען הגדרות">
       <header className="mb-12 pb-6 relative" aria-hidden="true">
-        <span className="inline-block font-mono text-[0.72rem] tracking-[0.22em] uppercase text-accent mb-[0.65rem] opacity-85">Configuration · 2026</span>
-        <h1 className="font-serif text-[clamp(2.2rem,4.5vw,3rem)] font-bold text-text-bright leading-[1.05] m-0 mb-4 tracking-[-0.015em] flex items-baseline">
+        <span className="inline-block font-mono text-[0.72rem] tracking-[0.22em] uppercase text-muted-foreground mb-[0.65rem] opacity-85">Configuration · 2026</span>
+        <h1 className="font-serif text-[clamp(2.2rem,4.5vw,3rem)] font-bold text-foreground leading-[1.05] m-0 mb-4 tracking-[-0.015em] flex items-baseline">
           {SETTINGS_HERO_LETTERS.map((ch, i) => (
             <span
               key={i}
@@ -1236,7 +1194,7 @@ function SettingsLoadingSkeleton() {
               <span
                 className="absolute bottom-[0.08em] left-0 right-0 h-[0.12em]"
                 style={{
-                  background: 'linear-gradient(90deg, transparent, rgba(168,130,86,0.25), transparent)',
+                  background: 'linear-gradient(90deg, transparent, oklch(0.7 0 0 / 0.25), transparent)',
                   opacity: 0,
                   animation: 'settingsLetterUnderline 1.5s ease-out forwards',
                   animationDelay: `${i * 65 + 220}ms`,
@@ -1249,14 +1207,14 @@ function SettingsLoadingSkeleton() {
         {/* Track wipe */}
         <div
           className="mt-[1.4rem] h-px relative overflow-hidden"
-          style={{ background: 'linear-gradient(to left, transparent, rgba(168,130,86,0.2) 50%, transparent)' }}
+          style={{ background: 'linear-gradient(to left, transparent, oklch(0.7 0 0 / 0.2) 50%, transparent)' }}
         >
           <span
             className="absolute top-[-1px] bottom-[-1px] w-[28%] animate-track-sweep"
             style={{
-              background: 'linear-gradient(90deg, transparent 0%, rgba(168,130,86,0.55) 50%, transparent 100%)',
+              background: 'linear-gradient(90deg, transparent 0%, oklch(0.7 0 0 / 0.55) 50%, transparent 100%)',
               filter: 'blur(0.5px)',
-              boxShadow: '0 0 6px rgba(168,130,86,0.3)',
+              boxShadow: '0 0 6px oklch(0.7 0 0 / 0.3)',
             }}
           />
         </div>
@@ -1264,7 +1222,7 @@ function SettingsLoadingSkeleton() {
 
       {/* Section ghost - profile editor */}
       <section
-        className="mb-10 pb-8 border-b border-[rgba(120,100,70,0.08)]"
+        className="mb-10 pb-8 border-b border-border"
         style={{
           animation: 'settingsSectionRise 0.65s cubic-bezier(0.22,1,0.36,1) both',
           animationDelay: '280ms',
@@ -1272,19 +1230,19 @@ function SettingsLoadingSkeleton() {
         aria-hidden="true"
       >
         <div className="flex items-baseline gap-[0.85rem] mb-4">
-          <span className="font-serif text-[2.2rem] font-bold text-accent tracking-[0.02em] leading-none tabular-nums relative">
+          <span className="font-serif text-[2.2rem] font-bold text-muted-foreground tracking-[0.02em] leading-none tabular-nums relative">
             01
-            <span className="absolute bottom-[-0.35rem] start-0 w-[1.8rem] h-px bg-accent opacity-40" />
+            <span className="absolute bottom-[-0.35rem] start-0 w-[1.8rem] h-px bg-muted-foreground opacity-40" />
           </span>
           <span className="skeleton w-[140px] h-4 rounded-[4px]" />
           <span className="skeleton w-[92px] h-[18px] rounded-full ms-auto max-[720px]:hidden" />
         </div>
         <div className="skeleton w-[68%] h-3 rounded-[4px]" />
         {/* Editor preview */}
-        <div className="relative bg-[rgba(255,253,249,0.6)] border border-border rounded-lg p-[1.2rem_1.25rem_1.35rem] ps-12 mt-4 overflow-hidden">
-          <div className="absolute inset-0 end-auto w-9 bg-[rgba(168,130,86,0.03)] border-e border-[rgba(168,130,86,0.12)] flex flex-col justify-around py-[0.9rem]">
+        <div className="relative bg-card/60 border border-border rounded-lg p-[1.2rem_1.25rem_1.35rem] ps-12 mt-4 overflow-hidden">
+          <div className="absolute inset-0 end-auto w-9 bg-muted/30 border-e border-border flex flex-col justify-around py-[0.9rem]">
             {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => (
-              <span key={i} className="block w-[0.45rem] h-px bg-[rgba(168,130,86,0.3)] ms-auto me-[0.45rem]" />
+              <span key={i} className="block w-[0.45rem] h-px bg-muted-foreground/30 ms-auto me-[0.45rem]" />
             ))}
           </div>
           <div className="flex flex-col gap-[0.85rem] leading-[1.75]">
@@ -1307,21 +1265,21 @@ function SettingsLoadingSkeleton() {
         aria-hidden="true"
       >
         <div className="flex items-baseline gap-[0.85rem] mb-4">
-          <span className="font-serif text-[2.2rem] font-bold text-accent tracking-[0.02em] leading-none tabular-nums relative">
+          <span className="font-serif text-[2.2rem] font-bold text-muted-foreground tracking-[0.02em] leading-none tabular-nums relative">
             04
-            <span className="absolute bottom-[-0.35rem] start-0 w-[1.8rem] h-px bg-accent opacity-40" />
+            <span className="absolute bottom-[-0.35rem] start-0 w-[1.8rem] h-px bg-muted-foreground opacity-40" />
           </span>
           <span className="skeleton w-[140px] h-4 rounded-[4px]" />
         </div>
         <div className="grid grid-cols-2 gap-px bg-border border border-border rounded-lg overflow-hidden mt-4 max-[720px]:grid-cols-1">
           {/* Analyst panel */}
-          <div className="bg-bg-card p-[1.4rem_1.35rem_1.2rem] flex flex-col gap-[0.85rem] relative">
+          <div className="bg-card p-[1.4rem_1.35rem_1.2rem] flex flex-col gap-[0.85rem] relative">
             <span className="absolute top-0 start-0 w-[42px] h-0.5 opacity-50" style={{ background: 'linear-gradient(90deg, rgba(168,130,86,0.9), transparent)' }} />
-            <div className="flex items-center gap-[0.65rem] pb-[0.65rem] border-b border-[rgba(120,100,70,0.08)]">
+            <div className="flex items-center gap-[0.65rem] pb-[0.65rem] border-b border-border">
               <span
                 className="w-2 h-2 rounded-full shrink-0"
                 style={{
-                  background: 'var(--accent)',
+                  background: '#a88256',
                   animation: 'settingsPulseDot 1.8s ease-in-out infinite',
                 }}
               />
@@ -1335,9 +1293,9 @@ function SettingsLoadingSkeleton() {
             ))}
           </div>
           {/* Evaluator panel */}
-          <div className="bg-bg-card p-[1.4rem_1.35rem_1.2rem] flex flex-col gap-[0.85rem] relative">
+          <div className="bg-card p-[1.4rem_1.35rem_1.2rem] flex flex-col gap-[0.85rem] relative">
             <span className="absolute top-0 start-0 w-[42px] h-0.5 opacity-50" style={{ background: 'linear-gradient(90deg, rgba(61,155,133,0.9), transparent)' }} />
-            <div className="flex items-center gap-[0.65rem] pb-[0.65rem] border-b border-[rgba(120,100,70,0.08)]">
+            <div className="flex items-center gap-[0.65rem] pb-[0.65rem] border-b border-border">
               <span
                 className="w-2 h-2 rounded-full shrink-0"
                 style={{
@@ -1359,9 +1317,9 @@ function SettingsLoadingSkeleton() {
       </section>
 
       {/* Cycling subtitle */}
-      <div className="mt-11 pt-[1.4rem] border-t border-dashed border-[rgba(120,100,70,0.14)] flex items-center gap-[0.7rem] font-serif text-[0.95rem] text-text-secondary italic tracking-[-0.005em] relative">
-        <span className="absolute top-[-1px] start-0 w-9 h-px bg-accent opacity-50" />
-        <span className="font-serif text-[1.2rem] text-accent opacity-75 not-italic" aria-hidden="true">§</span>
+      <div className="mt-11 pt-[1.4rem] border-t border-dashed border-border flex items-center gap-[0.7rem] font-serif text-[0.95rem] text-muted-foreground italic tracking-[-0.005em] relative">
+        <span className="absolute top-[-1px] start-0 w-9 h-px bg-muted-foreground opacity-50" />
+        <span className="font-serif text-[1.2rem] text-muted-foreground opacity-75 not-italic" aria-hidden="true">§</span>
         <span className="relative inline-block h-[1.4em] min-w-[22ch] max-[720px]:min-w-[16ch]" aria-hidden="true">
           <span className="absolute inset-0 start-0 opacity-0 translate-y-1.5 animate-cycle-fade whitespace-nowrap" style={{ animationDelay: '0s' }}>מביא את הפרופיל</span>
           <span className="absolute inset-0 start-0 opacity-0 translate-y-1.5 animate-cycle-fade whitespace-nowrap" style={{ animationDelay: '2s' }}>קורא פרומפטים ותצורה</span>

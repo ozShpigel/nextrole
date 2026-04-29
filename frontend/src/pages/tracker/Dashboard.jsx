@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../../utils/api';
 import { formatDate, formatDateTime } from '../../utils/format';
 import StatusBadge from '../../components/StatusBadge';
+import { Card } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 
 export default function Dashboard() {
   const [stats, setStats] = useState(null);
@@ -35,68 +37,68 @@ export default function Dashboard() {
   }, []);
 
   if (loading) return <DashboardLoadingSkeleton />;
-  if (error) return <div className="bg-bg-card border border-border rounded-lg p-6 mb-4 shadow-sm"><p className="text-text-dim">שגיאה בטעינת הנתונים: {error}</p></div>;
+  if (error) return <Card className="p-6 mb-4"><p className="text-muted-foreground">שגיאה בטעינת הנתונים: {error}</p></Card>;
 
   return (
     <>
       {stats && (
         <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] max-md:grid-cols-2 gap-3 mb-6">
-          <div className="group bg-bg-card border border-border rounded-lg py-6 px-5 text-center relative overflow-hidden shadow-sm transition-all hover:border-border-strong hover:-translate-y-[3px] hover:shadow-md">
-            <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-accent to-teal opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
-            <div className="font-sans text-[2rem] font-bold text-text-bright tracking-[-0.02em]">{stats.total}</div>
-            <div className="text-[0.78rem] text-text-dim mt-[0.3rem] uppercase tracking-[0.06em] font-medium">סה&quot;כ משרות</div>
-          </div>
-          <div className="group bg-bg-card border border-border rounded-lg py-6 px-5 text-center relative overflow-hidden shadow-sm transition-all hover:border-border-strong hover:-translate-y-[3px] hover:shadow-md">
-            <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-accent to-teal opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
-            <div className="font-sans text-[2rem] font-bold text-text-bright tracking-[-0.02em]">{stats.inProgress}</div>
-            <div className="text-[0.78rem] text-text-dim mt-[0.3rem] uppercase tracking-[0.06em] font-medium">בתהליך</div>
-          </div>
-          <div className="group bg-bg-card border border-border rounded-lg py-6 px-5 text-center relative overflow-hidden shadow-sm transition-all hover:border-border-strong hover:-translate-y-[3px] hover:shadow-md">
-            <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-accent to-teal opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
-            <div className="font-sans text-[2rem] font-bold text-text-bright tracking-[-0.02em]">{stats.avgScore || '-'}</div>
-            <div className="text-[0.78rem] text-text-dim mt-[0.3rem] uppercase tracking-[0.06em] font-medium">ציון ממוצע</div>
-          </div>
-          <div className="group bg-bg-card border border-border rounded-lg py-6 px-5 text-center relative overflow-hidden shadow-sm transition-all hover:border-border-strong hover:-translate-y-[3px] hover:shadow-md">
-            <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-accent to-teal opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
-            <div className="font-sans text-[2rem] font-bold text-text-bright tracking-[-0.02em]">{stats.responseRate}%</div>
-            <div className="text-[0.78rem] text-text-dim mt-[0.3rem] uppercase tracking-[0.06em] font-medium">אחוז מענה</div>
-          </div>
+          <Card className="group py-6 px-5 text-center relative overflow-hidden transition-all hover:border-border hover:-translate-y-[3px] hover:shadow-md">
+            <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-primary to-ring opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+            <div className="font-sans text-[2rem] font-bold text-foreground tracking-[-0.02em]">{stats.total}</div>
+            <div className="text-[0.78rem] text-muted-foreground mt-[0.3rem] uppercase tracking-[0.06em] font-medium">סה&quot;כ משרות</div>
+          </Card>
+          <Card className="group py-6 px-5 text-center relative overflow-hidden transition-all hover:border-border hover:-translate-y-[3px] hover:shadow-md">
+            <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-primary to-ring opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+            <div className="font-sans text-[2rem] font-bold text-foreground tracking-[-0.02em]">{stats.inProgress}</div>
+            <div className="text-[0.78rem] text-muted-foreground mt-[0.3rem] uppercase tracking-[0.06em] font-medium">בתהליך</div>
+          </Card>
+          <Card className="group py-6 px-5 text-center relative overflow-hidden transition-all hover:border-border hover:-translate-y-[3px] hover:shadow-md">
+            <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-primary to-ring opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+            <div className="font-sans text-[2rem] font-bold text-foreground tracking-[-0.02em]">{stats.avgScore || '-'}</div>
+            <div className="text-[0.78rem] text-muted-foreground mt-[0.3rem] uppercase tracking-[0.06em] font-medium">ציון ממוצע</div>
+          </Card>
+          <Card className="group py-6 px-5 text-center relative overflow-hidden transition-all hover:border-border hover:-translate-y-[3px] hover:shadow-md">
+            <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-primary to-ring opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+            <div className="font-sans text-[2rem] font-bold text-foreground tracking-[-0.02em]">{stats.responseRate}%</div>
+            <div className="text-[0.78rem] text-muted-foreground mt-[0.3rem] uppercase tracking-[0.06em] font-medium">אחוז מענה</div>
+          </Card>
         </div>
       )}
 
-      <div className="bg-bg-card border border-border rounded-lg p-6 mb-4 shadow-sm transition-all hover:border-border-strong hover:shadow-md">
-        <h3 className="text-[0.95rem] font-semibold text-text-bright mb-3 pb-[0.6rem] border-b border-border">ראיונות קרובים</h3>
+      <Card className="p-6 mb-4 transition-all hover:border-border hover:shadow-md">
+        <h3 className="text-[0.95rem] font-semibold text-foreground mb-3 pb-[0.6rem] border-b border-border">ראיונות קרובים</h3>
         {upcoming.length === 0 ? (
-          <p className="text-center py-12 text-text-dim text-[0.88rem]">אין ראיונות קרובים</p>
+          <p className="text-center py-12 text-muted-foreground text-[0.88rem]">אין ראיונות קרובים</p>
         ) : (
           upcoming.map((u, i) => (
-            <div key={i} className="bg-bg-surface border border-border rounded p-[1rem_1.25rem] mb-3 transition-all hover:border-border-strong hover:shadow-sm">
+            <div key={i} className="bg-muted border border-border rounded p-[1rem_1.25rem] mb-3 transition-all hover:border-border hover:shadow-sm">
               <div className="flex justify-between items-center mb-2">
-                <span className="font-semibold text-text-bright text-[0.88rem]">{u.interview.type} - {u.company || ''}</span>
-                <span className="text-[0.78rem] text-text-dim">{formatDateTime(u.interview.scheduledAt)}</span>
+                <span className="font-semibold text-foreground text-[0.88rem]">{u.interview.type} - {u.company || ''}</span>
+                <span className="text-[0.78rem] text-muted-foreground">{formatDateTime(u.interview.scheduledAt)}</span>
               </div>
-              <div className="text-[0.84rem] text-text-primary leading-[1.6] text-text-dim">{u.jobTitle || ''} {u.interview.interviewer ? `| ${u.interview.interviewer}` : ''}</div>
+              <div className="text-[0.84rem] text-foreground leading-[1.6] text-muted-foreground">{u.jobTitle || ''} {u.interview.interviewer ? `| ${u.interview.interviewer}` : ''}</div>
             </div>
           ))
         )}
-      </div>
+      </Card>
 
-      <div className="bg-bg-card border border-border rounded-lg p-6 mb-4 shadow-sm transition-all hover:border-border-strong hover:shadow-md mt-4">
-        <h3 className="text-[0.95rem] font-semibold text-text-bright mb-3 pb-[0.6rem] border-b border-border">פעילות אחרונה</h3>
+      <Card className="p-6 mb-4 transition-all hover:border-border hover:shadow-md mt-4">
+        <h3 className="text-[0.95rem] font-semibold text-foreground mb-3 pb-[0.6rem] border-b border-border">פעילות אחרונה</h3>
         {recent.length === 0 ? (
-          <p className="text-center py-12 text-text-dim text-[0.88rem]">אין פעילות אחרונה</p>
+          <p className="text-center py-12 text-muted-foreground text-[0.88rem]">אין פעילות אחרונה</p>
         ) : (
           recent.map((a) => (
             <div key={a.id} className="group flex gap-4 py-[0.85rem] border-b border-border items-start transition-colors last:border-b-0 cursor-pointer" onClick={() => navigate(`/tracker/${a.id}`)}>
               <div className="w-[34px] h-[34px] rounded-[9px] flex items-center justify-center text-[0.8rem] shrink-0 transition-transform group-hover:scale-[1.08] bg-blue-bg text-blue">&#x1F4CB;</div>
               <div className="flex-1">
                 <div className="text-[0.84rem] mt-[0.15rem]"><strong>{a.jobTitle}</strong> - {a.company} <StatusBadge status={a.status} /></div>
-                <div className="text-[0.73rem] text-text-dim">{formatDate(a.createdAt)}</div>
+                <div className="text-[0.73rem] text-muted-foreground">{formatDate(a.createdAt)}</div>
               </div>
             </div>
           ))
         )}
-      </div>
+      </Card>
     </>
   );
 }
@@ -108,8 +110,8 @@ function DashboardLoadingSkeleton() {
     <div className="animate-page-in pb-4 relative" role="status" aria-live="polite" aria-label="טוען דשבורד">
       {/* Hero */}
       <header className="mb-8 pb-5" aria-hidden="true">
-        <span className="inline-block font-mono text-[0.7rem] tracking-[0.22em] uppercase text-accent mb-[0.55rem] opacity-85">Overview · 2026</span>
-        <h2 className="font-serif text-[clamp(1.6rem,3vw,2rem)] font-bold text-text-bright leading-[1.1] m-0 mb-[0.8rem] tracking-[-0.01em] flex items-baseline">
+        <span className="inline-block font-mono text-[0.7rem] tracking-[0.22em] uppercase text-primary mb-[0.55rem] opacity-85">Overview · 2026</span>
+        <h2 className="font-serif text-[clamp(1.6rem,3vw,2rem)] font-bold text-foreground leading-[1.1] m-0 mb-[0.8rem] tracking-[-0.01em] flex items-baseline">
           {DASHBOARD_HERO_LETTERS.map((ch, i) => (
             <span
               key={i}
@@ -121,41 +123,41 @@ function DashboardLoadingSkeleton() {
             >{ch}</span>
           ))}
         </h2>
-        <div className="mt-[1.1rem] h-px relative overflow-hidden" style={{ background: 'linear-gradient(to left, transparent, rgba(168,130,86,0.18) 50%, transparent)' }}>
-          <span className="absolute top-[-1px] bottom-[-1px] w-[28%] animate-track-sweep" style={{ background: 'linear-gradient(90deg, transparent 0%, rgba(168,130,86,0.55) 50%, transparent 100%)', filter: 'blur(0.5px)', boxShadow: '0 0 6px rgba(168,130,86,0.3)' }} />
+        <div className="mt-[1.1rem] h-px relative overflow-hidden" style={{ background: 'linear-gradient(to left, transparent, hsl(var(--border) / 0.4) 50%, transparent)' }}>
+          <span className="absolute top-[-1px] bottom-[-1px] w-[28%] animate-track-sweep" style={{ background: 'linear-gradient(90deg, transparent 0%, hsl(var(--muted-foreground) / 0.55) 50%, transparent 100%)', filter: 'blur(0.5px)', boxShadow: '0 0 6px hsl(var(--muted-foreground) / 0.3)' }} />
         </div>
       </header>
 
       {/* Summary grid skeleton */}
       <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] max-sm:grid-cols-2 gap-3 mb-7" aria-hidden="true">
         {[0, 1, 2, 3].map((i) => (
-          <div
+          <Card
             key={i}
-            className="bg-bg-card border border-border rounded-lg py-[1.6rem] px-5 text-center relative overflow-hidden shadow-sm"
+            className="py-[1.6rem] px-5 text-center relative overflow-hidden"
             style={{
               animation: 'cardRise 0.65s cubic-bezier(0.22, 1, 0.36, 1) both',
               animationDelay: `${i * 70 + 220}ms`,
             }}
           >
-            <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-accent to-teal opacity-30" />
+            <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-primary to-ring opacity-30" />
             <span className="skeleton block w-[48px] h-[34px] rounded mx-auto mb-[0.55rem]" />
             <span className="skeleton block w-[82px] h-[10px] rounded-[3px] mx-auto" />
-          </div>
+          </Card>
         ))}
       </div>
 
       {/* Section 01 */}
-      <div
-        className="bg-bg-card border border-border rounded-lg p-6 mb-4 shadow-sm flex flex-col gap-[0.85rem] relative overflow-hidden"
+      <Card
+        className="p-6 mb-4 flex flex-col gap-[0.85rem] relative overflow-hidden"
         style={{ animation: 'cardRise 0.65s cubic-bezier(0.22, 1, 0.36, 1) both', animationDelay: '580ms' }}
         aria-hidden="true"
       >
         <div className="flex items-baseline gap-3 pb-[0.7rem] mb-1 border-b border-border">
-          <span className="font-serif text-[0.78rem] font-bold text-accent tracking-[0.14em] py-[0.18rem] px-2 border border-[rgba(168,130,86,0.2)] rounded bg-[rgba(168,130,86,0.05)] tabular-nums">01</span>
+          <Badge variant="outline" className="font-serif text-[0.78rem] font-bold tracking-[0.14em] tabular-nums">01</Badge>
           <span className="skeleton flex-1 max-w-[200px] h-[14px] rounded" />
         </div>
         {[0, 1].map((i) => (
-          <div key={i} className="py-[0.85rem] px-4 border border-border rounded bg-bg-surface flex flex-col gap-2">
+          <div key={i} className="py-[0.85rem] px-4 border border-border rounded bg-muted flex flex-col gap-2">
             <div className="flex justify-between items-center gap-4">
               <span className="skeleton w-[45%] h-[14px] rounded" />
               <span className="skeleton w-[90px] h-[12px] rounded" />
@@ -163,16 +165,16 @@ function DashboardLoadingSkeleton() {
             <span className="skeleton w-[70%] h-[12px] rounded" />
           </div>
         ))}
-      </div>
+      </Card>
 
       {/* Section 02 */}
-      <div
-        className="bg-bg-card border border-border rounded-lg p-6 mb-4 shadow-sm flex flex-col gap-[0.85rem] relative overflow-hidden"
+      <Card
+        className="p-6 mb-4 flex flex-col gap-[0.85rem] relative overflow-hidden"
         style={{ animation: 'cardRise 0.65s cubic-bezier(0.22, 1, 0.36, 1) both', animationDelay: '650ms' }}
         aria-hidden="true"
       >
         <div className="flex items-baseline gap-3 pb-[0.7rem] mb-1 border-b border-border">
-          <span className="font-serif text-[0.78rem] font-bold text-accent tracking-[0.14em] py-[0.18rem] px-2 border border-[rgba(168,130,86,0.2)] rounded bg-[rgba(168,130,86,0.05)] tabular-nums">02</span>
+          <Badge variant="outline" className="font-serif text-[0.78rem] font-bold tracking-[0.14em] tabular-nums">02</Badge>
           <span className="skeleton flex-1 max-w-[200px] h-[14px] rounded" />
         </div>
         {[0, 1, 2].map((i) => (
@@ -184,12 +186,12 @@ function DashboardLoadingSkeleton() {
             </div>
           </div>
         ))}
-      </div>
+      </Card>
 
       {/* Cycling subtitle */}
-      <div className="mt-9 pt-5 border-t border-dashed border-[rgba(120,100,70,0.14)] flex items-center gap-[0.65rem] font-serif text-[0.92rem] text-text-secondary italic tracking-[-0.005em] relative">
-        <div className="absolute top-[-1px] start-0 w-[36px] h-px bg-accent opacity-50" />
-        <span className="font-serif text-[1.15rem] text-accent opacity-75 not-italic" aria-hidden="true">§</span>
+      <div className="mt-9 pt-5 border-t border-dashed border-border flex items-center gap-[0.65rem] font-serif text-[0.92rem] text-muted-foreground italic tracking-[-0.005em] relative">
+        <div className="absolute top-[-1px] start-0 w-[36px] h-px bg-primary opacity-50" />
+        <span className="font-serif text-[1.15rem] text-primary opacity-75 not-italic" aria-hidden="true">§</span>
         <span className="relative inline-block h-[1.4em] min-w-[22ch]" aria-hidden="true">
           <span className="absolute inset-0 start-0 opacity-0 translate-y-[6px] whitespace-nowrap" style={{ animation: 'cycleFade 6s cubic-bezier(0.22, 1, 0.36, 1) infinite', animationDelay: '0s' }}>מאחזר משרות פעילות</span>
           <span className="absolute inset-0 start-0 opacity-0 translate-y-[6px] whitespace-nowrap" style={{ animation: 'cycleFade 6s cubic-bezier(0.22, 1, 0.36, 1) infinite', animationDelay: '2s' }}>מסכם סטטיסטיקות</span>

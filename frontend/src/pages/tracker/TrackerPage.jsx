@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { useLocation } from 'react-router-dom';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import Dashboard from './Dashboard';
 import ApplicationList from './ApplicationList';
 import AddApplication from './AddApplication';
@@ -22,18 +24,18 @@ export default function TrackerPage() {
   }
 
   return (
-    <div className="min-h-[calc(100vh-56px)] bg-bg-deep animate-page-in-fast">
-      <div className="bg-bg-surface border-b border-border py-5 mb-8">
-        <h1 className="font-sans text-[1.4rem] font-bold text-text-bright max-w-[1100px] mx-auto px-6 tracking-[-0.01em]">מעקב משרות</h1>
-        <p className="text-text-secondary text-[0.85rem] max-w-[1100px] mt-[0.15rem] mx-auto px-6">ניהול ומעקב אחר תהליכי גיוס</p>
+    <div className="min-h-[calc(100vh-56px)] bg-background animate-page-in-fast">
+      <div className="bg-muted border-b border-border py-5 mb-8">
+        <h1 className="font-sans text-[1.4rem] font-bold text-foreground max-w-[1100px] mx-auto px-6 tracking-[-0.01em]">מעקב משרות</h1>
+        <p className="text-muted-foreground text-[0.85rem] max-w-[1100px] mt-[0.15rem] mx-auto px-6">ניהול ומעקב אחר תהליכי גיוס</p>
       </div>
 
       <div className="max-w-[1100px] mx-auto px-6 pb-8">
-        <div className="flex gap-1 mb-8 bg-bg-card rounded p-[0.3rem] border border-border shadow-sm max-md:flex-wrap">
+        <div className="flex gap-1 mb-8 bg-card rounded p-[0.3rem] border border-border shadow-sm max-md:flex-wrap">
           {TABS.map((t) => (
             <button
               key={t.key}
-              className={`py-[0.55rem] px-5 bg-transparent border-none rounded-[7px] cursor-pointer text-[0.85rem] font-medium font-sans transition-all hover:text-text-primary ${activeTab === t.key ? 'text-accent bg-accent-muted' : 'text-text-dim'}`}
+              className={`py-[0.55rem] px-5 bg-transparent border-none rounded-[7px] cursor-pointer text-[0.85rem] font-medium font-sans transition-all hover:text-foreground hover:bg-accent ${activeTab === t.key ? 'text-foreground bg-accent' : 'text-muted-foreground'}`}
               onClick={() => switchTab(t.key)}
             >
               {t.label}

@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { discoveryApi } from '../../utils/api';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 
 export default function CriteriaForm({ initial, onSave, onCancel }) {
   const [name, setName] = useState(initial?.name || '');
@@ -50,39 +52,39 @@ export default function CriteriaForm({ initial, onSave, onCancel }) {
     }
   }
 
-  const inputCls = "w-full py-[0.6rem] px-[0.85rem] bg-white border border-[rgba(120,100,70,0.12)] rounded-lg text-text-primary text-[0.88rem] font-sans transition-all focus:border-accent focus:ring-[3px] focus:ring-accent-glow focus:outline-none";
+  const inputCls = "w-full py-[0.6rem] px-[0.85rem] bg-background border border-input rounded-lg text-foreground text-[0.88rem] font-sans transition-all focus:border-ring focus:ring-[3px] focus:ring-ring/20 focus:outline-none";
 
   return (
-    <form className="mb-8 p-7 bg-warm border border-border rounded-lg shadow-md animate-card-in" onSubmit={submit}>
-      <h3 className="font-serif text-[1.2rem] font-bold text-text-bright mb-5 tracking-[-0.005em]">{initial ? 'עריכת קריטריון' : 'קריטריון חיפוש חדש'}</h3>
+    <form className="mb-8 p-7 bg-card border border-border rounded-lg shadow-md animate-card-in" onSubmit={submit}>
+      <h3 className="font-serif text-[1.2rem] font-bold text-foreground mb-5 tracking-[-0.005em]">{initial ? 'עריכת קריטריון' : 'קריטריון חיפוש חדש'}</h3>
 
       <div className="mb-4">
-        <label className="block text-[0.72rem] text-text-dim mb-[0.4rem] uppercase tracking-[0.12em] font-medium">שם</label>
+        <label className="block text-[0.72rem] text-muted-foreground mb-[0.4rem] uppercase tracking-[0.12em] font-medium">שם</label>
         <input type="text" className={inputCls} value={name} onChange={(e) => setName(e.target.value)} placeholder='לדוגמה: "Senior Backend .NET"' />
       </div>
 
       <div className="grid grid-cols-2 gap-4 max-[640px]:grid-cols-1">
         <div className="mb-4">
-          <label className="block text-[0.72rem] text-text-dim mb-[0.4rem] uppercase tracking-[0.12em] font-medium">כותרות משרה (שורה לכל כותרת)</label>
+          <label className="block text-[0.72rem] text-muted-foreground mb-[0.4rem] uppercase tracking-[0.12em] font-medium">כותרות משרה (שורה לכל כותרת)</label>
           <textarea className={`${inputCls} resize-y leading-[1.6]`} value={titlesText} onChange={(e) => setTitlesText(e.target.value)} placeholder="Senior Backend Engineer&#10;Platform Engineer&#10;Staff Engineer" rows={3} />
         </div>
         <div className="mb-4">
-          <label className="block text-[0.72rem] text-text-dim mb-[0.4rem] uppercase tracking-[0.12em] font-medium">מיקומים (שורה לכל מיקום)</label>
+          <label className="block text-[0.72rem] text-muted-foreground mb-[0.4rem] uppercase tracking-[0.12em] font-medium">מיקומים (שורה לכל מיקום)</label>
           <textarea className={`${inputCls} resize-y leading-[1.6]`} value={locationsText} onChange={(e) => setLocationsText(e.target.value)} placeholder="Tel Aviv&#10;Remote" rows={3} />
         </div>
       </div>
 
       <div className="grid grid-cols-3 gap-4 max-[640px]:grid-cols-1">
         <div className="mb-4">
-          <label className="block text-[0.72rem] text-text-dim mb-[0.4rem] uppercase tracking-[0.12em] font-medium">אתרים</label>
+          <label className="block text-[0.72rem] text-muted-foreground mb-[0.4rem] uppercase tracking-[0.12em] font-medium">אתרים</label>
           <input type="text" className={inputCls} value={siteNames} onChange={(e) => setSiteNames(e.target.value)} placeholder="linkedin, indeed" />
         </div>
         <div className="mb-4">
-          <label className="block text-[0.72rem] text-text-dim mb-[0.4rem] uppercase tracking-[0.12em] font-medium">מדינה</label>
+          <label className="block text-[0.72rem] text-muted-foreground mb-[0.4rem] uppercase tracking-[0.12em] font-medium">מדינה</label>
           <input type="text" className={inputCls} value={country} onChange={(e) => setCountry(e.target.value)} />
         </div>
         <div className="mb-4">
-          <label className="block text-[0.72rem] text-text-dim mb-[0.4rem] uppercase tracking-[0.12em] font-medium">עבודה מרחוק</label>
+          <label className="block text-[0.72rem] text-muted-foreground mb-[0.4rem] uppercase tracking-[0.12em] font-medium">עבודה מרחוק</label>
           <select className={inputCls} value={isRemote === null ? '' : String(isRemote)} onChange={(e) => setIsRemote(e.target.value === '' ? null : e.target.value === 'true')}>
             <option value="">לא משנה</option>
             <option value="true">כן</option>
@@ -93,24 +95,24 @@ export default function CriteriaForm({ initial, onSave, onCancel }) {
 
       <div className="grid grid-cols-3 gap-4 max-[640px]:grid-cols-1">
         <div className="mb-4">
-          <label className="block text-[0.72rem] text-text-dim mb-[0.4rem] uppercase tracking-[0.12em] font-medium">תוצאות לכותרת</label>
+          <label className="block text-[0.72rem] text-muted-foreground mb-[0.4rem] uppercase tracking-[0.12em] font-medium">תוצאות לכותרת</label>
           <input type="number" className={inputCls} value={resultsWanted} onChange={(e) => setResultsWanted(Number(e.target.value))} min={1} max={50} />
         </div>
         <div className="mb-4">
-          <label className="block text-[0.72rem] text-text-dim mb-[0.4rem] uppercase tracking-[0.12em] font-medium">שעות אחרונות</label>
+          <label className="block text-[0.72rem] text-muted-foreground mb-[0.4rem] uppercase tracking-[0.12em] font-medium">שעות אחרונות</label>
           <input type="number" className={inputCls} value={hoursOld} onChange={(e) => setHoursOld(Number(e.target.value))} min={1} max={720} />
         </div>
         <div className="mb-4">
-          <label className="block text-[0.72rem] text-text-dim mb-[0.4rem] uppercase tracking-[0.12em] font-medium">סף ציון לשמירה</label>
+          <label className="block text-[0.72rem] text-muted-foreground mb-[0.4rem] uppercase tracking-[0.12em] font-medium">סף ציון לשמירה</label>
           <input type="number" className={inputCls} value={minScore} onChange={(e) => setMinScore(Number(e.target.value))} min={0} max={100} />
         </div>
       </div>
 
-      <div className="btn-group">
-        <button className="btn btn-primary" type="submit" disabled={saving || !name.trim() || !titlesText.trim()}>
+      <div className="flex gap-2 pt-2">
+        <Button type="submit" disabled={saving || !name.trim() || !titlesText.trim()}>
           {saving ? 'שומר...' : (initial ? 'עדכן' : 'צור')}
-        </button>
-        <button className="btn btn-secondary" type="button" onClick={onCancel}>ביטול</button>
+        </Button>
+        <Button variant="outline" type="button" onClick={onCancel}>ביטול</Button>
       </div>
     </form>
   );

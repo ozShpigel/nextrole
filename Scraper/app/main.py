@@ -3,6 +3,7 @@ import logging
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 
+import certifi
 from fastapi import BackgroundTasks, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -24,7 +25,7 @@ db = None
 async def lifespan(app: FastAPI):
     global db_client, db
     logger.info("Connecting to MongoDB...")
-    db_client = AsyncIOMotorClient(settings.mongodb_connection_string)
+    db_client = AsyncIOMotorClient(settings.mongodb_connection_string, tlsCAFile=certifi.where())
     db = db_client[settings.mongodb_database_name]
     logger.info("Connected to database: %s", settings.mongodb_database_name)
 

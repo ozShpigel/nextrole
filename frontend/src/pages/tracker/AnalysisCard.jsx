@@ -1,46 +1,64 @@
 import { useState } from 'react';
-import { barColor } from '../../utils/format';
 import { VERDICT_HE } from '../../utils/constants';
 
-function AnalysisScoreBar({ label, score, maxScore }) {
-  if (score == null || maxScore == null) return null;
-  const pct = (score / maxScore * 100).toFixed(0);
-  const color = barColor(score, maxScore);
+function scoreColor(score, max) {
+  if (score == null || max == null || max === 0) return 'var(--text-dim)';
+  const pct = score / max;
+  if (pct >= 0.6) return 'var(--green)';
+  if (pct >= 0.4) return 'var(--yellow)';
+  return 'var(--red)';
+}
+
+function ScoreRing({ score, maxScore, size = 140, stroke = 8 }) {
+  const pct = score != null && maxScore > 0 ? score / maxScore : 0;
+  const half = size / 2;
+  const r = half - stroke / 2 - 2;
+  const C = 2 * Math.PI * r;
+  const offset = C * (1 - pct);
+  const color = scoreColor(score, maxScore);
+
   return (
-    <div className="analysis-score-bar">
-      <span className="analysis-bar-label">{label}</span>
-      <div className="analysis-bar-bg">
-        <div className={`analysis-bar-fill fill-${color}`} style={{ width: `${pct}%` }} />
+    <div className="a-ring" style={{ width: size, height: size }}>
+      <svg viewBox={`0 0 ${size} ${size}`} fill="none">
+        <circle cx={half} cy={half} r={r} stroke="var(--bg-elevated)" strokeWidth={stroke} />
+        {score != null && (
+          <circle
+            cx={half} cy={half} r={r}
+            stroke={color} strokeWidth={stroke} strokeLinecap="round"
+            strokeDasharray={C} strokeDashoffset={offset}
+            className="a-ring__arc"
+            style={{ '--circ': C, transform: 'rotate(-90deg)', transformOrigin: '50% 50%' }}
+          />
+        )}
+      </svg>
+      <div className="a-ring__center">
+        <span className="a-ring__num" style={{ fontSize: size * 0.2 }}>{score ?? '—'}</span>
+        <span className="a-ring__max" style={{ fontSize: size * 0.09 }}>/ {maxScore}</span>
       </div>
-      <span className="analysis-bar-num">{score}/{maxScore}</span>
     </div>
   );
 }
 
-function AnalysisList({ items, className }) {
-  if (!items || items.length === 0) return <p style={{ fontSize: '0.8rem', color: 'var(--text-dim)', margin: '0.25rem 0' }}>-</p>;
-  return (
-    <ul className="analysis-list">
-      {items.map((item, i) => <li key={i} className={className}>{item}</li>)}
-    </ul>
-  );
-}
+const DIMS = [
+  { key: 'technical', label: 'טכני', posLabel: 'חוזקות', negLabel: 'פערים', posKey: 'strengths', negKey: 'gaps' },
+  { key: 'cultural', label: 'תרבותי', posLabel: 'סימנים חיוביים', negLabel: 'חששות', posKey: 'positiveSignals', negKey: 'concerns' },
+  { key: 'roleCharacteristics', label: 'התאמה לתפקיד', posLabel: 'הזדמנויות', negLabel: 'סיכונים', posKey: 'opportunities', negKey: 'risks' },
+];
 
 export default function AnalysisCard({ matchAnalysisJson }) {
   const [open, setOpen] = useState(true);
+  const [activeDim, setActiveDim] = useState(null);
 
   if (!matchAnalysisJson) return null;
-
   let a;
-  try {
-    a = typeof matchAnalysisJson === 'string' ? JSON.parse(matchAnalysisJson) : matchAnalysisJson;
-  } catch {
-    return null;
-  }
+  try { a = typeof matchAnalysisJson === 'string' ? JSON.parse(matchAnalysisJson) : matchAnalysisJson; } catch { return null; }
 
   const b = a.breakdown;
-  const r = a.recommendation;
-  const verdictClass = a.verdict ? a.verdict.replace(/ /g, '_') : 'INSUFFICIENT_DATA';
+  const rec = a.recommendation;
+  const verdictClass = a.verdict?.replace(/ /g, '_') || 'INSUFFICIENT_DATA';
+  const active = activeDim && b?.[activeDim]
+    ? { ...DIMS.find(d => d.key === activeDim), data: b[activeDim] }
+    : null;
 
   return (
     <div className="card">
@@ -48,83 +66,101 @@ export default function AnalysisCard({ matchAnalysisJson }) {
         className={`collapsible-header${open ? '' : ' collapsed'}`}
         onClick={() => setOpen(!open)}
         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen(!open); } }}
-        role="button"
-        tabIndex={0}
-        aria-expanded={open}
+        role="button" tabIndex={0} aria-expanded={open}
       >
         <h3 className="section-title" style={{ border: 'none', margin: 0, padding: 0 }}>ניתוח AI</h3>
       </div>
       {open && (
-        <div style={{ marginTop: '1rem' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
-            <div>
-              <div className={`analysis-verdict ${verdictClass}`}>{VERDICT_HE[a.verdict] || VERDICT_HE.INSUFFICIENT_DATA}</div>
-              <div className="analysis-overall-score">ציון כללי: {a.overallScore ?? 'N/A'} / 100</div>
+        <div className="a-card">
+          <div className="a-hero">
+            <ScoreRing score={a.overallScore} maxScore={100} size={148} stroke={9} />
+            <div className="a-hero__info">
+              <div className={`a-verdict ${verdictClass}`}>
+                {VERDICT_HE[a.verdict] || VERDICT_HE.INSUFFICIENT_DATA}
+              </div>
+              {rec && (
+                <div className={`a-apply ${rec.shouldApply ? 'a-apply--yes' : 'a-apply--no'}`}>
+                  {rec.shouldApply ? 'כדאי להגיש' : 'לא כדאי להגיש'}
+                </div>
+              )}
             </div>
           </div>
 
           {b && (
             <>
-              <div className="analysis-section">
-                <h4>ציונים</h4>
-                {b.technical && <AnalysisScoreBar label="טכני" score={b.technical.score} maxScore={b.technical.maxScore} />}
-                {b.cultural && <AnalysisScoreBar label="תרבותי" score={b.cultural.score} maxScore={b.cultural.maxScore} />}
-                {b.roleCharacteristics && <AnalysisScoreBar label="התאמה לתפקיד" score={b.roleCharacteristics.score} maxScore={b.roleCharacteristics.maxScore} />}
+              <div className="a-dims">
+                {DIMS.map(dim => {
+                  const d = b[dim.key];
+                  if (!d) return null;
+                  return (
+                    <button
+                      key={dim.key}
+                      className={`a-dim${activeDim === dim.key ? ' a-dim--active' : ''}`}
+                      onClick={() => setActiveDim(activeDim === dim.key ? null : dim.key)}
+                    >
+                      <ScoreRing score={d.score} maxScore={d.maxScore} size={72} stroke={5} />
+                      <span className="a-dim__label">{dim.label}</span>
+                    </button>
+                  );
+                })}
               </div>
 
-              {b.technical && (
-                <div className="analysis-section">
-                  <h4>טכני</h4>
-                  <div className="analysis-sub-label">חוזקות</div>
-                  <AnalysisList items={b.technical.strengths} className="a-positive" />
-                  <div className="analysis-sub-label">פערים</div>
-                  <AnalysisList items={b.technical.gaps} className="a-negative" />
-                </div>
-              )}
-
-              {b.cultural && (
-                <div className="analysis-section">
-                  <h4>תרבות</h4>
-                  <div className="analysis-sub-label">סימנים חיוביים</div>
-                  <AnalysisList items={b.cultural.positiveSignals} className="a-positive" />
-                  <div className="analysis-sub-label">חששות</div>
-                  <AnalysisList items={b.cultural.concerns} className="a-negative" />
-                </div>
-              )}
-
-              {b.roleCharacteristics && (
-                <div className="analysis-section">
-                  <h4>מאפייני התפקיד</h4>
-                  <div className="analysis-sub-label">הזדמנויות</div>
-                  <AnalysisList items={b.roleCharacteristics.opportunities} className="a-positive" />
-                  <div className="analysis-sub-label">סיכונים</div>
-                  <AnalysisList items={b.roleCharacteristics.risks} className="a-negative" />
+              {active && (
+                <div className="a-dim-detail" key={activeDim}>
+                  <h4 className="a-dim-detail__title">{active.label}</h4>
+                  {active.data[active.posKey]?.length > 0 && (
+                    <div className="a-dim-detail__group">
+                      <span className="a-dim-detail__sub">{active.posLabel}</span>
+                      <ul className="a-dim-detail__list a-dim-detail__list--pos">
+                        {active.data[active.posKey].map((item, i) => <li key={i}>{item}</li>)}
+                      </ul>
+                    </div>
+                  )}
+                  {active.data[active.negKey]?.length > 0 && (
+                    <div className="a-dim-detail__group">
+                      <span className="a-dim-detail__sub">{active.negLabel}</span>
+                      <ul className="a-dim-detail__list a-dim-detail__list--neg">
+                        {active.data[active.negKey].map((item, i) => <li key={i}>{item}</li>)}
+                      </ul>
+                    </div>
+                  )}
                 </div>
               )}
             </>
           )}
 
-          {r && (
-            <div className="analysis-section">
-              <h4>המלצה</h4>
-              <div className={`analysis-should-apply ${r.shouldApply ? 'yes' : 'no'}`}>
-                {r.shouldApply ? 'כדאי להגיש' : 'לא כדאי להגיש'}
-              </div>
-              <div className="analysis-sub-label">סיבות עיקריות</div>
-              <AnalysisList items={r.keyReasons} />
-              <div className="analysis-sub-label">שאלות לשאול</div>
-              <AnalysisList items={r.questionsToAsk} />
-              <div className="analysis-flags">
-                {(r.greenFlags || []).map((f, i) => <span key={i} className="analysis-flag flag-green">{f}</span>)}
-                {(r.redFlags || []).map((f, i) => <span key={i} className="analysis-flag flag-red">{f}</span>)}
-              </div>
+          {rec && (rec.keyReasons?.length > 0 || rec.questionsToAsk?.length > 0 || rec.greenFlags?.length > 0 || rec.redFlags?.length > 0) && (
+            <div className="a-rec">
+              <h4 className="a-rec__title">המלצה</h4>
+              {rec.keyReasons?.length > 0 && (
+                <div className="a-rec__block">
+                  <span className="a-rec__label">סיבות עיקריות</span>
+                  <ul className="a-rec__list">
+                    {rec.keyReasons.map((item, i) => <li key={i}>{item}</li>)}
+                  </ul>
+                </div>
+              )}
+              {rec.questionsToAsk?.length > 0 && (
+                <div className="a-rec__block">
+                  <span className="a-rec__label">שאלות לשאול</span>
+                  <ul className="a-rec__list">
+                    {rec.questionsToAsk.map((item, i) => <li key={i}>{item}</li>)}
+                  </ul>
+                </div>
+              )}
+              {(rec.greenFlags?.length > 0 || rec.redFlags?.length > 0) && (
+                <div className="a-flags">
+                  {(rec.greenFlags || []).map((f, i) => <span key={`g${i}`} className="a-flag a-flag--green">{f}</span>)}
+                  {(rec.redFlags || []).map((f, i) => <span key={`r${i}`} className="a-flag a-flag--red">{f}</span>)}
+                </div>
+              )}
             </div>
           )}
 
           {a.honestAssessment && (
-            <div className="analysis-section">
-              <h4>הערכה כנה</h4>
-              <div className="analysis-assessment">{a.honestAssessment}</div>
+            <div className="a-assessment">
+              <h4 className="a-assessment__title">הערכה כנה</h4>
+              <p className="a-assessment__text">{a.honestAssessment}</p>
             </div>
           )}
         </div>

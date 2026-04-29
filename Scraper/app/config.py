@@ -2,6 +2,7 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
+    model_config = {"env_file": ".env"}
     mongodb_connection_string: str = ""
     mongodb_database_name: str = "job-tracker"
     api_base_url: str = "http://localhost:5002"

@@ -2,11 +2,11 @@ import { useState } from 'react';
 import { VERDICT_HE } from '../../utils/constants';
 
 function scoreColor(score, max) {
-  if (score == null || max == null || max === 0) return 'var(--text-dim)';
+  if (score == null || max == null || max === 0) return 'var(--color-text-dim)';
   const pct = score / max;
-  if (pct >= 0.6) return 'var(--green)';
-  if (pct >= 0.4) return 'var(--yellow)';
-  return 'var(--red)';
+  if (pct >= 0.6) return 'var(--color-green)';
+  if (pct >= 0.4) return 'var(--color-yellow)';
+  return 'var(--color-red)';
 }
 
 function ScoreRing({ score, maxScore, size = 140, stroke = 8 }) {
@@ -18,26 +18,35 @@ function ScoreRing({ score, maxScore, size = 140, stroke = 8 }) {
   const color = scoreColor(score, maxScore);
 
   return (
-    <div className="a-ring" style={{ width: size, height: size }}>
-      <svg viewBox={`0 0 ${size} ${size}`} fill="none">
-        <circle cx={half} cy={half} r={r} stroke="var(--bg-elevated)" strokeWidth={stroke} />
+    <div className="relative shrink-0" style={{ width: size, height: size }}>
+      <svg viewBox={`0 0 ${size} ${size}`} fill="none" className="block">
+        <circle cx={half} cy={half} r={r} stroke="var(--color-bg-elevated)" strokeWidth={stroke} />
         {score != null && (
           <circle
             cx={half} cy={half} r={r}
             stroke={color} strokeWidth={stroke} strokeLinecap="round"
             strokeDasharray={C} strokeDashoffset={offset}
-            className="a-ring__arc"
+            className="animate-ring-draw"
             style={{ '--circ': C, transform: 'rotate(-90deg)', transformOrigin: '50% 50%' }}
           />
         )}
       </svg>
-      <div className="a-ring__center">
-        <span className="a-ring__num" style={{ fontSize: size * 0.2 }}>{score ?? '—'}</span>
-        <span className="a-ring__max" style={{ fontSize: size * 0.09 }}>/ {maxScore}</span>
+      <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+        <span className="font-serif font-bold text-text-bright leading-none" style={{ fontSize: size * 0.2 }}>{score ?? '—'}</span>
+        <span className="text-text-dim mt-[0.1rem] font-normal" style={{ fontSize: size * 0.09 }}>/ {maxScore}</span>
       </div>
     </div>
   );
 }
+
+const VERDICT_COLOR = {
+  STRONG_YES: 'text-green',
+  YES: 'text-green',
+  MAYBE: 'text-yellow',
+  NO: 'text-red',
+  STRONG_NO: 'text-red',
+  INSUFFICIENT_DATA: 'text-text-dim',
+};
 
 const DIMS = [
   { key: 'technical', label: 'טכני', posLabel: 'חוזקות', negLabel: 'פערים', posKey: 'strengths', negKey: 'gaps' },
@@ -55,72 +64,75 @@ export default function AnalysisCard({ matchAnalysisJson }) {
 
   const b = a.breakdown;
   const rec = a.recommendation;
-  const verdictClass = a.verdict?.replace(/ /g, '_') || 'INSUFFICIENT_DATA';
+  const verdictKey = a.verdict?.replace(/ /g, '_') || 'INSUFFICIENT_DATA';
+  const verdictColorClass = VERDICT_COLOR[verdictKey] || 'text-text-dim';
   const active = activeDim && b?.[activeDim]
     ? { ...DIMS.find(d => d.key === activeDim), data: b[activeDim] }
     : null;
 
   return (
-    <div className="card">
+    <div className="bg-bg-card border border-border rounded-lg p-6 mb-4 shadow-sm transition-all hover:border-border-strong hover:shadow-md">
       <div
-        className={`collapsible-header${open ? '' : ' collapsed'}`}
+        className={`cursor-pointer flex justify-between items-center select-none${open ? '' : ' collapsed'}`}
         onClick={() => setOpen(!open)}
         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen(!open); } }}
         role="button" tabIndex={0} aria-expanded={open}
       >
-        <h3 className="section-title" style={{ border: 'none', margin: 0, padding: 0 }}>ניתוח AI</h3>
+        <h3 className="text-[0.95rem] font-semibold text-text-bright" style={{ border: 'none', margin: 0, padding: 0 }}>ניתוח AI</h3>
       </div>
       {open && (
-        <div className="a-card">
-          <div className="a-hero">
+        <div className="mt-5">
+          {/* Hero */}
+          <div className="flex items-center gap-7 pb-6">
             <ScoreRing score={a.overallScore} maxScore={100} size={148} stroke={9} />
-            <div className="a-hero__info">
-              <div className={`a-verdict ${verdictClass}`}>
+            <div className="flex flex-col gap-[0.6rem]">
+              <div className={`font-serif text-[1.5rem] font-bold leading-[1.2] tracking-[-0.02em] ${verdictColorClass}`}>
                 {VERDICT_HE[a.verdict] || VERDICT_HE.INSUFFICIENT_DATA}
               </div>
               {rec && (
-                <div className={`a-apply ${rec.shouldApply ? 'a-apply--yes' : 'a-apply--no'}`}>
+                <div className={`text-[0.85rem] font-semibold py-[0.3rem] px-[0.9rem] rounded-[20px] w-fit ${rec.shouldApply ? 'bg-green-bg text-green border border-[rgba(45,143,94,0.15)]' : 'bg-red-bg text-red border border-[rgba(196,84,84,0.15)]'}`}>
                   {rec.shouldApply ? 'כדאי להגיש' : 'לא כדאי להגיש'}
                 </div>
               )}
             </div>
           </div>
 
+          {/* Dimension cards */}
           {b && (
             <>
-              <div className="a-dims">
+              <div className="grid grid-cols-3 gap-[0.6rem] pt-6 border-t border-border">
                 {DIMS.map(dim => {
                   const d = b[dim.key];
                   if (!d) return null;
                   return (
                     <button
                       key={dim.key}
-                      className={`a-dim${activeDim === dim.key ? ' a-dim--active' : ''}`}
+                      className={`flex flex-col items-center gap-2 p-[1rem_0.5rem] bg-bg-surface border border-border rounded cursor-pointer transition-all font-sans hover:border-border-hover hover:bg-bg-card ${activeDim === dim.key ? 'border-accent! bg-bg-card! shadow-[0_0_0_1px_var(--color-accent),var(--shadow-sm)]' : ''}`}
                       onClick={() => setActiveDim(activeDim === dim.key ? null : dim.key)}
                     >
                       <ScoreRing score={d.score} maxScore={d.maxScore} size={72} stroke={5} />
-                      <span className="a-dim__label">{dim.label}</span>
+                      <span className="text-[0.82rem] text-text-secondary font-medium">{dim.label}</span>
                     </button>
                   );
                 })}
               </div>
 
               {active && (
-                <div className="a-dim-detail" key={activeDim}>
-                  <h4 className="a-dim-detail__title">{active.label}</h4>
+                <div className="mt-3 p-[1rem_1.25rem] bg-bg-surface border border-border rounded animate-detail-reveal" key={activeDim}>
+                  <h4 className="text-[0.9rem] font-semibold text-text-bright mb-3">{active.label}</h4>
                   {active.data[active.posKey]?.length > 0 && (
-                    <div className="a-dim-detail__group">
-                      <span className="a-dim-detail__sub">{active.posLabel}</span>
-                      <ul className="a-dim-detail__list a-dim-detail__list--pos">
-                        {active.data[active.posKey].map((item, i) => <li key={i}>{item}</li>)}
+                    <div className="mb-3 last:mb-0">
+                      <span className="block text-[0.75rem] text-text-dim uppercase tracking-[0.06em] font-medium mb-[0.3rem]">{active.posLabel}</span>
+                      <ul className="list-disc pr-5 m-0">
+                        {active.data[active.posKey].map((item, i) => <li key={i} className="text-[0.84rem] mb-[0.3rem] text-text-primary leading-[1.6] marker:text-green">{item}</li>)}
                       </ul>
                     </div>
                   )}
                   {active.data[active.negKey]?.length > 0 && (
-                    <div className="a-dim-detail__group">
-                      <span className="a-dim-detail__sub">{active.negLabel}</span>
-                      <ul className="a-dim-detail__list a-dim-detail__list--neg">
-                        {active.data[active.negKey].map((item, i) => <li key={i}>{item}</li>)}
+                    <div className="mb-3 last:mb-0">
+                      <span className="block text-[0.75rem] text-text-dim uppercase tracking-[0.06em] font-medium mb-[0.3rem]">{active.negLabel}</span>
+                      <ul className="list-disc pr-5 m-0">
+                        {active.data[active.negKey].map((item, i) => <li key={i} className="text-[0.84rem] mb-[0.3rem] text-text-primary leading-[1.6] marker:text-red">{item}</li>)}
                       </ul>
                     </div>
                   )}
@@ -129,38 +141,40 @@ export default function AnalysisCard({ matchAnalysisJson }) {
             </>
           )}
 
+          {/* Recommendation */}
           {rec && (rec.keyReasons?.length > 0 || rec.questionsToAsk?.length > 0 || rec.greenFlags?.length > 0 || rec.redFlags?.length > 0) && (
-            <div className="a-rec">
-              <h4 className="a-rec__title">המלצה</h4>
+            <div className="mt-5 pt-4 border-t border-border">
+              <h4 className="text-[0.9rem] font-semibold text-text-bright mb-3">המלצה</h4>
               {rec.keyReasons?.length > 0 && (
-                <div className="a-rec__block">
-                  <span className="a-rec__label">סיבות עיקריות</span>
-                  <ul className="a-rec__list">
-                    {rec.keyReasons.map((item, i) => <li key={i}>{item}</li>)}
+                <div className="mb-3">
+                  <span className="block text-[0.75rem] text-text-dim uppercase tracking-[0.06em] font-medium mb-[0.3rem]">סיבות עיקריות</span>
+                  <ul className="list-disc pr-5 m-0">
+                    {rec.keyReasons.map((item, i) => <li key={i} className="text-[0.84rem] mb-[0.3rem] text-text-primary leading-[1.6]">{item}</li>)}
                   </ul>
                 </div>
               )}
               {rec.questionsToAsk?.length > 0 && (
-                <div className="a-rec__block">
-                  <span className="a-rec__label">שאלות לשאול</span>
-                  <ul className="a-rec__list">
-                    {rec.questionsToAsk.map((item, i) => <li key={i}>{item}</li>)}
+                <div className="mb-3">
+                  <span className="block text-[0.75rem] text-text-dim uppercase tracking-[0.06em] font-medium mb-[0.3rem]">שאלות לשאול</span>
+                  <ul className="list-disc pr-5 m-0">
+                    {rec.questionsToAsk.map((item, i) => <li key={i} className="text-[0.84rem] mb-[0.3rem] text-text-primary leading-[1.6]">{item}</li>)}
                   </ul>
                 </div>
               )}
               {(rec.greenFlags?.length > 0 || rec.redFlags?.length > 0) && (
-                <div className="a-flags">
-                  {(rec.greenFlags || []).map((f, i) => <span key={`g${i}`} className="a-flag a-flag--green">{f}</span>)}
-                  {(rec.redFlags || []).map((f, i) => <span key={`r${i}`} className="a-flag a-flag--red">{f}</span>)}
+                <div className="flex gap-2 flex-wrap mt-2">
+                  {(rec.greenFlags || []).map((f, i) => <span key={`g${i}`} className="py-1 px-[0.65rem] rounded-sm text-[0.78rem] font-medium border transition-transform hover:-translate-y-px bg-green-bg text-green border-[rgba(45,143,94,0.12)]">{f}</span>)}
+                  {(rec.redFlags || []).map((f, i) => <span key={`r${i}`} className="py-1 px-[0.65rem] rounded-sm text-[0.78rem] font-medium border transition-transform hover:-translate-y-px bg-red-bg text-red border-[rgba(196,84,84,0.12)]">{f}</span>)}
                 </div>
               )}
             </div>
           )}
 
+          {/* Honest assessment */}
           {a.honestAssessment && (
-            <div className="a-assessment">
-              <h4 className="a-assessment__title">הערכה כנה</h4>
-              <p className="a-assessment__text">{a.honestAssessment}</p>
+            <div className="mt-5 pt-4 border-t border-border">
+              <h4 className="text-[0.9rem] font-semibold text-text-bright mb-3">הערכה כנה</h4>
+              <p className="text-[0.88rem] leading-[1.75] text-text-primary whitespace-pre-wrap bg-bg-input border border-border rounded p-5 m-0">{a.honestAssessment}</p>
             </div>
           )}
         </div>

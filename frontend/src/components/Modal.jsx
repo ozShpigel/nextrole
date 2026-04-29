@@ -45,12 +45,16 @@ export default function Modal({ isOpen, onClose, children }) {
 
   return (
     <div
-      className="modal-overlay"
+      className="fixed inset-0 bg-black/25 backdrop-blur-[8px] flex items-center justify-center z-100 animate-fade-in"
       role="dialog"
       aria-modal="true"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="modal" ref={modalRef} tabIndex={-1}>
+      <div
+        className="bg-bg-card border border-border-strong rounded-lg p-8 w-[90%] max-w-[520px] max-h-[85vh] overflow-y-auto shadow-lg animate-modal-in"
+        ref={modalRef}
+        tabIndex={-1}
+      >
         {children}
       </div>
     </div>

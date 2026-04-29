@@ -24,13 +24,13 @@ function Panel({ label, body, empty }) {
   }
 
   return (
-    <div className="snapshots-card__panel">
-      <div className="snapshots-card__panel-head">
-        <span className="snapshots-card__panel-label">{label}</span>
+    <div className="bg-bg-surface border border-border rounded p-4 mb-2">
+      <div className="flex justify-between items-center mb-2">
+        <span className="text-[0.75rem] font-medium text-text-dim uppercase tracking-[0.06em]">{label}</span>
         {body && (
           <button
             type="button"
-            className="btn btn-secondary btn-sm snapshots-card__copy"
+            className="px-2 py-1 text-[0.75rem] font-medium bg-bg-surface border border-border rounded-sm text-text-secondary hover:border-border-hover hover:text-text-primary transition-all"
             onClick={copy}
           >
             {copied ? 'הועתק' : 'העתק'}
@@ -38,9 +38,9 @@ function Panel({ label, body, empty }) {
         )}
       </div>
       {body ? (
-        <pre className="snapshots-card__pre" dir="ltr">{body}</pre>
+        <pre className="text-[0.78rem] leading-relaxed bg-bg-input border border-border rounded p-3 overflow-x-auto whitespace-pre-wrap font-code text-text-primary" dir="ltr">{body}</pre>
       ) : (
-        <div className="snapshots-card__empty">{empty}</div>
+        <div className="text-[0.84rem] text-text-dim py-2 text-center">{empty}</div>
       )}
     </div>
   );
@@ -65,14 +65,14 @@ export default function SnapshotsCard({ snapshots }) {
   ];
 
   return (
-    <div className="snapshots-card">
+    <div className="flex flex-col gap-4">
       {stages.map((s) => {
         const hasAny = s.input || s.output;
         return (
-          <div key={s.key} className="snapshots-card__stage">
-            <div className="snapshots-card__stage-head">
-              <span className="snapshots-card__stage-label">{s.label}</span>
-              <span className="snapshots-card__stage-hint">{s.hint}</span>
+          <div key={s.key} className="border-b border-border pb-4 last:border-b-0 last:pb-0">
+            <div className="flex items-baseline justify-between mb-3">
+              <span className="text-[0.9rem] font-semibold text-text-bright">{s.label}</span>
+              <span className="text-[0.75rem] text-text-dim">{s.hint}</span>
             </div>
             {hasAny ? (
               <>
@@ -88,7 +88,7 @@ export default function SnapshotsCard({ snapshots }) {
                 />
               </>
             ) : (
-              <div className="snapshots-card__empty">לא זמין — שלב דילג</div>
+              <div className="text-[0.84rem] text-text-dim py-2 text-center">לא זמין — שלב דילג</div>
             )}
           </div>
         );

@@ -50,38 +50,40 @@ export default function CriteriaForm({ initial, onSave, onCancel }) {
     }
   }
 
+  const inputCls = "w-full py-[0.6rem] px-[0.85rem] bg-white border border-[rgba(120,100,70,0.12)] rounded-lg text-text-primary text-[0.88rem] font-sans transition-all focus:border-accent focus:ring-[3px] focus:ring-accent-glow focus:outline-none";
+
   return (
-    <form className="criteria-form card" onSubmit={submit}>
-      <h3>{initial ? 'עריכת קריטריון' : 'קריטריון חיפוש חדש'}</h3>
+    <form className="mb-8 p-7 bg-warm border border-border rounded-lg shadow-md animate-card-in" onSubmit={submit}>
+      <h3 className="font-serif text-[1.2rem] font-bold text-text-bright mb-5 tracking-[-0.005em]">{initial ? 'עריכת קריטריון' : 'קריטריון חיפוש חדש'}</h3>
 
-      <div className="form-group">
-        <label>שם</label>
-        <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder='לדוגמה: "Senior Backend .NET"' />
+      <div className="mb-4">
+        <label className="block text-[0.72rem] text-text-dim mb-[0.4rem] uppercase tracking-[0.12em] font-medium">שם</label>
+        <input type="text" className={inputCls} value={name} onChange={(e) => setName(e.target.value)} placeholder='לדוגמה: "Senior Backend .NET"' />
       </div>
 
-      <div className="form-row-2">
-        <div className="form-group">
-          <label>כותרות משרה (שורה לכל כותרת)</label>
-          <textarea value={titlesText} onChange={(e) => setTitlesText(e.target.value)} placeholder="Senior Backend Engineer&#10;Platform Engineer&#10;Staff Engineer" rows={3} />
+      <div className="grid grid-cols-2 gap-4 max-[640px]:grid-cols-1">
+        <div className="mb-4">
+          <label className="block text-[0.72rem] text-text-dim mb-[0.4rem] uppercase tracking-[0.12em] font-medium">כותרות משרה (שורה לכל כותרת)</label>
+          <textarea className={`${inputCls} resize-y leading-[1.6]`} value={titlesText} onChange={(e) => setTitlesText(e.target.value)} placeholder="Senior Backend Engineer&#10;Platform Engineer&#10;Staff Engineer" rows={3} />
         </div>
-        <div className="form-group">
-          <label>מיקומים (שורה לכל מיקום)</label>
-          <textarea value={locationsText} onChange={(e) => setLocationsText(e.target.value)} placeholder="Tel Aviv&#10;Remote" rows={3} />
+        <div className="mb-4">
+          <label className="block text-[0.72rem] text-text-dim mb-[0.4rem] uppercase tracking-[0.12em] font-medium">מיקומים (שורה לכל מיקום)</label>
+          <textarea className={`${inputCls} resize-y leading-[1.6]`} value={locationsText} onChange={(e) => setLocationsText(e.target.value)} placeholder="Tel Aviv&#10;Remote" rows={3} />
         </div>
       </div>
 
-      <div className="form-row-3">
-        <div className="form-group">
-          <label>אתרים</label>
-          <input type="text" value={siteNames} onChange={(e) => setSiteNames(e.target.value)} placeholder="linkedin, indeed" />
+      <div className="grid grid-cols-3 gap-4 max-[640px]:grid-cols-1">
+        <div className="mb-4">
+          <label className="block text-[0.72rem] text-text-dim mb-[0.4rem] uppercase tracking-[0.12em] font-medium">אתרים</label>
+          <input type="text" className={inputCls} value={siteNames} onChange={(e) => setSiteNames(e.target.value)} placeholder="linkedin, indeed" />
         </div>
-        <div className="form-group">
-          <label>מדינה</label>
-          <input type="text" value={country} onChange={(e) => setCountry(e.target.value)} />
+        <div className="mb-4">
+          <label className="block text-[0.72rem] text-text-dim mb-[0.4rem] uppercase tracking-[0.12em] font-medium">מדינה</label>
+          <input type="text" className={inputCls} value={country} onChange={(e) => setCountry(e.target.value)} />
         </div>
-        <div className="form-group">
-          <label>עבודה מרחוק</label>
-          <select value={isRemote === null ? '' : String(isRemote)} onChange={(e) => setIsRemote(e.target.value === '' ? null : e.target.value === 'true')}>
+        <div className="mb-4">
+          <label className="block text-[0.72rem] text-text-dim mb-[0.4rem] uppercase tracking-[0.12em] font-medium">עבודה מרחוק</label>
+          <select className={inputCls} value={isRemote === null ? '' : String(isRemote)} onChange={(e) => setIsRemote(e.target.value === '' ? null : e.target.value === 'true')}>
             <option value="">לא משנה</option>
             <option value="true">כן</option>
             <option value="false">לא</option>
@@ -89,18 +91,18 @@ export default function CriteriaForm({ initial, onSave, onCancel }) {
         </div>
       </div>
 
-      <div className="form-row-3">
-        <div className="form-group">
-          <label>תוצאות לכותרת</label>
-          <input type="number" value={resultsWanted} onChange={(e) => setResultsWanted(Number(e.target.value))} min={1} max={50} />
+      <div className="grid grid-cols-3 gap-4 max-[640px]:grid-cols-1">
+        <div className="mb-4">
+          <label className="block text-[0.72rem] text-text-dim mb-[0.4rem] uppercase tracking-[0.12em] font-medium">תוצאות לכותרת</label>
+          <input type="number" className={inputCls} value={resultsWanted} onChange={(e) => setResultsWanted(Number(e.target.value))} min={1} max={50} />
         </div>
-        <div className="form-group">
-          <label>שעות אחרונות</label>
-          <input type="number" value={hoursOld} onChange={(e) => setHoursOld(Number(e.target.value))} min={1} max={720} />
+        <div className="mb-4">
+          <label className="block text-[0.72rem] text-text-dim mb-[0.4rem] uppercase tracking-[0.12em] font-medium">שעות אחרונות</label>
+          <input type="number" className={inputCls} value={hoursOld} onChange={(e) => setHoursOld(Number(e.target.value))} min={1} max={720} />
         </div>
-        <div className="form-group">
-          <label>סף ציון לשמירה</label>
-          <input type="number" value={minScore} onChange={(e) => setMinScore(Number(e.target.value))} min={0} max={100} />
+        <div className="mb-4">
+          <label className="block text-[0.72rem] text-text-dim mb-[0.4rem] uppercase tracking-[0.12em] font-medium">סף ציון לשמירה</label>
+          <input type="number" className={inputCls} value={minScore} onChange={(e) => setMinScore(Number(e.target.value))} min={0} max={100} />
         </div>
       </div>
 

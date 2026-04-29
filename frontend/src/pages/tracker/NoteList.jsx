@@ -13,16 +13,16 @@ export default function NoteList({ notes, onRefresh }) {
     }
   }
 
-  if (notes.length === 0) return <p className="text-dim text-sm">אין הערות</p>;
+  if (notes.length === 0) return <p className="text-text-dim text-[0.84rem]">אין הערות</p>;
 
   return notes.map((n) => (
-    <div key={n.id} className="item-card">
-      <div className="item-header">
-        <span className="item-title">{n.category ? (NOTE_CATEGORIES_HE[n.category] || n.category) : 'הערה'}</span>
-        <button className="btn btn-sm btn-danger" onClick={() => deleteNote(n.id)}>מחק</button>
+    <div key={n.id} className="bg-bg-surface border border-border rounded p-[1rem_1.25rem] mb-3 transition-all hover:border-border-strong hover:shadow-sm">
+      <div className="flex justify-between items-center mb-2">
+        <span className="font-semibold text-text-bright text-[0.88rem]">{n.category ? (NOTE_CATEGORIES_HE[n.category] || n.category) : 'הערה'}</span>
+        <button className="inline-flex items-center justify-center gap-[0.4rem] py-[0.35rem] px-[0.85rem] rounded-lg cursor-pointer text-[0.78rem] font-medium font-sans transition-all bg-red-bg text-red border border-[rgba(196,84,84,0.12)] hover:bg-[rgba(196,84,84,0.1)] hover:border-[rgba(196,84,84,0.2)]" onClick={() => deleteNote(n.id)}>מחק</button>
       </div>
-      <div className="item-meta">{formatDateTime(n.createdAt)}</div>
-      <div className="item-body mt-1" style={{ whiteSpace: 'pre-wrap' }}>{n.content}</div>
+      <div className="text-[0.78rem] text-text-dim">{formatDateTime(n.createdAt)}</div>
+      <div className="text-[0.84rem] text-text-primary leading-[1.6] mt-4 whitespace-pre-wrap">{n.content}</div>
     </div>
   ));
 }

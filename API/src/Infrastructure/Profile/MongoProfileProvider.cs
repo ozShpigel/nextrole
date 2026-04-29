@@ -87,6 +87,7 @@ public sealed class MongoProfileProvider : IProfileProvider
 
         if (scoringConfig is not null)
         {
+            ValidateScoringConfig(scoringConfig);
             foreach (var (k, v) in scoringConfig)
             {
                 mergedConfig[k] = ToBsonValue(v);
@@ -353,6 +354,21 @@ public sealed class MongoProfileProvider : IProfileProvider
     // produces these when deserializing into Dictionary<string, object?>).
     // BsonValue.Create doesn't understand JsonElement, so unwrap to primitives
     // before handing off to the Mongo driver.
+    private static readonly HashSet<string> AllowedTopLevelKeys = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "analyst", "evaluator", "min_score_to_save",
+        "model", "temperature", "max_tokens", "thinking_enabled", "thinking_budget"
+    };
+
+    private static void ValidateScoringConfig(Dictionary<string, object?> config)
+    {
+        foreach (var key in config.Keys)
+        {
+            if (!AllowedTopLevelKeys.Contains(key))
+                throw new ArgumentException($"Unknown scoring config key: {key}");
+        }
+    }
+
     private static BsonValue ToBsonValue(object? value) => value switch
     {
         null => BsonNull.Value,

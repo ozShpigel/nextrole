@@ -24,7 +24,7 @@ venv/
 # Secrets
 .env
 credentials.json
-token.json/
+token.json
 
 # Docker
 docker-compose.override.yml

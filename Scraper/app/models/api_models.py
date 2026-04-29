@@ -1,26 +1,26 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class CreateCriteriaRequest(BaseModel):
-    name: str
-    job_titles: list[str]
-    locations: list[str] = []
-    site_names: list[str] = ["linkedin"]
-    results_wanted: int = 15
-    hours_old: int = 72
-    country: str = "Israel"
+    name: str = Field(..., max_length=200)
+    job_titles: list[str] = Field(..., max_length=20)
+    locations: list[str] = Field(default=[], max_length=20)
+    site_names: list[str] = Field(default=["linkedin"], max_length=5)
+    results_wanted: int = Field(default=15, ge=1, le=100)
+    hours_old: int = Field(default=72, ge=1, le=720)
+    country: str = Field(default="Israel", max_length=100)
     is_remote: bool | None = None
-    min_score_to_save: int = 70
+    min_score_to_save: int = Field(default=70, ge=0, le=100)
 
 
 class UpdateCriteriaRequest(BaseModel):
-    name: str | None = None
-    job_titles: list[str] | None = None
-    locations: list[str] | None = None
-    site_names: list[str] | None = None
-    results_wanted: int | None = None
-    hours_old: int | None = None
-    country: str | None = None
+    name: str | None = Field(default=None, max_length=200)
+    job_titles: list[str] | None = Field(default=None, max_length=20)
+    locations: list[str] | None = Field(default=None, max_length=20)
+    site_names: list[str] | None = Field(default=None, max_length=5)
+    results_wanted: int | None = Field(default=None, ge=1, le=100)
+    hours_old: int | None = Field(default=None, ge=1, le=720)
+    country: str | None = Field(default=None, max_length=100)
     is_remote: bool | None = None
-    min_score_to_save: int | None = None
+    min_score_to_save: int | None = Field(default=None, ge=0, le=100)
     is_active: bool | None = None

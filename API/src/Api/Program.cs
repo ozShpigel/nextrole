@@ -1,3 +1,5 @@
+using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.RateLimiting;
 using System.Text.Json.Serialization;
 using ApplicationTracker.Core.AI;
 using ApplicationTracker.Core.Matching;
@@ -98,10 +100,10 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 // OpenAPI
 builder.Services.AddOpenApi();
 
-// CORS — configurable origins via CorsOrigins (comma-separated). "*" opens
-// it up for dev; in prod this should be the public frontend URL so the SPA
-// can call the tracker directly from the browser.
-var corsOrigins = (builder.Configuration["CorsOrigins"] ?? "*")
+// CORS — configurable origins via CorsOrigins (comma-separated).
+// Defaults to restrictive (no origins) in production; set to "*" explicitly for dev.
+var rawOrigins = builder.Configuration["CorsOrigins"] ?? "";
+var corsOrigins = rawOrigins
     .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 builder.Services.AddCors(options =>
 {
@@ -109,9 +111,21 @@ builder.Services.AddCors(options =>
     {
         if (corsOrigins.Length == 1 && corsOrigins[0] == "*")
             policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader();
-        else
+        else if (corsOrigins.Length > 0)
             policy.WithOrigins(corsOrigins).AllowAnyMethod().AllowAnyHeader();
     });
+});
+
+// Rate limiting — protect the AI-scoring endpoint from unbounded usage
+builder.Services.AddRateLimiter(options =>
+{
+    options.AddFixedWindowLimiter("match", cfg =>
+    {
+        cfg.PermitLimit = 10;
+        cfg.Window = TimeSpan.FromMinutes(1);
+        cfg.QueueLimit = 0;
+    });
+    options.RejectionStatusCode = 429;
 });
 
 var app = builder.Build();
@@ -125,6 +139,7 @@ startupLogger.LogInformation("URLs: {Urls}", builder.WebHost.GetSetting("urls") 
 
 // Middleware
 app.UseCors();
+app.UseRateLimiter();
 app.MapGet("/health", (ILogger<Program> logger) =>
 {
     logger.LogInformation("Health check hit");
@@ -492,6 +507,11 @@ app.MapPost("/api/match", async (
         return Results.BadRequest(new { error = "JobDescription is required" });
     }
 
+    if (request.JobDescription.Length > 50_000)
+    {
+        return Results.BadRequest(new { error = "JobDescription exceeds maximum length of 50,000 characters" });
+    }
+
     try
     {
         var response = await jobMatchService.AnalyzeMatchAsync(request, ct);
@@ -510,6 +530,7 @@ app.MapPost("/api/match", async (
         return Results.Problem(detail: "An error occurred while processing the request", statusCode: 500);
     }
 })
+.RequireRateLimiting("match")
 .WithName("AnalyzeJobMatch")
 .WithSummary("Analyze job match");
 
@@ -535,7 +556,7 @@ app.MapGet("/api/match/profile", async (
     catch (Exception ex)
     {
         logger.LogError(ex, "Failed to load profile");
-        return Results.Problem(detail: ex.Message, statusCode: 500);
+        return Results.Problem("An internal error occurred.", statusCode: 500);
     }
 })
 .WithName("GetProfile")
@@ -581,7 +602,7 @@ app.MapPut("/api/match/profile", async (
     catch (Exception ex)
     {
         logger.LogError(ex, "Failed to update profile");
-        return Results.Problem(detail: ex.Message, statusCode: 500);
+        return Results.Problem("An internal error occurred.", statusCode: 500);
     }
 })
 .WithName("UpdateProfile")

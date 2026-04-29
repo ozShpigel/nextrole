@@ -116,7 +116,7 @@ Cross-reference by dimension:
 
 ## Parsed Job (JSON)
 
-{{PARSED_JOB}}
+The parsed job data is provided in the user message within <parsed_job> tags.
 
 ---
 

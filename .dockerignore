@@ -1,0 +1,23 @@
+# Secrets — never embed in Docker image layers
+**/.env
+**/credentials.json
+**/token.json
+
+# Git
+.git/
+.gitignore
+
+# IDE / OS
+.vs/
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+**/bin/
+**/obj/
+**/node_modules/
+**/__pycache__/
+**/.venv/

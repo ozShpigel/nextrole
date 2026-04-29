@@ -1,58 +1,40 @@
-# CLAUDE.md
+# Job Application Platform — Claude Code Guide
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+## Project
 
-## Build & Run Commands
+This is a job application platform that automates the job hunting process           
+end-to-end. It discovers job listings from sites like LinkedIn and Indeed, uses AI
+to score and match them against your professional profile, monitors your email for  
+application updates, and provides a dashboard to track everything — from discovery
+through interviews to final status — in one place. 
 
-```bash
-# All services via Docker
-export ANTHROPIC_API_KEY=your-key-here
-export MONGODB_CONNECTION_STRING=mongodb://...
-docker compose up --build
+## Stack
 
-# Individual .NET services
-dotnet run --project API/src/Api
-dotnet run --project Mailbot
+| Layer | Tech |
+|---|---|
+| Backend | ASP.NET Core (C#) | Python FastAPI |
+| Frontend | React + Vite
+| Database | MongoDB |
 
-# Scraper (Python)
-cd Scraper && pip install -r requirements.txt && uvicorn app.main:app --port 5137
+## Project Structure
 
-# Build entire solution
-dotnet build job-application-platform.sln
-
-# Frontend
-cd frontend && npm install && npm run dev
+```
+/API      - ASP.NET Core (C#)
+/Scraper  - Python FastAPI
+/Mailbot  - .NET Console App (C#)
+/frontend - React + Vite
 ```
 
-There are no test projects in this repo currently.
 
-## Architecture
+## Key Conventions
 
-Monorepo with 3 loosely-coupled services communicating over HTTP:
-
-- **API** (ASP.NET Core 10, port 5002) — Unified backend. Owns CRUD for applications/interviews/notes/status/stats AND AI-powered job matching. All Claude/Anthropic calls live here. The professional profile and scoring config are stored in a separate Mongo database (`jobmatch` by default — see `MongoDB:Database`) from the application tracking data (`job-tracker` by default — see `MongoDB:DatabaseName`). Endpoints include: `POST /api/match` (scores a job description; accepts optional pre-parsed title/company/etc. to skip the parse step), `GET|PUT /api/match/profile` (profile + scoring_config + prompt overrides CRUD), `POST /api/applications`, `GET /api/applications`, `GET /api/applications/exists`, status/interview/note/stats/timeline endpoints, and `GET /health`. Prompt seeds live in `API/src/Infrastructure/AI/PromptSeeds.cs`; the professional profile seed lives in `API/Data/professional-profile.md`.
-- **Mailbot** (.NET 10 console app, no port, folder `Mailbot/`) — One-shot process: fetches Gmail emails (labeled `JobApplications`, last 24h), parses them with Claude, and pushes status updates to the API. Run externally via cron/scheduler. Self-contained namespace (`Mailbot.*`) — no project reference to the API.
-- **Scraper** (Python FastAPI, port 5137, folder `Scraper/`) — Automated job discovery and orchestration only. Scrapes LinkedIn/Indeed using JobSpy, delegates AI scoring to the API (`POST /api/match`), stores search criteria + discovered jobs in MongoDB, dedupes against and auto-saves qualifying matches to the API. **No Claude SDK, no prompts, no profile here.**
-- **Frontend** (React 19 + Vite, port 3000) — Hebrew RTL SPA. Nginx reverse-proxies `/api/match`, `/api/applications|stats|interviews|notes` to the API, and `/api/discovery` to the Scraper. In production the SPA can call each service directly via `VITE_*` env vars, bypassing nginx entirely (see the build-time args below).
-
-The API follows a three-layer structure: `src/Api` (entry point + endpoints), `src/Core` (domain models + interfaces), `src/Infrastructure` (MongoDB repos, Claude client, profile provider).
-
-## Key Environment Variables
-
-- `ANTHROPIC_API_KEY` / `Anthropic__ApiKey` — Claude API key (used by API and Mailbot)
-- `MongoDB__ConnectionString` — MongoDB connection string (API — one connection, two databases)
-- `MongoDB__DatabaseName` — application tracking DB name (defaults to `job-tracker`)
-- `MongoDB__Database` — job-match profile DB name (defaults to `jobmatch`)
-- `Tracker__BaseUrl` — API URL used by Mailbot
-- `MONGODB_CONNECTION_STRING` — MongoDB connection string (Scraper)
-- `API_BASE_URL` — Unified API URL used by the Scraper for both AI scoring (`/api/match`) and tracker writes (`/api/applications/exists`, `/api/applications`)
-- `API_URL`, `SCRAPER_URL` — Nginx upstream URLs for frontend proxy
-- `CORS_ORIGINS` / `CorsOrigins` — Comma-separated allowed browser origins. Used by the Scraper (`CORS_ORIGINS`) and by the API (`CorsOrigins`). Defaults to `*`; set to the public frontend URL in production so the SPA can call each service directly.
-- `VITE_SCRAPER_URL`, `VITE_API_URL` — Build-time args (GitHub Actions repo variables of the same name). When set, the SPA calls the corresponding service directly from the browser instead of through the nginx reverse-proxy. Leave empty for local `docker compose` so the proxy fallback is used.
-
-## CI/CD
-
-Each service has a separate GitHub Actions workflow (`.github/workflows/`) with path-based triggers. Pushes to `main` build Docker images, publish to `ghcr.io`, and deploy to Render via webhook. .NET services target 10.0; the Scraper uses Python 3.12.
+- No test projects in this repo currently
+- Two MongoDB databases from one connection — `job-tracker` (application tracking) and `jobmatch` (AI profile/scoring)
+- All Claude/Anthropic AI calls live exclusively in the API — the Scraper delegates scoring via HTTP
+- Mailbot is a one-shot process (run via cron/scheduler), not a long-running service
+- Frontend is a Hebrew RTL SPA
+- CI/CD is per-service — each service has its own GitHub Actions workflow with path-based triggers
+- AI prompts live in `API/src/Infrastructure/AI/PromptSeeds.cs`; professional profile seed in `API/Data/professional-profile.md`
 
 ## Inter-Service Communication
 

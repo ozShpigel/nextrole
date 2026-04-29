@@ -12,7 +12,6 @@ namespace ApplicationTracker.Infrastructure.AI;
 
 public sealed class ClaudeClient : IClaudeClient
 {
-    private readonly HttpClient _httpClient;
     private readonly AnthropicClient _client;
     private readonly PromptBuilder _promptBuilder;
     private readonly IProfileProvider _profileProvider;
@@ -20,6 +19,7 @@ public sealed class ClaudeClient : IClaudeClient
 
     public ClaudeClient(
         IConfiguration configuration,
+        IHttpClientFactory httpClientFactory,
         PromptBuilder promptBuilder,
         IProfileProvider profileProvider,
         ILogger<ClaudeClient> logger)
@@ -30,13 +30,8 @@ public sealed class ClaudeClient : IClaudeClient
             throw new InvalidOperationException("Anthropic:ApiKey is not configured");
         }
 
-        // Anthropic.SDK 5.9 ships its internal HttpClient with the default
-        // 100s timeout, which isn't enough for Sonnet-with-extended-thinking
-        // on long prompts (our evaluate calls routinely run ~2-3m). The
-        // caller-side timeout (scraper) is 300s, so match that here — any
-        // genuine stall beyond 5 minutes is an upstream issue, not ours.
-        _httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(300) };
-        _client = new AnthropicClient(apiKey, _httpClient);
+        var httpClient = httpClientFactory.CreateClient("anthropic");
+        _client = new AnthropicClient(apiKey, httpClient);
         _promptBuilder = promptBuilder;
         _profileProvider = profileProvider;
         _logger = logger;

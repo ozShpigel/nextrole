@@ -10,6 +10,15 @@ public sealed record Note
     [BsonRepresentation(MongoDB.Bson.BsonType.String)]
     public required Guid ApplicationId { get; init; }
     public required string Content { get; init; }
-    public string? Category { get; init; } // "Preparation", "Research", "Thoughts", "Follow-up"
+    [BsonRepresentation(MongoDB.Bson.BsonType.String)]
+    public NoteCategory? Category { get; init; }
     public DateTime CreatedAt { get; init; } = DateTime.UtcNow;
+}
+
+public enum NoteCategory
+{
+    Preparation,
+    Research,
+    Thoughts,
+    FollowUp
 }

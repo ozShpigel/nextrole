@@ -10,11 +10,20 @@ public sealed record Interview
     [BsonRepresentation(MongoDB.Bson.BsonType.String)]
     public required Guid ApplicationId { get; init; }
     public required DateTime ScheduledAt { get; init; }
-    public required string Type { get; init; } // "Phone", "Technical", "Final", "HR"
+    [BsonRepresentation(MongoDB.Bson.BsonType.String)]
+    public required InterviewType Type { get; init; }
     public string? Interviewer { get; init; }
     public string? Topics { get; init; }
     public string? Notes { get; init; }
     public string? Feedback { get; init; }
     public bool Completed { get; init; }
     public DateTime CreatedAt { get; init; } = DateTime.UtcNow;
+}
+
+public enum InterviewType
+{
+    Phone,
+    Technical,
+    Final,
+    HR
 }

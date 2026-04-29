@@ -12,6 +12,22 @@ using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
+var envPath = Path.Combine(builder.Environment.ContentRootPath, ".env");
+if (File.Exists(envPath))
+{
+    var envVars = new Dictionary<string, string?>();
+    foreach (var line in File.ReadAllLines(envPath))
+    {
+        var trimmed = line.Trim();
+        if (trimmed.Length == 0 || trimmed.StartsWith('#')) continue;
+        var sep = trimmed.IndexOf('=');
+        if (sep <= 0) continue;
+        var key = trimmed[..sep].Replace("__", ":");
+        envVars[key] = trimmed[(sep + 1)..];
+    }
+    builder.Configuration.AddInMemoryCollection(envVars);
+}
+
 // Exposed so MongoProfileProvider can locate Data/professional-profile.md at runtime
 builder.Configuration["ContentRoot"] = AppContext.BaseDirectory;
 
@@ -51,11 +67,12 @@ builder.Services.AddSingleton(sp =>
 // Repositories
 builder.Services.AddScoped<IApplicationRepository>(sp =>
 {
+    var client = sp.GetRequiredService<IMongoClient>();
     var apps = sp.GetRequiredService<IMongoCollection<Application>>();
     var interviews = sp.GetRequiredService<IMongoCollection<Interview>>();
     var notes = sp.GetRequiredService<IMongoCollection<Note>>();
     var statusUpdates = sp.GetRequiredService<IMongoCollection<StatusUpdate>>();
-    return new ApplicationRepository(apps, interviews, notes, statusUpdates);
+    return new ApplicationRepository(client, apps, interviews, notes, statusUpdates);
 });
 builder.Services.AddScoped<IInterviewRepository>(sp =>
     new InterviewRepository(sp.GetRequiredService<IMongoCollection<Interview>>()));
@@ -65,8 +82,10 @@ builder.Services.AddScoped<IStatusUpdateRepository>(sp =>
     new StatusUpdateRepository(sp.GetRequiredService<IMongoCollection<StatusUpdate>>()));
 
 // Job matching: profile lookup + Claude client + orchestration service
+builder.Services.AddMemoryCache();
 builder.Services.AddSingleton<PromptBuilder>();
 builder.Services.AddSingleton<IProfileProvider, MongoProfileProvider>();
+builder.Services.AddHttpClient("anthropic", c => c.Timeout = TimeSpan.FromSeconds(300));
 builder.Services.AddSingleton<IClaudeClient, ClaudeClient>();
 builder.Services.AddScoped<IJobMatchService, ApplicationTracker.Core.Matching.JobMatchService>();
 
@@ -349,7 +368,7 @@ app.MapGet("/api/stats", async (
     IApplicationRepository repo,
     CancellationToken ct) =>
 {
-    var apps = await repo.GetAllAsync(ct);
+    var apps = await repo.GetAllSummariesAsync(ct);
     var total = apps.Count;
     var withScore = apps.Where(a => a.MatchScore.HasValue).ToList();
     var avgScore = withScore.Count > 0 ? (int)withScore.Average(a => a.MatchScore!.Value) : 0;
@@ -399,19 +418,19 @@ app.MapGet("/api/applications/{id:guid}/timeline", async (
     var interviews = await interviewRepo.GetByApplicationIdAsync(id, ct);
     var notes = await noteRepo.GetByApplicationIdAsync(id, ct);
 
-    var timeline = new List<object>();
+    var timeline = new List<TimelineItem>();
 
     foreach (var s in statusUpdates)
-        timeline.Add(new { type = "status", date = s.Timestamp, s.FromStatus, s.ToStatus, s.Note });
+        timeline.Add(new TimelineItem("status", s.Timestamp) { FromStatus = s.FromStatus, ToStatus = s.ToStatus, Note = s.Note });
 
     foreach (var i in interviews)
-        timeline.Add(new { type = "interview", date = i.ScheduledAt, i.Type, i.Interviewer, i.Completed, i.Notes });
+        timeline.Add(new TimelineItem("interview", i.ScheduledAt) { InterviewType = i.Type, Interviewer = i.Interviewer, Completed = i.Completed, Notes = i.Notes });
 
     foreach (var n in notes)
-        timeline.Add(new { type = "note", date = n.CreatedAt, n.Content, n.Category });
+        timeline.Add(new TimelineItem("note", n.CreatedAt) { Content = n.Content, Category = n.Category });
 
-    var sorted = timeline.OrderBy(t => ((dynamic)t).date).ToList();
-    return Results.Ok(sorted);
+    timeline.Sort((a, b) => a.Date.CompareTo(b.Date));
+    return Results.Ok(timeline);
 })
 .WithName("GetTimeline")
 .WithSummary("Get application timeline");
@@ -426,18 +445,15 @@ app.MapGet("/api/interviews/upcoming", async (
     CancellationToken ct) =>
 {
     var interviews = await repo.GetUpcomingAsync(10, ct);
+    var appIds = interviews.Select(i => i.ApplicationId).Distinct();
+    var apps = (await appRepo.GetByIdsAsync(appIds, ct)).ToDictionary(a => a.Id);
 
-    var result = new List<object>();
-    foreach (var interview in interviews)
+    var result = interviews.Select(i => new
     {
-        var app = await appRepo.GetByIdAsync(interview.ApplicationId, ct);
-        result.Add(new
-        {
-            interview,
-            jobTitle = app?.JobTitle,
-            company = app?.Company
-        });
-    }
+        interview = i,
+        jobTitle = apps.TryGetValue(i.ApplicationId, out var a) ? a.JobTitle : null,
+        company = apps.TryGetValue(i.ApplicationId, out var b) ? b.Company : null
+    });
 
     return Results.Ok(result);
 })
@@ -581,6 +597,19 @@ public record StatusUpdateRequest
 {
     public required ApplicationStatus NewStatus { get; init; }
     public string? Note { get; init; }
+}
+
+public sealed record TimelineItem(string Type, DateTime Date)
+{
+    public ApplicationStatus? FromStatus { get; init; }
+    public ApplicationStatus? ToStatus { get; init; }
+    public string? Note { get; init; }
+    public InterviewType? InterviewType { get; init; }
+    public string? Interviewer { get; init; }
+    public bool? Completed { get; init; }
+    public string? Notes { get; init; }
+    public string? Content { get; init; }
+    public NoteCategory? Category { get; init; }
 }
 
 public sealed record UpdateProfileRequest

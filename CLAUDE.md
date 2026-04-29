@@ -28,13 +28,10 @@ through interviews to final status — in one place.
 
 ## Key Conventions
 
-- No test projects in this repo currently
-- Two MongoDB databases from one connection — `job-tracker` (application tracking) and `jobmatch` (AI profile/scoring)
+- Use context7 MCP server to fetch up-to-date documentation for libraries
 - All Claude/Anthropic AI calls live exclusively in the API — the Scraper delegates scoring via HTTP
 - Mailbot is a one-shot process (run via cron/scheduler), not a long-running service
 - Frontend is a Hebrew RTL SPA
-- CI/CD is per-service — each service has its own GitHub Actions workflow with path-based triggers
-- AI prompts live in `API/src/Infrastructure/AI/PromptSeeds.cs`; professional profile seed in `API/Data/professional-profile.md`
 
 ## Inter-Service Communication
 

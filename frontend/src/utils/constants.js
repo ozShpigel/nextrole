@@ -26,13 +26,13 @@ export const STATUS_COLORS = {
 
 export const INTERVIEW_TYPES = ['Phone', 'Technical', 'Final', 'HR'];
 
-export const NOTE_CATEGORIES = ['Preparation', 'Research', 'Thoughts', 'Follow-up'];
+export const NOTE_CATEGORIES = ['Preparation', 'Research', 'Thoughts', 'FollowUp'];
 
 export const NOTE_CATEGORIES_HE = {
   Preparation: 'הכנה',
   Research: 'מחקר',
   Thoughts: 'מחשבות',
-  'Follow-up': 'מעקב',
+  FollowUp: 'מעקב',
 };
 
 export const VERDICT_HE = {

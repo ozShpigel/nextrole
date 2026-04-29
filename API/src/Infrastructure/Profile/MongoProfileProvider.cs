@@ -1,6 +1,7 @@
 using System.Text.Json;
 using ApplicationTracker.Core.Profile;
 using ApplicationTracker.Infrastructure.AI;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using MongoDB.Bson;
@@ -14,13 +15,18 @@ public sealed class MongoProfileProvider : IProfileProvider
     private const string DocId = "default";
     private const string CollectionName = "profile";
 
+    private const string CacheKey = "profile_doc";
+    private static readonly TimeSpan CacheDuration = TimeSpan.FromSeconds(30);
+
     private readonly IMongoCollection<BsonDocument> _collection;
     private readonly IConfiguration _configuration;
+    private readonly IMemoryCache _cache;
     private readonly ILogger<MongoProfileProvider> _logger;
 
     public MongoProfileProvider(
         IMongoClient mongoClient,
         IConfiguration configuration,
+        IMemoryCache cache,
         ILogger<MongoProfileProvider> logger)
     {
         // Profile lives in its own DB by default (keeps prior JobMatchService
@@ -32,6 +38,7 @@ public sealed class MongoProfileProvider : IProfileProvider
         var db = mongoClient.GetDatabase(dbName);
         _collection = db.GetCollection<BsonDocument>(CollectionName);
         _configuration = configuration;
+        _cache = cache;
         _logger = logger;
     }
 
@@ -43,16 +50,25 @@ public sealed class MongoProfileProvider : IProfileProvider
 
     public async Task<ProfileDocument> GetProfileDocumentAsync(CancellationToken cancellationToken = default)
     {
+        if (_cache.TryGetValue(CacheKey, out ProfileDocument? cached) && cached is not null)
+            return cached;
+
         var filter = Builders<BsonDocument>.Filter.Eq("id", DocId);
         var doc = await _collection.Find(filter).FirstOrDefaultAsync(cancellationToken);
 
+        ProfileDocument result;
         if (doc is null)
         {
             _logger.LogInformation("No profile doc in Mongo; seeding from Data/professional-profile.md");
-            return await SeedFromFileAsync(cancellationToken);
+            result = await SeedFromFileAsync(cancellationToken);
+        }
+        else
+        {
+            result = ToProfileDocument(doc);
         }
 
-        return ToProfileDocument(doc);
+        _cache.Set(CacheKey, result, CacheDuration);
+        return result;
     }
 
     public async Task UpsertProfileAsync(
@@ -100,6 +116,8 @@ public sealed class MongoProfileProvider : IProfileProvider
             update,
             new ReplaceOptions { IsUpsert = true },
             cancellationToken);
+
+        _cache.Remove(CacheKey);
 
         _logger.LogInformation(
             "Profile upserted (content={ContentState}, configKeys={ConfigKeys}, analyst={AnalystState}, evaluator={EvaluatorState})",

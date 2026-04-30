@@ -175,7 +175,7 @@ export default function AnalysisCard({ matchAnalysisJson }) {
           {a.honestAssessment && (
             <div className="mt-5 pt-4 border-t border-border">
               <h4 className="text-[0.9rem] font-semibold text-foreground mb-3">Honest Assessment</h4>
-              <p className="text-[0.88rem] leading-[1.75] text-foreground whitespace-pre-wrap bg-background border border-border rounded p-5 m-0">{a.honestAssessment}</p>
+              <p dir="rtl" className="text-[0.88rem] leading-[1.75] text-foreground whitespace-pre-wrap bg-background border border-border rounded p-5 m-0 text-right">{a.honestAssessment}</p>
             </div>
           )}
         </div>

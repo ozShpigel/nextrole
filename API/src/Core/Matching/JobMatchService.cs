@@ -20,6 +20,16 @@ public sealed class JobMatchService : IJobMatchService
         _logger = logger;
     }
 
+    private static string? VerdictFromScore(int? score) => score switch
+    {
+        >= 80 => "STRONG_YES",
+        >= 60 => "YES",
+        >= 40 => "MAYBE",
+        >= 20 => "NO",
+        >= 0  => "STRONG_NO",
+        _     => null
+    };
+
     public async Task<MatchResponse> AnalyzeMatchAsync(MatchRequest request, CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Starting job match analysis");
@@ -41,11 +51,24 @@ public sealed class JobMatchService : IJobMatchService
         };
 
         var (matchResponse, evalSnap) = await _claudeClient.EvaluateMatchAsync(profile, parsedJob, cancellationToken);
+
+        var correctedVerdict = VerdictFromScore(matchResponse.OverallScore) ?? matchResponse.Verdict;
+        var correctedShouldApply = matchResponse.OverallScore >= 60;
+
+        if (correctedVerdict != matchResponse.Verdict)
+            _logger.LogWarning("Verdict corrected: AI returned {AiVerdict} for score {Score}, using {Corrected}",
+                matchResponse.Verdict, matchResponse.OverallScore, correctedVerdict);
+        if (correctedShouldApply != matchResponse.Recommendation.ShouldApply)
+            _logger.LogWarning("ShouldApply corrected: AI returned {AiValue} for score {Score}, using {Corrected}",
+                matchResponse.Recommendation.ShouldApply, matchResponse.OverallScore, correctedShouldApply);
+
         _logger.LogInformation("Match evaluation completed. Verdict: {Verdict}, Score: {Score}",
-            matchResponse.Verdict, matchResponse.OverallScore);
+            correctedVerdict, matchResponse.OverallScore);
 
         return matchResponse with
         {
+            Verdict = correctedVerdict,
+            Recommendation = matchResponse.Recommendation with { ShouldApply = correctedShouldApply },
             JobTitle = parsedJob.JobTitle,
             Company = parsedJob.Company,
             AnalystSnapshotInput = analystSnap.Input,

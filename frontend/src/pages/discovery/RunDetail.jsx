@@ -380,7 +380,7 @@ export default function RunDetail() {
               )}
 
               {j.honest_assessment && (
-                <div className="text-[0.85rem] text-muted-foreground leading-[1.7] my-3 p-[0.9rem_1.1rem] bg-muted/50 border border-dashed border-border rounded">{j.honest_assessment}</div>
+                <div dir="rtl" className="text-[0.85rem] text-muted-foreground leading-[1.7] my-3 p-[0.9rem_1.1rem] bg-muted/50 border border-dashed border-border rounded text-right">{j.honest_assessment}</div>
               )}
 
               <div className="flex gap-2 items-center mt-3">

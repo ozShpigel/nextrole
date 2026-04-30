@@ -36,12 +36,12 @@ export default function ApplicationDetail() {
   }
 
   async function deleteApp() {
-    if (!confirm('למחוק את המשרה? כל הראיונות וההערות ימחקו גם כן.')) return;
+    if (!confirm('Delete this application? All interviews and notes will also be deleted.')) return;
     try {
       await api(`/applications/${id}`, { method: 'DELETE' });
       window.history.back();
     } catch (e) {
-      alert('מחיקה נכשלה: ' + e.message);
+      alert('Delete failed: ' + e.message);
     }
   }
 
@@ -58,7 +58,7 @@ export default function ApplicationDetail() {
   return (
     <div className="min-h-[calc(100vh-56px)] bg-background animate-page-in-fast">
       <div className="max-w-[1100px] mx-auto px-6 pb-8">
-        <Link to="/tracker" state={{ tab: 'list' }} className="text-primary cursor-pointer text-[0.88rem] mb-5 inline-flex items-center gap-[0.4rem] font-medium transition-all hover:text-primary/80 hover:gap-[0.6rem]">&larr; חזרה לרשימה</Link>
+        <Link to="/tracker" state={{ tab: 'list' }} className="text-primary cursor-pointer text-[0.88rem] mb-5 inline-flex items-center gap-[0.4rem] font-medium transition-all hover:text-primary/80 hover:gap-[0.6rem]">&larr; Back to List</Link>
 
         {/* Header */}
         <Card className="p-6 mb-4 transition-all hover:border-border hover:shadow-md">
@@ -75,10 +75,10 @@ export default function ApplicationDetail() {
           </div>
 
           <div className="flex gap-2 flex-wrap mt-4">
-            <Button onClick={() => setModal({ type: 'status' })}>עדכן סטטוס</Button>
-            <Button variant="outline" onClick={() => setModal({ type: 'interview' })}>הוסף ראיון</Button>
-            <Button variant="outline" onClick={() => setModal({ type: 'note' })}>הוסף הערה</Button>
-            <Button variant="destructive" onClick={deleteApp}>מחק</Button>
+            <Button onClick={() => setModal({ type: 'status' })}>Update Status</Button>
+            <Button variant="outline" onClick={() => setModal({ type: 'interview' })}>Add Interview</Button>
+            <Button variant="outline" onClick={() => setModal({ type: 'note' })}>Add Note</Button>
+            <Button variant="destructive" onClick={deleteApp}>Delete</Button>
           </div>
         </Card>
 
@@ -87,7 +87,7 @@ export default function ApplicationDetail() {
 
         {/* Raw Claude call artifacts */}
         {(app.analystSnapshotInput || app.evaluatorSnapshotInput) && (
-          <CollapsibleSection title="קריאות Claude גולמיות" defaultOpen={false}>
+          <CollapsibleSection title="Raw Claude Calls" defaultOpen={false}>
             <SnapshotsCard snapshots={{
               analystInput:    app.analystSnapshotInput,
               analystOutput:   app.analystSnapshotOutput,
@@ -99,12 +99,12 @@ export default function ApplicationDetail() {
 
         {/* Timeline */}
         <Card className="p-6 mb-4 transition-all hover:border-border hover:shadow-md">
-          <h3 className="text-[0.95rem] font-semibold text-foreground mb-3 pb-[0.6rem] border-b border-border">ציר זמן</h3>
+          <h3 className="text-[0.95rem] font-semibold text-foreground mb-3 pb-[0.6rem] border-b border-border">Timeline</h3>
           <Timeline statusUpdates={statusUpdates} interviews={interviews} notes={notes} />
         </Card>
 
         {/* Interviews */}
-        <CollapsibleSection title={`ראיונות (${interviews.length})`}>
+        <CollapsibleSection title={`Interviews (${interviews.length})`}>
           <InterviewList
             interviews={interviews}
             onEdit={(i) => setModal({ type: 'editInterview', data: i })}
@@ -113,13 +113,13 @@ export default function ApplicationDetail() {
         </CollapsibleSection>
 
         {/* Notes */}
-        <CollapsibleSection title={`הערות (${notes.length})`}>
+        <CollapsibleSection title={`Notes (${notes.length})`}>
           <NoteList notes={notes} onRefresh={load} />
         </CollapsibleSection>
 
         {/* Job Description */}
         {app.jobDescription && (
-          <CollapsibleSection title="תיאור המשרה" defaultOpen={false}>
+          <CollapsibleSection title="Job Description" defaultOpen={false}>
             <pre className="whitespace-pre-wrap font-sans text-[0.85rem] text-muted-foreground">{app.jobDescription}</pre>
           </CollapsibleSection>
         )}
@@ -144,7 +144,7 @@ export default function ApplicationDetail() {
 
 function ApplicationDetailLoadingSkeleton() {
   return (
-    <div className="animate-page-in pb-4 relative" role="status" aria-live="polite" aria-label="טוען פרטי משרה">
+    <div className="animate-page-in pb-4 relative" role="status" aria-live="polite" aria-label="Loading application details">
       <div className="skeleton w-[120px] h-[14px] rounded mb-5" aria-hidden="true" />
 
       {/* Hero card */}
@@ -219,14 +219,14 @@ function ApplicationDetailLoadingSkeleton() {
 
       {/* Cycling subtitle */}
       <div className="mt-9 pt-5 border-t border-dashed border-border flex items-center gap-[0.65rem] font-serif text-[0.92rem] text-muted-foreground italic tracking-[-0.005em] relative">
-        <div className="absolute top-[-1px] start-0 w-[36px] h-px bg-primary opacity-50" />
+        <div className="absolute top-[-1px] left-0 w-[36px] h-px bg-primary opacity-50" />
         <span className="font-serif text-[1.15rem] text-primary opacity-75 not-italic" aria-hidden="true">§</span>
         <span className="relative inline-block h-[1.4em] min-w-[22ch]" aria-hidden="true">
-          <span className="absolute inset-0 start-0 opacity-0 translate-y-[6px] whitespace-nowrap" style={{ animation: 'cycleFade 6s cubic-bezier(0.22, 1, 0.36, 1) infinite', animationDelay: '0s' }}>שולף נתוני משרה</span>
-          <span className="absolute inset-0 start-0 opacity-0 translate-y-[6px] whitespace-nowrap" style={{ animation: 'cycleFade 6s cubic-bezier(0.22, 1, 0.36, 1) infinite', animationDelay: '2s' }}>קורא ראיונות והערות</span>
-          <span className="absolute inset-0 start-0 opacity-0 translate-y-[6px] whitespace-nowrap" style={{ animation: 'cycleFade 6s cubic-bezier(0.22, 1, 0.36, 1) infinite', animationDelay: '4s' }}>מרכיב את הציר</span>
+          <span className="absolute inset-0 left-0 opacity-0 translate-y-[6px] whitespace-nowrap" style={{ animation: 'cycleFade 6s cubic-bezier(0.22, 1, 0.36, 1) infinite', animationDelay: '0s' }}>Fetching application data</span>
+          <span className="absolute inset-0 left-0 opacity-0 translate-y-[6px] whitespace-nowrap" style={{ animation: 'cycleFade 6s cubic-bezier(0.22, 1, 0.36, 1) infinite', animationDelay: '2s' }}>Loading interviews and notes</span>
+          <span className="absolute inset-0 left-0 opacity-0 translate-y-[6px] whitespace-nowrap" style={{ animation: 'cycleFade 6s cubic-bezier(0.22, 1, 0.36, 1) infinite', animationDelay: '4s' }}>Building timeline</span>
         </span>
-        <span className="sr-only">טוען פרטי משרה</span>
+        <span className="sr-only">Loading application details</span>
       </div>
     </div>
   );

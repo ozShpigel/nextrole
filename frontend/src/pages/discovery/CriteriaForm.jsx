@@ -46,7 +46,7 @@ export default function CriteriaForm({ initial, onSave, onCancel }) {
       }
       onSave();
     } catch (e) {
-      alert('שגיאה: ' + e.message);
+      alert('Error: ' + e.message);
     } finally {
       setSaving(false);
     }
@@ -56,63 +56,63 @@ export default function CriteriaForm({ initial, onSave, onCancel }) {
 
   return (
     <form className="mb-8 p-7 bg-card border border-border rounded-lg shadow-md animate-card-in" onSubmit={submit}>
-      <h3 className="font-serif text-[1.2rem] font-bold text-foreground mb-5 tracking-[-0.005em]">{initial ? 'עריכת קריטריון' : 'קריטריון חיפוש חדש'}</h3>
+      <h3 className="font-serif text-[1.2rem] font-bold text-foreground mb-5 tracking-[-0.005em]">{initial ? 'Edit Criteria' : 'New Search Criteria'}</h3>
 
       <div className="mb-4">
-        <label className="block text-[0.72rem] text-muted-foreground mb-[0.4rem] uppercase tracking-[0.12em] font-medium">שם</label>
-        <input type="text" className={inputCls} value={name} onChange={(e) => setName(e.target.value)} placeholder='לדוגמה: "Senior Backend .NET"' />
+        <label className="block text-[0.72rem] text-muted-foreground mb-[0.4rem] uppercase tracking-[0.12em] font-medium">Name</label>
+        <input type="text" className={inputCls} value={name} onChange={(e) => setName(e.target.value)} placeholder='e.g. "Senior Backend .NET"' />
       </div>
 
       <div className="grid grid-cols-2 gap-4 max-[640px]:grid-cols-1">
         <div className="mb-4">
-          <label className="block text-[0.72rem] text-muted-foreground mb-[0.4rem] uppercase tracking-[0.12em] font-medium">כותרות משרה (שורה לכל כותרת)</label>
+          <label className="block text-[0.72rem] text-muted-foreground mb-[0.4rem] uppercase tracking-[0.12em] font-medium">Job Titles (one per line)</label>
           <textarea className={`${inputCls} resize-y leading-[1.6]`} value={titlesText} onChange={(e) => setTitlesText(e.target.value)} placeholder="Senior Backend Engineer&#10;Platform Engineer&#10;Staff Engineer" rows={3} />
         </div>
         <div className="mb-4">
-          <label className="block text-[0.72rem] text-muted-foreground mb-[0.4rem] uppercase tracking-[0.12em] font-medium">מיקומים (שורה לכל מיקום)</label>
+          <label className="block text-[0.72rem] text-muted-foreground mb-[0.4rem] uppercase tracking-[0.12em] font-medium">Locations (one per line)</label>
           <textarea className={`${inputCls} resize-y leading-[1.6]`} value={locationsText} onChange={(e) => setLocationsText(e.target.value)} placeholder="Tel Aviv&#10;Remote" rows={3} />
         </div>
       </div>
 
       <div className="grid grid-cols-3 gap-4 max-[640px]:grid-cols-1">
         <div className="mb-4">
-          <label className="block text-[0.72rem] text-muted-foreground mb-[0.4rem] uppercase tracking-[0.12em] font-medium">אתרים</label>
+          <label className="block text-[0.72rem] text-muted-foreground mb-[0.4rem] uppercase tracking-[0.12em] font-medium">Sites</label>
           <input type="text" className={inputCls} value={siteNames} onChange={(e) => setSiteNames(e.target.value)} placeholder="linkedin, indeed" />
         </div>
         <div className="mb-4">
-          <label className="block text-[0.72rem] text-muted-foreground mb-[0.4rem] uppercase tracking-[0.12em] font-medium">מדינה</label>
+          <label className="block text-[0.72rem] text-muted-foreground mb-[0.4rem] uppercase tracking-[0.12em] font-medium">Country</label>
           <input type="text" className={inputCls} value={country} onChange={(e) => setCountry(e.target.value)} />
         </div>
         <div className="mb-4">
-          <label className="block text-[0.72rem] text-muted-foreground mb-[0.4rem] uppercase tracking-[0.12em] font-medium">עבודה מרחוק</label>
+          <label className="block text-[0.72rem] text-muted-foreground mb-[0.4rem] uppercase tracking-[0.12em] font-medium">Remote</label>
           <select className={inputCls} value={isRemote === null ? '' : String(isRemote)} onChange={(e) => setIsRemote(e.target.value === '' ? null : e.target.value === 'true')}>
-            <option value="">לא משנה</option>
-            <option value="true">כן</option>
-            <option value="false">לא</option>
+            <option value="">Any</option>
+            <option value="true">Yes</option>
+            <option value="false">No</option>
           </select>
         </div>
       </div>
 
       <div className="grid grid-cols-3 gap-4 max-[640px]:grid-cols-1">
         <div className="mb-4">
-          <label className="block text-[0.72rem] text-muted-foreground mb-[0.4rem] uppercase tracking-[0.12em] font-medium">תוצאות לכותרת</label>
+          <label className="block text-[0.72rem] text-muted-foreground mb-[0.4rem] uppercase tracking-[0.12em] font-medium">Results per Title</label>
           <input type="number" className={inputCls} value={resultsWanted} onChange={(e) => setResultsWanted(Number(e.target.value))} min={1} max={50} />
         </div>
         <div className="mb-4">
-          <label className="block text-[0.72rem] text-muted-foreground mb-[0.4rem] uppercase tracking-[0.12em] font-medium">שעות אחרונות</label>
+          <label className="block text-[0.72rem] text-muted-foreground mb-[0.4rem] uppercase tracking-[0.12em] font-medium">Hours Old</label>
           <input type="number" className={inputCls} value={hoursOld} onChange={(e) => setHoursOld(Number(e.target.value))} min={1} max={720} />
         </div>
         <div className="mb-4">
-          <label className="block text-[0.72rem] text-muted-foreground mb-[0.4rem] uppercase tracking-[0.12em] font-medium">סף ציון לשמירה</label>
+          <label className="block text-[0.72rem] text-muted-foreground mb-[0.4rem] uppercase tracking-[0.12em] font-medium">Min Score to Save</label>
           <input type="number" className={inputCls} value={minScore} onChange={(e) => setMinScore(Number(e.target.value))} min={0} max={100} />
         </div>
       </div>
 
       <div className="flex gap-2 pt-2">
         <Button type="submit" disabled={saving || !name.trim() || !titlesText.trim()}>
-          {saving ? 'שומר...' : (initial ? 'עדכן' : 'צור')}
+          {saving ? 'Saving...' : (initial ? 'Update' : 'Create')}
         </Button>
-        <Button variant="outline" type="button" onClick={onCancel}>ביטול</Button>
+        <Button variant="outline" type="button" onClick={onCancel}>Cancel</Button>
       </div>
     </form>
   );

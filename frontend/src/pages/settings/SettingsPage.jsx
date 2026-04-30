@@ -76,11 +76,11 @@ function scrollTextareaToOffset(ta, offset) {
 }
 
 const SECTIONS = [
-  { id: 'settings-section-01', num: '01', name: 'פרופיל מקצועי', short: 'Profile' },
-  { id: 'settings-section-02', num: '02', name: 'פרומפט אנליסט', short: 'Analyst' },
-  { id: 'settings-section-03', num: '03', name: 'פרומפט הערכה', short: 'Evaluator' },
-  { id: 'settings-section-04', num: '04', name: 'תצורת ניתוח', short: 'Tuning' },
-  { id: 'settings-section-05', num: '05', name: 'מבנה ניתוח', short: 'Scoring' },
+  { id: 'settings-section-01', num: '01', name: 'Professional Profile', short: 'Profile' },
+  { id: 'settings-section-02', num: '02', name: 'Analyst Prompt', short: 'Analyst' },
+  { id: 'settings-section-03', num: '03', name: 'Evaluator Prompt', short: 'Evaluator' },
+  { id: 'settings-section-04', num: '04', name: 'Analysis Config', short: 'Tuning' },
+  { id: 'settings-section-05', num: '05', name: 'Scoring Structure', short: 'Scoring' },
 ];
 
 function scrollToSection(id) {
@@ -193,9 +193,9 @@ export default function SettingsPage() {
       if (data?.analyst_prompt_is_override !== undefined) setAnalystIsOverride(!!data.analyst_prompt_is_override);
       if (data?.evaluator_prompt_is_override !== undefined) setEvaluatorIsOverride(!!data.evaluator_prompt_is_override);
       onSuccess(data);
-      setResult({ type: 'success', message: `${label} נשמר בהצלחה` });
+      setResult({ type: 'success', message: `${label} saved successfully` });
     } catch (e) {
-      setResult({ type: 'error', message: `שגיאה בשמירה: ${e.message}` });
+      setResult({ type: 'error', message: `Error saving: ${e.message}` });
     } finally {
       setSaving(false);
     }
@@ -205,7 +205,7 @@ export default function SettingsPage() {
     { content: profile },
     setSavingProfile, setProfileResult,
     () => setOriginalProfile(profile),
-    'הפרופיל',
+    'Profile',
   );
 
   const saveAnalyst = () => saveField(
@@ -216,7 +216,7 @@ export default function SettingsPage() {
       setAnalystPrompt(v);
       setOriginalAnalystPrompt(v);
     },
-    'פרומפט האנליסט',
+    'Analyst prompt',
   );
 
   const saveEvaluator = () => saveField(
@@ -228,7 +228,7 @@ export default function SettingsPage() {
       setOriginalEvaluatorPrompt(v);
       setConfirmUnsafeSave(false);
     },
-    'פרומפט ההערכה',
+    'Evaluator prompt',
   );
 
   const saveConfig = () => saveField(
@@ -241,7 +241,7 @@ export default function SettingsPage() {
         setOriginalConfig(merged);
       }
     },
-    'תצורת הניתוח',
+    'Analysis config',
   );
 
   function confirmResetAccept() {
@@ -254,7 +254,7 @@ export default function SettingsPage() {
           setAnalystPrompt(v);
           setOriginalAnalystPrompt(v);
         },
-        'פרומפט האנליסט אופס',
+        'Analyst prompt reset',
       );
     } else if (confirmReset === 'evaluator') {
       saveField(
@@ -265,7 +265,7 @@ export default function SettingsPage() {
           setEvaluatorPrompt(v);
           setOriginalEvaluatorPrompt(v);
         },
-        'פרומפט ההערכה אופס',
+        'Evaluator prompt reset',
       );
     }
     setConfirmReset(null);
@@ -312,13 +312,13 @@ export default function SettingsPage() {
       <UnsavedDock dirtyList={dirtyList} />
 
       <header className="mb-14 relative py-[0.4rem]">
-        <span className="inline-flex items-center gap-[0.55rem] font-mono text-[0.66rem] tracking-[0.3em] uppercase text-muted-foreground font-medium py-[0.32rem] pe-[0.95rem] ps-[0.7rem] border border-border rounded-full bg-muted/30 mb-[1.35rem]">
+        <span className="inline-flex items-center gap-[0.55rem] font-mono text-[0.66rem] tracking-[0.3em] uppercase text-muted-foreground font-medium py-[0.32rem] pr-[0.95rem] pl-[0.7rem] border border-border rounded-full bg-muted/30 mb-[1.35rem]">
           <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground shadow-[0_0_0_3px_rgba(0,0,0,0.06)] shrink-0" />
           Configuration · 2026
         </span>
-        <h1 className="font-serif text-[clamp(2.2rem,4.6vw,3.1rem)] font-bold text-foreground leading-[1.05] mb-3 tracking-[-0.018em]">הגדרות</h1>
+        <h1 className="font-serif text-[clamp(2.2rem,4.6vw,3.1rem)] font-bold text-foreground leading-[1.05] mb-3 tracking-[-0.018em]">Settings</h1>
         <p className="text-muted-foreground text-[0.98rem] max-w-[560px] leading-[1.65]">
-          צפייה ועריכה של נתוני הקלט לניתוח Claude — הפרופיל המקצועי, הפרומפטים ופרמטרי המודל.
+          View and edit the inputs for Claude analysis — your professional profile, prompts, and model parameters.
         </p>
         <div className="mt-8 h-px relative" style={{ background: 'linear-gradient(to left, transparent 0%, oklch(0.7 0 0 / 0.3) 50%, transparent 100%)' }}>
           <span
@@ -338,23 +338,23 @@ export default function SettingsPage() {
       {/* 01 — Profile Editor */}
       <section className="mb-16 relative animate-section-in" id="settings-section-01">
         <div className="flex items-end gap-4 mb-[0.65rem] flex-wrap pb-[0.55rem] border-b border-border relative">
-          <span className="absolute bottom-[-1px] start-0 w-11 h-0.5 bg-gradient-to-r from-muted-foreground to-transparent rounded-sm" />
-          <span className="font-serif text-[2.4rem] font-bold text-muted-foreground tracking-[-0.03em] tabular-nums leading-[0.85] shrink-0 min-w-[2.6ch] ltr relative group">
+          <span className="absolute bottom-[-1px] left-0 w-11 h-0.5 bg-gradient-to-r from-muted-foreground to-transparent rounded-sm" />
+          <span className="font-serif text-[2.4rem] font-bold text-muted-foreground tracking-[-0.03em] tabular-nums leading-[0.85] shrink-0 min-w-[2.6ch] relative group">
             <span className="absolute bottom-[0.35em] left-0 w-[0.55em] h-0.5 bg-muted-foreground opacity-25 origin-left transition-all" />
             01
           </span>
-          <span className="font-serif text-[1.55rem] font-bold text-foreground tracking-[-0.012em] leading-[1.15] pb-[0.1rem]">פרופיל מקצועי</span>
-          <span className="ms-auto text-[0.7rem] text-muted-foreground py-[0.28rem] px-[0.8rem] rounded-full bg-muted/40 border border-border tracking-[0.04em] tabular-nums font-medium mb-[0.2rem] transition-all hover:border-muted-foreground/30 hover:text-muted-foreground">
+          <span className="font-serif text-[1.55rem] font-bold text-foreground tracking-[-0.012em] leading-[1.15] pb-[0.1rem]">Professional Profile</span>
+          <span className="ml-auto text-[0.7rem] text-muted-foreground py-[0.28rem] px-[0.8rem] rounded-full bg-muted/40 border border-border tracking-[0.04em] tabular-nums font-medium mb-[0.2rem] transition-all hover:border-muted-foreground/30 hover:text-muted-foreground">
             {lastUpdated
-              ? `עודכן ${new Date(lastUpdated).toLocaleDateString('he-IL')}`
-              : 'מקור: קובץ מקומי'}
+              ? `Updated ${new Date(lastUpdated).toLocaleDateString('en-US')}`
+              : 'Source: local file'}
           </span>
         </div>
         <p className="text-[0.92rem] text-muted-foreground leading-[1.75] mt-[0.85rem] mb-6 max-w-[640px]">
-          הפרופיל המקצועי שנשלח ל-Claude לצורך ניתוח והתאמת משרות. השינויים נכנסים לתוקף מיידית לאחר שמירה.
+          The professional profile sent to Claude for job analysis and matching. Changes take effect immediately after saving.
         </p>
         <textarea
-          className="w-full min-h-[420px] p-[1.5rem_1.65rem] border border-border rounded-lg text-foreground font-code text-[0.85rem] resize-y outline-none leading-[1.8] ltr text-left whitespace-pre-wrap transition-all hover:border-muted-foreground/30 focus:border-ring focus:bg-white focus:shadow-[0_0_0_4px_rgba(0,0,0,0.04)] selection:bg-primary/10 selection:text-foreground"
+          className="w-full min-h-[420px] p-[1.5rem_1.65rem] border border-border rounded-lg text-foreground font-code text-[0.85rem] resize-y outline-none leading-[1.8] text-left whitespace-pre-wrap transition-all hover:border-muted-foreground/30 focus:border-ring focus:bg-white focus:shadow-[0_0_0_4px_rgba(0,0,0,0.04)] selection:bg-primary/10 selection:text-foreground"
           value={profile}
           onChange={(e) => { setProfile(e.target.value); setProfileResult(null); }}
           dir="auto"
@@ -364,22 +364,22 @@ export default function SettingsPage() {
           }}
         />
         <div className="flex justify-between items-center mt-[1.1rem] pt-4 border-t border-dashed border-border relative max-sm:flex-col max-sm:gap-3 max-sm:items-stretch">
-          <span className="absolute top-[-1px] start-0 w-9 h-px bg-muted-foreground opacity-50" />
+          <span className="absolute top-[-1px] left-0 w-9 h-px bg-muted-foreground opacity-50" />
           <span className="text-[0.76rem] text-muted-foreground tabular-nums tracking-[0.05em] font-medium inline-flex items-baseline gap-[0.35rem]">
-            {profile.length.toLocaleString()} תווים
-            <span className="ms-2 text-muted-foreground text-[0.72rem] tracking-[0.04em] font-normal ps-[0.6rem] border-s border-border">· ≈{estimateTokens(profile).toLocaleString()} tokens</span>
+            {profile.length.toLocaleString()} chars
+            <span className="ml-2 text-muted-foreground text-[0.72rem] tracking-[0.04em] font-normal pl-[0.6rem] border-l border-border">· ≈{estimateTokens(profile).toLocaleString()} tokens</span>
           </span>
           <div className="flex gap-[0.55rem] max-sm:justify-end max-sm:flex-wrap">
             {isProfileDirty && (
               <Button variant="outline" size="sm" onClick={() => setProfile(originalProfile)} disabled={savingProfile}>
-                ביטול שינויים
+                Discard changes
               </Button>
             )}
             <Button
               onClick={saveProfile}
               disabled={savingProfile || !isProfileDirty}
             >
-              {savingProfile ? 'שומר...' : 'שמור פרופיל'}
+              {savingProfile ? 'Saving...' : 'Save profile'}
             </Button>
           </div>
         </div>
@@ -392,8 +392,8 @@ export default function SettingsPage() {
       <PromptSection
         sectionId="settings-section-02"
         num="02"
-        name="פרומפט אנליסט"
-        desc="ההנחיה ל-Claude בשלב פרסינג המשרה — מחלצת כותרת, טכנולוגיות, רמת ניסיון ואותות תרבותיים ומחזירה JSON מובנה."
+        name="Analyst Prompt"
+        desc="The instruction for Claude during the job parsing stage — extracts title, technologies, experience level, and cultural signals and returns structured JSON."
         activeStage="parse"
         isOverride={analystIsOverride}
         value={analystPrompt}
@@ -415,11 +415,11 @@ export default function SettingsPage() {
       <PromptSection
         sectionId="settings-section-03"
         num="03"
-        name="פרומפט הערכה"
+        name="Evaluator Prompt"
         desc={
           <>
-            ההנחיה ל-Claude בשלב ההערכה — מדרג התאמה במאה נקודות לפי טכנולוגיה, תרבות ומאפייני תפקיד.
-            שני הפלייסהולדרים <code className="font-code text-[0.82em] py-[0.08em] px-[0.4em] bg-muted/50 border border-border rounded-[4px] text-muted-foreground ltr isolate">{'{{USER_PROFILE}}'}</code> ו-<code className="font-code text-[0.82em] py-[0.08em] px-[0.4em] bg-muted/50 border border-border rounded-[4px] text-muted-foreground ltr isolate">{'{{PARSED_JOB}}'}</code> מוחלפים בזמן ריצה ואסור למחוק אותם.
+            The instruction for Claude during the evaluation stage — scores fit on a 100-point scale across technology, culture, and role attributes.
+            The two placeholders <code className="font-code text-[0.82em] py-[0.08em] px-[0.4em] bg-muted/50 border border-border rounded-[4px] text-muted-foreground isolate">{'{{USER_PROFILE}}'}</code> and <code className="font-code text-[0.82em] py-[0.08em] px-[0.4em] bg-muted/50 border border-border rounded-[4px] text-muted-foreground isolate">{'{{PARSED_JOB}}'}</code> are replaced at runtime and must not be removed.
           </>
         }
         activeStage="evaluate"
@@ -451,25 +451,25 @@ export default function SettingsPage() {
       {/* 04 — Scoring Config */}
       <section className="mb-16 relative animate-section-in" id="settings-section-04" style={{ animationDelay: '0.12s' }}>
         <div className="flex items-end gap-4 mb-[0.65rem] flex-wrap pb-[0.55rem] border-b border-border relative">
-          <span className="absolute bottom-[-1px] start-0 w-11 h-0.5 bg-gradient-to-r from-muted-foreground to-transparent rounded-sm" />
-          <span className="font-serif text-[2.4rem] font-bold text-muted-foreground tracking-[-0.03em] tabular-nums leading-[0.85] shrink-0 min-w-[2.6ch] ltr relative">
+          <span className="absolute bottom-[-1px] left-0 w-11 h-0.5 bg-gradient-to-r from-muted-foreground to-transparent rounded-sm" />
+          <span className="font-serif text-[2.4rem] font-bold text-muted-foreground tracking-[-0.03em] tabular-nums leading-[0.85] shrink-0 min-w-[2.6ch] relative">
             <span className="absolute bottom-[0.35em] left-0 w-[0.55em] h-0.5 bg-muted-foreground opacity-25 origin-left transition-all" />
             04
           </span>
-          <span className="font-serif text-[1.55rem] font-bold text-foreground tracking-[-0.012em] leading-[1.15] pb-[0.1rem]">תצורת ניתוח</span>
+          <span className="font-serif text-[1.55rem] font-bold text-foreground tracking-[-0.012em] leading-[1.15] pb-[0.1rem]">Analysis Config</span>
         </div>
         <p className="text-[0.92rem] text-muted-foreground leading-[1.75] mt-[0.85rem] mb-6 max-w-[640px]">
-          כל שלב בצנרת מוגדר בנפרד — האנליסט (שלב הפרסינג) וההערכה (שלב הציון).
-          חשיבה מורחבת מאלצת טמפרטורה של 1.
+          Each pipeline stage is configured separately — the Analyst (parsing stage) and the Evaluator (scoring stage).
+          Extended thinking forces temperature to 1.
         </p>
 
         <div className="grid grid-cols-2 gap-[1.35rem] mt-[0.4rem] max-[860px]:grid-cols-1 max-[860px]:gap-[0.9rem]">
           <RoleConfigPanel
             role="analyst"
             stage="①"
-            titleHe="אנליסט"
+            titleHe="Analyst"
             titleEn="Parse"
-            hint="קל ומהיר — חילוץ שדות מתיאור משרה"
+            hint="Lightweight and fast — extracts fields from a job description"
             values={config.analyst}
             onChange={(k, v) => updateConfig(`analyst.${k}`, v)}
             idPrefix="cfg-a"
@@ -477,9 +477,9 @@ export default function SettingsPage() {
           <RoleConfigPanel
             role="evaluator"
             stage="②"
-            titleHe="הערכה"
+            titleHe="Evaluator"
             titleEn="Evaluate"
-            hint="ניתוח עמוק — ציון, ברדיקט והערכה בעברית"
+            hint="Deep analysis — score, verdict, and evaluation"
             values={config.evaluator}
             onChange={(k, v) => updateConfig(`evaluator.${k}`, v)}
             idPrefix="cfg-e"
@@ -490,32 +490,32 @@ export default function SettingsPage() {
           <div className="flex flex-col gap-[0.55rem]">
             <label className="text-[0.7rem] text-muted-foreground tracking-[0.14em] uppercase font-semibold flex items-center gap-[0.4rem]" htmlFor="cfg-min-score">
               <span className="w-[3px] h-[3px] rounded-full bg-muted-foreground opacity-45 shrink-0" />
-              ציון מינימום לשמירה
+              Minimum score to save
             </label>
             <input
               id="cfg-min-score"
               type="number"
-              className="py-[0.55rem] px-[0.8rem] bg-transparent border border-input rounded-[7px] text-foreground text-[0.88rem] font-mono tabular-nums ltr text-left transition-all w-full hover:border-muted-foreground/30 focus:border-ring focus:bg-white focus:ring-[3px] focus:ring-ring/20 focus:outline-none disabled:opacity-45 disabled:cursor-not-allowed"
+              className="py-[0.55rem] px-[0.8rem] bg-transparent border border-input rounded-[7px] text-foreground text-[0.88rem] font-mono tabular-nums text-left transition-all w-full hover:border-muted-foreground/30 focus:border-ring focus:bg-white focus:ring-[3px] focus:ring-ring/20 focus:outline-none disabled:opacity-45 disabled:cursor-not-allowed"
               value={config.min_score_to_save}
               onChange={(e) => updateConfig('min_score_to_save', parseInt(e.target.value) || 70)}
               min="0" max="100" step="5"
             />
-            <span className="text-[0.72rem] text-muted-foreground opacity-85 mt-[0.3rem]">סף אחד לצנרת כולה — חל על תוצאות ההערכה</span>
+            <span className="text-[0.72rem] text-muted-foreground opacity-85 mt-[0.3rem]">A single threshold for the entire pipeline — applies to evaluation results</span>
           </div>
         </div>
 
         <div className="flex justify-end items-center gap-[0.6rem] mt-6 pt-[1.1rem] border-t border-dashed border-border relative">
-          <span className="absolute top-[-1px] end-0 w-9 h-px bg-muted-foreground opacity-50" />
+          <span className="absolute top-[-1px] right-0 w-9 h-px bg-muted-foreground opacity-50" />
           {isConfigDirty && (
             <Button variant="outline" size="sm" onClick={() => setConfig(originalConfig)} disabled={savingConfig}>
-              ביטול שינויים
+              Discard changes
             </Button>
           )}
           <Button
             onClick={saveConfig}
             disabled={savingConfig || !isConfigDirty}
           >
-            {savingConfig ? 'שומר...' : 'שמור תצורה'}
+            {savingConfig ? 'Saving...' : 'Save config'}
           </Button>
         </div>
         {configResult && (
@@ -526,20 +526,20 @@ export default function SettingsPage() {
       {/* 05 — Scoring Structure */}
       <section className="mb-16 relative animate-section-in" id="settings-section-05" style={{ animationDelay: '0.16s' }}>
         <div className="flex items-end gap-4 mb-[0.65rem] flex-wrap pb-[0.55rem] border-b border-border relative">
-          <span className="absolute bottom-[-1px] start-0 w-11 h-0.5 bg-gradient-to-r from-muted-foreground to-transparent rounded-sm" />
-          <span className="font-serif text-[2.4rem] font-bold text-muted-foreground tracking-[-0.03em] tabular-nums leading-[0.85] shrink-0 min-w-[2.6ch] ltr relative">
+          <span className="absolute bottom-[-1px] left-0 w-11 h-0.5 bg-gradient-to-r from-muted-foreground to-transparent rounded-sm" />
+          <span className="font-serif text-[2.4rem] font-bold text-muted-foreground tracking-[-0.03em] tabular-nums leading-[0.85] shrink-0 min-w-[2.6ch] relative">
             <span className="absolute bottom-[0.35em] left-0 w-[0.55em] h-0.5 bg-muted-foreground opacity-25 origin-left transition-all" />
             05
           </span>
-          <span className="font-serif text-[1.55rem] font-bold text-foreground tracking-[-0.012em] leading-[1.15] pb-[0.1rem]">מבנה ניתוח</span>
+          <span className="font-serif text-[1.55rem] font-bold text-foreground tracking-[-0.012em] leading-[1.15] pb-[0.1rem]">Scoring Structure</span>
         </div>
         <p className="text-[0.92rem] text-muted-foreground leading-[1.75] mt-[0.85rem] mb-6 max-w-[640px]">
-          הציון הכולל מתחלק לשלושה ממדים. כל ממד מורכב ממספר קריטריונים משוקללים.
+          The total score is divided into three dimensions. Each dimension is composed of several weighted criteria.
         </p>
 
         <div
           className="flex h-3 rounded-full overflow-hidden mb-[1.4rem] relative"
-          aria-label="התפלגות ציון"
+          aria-label="Score distribution"
           style={{
             background: 'oklch(0.97 0 0)',
             boxShadow: 'none',
@@ -579,7 +579,7 @@ export default function SettingsPage() {
             variant="tech"
             color="#a88256"
             ringColor="rgba(168,130,86,0.12)"
-            name="התאמה טכנית"
+            name="Technical Fit"
             details="Core Stack 0–20 · System Design 0–15"
             points="35"
           />
@@ -587,7 +587,7 @@ export default function SettingsPage() {
             variant="culture"
             color="#3d9b85"
             ringColor="rgba(61,155,133,0.12)"
-            name="התאמה תרבותית"
+            name="Cultural Fit"
             details="Work Style 0–15 · Communication 0–10 · Ownership 0–10"
             points="35"
           />
@@ -595,7 +595,7 @@ export default function SettingsPage() {
             variant="role"
             color="#8b6fc0"
             ringColor="rgba(139,111,192,0.12)"
-            name="מאפייני התפקיד"
+            name="Role Attributes"
             details="Problem Domain 0–15 · Pace 0–10 · Growth 0–5"
             points="30"
           />
@@ -618,8 +618,8 @@ export default function SettingsPage() {
 /* ------------------------------------------------------------------ */
 function VerdictItem({ className, label }) {
   return (
-    <span className={`relative py-[0.38rem] pe-[0.9rem] ps-[1.45rem] rounded-full text-[0.73rem] font-medium font-code tabular-nums tracking-[0.08em] border cursor-default transition-all hover:-translate-y-px hover:shadow-sm ${className}`}>
-      <span className="absolute top-1/2 start-[0.65rem] -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-current opacity-75" />
+    <span className={`relative py-[0.38rem] pr-[0.9rem] pl-[1.45rem] rounded-full text-[0.73rem] font-medium font-code tabular-nums tracking-[0.08em] border cursor-default transition-all hover:-translate-y-px hover:shadow-sm ${className}`}>
+      <span className="absolute top-1/2 left-[0.65rem] -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-current opacity-75" />
       {label}
     </span>
   );
@@ -631,21 +631,21 @@ function VerdictItem({ className, label }) {
 function ScoringDimension({ color, ringColor, name, details, points }) {
   return (
     <div
-      className="group grid grid-cols-[auto_1fr_auto] items-center gap-[1.1rem] py-[1.15rem] px-[0.35rem] border-b border-border transition-all relative hover:bg-accent hover:ps-[0.65rem] max-sm:grid-cols-[auto_1fr] max-sm:row-gap-1"
+      className="group grid grid-cols-[auto_1fr_auto] items-center gap-[1.1rem] py-[1.15rem] px-[0.35rem] border-b border-border transition-all relative hover:bg-accent hover:pl-[0.65rem] max-sm:grid-cols-[auto_1fr] max-sm:row-gap-1"
       style={{ color }}
     >
       {/* Left accent line on hover */}
-      <span className="absolute start-[-4px] top-[18%] bottom-[18%] w-0.5 bg-current opacity-0 rounded-sm transition-opacity group-hover:opacity-55" />
+      <span className="absolute left-[-4px] top-[18%] bottom-[18%] w-0.5 bg-current opacity-0 rounded-sm transition-opacity group-hover:opacity-55" />
       <span
         className="w-2.5 h-2.5 rounded-full shrink-0 transition-transform group-hover:scale-[1.15]"
         style={{ background: color, boxShadow: `0 0 0 3px ${ringColor}` }}
       />
       <div className="flex flex-col gap-[0.15rem] min-w-0">
         <span className="text-[0.95rem] font-semibold text-foreground font-serif tracking-[-0.005em]">{name}</span>
-        <span className="text-[0.78rem] text-muted-foreground font-mono tabular-nums tracking-[0.02em] ltr text-right">{details}</span>
+        <span className="text-[0.78rem] text-muted-foreground font-mono tabular-nums tracking-[0.02em] text-left">{details}</span>
       </div>
       <span className="font-serif text-[1.15rem] font-bold text-foreground tabular-nums tracking-[-0.01em] max-sm:col-start-2 max-sm:justify-self-end">
-        {points}<small className="text-[0.65rem] text-muted-foreground tracking-[0.15em] uppercase font-medium font-mono ms-1">pt</small>
+        {points}<small className="text-[0.65rem] text-muted-foreground tracking-[0.15em] uppercase font-medium font-mono ml-1">pt</small>
       </span>
     </div>
   );
@@ -666,7 +666,7 @@ function SaveResult({ result }) {
     >
       <span className="w-[18px] h-[18px] rounded-full bg-current opacity-15 shrink-0 relative" />
       <span
-        className="absolute start-[1.1rem] top-1/2 -translate-y-1/2 w-[18px] h-[18px]"
+        className="absolute left-[1.1rem] top-1/2 -translate-y-1/2 w-[18px] h-[18px]"
         style={{
           background: isSuccess
             ? "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%232d8f5e' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='5,10.5 9,14.5 15.5,7'/%3E%3C/svg%3E\") center / 12px no-repeat"
@@ -698,13 +698,13 @@ function PromptSection({
 
   return (
     <section
-      className="mb-16 relative animate-section-in ps-6 max-sm:ps-[1.15rem]"
+      className="mb-16 relative animate-section-in pl-6 max-sm:pl-[1.15rem]"
       id={sectionId}
       style={{ animationDelay: sectionDelays[sectionIndex] || '0s' }}
     >
       {/* Prompt accent stripe */}
       <span
-        className="absolute start-0 w-[3px] rounded-[3px]"
+        className="absolute left-0 w-[3px] rounded-[3px]"
         style={{
           top: '0.15rem',
           bottom: '0.15rem',
@@ -713,46 +713,46 @@ function PromptSection({
       />
 
       <div className="flex items-end gap-4 mb-[0.65rem] flex-wrap pb-[0.55rem] border-b border-border relative">
-        <span className="absolute bottom-[-1px] start-0 w-11 h-0.5 bg-gradient-to-r from-muted-foreground to-transparent rounded-sm" />
-        <span className="font-serif text-[2.4rem] font-bold text-muted-foreground tracking-[-0.03em] tabular-nums leading-[0.85] shrink-0 min-w-[2.6ch] ltr relative">
+        <span className="absolute bottom-[-1px] left-0 w-11 h-0.5 bg-gradient-to-r from-muted-foreground to-transparent rounded-sm" />
+        <span className="font-serif text-[2.4rem] font-bold text-muted-foreground tracking-[-0.03em] tabular-nums leading-[0.85] shrink-0 min-w-[2.6ch] relative">
           <span className="absolute bottom-[0.35em] left-0 w-[0.55em] h-0.5 bg-muted-foreground opacity-25 origin-left transition-all" />
           {num}
         </span>
         <span className="font-serif text-[1.55rem] font-bold text-foreground tracking-[-0.012em] leading-[1.15] pb-[0.1rem]">{name}</span>
-        <span className={`ms-auto text-[0.7rem] py-[0.28rem] px-[0.8rem] rounded-full border tracking-[0.04em] tabular-nums font-medium mb-[0.2rem] transition-all hover:border-muted-foreground/30 hover:text-muted-foreground ${
+        <span className={`ml-auto text-[0.7rem] py-[0.28rem] px-[0.8rem] rounded-full border tracking-[0.04em] tabular-nums font-medium mb-[0.2rem] transition-all hover:border-muted-foreground/30 hover:text-muted-foreground ${
           isOverride
             ? 'text-foreground border-primary/30 bg-primary/5'
             : 'text-muted-foreground bg-muted/40 border-border'
         }`}>
-          {isOverride ? 'מותאם אישית' : 'ברירת מחדל'}
+          {isOverride ? 'Custom' : 'Default'}
         </span>
       </div>
 
       <div
         className="flex items-center gap-4 my-[0.6rem] mb-[1.4rem] py-[0.6rem] px-4 border border-border rounded-full max-w-fit font-mono max-sm:flex-col max-sm:items-start max-sm:gap-[0.45rem] max-sm:max-w-full max-sm:rounded-xl max-sm:px-[0.85rem] max-sm:py-[0.7rem]"
-        aria-label="שלבי ניתוח"
+        aria-label="Analysis stages"
         style={{
           background: 'var(--muted)',
         }}
       >
         <span className={`inline-flex items-center gap-2 text-[0.8rem] tracking-[0.03em] transition-colors ${activeStage === 'parse' ? 'text-foreground font-semibold' : 'text-muted-foreground'}`}>
           <span className={`font-serif text-[1.1rem] leading-none transition-all tabular-nums ${activeStage === 'parse' ? 'text-foreground' : 'text-muted-foreground/40'}`}>①</span>
-          <span className={`tabular-nums ${activeStage === 'parse' ? 'border-b border-foreground/40 pb-0.5' : ''}`}>Parse · אנליסט</span>
+          <span className={`tabular-nums ${activeStage === 'parse' ? 'border-b border-foreground/40 pb-0.5' : ''}`}>Parse · Analyst</span>
         </span>
         {/* Arrow */}
-        <span className="w-[1.6rem] h-px shrink-0 relative max-sm:w-px max-sm:h-4" style={{ background: 'linear-gradient(to left, transparent 0%, oklch(0.7 0 0 / 0.35) 50%, transparent 100%)' }}>
+        <span className="w-[1.6rem] h-px shrink-0 relative max-sm:w-px max-sm:h-4" style={{ background: 'linear-gradient(to right, transparent 0%, oklch(0.7 0 0 / 0.35) 50%, transparent 100%)' }}>
           <span
-            className="absolute top-1/2 end-0 w-[5px] h-[5px] -translate-y-1/2 max-sm:top-auto max-sm:bottom-0 max-sm:end-1/2 max-sm:translate-x-1/2"
+            className="absolute top-1/2 right-0 w-[5px] h-[5px] -translate-y-1/2 max-sm:top-auto max-sm:bottom-0 max-sm:right-1/2 max-sm:translate-x-1/2"
             style={{
               borderTop: '1px solid oklch(0.7 0 0 / 0.45)',
-              borderInlineEnd: '1px solid oklch(0.7 0 0 / 0.45)',
-              transform: 'translateY(-50%) rotate(-135deg)',
+              borderRight: '1px solid oklch(0.7 0 0 / 0.45)',
+              transform: 'translateY(-50%) rotate(45deg)',
             }}
           />
         </span>
         <span className={`inline-flex items-center gap-2 text-[0.8rem] tracking-[0.03em] transition-colors ${activeStage === 'evaluate' ? 'text-foreground font-semibold' : 'text-muted-foreground'}`}>
           <span className={`font-serif text-[1.1rem] leading-none transition-all tabular-nums ${activeStage === 'evaluate' ? 'text-foreground' : 'text-muted-foreground/40'}`}>②</span>
-          <span className={`tabular-nums ${activeStage === 'evaluate' ? 'border-b border-foreground/40 pb-0.5' : ''}`}>Evaluate · הערכה</span>
+          <span className={`tabular-nums ${activeStage === 'evaluate' ? 'border-b border-foreground/40 pb-0.5' : ''}`}>Evaluate · Evaluator</span>
         </span>
       </div>
 
@@ -763,24 +763,24 @@ function PromptSection({
           {placeholders.map(({ token, present }) => (
             <span
               key={token}
-              className={`inline-flex items-center gap-[0.4rem] py-[0.22rem] pe-[0.6rem] ps-[0.7rem] rounded-full font-mono text-[0.74rem] tabular-nums tracking-[0.02em] transition-all ${
+              className={`inline-flex items-center gap-[0.4rem] py-[0.22rem] pr-[0.6rem] pl-[0.7rem] rounded-full font-mono text-[0.74rem] tabular-nums tracking-[0.02em] transition-all ${
                 present
                   ? 'border border-[rgba(45,143,94,0.22)] bg-[rgba(45,143,94,0.04)] text-green'
                   : 'border border-[rgba(196,84,84,0.35)] bg-[rgba(196,84,84,0.05)] text-red animate-[placeholderMiss_0.25s_ease_both]'
               }`}
             >
-              <span className="ltr">{token}</span>
+              <span>{token}</span>
               <span className="font-serif text-[0.9rem] leading-none" aria-hidden="true">
                 {present ? '✓' : '✗'}
               </span>
-              {!present && <span className="text-[0.7rem] tracking-[0.08em] uppercase text-red">חסר</span>}
+              {!present && <span className="text-[0.7rem] tracking-[0.08em] uppercase text-red">missing</span>}
             </span>
           ))}
         </div>
       )}
 
       {headings.length > 0 && (
-        <div className="flex flex-wrap gap-[0.35rem] mb-[0.85rem] py-[0.1rem] max-sm:gap-[0.3rem]" aria-label="מבנה הפרומפט">
+        <div className="flex flex-wrap gap-[0.35rem] mb-[0.85rem] py-[0.1rem] max-sm:gap-[0.3rem]" aria-label="Prompt structure">
           {headings.map((h, i) => (
             <button
               key={`${h.offset}-${i}`}
@@ -789,7 +789,7 @@ function PromptSection({
                 h.level === 1 ? 'font-semibold text-foreground' : h.level === 2 ? 'font-medium' : 'opacity-[0.78]'
               }`}
               onClick={() => scrollTextareaToOffset(textareaRef.current, h.offset)}
-              title={`קפוץ אל "${h.text}"`}
+              title={`Jump to "${h.text}"`}
             >
               <span className="font-[Courier_New,monospace] text-[0.7rem] text-muted-foreground opacity-55 tracking-[-0.05em]" aria-hidden="true">{'#'.repeat(h.level)}</span>
               <span className="tabular-nums">{h.text}</span>
@@ -801,14 +801,14 @@ function PromptSection({
       {confirmingReset && (
         <div className="flex items-center justify-between gap-5 mb-[0.9rem] p-[0.95rem_1.15rem] rounded-lg animate-confirm-slide flex-wrap bg-muted/30 border border-border max-sm:flex-col max-sm:items-stretch max-sm:gap-[0.7rem]" role="alertdialog" aria-live="assertive">
           <div className="flex flex-col gap-1 flex-[1_1_260px] min-w-0">
-            <strong className="font-serif text-[0.95rem] font-bold tracking-[-0.005em] text-foreground">לאפס לברירת מחדל?</strong>
+            <strong className="font-serif text-[0.95rem] font-bold tracking-[-0.005em] text-foreground">Reset to default?</strong>
             <span className="text-[0.8rem] leading-[1.6] text-muted-foreground max-w-[520px]">
-              הפרומפט המותאם אישית יימחק ויוחלף בברירת המחדל המצורפת לשירות. פעולה זו לא ניתנת לביטול.
+              The custom prompt will be deleted and replaced with the service default. This action cannot be undone.
             </span>
           </div>
           <div className="flex gap-2 shrink-0 max-sm:justify-end">
             <Button variant="outline" size="sm" onClick={onConfirmResetCancel} disabled={saving}>
-              ביטול
+              Cancel
             </Button>
             <Button
               variant="destructive"
@@ -816,7 +816,7 @@ function PromptSection({
               onClick={onConfirmResetAccept}
               disabled={saving}
             >
-              {saving ? 'מאפס...' : 'כן, אפס'}
+              {saving ? 'Resetting...' : 'Yes, reset'}
             </Button>
           </div>
         </div>
@@ -824,7 +824,7 @@ function PromptSection({
 
       <textarea
         ref={textareaRef}
-        className="w-full p-[1.5rem_1.65rem] border border-input rounded-lg text-foreground font-code text-[0.85rem] resize-y outline-none leading-[1.8] ltr text-left whitespace-pre-wrap transition-all hover:border-muted-foreground/30 focus:border-ring focus:bg-white focus:shadow-[0_0_0_4px_rgba(0,0,0,0.04)] selection:bg-primary/10 selection:text-foreground"
+        className="w-full p-[1.5rem_1.65rem] border border-input rounded-lg text-foreground font-code text-[0.85rem] resize-y outline-none leading-[1.8] text-left whitespace-pre-wrap transition-all hover:border-muted-foreground/30 focus:border-ring focus:bg-white focus:shadow-[0_0_0_4px_rgba(0,0,0,0.04)] selection:bg-primary/10 selection:text-foreground"
         value={value}
         onChange={(e) => setValue(e.target.value)}
         dir="auto"
@@ -838,14 +838,14 @@ function PromptSection({
       {confirmUnsafeSave && (
         <div className="flex items-center justify-between gap-5 mb-[0.9rem] p-[0.95rem_1.15rem] rounded-lg animate-confirm-slide flex-wrap bg-destructive/5 border border-destructive/20 max-sm:flex-col max-sm:items-stretch max-sm:gap-[0.7rem]" role="alertdialog" aria-live="assertive">
           <div className="flex flex-col gap-1 flex-[1_1_260px] min-w-0">
-            <strong className="font-serif text-[0.95rem] font-bold tracking-[-0.005em] text-destructive">חסר פלייסהולדר בפרומפט</strong>
+            <strong className="font-serif text-[0.95rem] font-bold tracking-[-0.005em] text-destructive">Missing placeholder in prompt</strong>
             <span className="text-[0.8rem] leading-[1.6] text-muted-foreground max-w-[520px]">
-              ללא הפלייסהולדרים Claude לא יקבל את הפרופיל או את פרטי המשרה. אפשר לשמור בכל זאת, אך הניתוח יהיה שבור.
+              Without the placeholders Claude will not receive the profile or job details. You can save anyway, but analysis will be broken.
             </span>
           </div>
           <div className="flex gap-2 shrink-0 max-sm:justify-end">
             <Button variant="outline" size="sm" onClick={onConfirmUnsafeCancel} disabled={saving}>
-              ביטול
+              Cancel
             </Button>
             <Button
               variant="destructive"
@@ -853,17 +853,17 @@ function PromptSection({
               onClick={onConfirmUnsafeAccept}
               disabled={saving}
             >
-              {saving ? 'שומר...' : 'שמור בכל זאת'}
+              {saving ? 'Saving...' : 'Save anyway'}
             </Button>
           </div>
         </div>
       )}
 
       <div className="flex justify-between items-center mt-[1.1rem] pt-4 border-t border-dashed border-border relative max-sm:flex-col max-sm:gap-3 max-sm:items-stretch">
-        <span className="absolute top-[-1px] start-0 w-9 h-px bg-muted-foreground opacity-50" />
+        <span className="absolute top-[-1px] left-0 w-9 h-px bg-muted-foreground opacity-50" />
         <span className="text-[0.76rem] text-muted-foreground tabular-nums tracking-[0.05em] font-medium inline-flex items-baseline gap-[0.35rem]">
-          {(value?.length || 0).toLocaleString()} תווים
-          <span className="ms-2 text-muted-foreground text-[0.72rem] tracking-[0.04em] font-normal ps-[0.6rem] border-s border-border">· ≈{estimateTokens(value).toLocaleString()} tokens</span>
+          {(value?.length || 0).toLocaleString()} chars
+          <span className="ml-2 text-muted-foreground text-[0.72rem] tracking-[0.04em] font-normal pl-[0.6rem] border-l border-border">· ≈{estimateTokens(value).toLocaleString()} tokens</span>
         </span>
         <div className="flex gap-[0.55rem] max-sm:justify-end max-sm:flex-wrap">
           <Button
@@ -871,22 +871,22 @@ function PromptSection({
             size="sm"
             onClick={onResetRequest}
             disabled={saving || confirmingReset}
-            title="אפס לברירת המחדל המצורפת לשירות"
+            title="Reset to the service default"
           >
-            אפס לברירת מחדל
+            Reset to default
           </Button>
           {isDirty && (
             <Button variant="outline" size="sm" onClick={onCancel} disabled={saving}>
-              ביטול שינויים
+              Discard changes
             </Button>
           )}
           <Button
             className={saveWarning ? 'shadow-[0_0_0_3px_hsl(var(--destructive)/0.18),0_1px_2px_rgba(0,0,0,0.06)] animate-warn-pulse hover:shadow-[0_0_0_4px_hsl(var(--destructive)/0.22),0_2px_6px_rgba(0,0,0,0.08)]' : ''}
             onClick={onSave}
             disabled={saving || !isDirty}
-            title={saveWarning ? 'חסר פלייסהולדר — יידרש אישור נוסף' : undefined}
+            title={saveWarning ? 'Missing placeholder — additional confirmation required' : undefined}
           >
-            {saving ? 'שומר...' : 'שמור פרומפט'}
+            {saving ? 'Saving...' : 'Save prompt'}
           </Button>
         </div>
       </div>
@@ -927,7 +927,7 @@ function RoleConfigPanel({ role, stage, titleHe, titleEn, hint, values, onChange
   const roleColorSoft = role === 'analyst' ? 'rgba(168,130,86,0.09)' : 'rgba(61,155,133,0.08)';
   const roleColorRing = role === 'analyst' ? 'rgba(168,130,86,0.3)' : 'rgba(61,155,133,0.28)';
 
-  const inputClasses = "py-[0.55rem] px-[0.8rem] bg-transparent border border-input rounded-[7px] text-foreground text-[0.88rem] font-mono tabular-nums ltr text-left transition-all w-full hover:border-muted-foreground/30 hover:bg-background focus:outline-none disabled:opacity-45 disabled:cursor-not-allowed";
+  const inputClasses = "py-[0.55rem] px-[0.8rem] bg-transparent border border-input rounded-[7px] text-foreground text-[0.88rem] font-mono tabular-nums text-left transition-all w-full hover:border-muted-foreground/30 hover:bg-background focus:outline-none disabled:opacity-45 disabled:cursor-not-allowed";
 
   return (
     <div
@@ -956,7 +956,7 @@ function RoleConfigPanel({ role, stage, titleHe, titleEn, hint, values, onChange
           <h3 className="inline-flex items-baseline gap-2 text-[0.95rem] text-foreground font-serif font-bold m-0 tracking-[-0.005em] flex-1 min-w-0">
             <span className="font-bold">{titleHe}</span>
             <span className="text-muted-foreground opacity-60 font-normal text-[0.85em]" aria-hidden="true">·</span>
-            <span className="font-mono text-[0.72rem] tracking-[0.22em] uppercase font-semibold ltr" style={{ color: roleColor }}>{titleEn}</span>
+            <span className="font-mono text-[0.72rem] tracking-[0.22em] uppercase font-semibold" style={{ color: roleColor }}>{titleEn}</span>
           </h3>
           <span
             className="w-2 h-2 rounded-full shrink-0 animate-pulse-dot"
@@ -968,14 +968,14 @@ function RoleConfigPanel({ role, stage, titleHe, titleEn, hint, values, onChange
             aria-hidden="true"
           />
         </div>
-        <p className="text-[0.78rem] text-muted-foreground leading-[1.55] m-0 ps-[1.9rem]">{hint}</p>
+        <p className="text-[0.78rem] text-muted-foreground leading-[1.55] m-0 pl-[1.9rem]">{hint}</p>
       </div>
 
       <div className="flex flex-col gap-[0.95rem]">
         <div className="flex flex-col gap-[0.55rem]">
           <label className="text-[0.7rem] text-muted-foreground tracking-[0.14em] uppercase font-semibold flex items-center gap-[0.4rem]" htmlFor={modelId}>
             <span className="w-[3px] h-[3px] rounded-full bg-muted-foreground opacity-45 shrink-0" />
-            מודל Claude
+            Claude Model
           </label>
           <select
             id={modelId}
@@ -993,7 +993,7 @@ function RoleConfigPanel({ role, stage, titleHe, titleEn, hint, values, onChange
         <div className="flex flex-col gap-[0.55rem]">
           <label className="text-[0.7rem] text-muted-foreground tracking-[0.14em] uppercase font-semibold flex items-center gap-[0.4rem]" htmlFor={tempId}>
             <span className="w-[3px] h-[3px] rounded-full bg-muted-foreground opacity-45 shrink-0" />
-            טמפרטורה
+            Temperature
           </label>
           <input
             id={tempId}
@@ -1028,7 +1028,7 @@ function RoleConfigPanel({ role, stage, titleHe, titleEn, hint, values, onChange
         <div className="flex flex-col gap-[0.55rem]">
           <label className="text-[0.7rem] text-muted-foreground tracking-[0.14em] uppercase font-semibold flex items-center gap-[0.4rem]" htmlFor={thinkId}>
             <span className="w-[3px] h-[3px] rounded-full bg-muted-foreground opacity-45 shrink-0" />
-            חשיבה מורחבת
+            Extended Thinking
           </label>
           <select
             id={thinkId}
@@ -1038,15 +1038,15 @@ function RoleConfigPanel({ role, stage, titleHe, titleEn, hint, values, onChange
             onFocus={(e) => { e.target.style.borderColor = roleColor; e.target.style.boxShadow = `0 0 0 3px ${roleColorSoft}`; }}
             onBlur={(e) => { e.target.style.borderColor = ''; e.target.style.boxShadow = ''; }}
           >
-            <option value="on">מופעל (temperature=1)</option>
-            <option value="off">כבוי</option>
+            <option value="on">Enabled (temperature=1)</option>
+            <option value="off">Disabled</option>
           </select>
         </div>
 
         <div className="flex flex-col gap-[0.55rem]">
           <label className="text-[0.7rem] text-muted-foreground tracking-[0.14em] uppercase font-semibold flex items-center gap-[0.4rem]" htmlFor={budgetId}>
             <span className="w-[3px] h-[3px] rounded-full bg-muted-foreground opacity-45 shrink-0" />
-            תקציב חשיבה · tokens
+            Thinking Budget · tokens
           </label>
           <input
             id={budgetId}
@@ -1070,13 +1070,13 @@ function RoleConfigPanel({ role, stage, titleHe, titleEn, hint, values, onChange
 /* ------------------------------------------------------------------ */
 function FolioRail({ activeId, dirtyMap }) {
   return (
-    <aside className="hidden xl:block fixed top-1/2 start-7 -translate-y-1/2 z-40 w-[108px] py-5 px-3 font-mono animate-rail-in pointer-events-auto" aria-label="ניווט בעמוד">
+    <aside className="hidden xl:block fixed top-1/2 left-7 -translate-y-1/2 z-40 w-[108px] py-5 px-3 font-mono animate-rail-in pointer-events-auto" aria-label="Page navigation">
       {/* Vertical line */}
       <span
-        className="absolute top-0 bottom-0 end-0 w-px"
+        className="absolute top-0 bottom-0 right-0 w-px"
         style={{ background: 'linear-gradient(to bottom, transparent 0%, oklch(0.7 0 0 / 0.15) 18%, oklch(0.7 0 0 / 0.15) 82%, transparent 100%)' }}
       />
-      <div className="font-serif text-[1.3rem] text-muted-foreground text-start mb-4 ps-1 opacity-75" aria-hidden="true">§</div>
+      <div className="font-serif text-[1.3rem] text-muted-foreground text-left mb-4 pl-1 opacity-75" aria-hidden="true">§</div>
       <ol className="list-none m-0 p-0 flex flex-col gap-[0.1rem]">
         {SECTIONS.map((s) => {
           const isActive = activeId === s.id;
@@ -1085,21 +1085,21 @@ function FolioRail({ activeId, dirtyMap }) {
             <li key={s.id} className="m-0">
               <button
                 type="button"
-                className={`grid grid-cols-[auto_14px_1fr_auto] items-center gap-[0.55rem] w-full py-2 px-[0.35rem] bg-transparent border-none cursor-pointer font-sans text-start transition-all relative hover:translate-x-[2px] rtl:hover:-translate-x-[2px] ${
+                className={`grid grid-cols-[auto_14px_1fr_auto] items-center gap-[0.55rem] w-full py-2 px-[0.35rem] bg-transparent border-none cursor-pointer font-sans text-left transition-all relative hover:translate-x-[2px] ${
                   isActive ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'
                 }`}
                 onClick={() => scrollToSection(s.id)}
                 aria-current={isActive ? 'true' : undefined}
-                aria-label={`${s.num} — ${s.name}${isDirty ? ' (לא נשמר)' : ''}`}
+                aria-label={`${s.num} — ${s.name}${isDirty ? ' (unsaved)' : ''}`}
               >
-                <span className={`font-serif font-semibold tabular-nums leading-none min-w-[1.6ch] ltr transition-all ${
+                <span className={`font-serif font-semibold tabular-nums leading-none min-w-[1.6ch] transition-all ${
                   isActive ? 'text-[1.1rem] text-foreground' : 'text-[0.9rem]'
                 }`} style={{ color: isActive ? undefined : 'inherit' }}>{s.num}</span>
                 <span
                   className={`h-px transition-all ${isActive ? 'w-[14px] opacity-90 bg-foreground h-0.5' : 'w-2 opacity-35 bg-current'}`}
                   aria-hidden="true"
                 />
-                <span className={`text-[0.66rem] tracking-[0.18em] uppercase font-medium ltr whitespace-nowrap transition-all ${
+                <span className={`text-[0.66rem] tracking-[0.18em] uppercase font-medium whitespace-nowrap transition-all ${
                   isActive ? 'opacity-100 text-foreground font-semibold' : 'opacity-70'
                 }`} style={{ color: isActive ? undefined : 'inherit' }}>{s.short}</span>
                 {isDirty && <span className="w-1.5 h-1.5 rounded-full bg-destructive shadow-[0_0_0_3px_oklch(0.6_0.2_25/0.15)] shrink-0 animate-dirty-pulse" aria-hidden="true" />}
@@ -1108,7 +1108,7 @@ function FolioRail({ activeId, dirtyMap }) {
           );
         })}
       </ol>
-      <div className="mt-4 ps-[0.35rem] flex items-baseline gap-[0.2rem] font-code text-[0.68rem] text-muted-foreground tracking-[0.1em] tabular-nums opacity-60 ltr" aria-hidden="true">
+      <div className="mt-4 pl-[0.35rem] flex items-baseline gap-[0.2rem] font-code text-[0.68rem] text-muted-foreground tracking-[0.1em] tabular-nums opacity-60" aria-hidden="true">
         <span>{SECTIONS.length.toString().padStart(2, '0')}</span>
         <span className="text-muted-foreground opacity-60">/</span>
         <span className="text-muted-foreground">{SECTIONS.length.toString().padStart(2, '0')}</span>
@@ -1134,7 +1134,7 @@ function UnsavedDock({ dirtyList }) {
       aria-hidden={!visible}
     >
       <div
-        className="flex items-center gap-4 py-[0.65rem] pe-3 ps-4 backdrop-blur-[20px] border border-border rounded-full flex-wrap max-[860px]:p-[0.5rem_0.65rem_0.5rem_0.85rem] max-[860px]:rounded-[18px] max-[860px]:gap-[0.7rem]"
+        className="flex items-center gap-4 py-[0.65rem] pr-3 pl-4 backdrop-blur-[20px] border border-border rounded-full flex-wrap max-[860px]:p-[0.5rem_0.65rem_0.5rem_0.85rem] max-[860px]:rounded-[18px] max-[860px]:gap-[0.7rem]"
         style={{
           background: 'oklch(1 0 0 / 0.88)',
           WebkitBackdropFilter: 'blur(20px) saturate(1.25)',
@@ -1142,13 +1142,13 @@ function UnsavedDock({ dirtyList }) {
           boxShadow: '0 18px 48px rgba(0,0,0,0.06), 0 4px 14px rgba(0,0,0,0.04), inset 0 1px 0 rgba(255,255,255,0.85)',
         }}
       >
-        <div className="inline-flex items-center gap-[0.55rem] pe-[0.9rem] border-e border-border font-mono text-[0.82rem] text-foreground font-medium max-[860px]:pe-[0.7rem] max-[860px]:text-[0.76rem]">
+        <div className="inline-flex items-center gap-[0.55rem] pr-[0.9rem] border-r border-border font-mono text-[0.82rem] text-foreground font-medium max-[860px]:pr-[0.7rem] max-[860px]:text-[0.76rem]">
           <span className="w-2 h-2 rounded-full bg-amber-400 relative shrink-0">
             <span className="absolute inset-[-4px] rounded-full bg-amber-400 opacity-30 animate-dock-pulse" />
           </span>
-          <span className="font-serif text-[1.1rem] font-bold text-foreground leading-none tabular-nums ltr">{dirtyList.length}</span>
+          <span className="font-serif text-[1.1rem] font-bold text-foreground leading-none tabular-nums">{dirtyList.length}</span>
           <span className="text-muted-foreground tracking-[0.01em]">
-            {dirtyList.length === 1 ? 'שינוי לא שמור' : 'שינויים לא שמורים'}
+            {dirtyList.length === 1 ? 'unsaved change' : 'unsaved changes'}
           </span>
         </div>
         <div className="inline-flex items-center gap-[0.4rem] flex-wrap max-[860px]:gap-[0.3rem]">
@@ -1156,11 +1156,11 @@ function UnsavedDock({ dirtyList }) {
             <button
               key={s.id}
               type="button"
-              className="inline-flex items-center gap-[0.4rem] py-[0.32rem] pe-[0.85rem] ps-[0.55rem] border border-border rounded-full bg-white text-foreground font-mono text-[0.76rem] font-medium cursor-pointer transition-all hover:border-foreground/30 hover:-translate-y-px hover:shadow-md max-[860px]:py-[0.28rem] max-[860px]:pe-[0.7rem] max-[860px]:ps-[0.45rem] max-[860px]:text-[0.72rem]"
+              className="inline-flex items-center gap-[0.4rem] py-[0.32rem] pr-[0.85rem] pl-[0.55rem] border border-border rounded-full bg-white text-foreground font-mono text-[0.76rem] font-medium cursor-pointer transition-all hover:border-foreground/30 hover:-translate-y-px hover:shadow-md max-[860px]:py-[0.28rem] max-[860px]:pr-[0.7rem] max-[860px]:pl-[0.45rem] max-[860px]:text-[0.72rem]"
               onClick={() => scrollToSection(s.id)}
-              title={`קפוץ ל-${s.name}`}
+              title={`Jump to ${s.name}`}
             >
-              <span className="font-serif font-bold text-foreground tabular-nums ltr py-[0.08rem] px-[0.45rem] bg-muted rounded-full text-[0.72rem] leading-[1.4]">{s.num}</span>
+              <span className="font-serif font-bold text-foreground tabular-nums py-[0.08rem] px-[0.45rem] bg-muted rounded-full text-[0.72rem] leading-[1.4]">{s.num}</span>
               <span className="tracking-[0.01em] max-[860px]:hidden">{s.name}</span>
             </button>
           ))}
@@ -1173,11 +1173,11 @@ function UnsavedDock({ dirtyList }) {
 /* ------------------------------------------------------------------ */
 /* Loading Skeleton                                                   */
 /* ------------------------------------------------------------------ */
-const SETTINGS_HERO_LETTERS = ['ה', 'ג', 'ד', 'ר', 'ו', 'ת'];
+const SETTINGS_HERO_LETTERS = ['S', 'e', 't', 't', 'i', 'n', 'g', 's'];
 
 function SettingsLoadingSkeleton() {
   return (
-    <div className="relative max-w-[960px] mx-auto px-7 pt-16 pb-32 animate-page-in isolate" role="status" aria-live="polite" aria-label="טוען הגדרות">
+    <div className="relative max-w-[960px] mx-auto px-7 pt-16 pb-32 animate-page-in isolate" role="status" aria-live="polite" aria-label="Loading settings">
       <header className="mb-12 pb-6 relative" aria-hidden="true">
         <span className="inline-block font-mono text-[0.72rem] tracking-[0.22em] uppercase text-muted-foreground mb-[0.65rem] opacity-85">Configuration · 2026</span>
         <h1 className="font-serif text-[clamp(2.2rem,4.5vw,3rem)] font-bold text-foreground leading-[1.05] m-0 mb-4 tracking-[-0.015em] flex items-baseline">
@@ -1232,17 +1232,17 @@ function SettingsLoadingSkeleton() {
         <div className="flex items-baseline gap-[0.85rem] mb-4">
           <span className="font-serif text-[2.2rem] font-bold text-muted-foreground tracking-[0.02em] leading-none tabular-nums relative">
             01
-            <span className="absolute bottom-[-0.35rem] start-0 w-[1.8rem] h-px bg-muted-foreground opacity-40" />
+            <span className="absolute bottom-[-0.35rem] left-0 w-[1.8rem] h-px bg-muted-foreground opacity-40" />
           </span>
           <span className="skeleton w-[140px] h-4 rounded-[4px]" />
-          <span className="skeleton w-[92px] h-[18px] rounded-full ms-auto max-[720px]:hidden" />
+          <span className="skeleton w-[92px] h-[18px] rounded-full ml-auto max-[720px]:hidden" />
         </div>
         <div className="skeleton w-[68%] h-3 rounded-[4px]" />
         {/* Editor preview */}
-        <div className="relative bg-card/60 border border-border rounded-lg p-[1.2rem_1.25rem_1.35rem] ps-12 mt-4 overflow-hidden">
-          <div className="absolute inset-0 end-auto w-9 bg-muted/30 border-e border-border flex flex-col justify-around py-[0.9rem]">
+        <div className="relative bg-card/60 border border-border rounded-lg p-[1.2rem_1.25rem_1.35rem] pl-12 mt-4 overflow-hidden">
+          <div className="absolute inset-0 right-auto w-9 bg-muted/30 border-r border-border flex flex-col justify-around py-[0.9rem]">
             {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => (
-              <span key={i} className="block w-[0.45rem] h-px bg-muted-foreground/30 ms-auto me-[0.45rem]" />
+              <span key={i} className="block w-[0.45rem] h-px bg-muted-foreground/30 ml-auto mr-[0.45rem]" />
             ))}
           </div>
           <div className="flex flex-col gap-[0.85rem] leading-[1.75]">
@@ -1267,14 +1267,14 @@ function SettingsLoadingSkeleton() {
         <div className="flex items-baseline gap-[0.85rem] mb-4">
           <span className="font-serif text-[2.2rem] font-bold text-muted-foreground tracking-[0.02em] leading-none tabular-nums relative">
             04
-            <span className="absolute bottom-[-0.35rem] start-0 w-[1.8rem] h-px bg-muted-foreground opacity-40" />
+            <span className="absolute bottom-[-0.35rem] left-0 w-[1.8rem] h-px bg-muted-foreground opacity-40" />
           </span>
           <span className="skeleton w-[140px] h-4 rounded-[4px]" />
         </div>
         <div className="grid grid-cols-2 gap-px bg-border border border-border rounded-lg overflow-hidden mt-4 max-[720px]:grid-cols-1">
           {/* Analyst panel */}
           <div className="bg-card p-[1.4rem_1.35rem_1.2rem] flex flex-col gap-[0.85rem] relative">
-            <span className="absolute top-0 start-0 w-[42px] h-0.5 opacity-50" style={{ background: 'linear-gradient(90deg, rgba(168,130,86,0.9), transparent)' }} />
+            <span className="absolute top-0 left-0 w-[42px] h-0.5 opacity-50" style={{ background: 'linear-gradient(90deg, rgba(168,130,86,0.9), transparent)' }} />
             <div className="flex items-center gap-[0.65rem] pb-[0.65rem] border-b border-border">
               <span
                 className="w-2 h-2 rounded-full shrink-0"
@@ -1294,7 +1294,7 @@ function SettingsLoadingSkeleton() {
           </div>
           {/* Evaluator panel */}
           <div className="bg-card p-[1.4rem_1.35rem_1.2rem] flex flex-col gap-[0.85rem] relative">
-            <span className="absolute top-0 start-0 w-[42px] h-0.5 opacity-50" style={{ background: 'linear-gradient(90deg, rgba(61,155,133,0.9), transparent)' }} />
+            <span className="absolute top-0 left-0 w-[42px] h-0.5 opacity-50" style={{ background: 'linear-gradient(90deg, rgba(61,155,133,0.9), transparent)' }} />
             <div className="flex items-center gap-[0.65rem] pb-[0.65rem] border-b border-border">
               <span
                 className="w-2 h-2 rounded-full shrink-0"
@@ -1318,14 +1318,14 @@ function SettingsLoadingSkeleton() {
 
       {/* Cycling subtitle */}
       <div className="mt-11 pt-[1.4rem] border-t border-dashed border-border flex items-center gap-[0.7rem] font-serif text-[0.95rem] text-muted-foreground italic tracking-[-0.005em] relative">
-        <span className="absolute top-[-1px] start-0 w-9 h-px bg-muted-foreground opacity-50" />
+        <span className="absolute top-[-1px] left-0 w-9 h-px bg-muted-foreground opacity-50" />
         <span className="font-serif text-[1.2rem] text-muted-foreground opacity-75 not-italic" aria-hidden="true">§</span>
         <span className="relative inline-block h-[1.4em] min-w-[22ch] max-[720px]:min-w-[16ch]" aria-hidden="true">
-          <span className="absolute inset-0 start-0 opacity-0 translate-y-1.5 animate-cycle-fade whitespace-nowrap" style={{ animationDelay: '0s' }}>מביא את הפרופיל</span>
-          <span className="absolute inset-0 start-0 opacity-0 translate-y-1.5 animate-cycle-fade whitespace-nowrap" style={{ animationDelay: '2s' }}>קורא פרומפטים ותצורה</span>
-          <span className="absolute inset-0 start-0 opacity-0 translate-y-1.5 animate-cycle-fade whitespace-nowrap" style={{ animationDelay: '4s' }}>מכין את הלוח</span>
+          <span className="absolute inset-0 left-0 opacity-0 translate-y-1.5 animate-cycle-fade whitespace-nowrap" style={{ animationDelay: '0s' }}>Fetching profile</span>
+          <span className="absolute inset-0 left-0 opacity-0 translate-y-1.5 animate-cycle-fade whitespace-nowrap" style={{ animationDelay: '2s' }}>Reading prompts and config</span>
+          <span className="absolute inset-0 left-0 opacity-0 translate-y-1.5 animate-cycle-fade whitespace-nowrap" style={{ animationDelay: '4s' }}>Preparing the dashboard</span>
         </span>
-        <span className="sr-only">טוען הגדרות</span>
+        <span className="sr-only">Loading settings</span>
       </div>
 
       {/* Inline keyframes for loading-specific animations */}

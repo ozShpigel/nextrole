@@ -7,8 +7,8 @@ import { Button } from '@/components/ui/button';
 
 const services = [
   {
-    name: 'גילוי משרות',
-    description: 'סריקה אוטומטית של משרות מ-LinkedIn עם דירוג והתאמה באמצעות AI.',
+    name: 'Job Discovery',
+    description: 'Automated job scanning from LinkedIn with AI-powered scoring and matching.',
     path: '/discovery',
     kicker: 'Discovery',
     icon: (
@@ -19,8 +19,8 @@ const services = [
     ),
   },
   {
-    name: 'מעקב מועמדויות',
-    description: 'מעקב אחר מועמדויות לעבודה, ראיונות ועדכוני סטטוס.',
+    name: 'Application Tracker',
+    description: 'Track job applications, interviews, and status updates.',
     path: '/tracker',
     kicker: 'Tracking',
     icon: (
@@ -33,8 +33,8 @@ const services = [
     ),
   },
   {
-    name: 'הגדרות',
-    description: 'צפייה ועריכה של הפרופיל המקצועי ונתוני הקלט לניתוח Claude.',
+    name: 'Settings',
+    description: 'View and edit your professional profile and Claude analysis inputs.',
     path: '/settings',
     kicker: 'Configuration',
     icon: (
@@ -103,7 +103,6 @@ export default function Landing() {
         <Badge
           variant="outline"
           className="gap-[0.55rem] font-mono text-[0.62rem] tracking-[0.32em] font-medium text-muted-foreground py-[0.42rem] px-[1.1rem] mb-[2.25rem] backdrop-blur-[6px] uppercase tabular-nums border-border bg-muted/50 max-md:text-[0.58rem] max-md:tracking-[0.25em]"
-          dir="ltr"
         >
           <span className="text-[0.35rem] text-primary opacity-65 leading-none" aria-hidden="true">●</span>
           <span className="whitespace-nowrap">V 0.1.0 &nbsp;&middot;&nbsp; VOL. 01 &nbsp;&middot;&nbsp; MMXXVI</span>
@@ -112,11 +111,11 @@ export default function Landing() {
 
         <h1 className="m-0 font-normal leading-none">
           <span className="block font-mono text-[clamp(0.78rem,1.3vw,0.95rem)] tracking-[0.45em] uppercase text-primary font-medium mb-[clamp(1rem,2vw,1.5rem)] opacity-85 px-[0.6em]">
-            — פלטפורמת —
+            — Platform —
           </span>
           <span className="inline-flex gap-[clamp(0.5rem,1.3vw,1.1rem)] items-baseline font-serif font-bold text-[clamp(3.2rem,8.5vw,6.2rem)] leading-[0.92] tracking-[-0.035em] max-md:flex-col max-md:gap-[0.3rem] max-md:items-center">
             <span className="inline-block text-foreground" style={{ textShadow: '0 1px 0 rgba(255, 255, 255, 0.5)' }}>
-              חיפוש
+              Next
             </span>
             <span
               className="relative inline-block bg-clip-text text-transparent"
@@ -126,7 +125,7 @@ export default function Landing() {
                 WebkitTextFillColor: 'transparent',
               }}
             >
-              עבודה
+              Role
               <span
                 className="absolute pointer-events-none -z-1 blur-[14px]"
                 style={{ inset: '-18% -8%', background: 'radial-gradient(circle, rgba(0, 0, 0, 0.06) 0%, transparent 68%)' }}
@@ -137,8 +136,8 @@ export default function Landing() {
         </h1>
 
         <p className="mt-[1.85rem] mx-auto max-w-[460px] font-serif text-[clamp(0.98rem,1.5vw,1.12rem)] leading-[1.75] text-muted-foreground font-normal">
-          ערכת כלים חכמה לניהול חיפוש העבודה —<br className="max-md:hidden" />
-          <em className="italic text-foreground font-medium tracking-[0.005em]">מונעת בינה מלאכותית, בעיצוב מוקפד.</em>
+          A smart toolkit to manage your job search —<br className="max-md:hidden" />
+          <em className="italic text-foreground font-medium tracking-[0.005em]">AI-powered, thoughtfully designed.</em>
         </p>
 
         {/* Ornament: dot-bar-diamond-bar-dot */}
@@ -159,7 +158,7 @@ export default function Landing() {
       >
         <Separator className="flex-1 bg-transparent" style={{ background: 'linear-gradient(90deg, transparent, var(--border) 40%, var(--border) 60%, transparent)' }} />
         <span className="font-mono text-[0.68rem] tracking-[0.28em] uppercase text-muted-foreground font-medium whitespace-nowrap px-1 tabular-nums max-md:text-[0.6rem] max-md:tracking-[0.22em]">
-          Contents &middot; תוכן העניינים
+          Contents &middot; Table of Contents
         </span>
         <Separator className="flex-1 bg-transparent" style={{ background: 'linear-gradient(90deg, transparent, var(--border) 40%, var(--border) 60%, transparent)' }} />
       </div>
@@ -195,9 +194,9 @@ export default function Landing() {
                 <div className="flex items-baseline justify-between gap-4 mb-[0.2rem]">
                   <span className="relative inline-block font-serif text-[2.4rem] font-bold leading-[0.9] text-primary tracking-[-0.02em] tabular-nums transition-[color,transform] duration-[400ms] ease-in-out max-sm:text-[2rem]">
                     {String(i + 1).padStart(2, '0')}
-                    <span className="absolute bottom-[-6px] start-0 w-7 h-px bg-primary opacity-35 origin-[inline-start] scale-x-[0.4] transition-[transform,opacity] duration-[400ms] ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-x-100 group-hover:opacity-80 group-focus-visible:scale-x-100 group-focus-visible:opacity-80" aria-hidden="true" />
+                    <span className="absolute bottom-[-6px] left-0 w-7 h-px bg-primary opacity-35 origin-left scale-x-[0.4] transition-[transform,opacity] duration-[400ms] ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-x-100 group-hover:opacity-80 group-focus-visible:scale-x-100 group-focus-visible:opacity-80" aria-hidden="true" />
                   </span>
-                  <Badge variant="outline" className="font-mono text-[0.62rem] tracking-[0.3em] uppercase text-muted-foreground font-medium border-transparent bg-transparent py-0 px-0" dir="ltr">
+                  <Badge variant="outline" className="font-mono text-[0.62rem] tracking-[0.3em] uppercase text-muted-foreground font-medium border-transparent bg-transparent py-0 px-0">
                     {svc.kicker}
                   </Badge>
                 </div>
@@ -220,10 +219,10 @@ export default function Landing() {
                   {svc.icon}
                 </span>
                 <Button variant="ghost" className="h-auto p-0 font-mono text-[0.78rem] font-medium text-muted-foreground tracking-[0.02em] hover:bg-transparent hover:text-primary gap-2 transition-[color,gap] duration-[350ms] ease-in-out group-hover:text-primary group-hover:gap-[0.8rem] group-focus-visible:text-primary group-focus-visible:gap-[0.8rem]">
-                  <span>המשך לקריאה</span>
-                  <span className="inline-flex transition-transform duration-[350ms] ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:-translate-x-1 group-focus-visible:-translate-x-1" aria-hidden="true">
+                  <span>Read more</span>
+                  <span className="inline-flex transition-transform duration-[350ms] ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:translate-x-1 group-focus-visible:translate-x-1" aria-hidden="true">
                     <svg width="16" height="16" viewBox="0 0 20 20" fill="none">
-                      <path d="M12 4L6 10L12 16" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                      <path d="M8 4L14 10L8 16" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
                     </svg>
                   </span>
                 </Button>
@@ -231,7 +230,7 @@ export default function Landing() {
 
               {/* Corner ornament */}
               <span
-                className="absolute -bottom-[30px] -end-[30px] w-[120px] h-[120px] rounded-full pointer-events-none opacity-0 transition-[opacity,transform] duration-500 ease-in-out group-hover:opacity-100 group-hover:scale-110 group-focus-visible:opacity-100 group-focus-visible:scale-110"
+                className="absolute -bottom-[30px] -right-[30px] w-[120px] h-[120px] rounded-full pointer-events-none opacity-0 transition-[opacity,transform] duration-500 ease-in-out group-hover:opacity-100 group-hover:scale-110 group-focus-visible:opacity-100 group-focus-visible:scale-110"
                 style={{ background: 'radial-gradient(circle, var(--muted) 0%, transparent 65%)' }}
                 aria-hidden="true"
               />
@@ -244,13 +243,13 @@ export default function Landing() {
       <footer
         className={`relative z-[2] mt-auto pt-[clamp(3rem,6vw,5rem)] pb-6 flex flex-col items-center gap-[0.85rem] text-muted-foreground transition-opacity duration-[1100ms] ease-in-out delay-1000 ${loaded ? 'opacity-100' : 'opacity-0'}`}
       >
-        <span className="font-serif text-[1.25rem] tracking-[0.4em] font-semibold text-primary inline-flex items-center gap-[0.55rem] opacity-[0.82] max-sm:text-[1.05rem] max-sm:tracking-[0.3em]" dir="ltr" aria-hidden="true">
+        <span className="font-serif text-[1.25rem] tracking-[0.4em] font-semibold text-primary inline-flex items-center gap-[0.55rem] opacity-[0.82] max-sm:text-[1.05rem] max-sm:tracking-[0.3em]" aria-hidden="true">
           <span className="text-[0.9rem] text-primary opacity-45">&middot;</span>
-          J<span className="text-muted-foreground opacity-55 font-normal">P</span>A
+          N<span className="text-muted-foreground opacity-55 font-normal">R</span>
           <span className="text-[0.9rem] text-primary opacity-45">&middot;</span>
         </span>
         <span className="font-mono text-[0.72rem] tracking-[0.12em] uppercase text-muted-foreground font-normal max-sm:text-[0.65rem]">
-          &copy; 2026 &middot; פלטפורמת חיפוש עבודה &middot; Crafted with care
+          &copy; 2026 &middot; NextRole &middot; Crafted with care
         </span>
       </footer>
     </div>

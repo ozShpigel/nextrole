@@ -1,4 +1,4 @@
-import { STATUS_HE } from '../utils/constants';
+import { STATUS_LABELS } from '../utils/constants';
 
 const STATUS_BADGE_STYLES = {
   Analyzing:            'bg-yellow-bg text-yellow border-[rgba(166,139,43,0.12)]',
@@ -15,7 +15,7 @@ const STATUS_BADGE_STYLES = {
 
 export default function StatusBadge({ status }) {
   const colorClasses = STATUS_BADGE_STYLES[status] || STATUS_BADGE_STYLES.Analyzing;
-  const label = STATUS_HE[status] || status;
+  const label = STATUS_LABELS[status] || status;
   return (
     <span className={`inline-block py-1 px-[0.65rem] rounded-sm text-[0.72rem] font-semibold tracking-[0.02em] border ${colorClasses}`}>
       {label}

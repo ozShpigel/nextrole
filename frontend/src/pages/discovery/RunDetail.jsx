@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { discoveryApi, profileApi } from '../../utils/api';
-import { VERDICT_HE } from '../../utils/constants';
+import { VERDICT_LABELS } from '../../utils/constants';
 import SnapshotsModal from '../../components/SnapshotsModal';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -77,7 +77,7 @@ export default function RunDetail() {
       await discoveryApi(`/jobs/${jobId}/save`, { method: 'POST' });
       load();
     } catch (e) {
-      alert('שמירה נכשלה: ' + e.message);
+      alert('Save failed: ' + e.message);
     }
   }
 
@@ -86,7 +86,7 @@ export default function RunDetail() {
       await discoveryApi(`/jobs/${jobId}/dismiss`, { method: 'POST' });
       load();
     } catch (e) {
-      alert('שגיאה: ' + e.message);
+      alert('Error: ' + e.message);
     }
   }
 
@@ -94,13 +94,13 @@ export default function RunDetail() {
     // Already-scored job: warn that the existing result will be overwritten.
     // This path exists primarily for iterating on the Evaluator prompt and
     // re-running the same job to compare.
-    if (job.score != null && !confirm('לדרג מחדש? הציון הנוכחי יימחק ויוחלף.')) return;
+    if (job.score != null && !confirm('Rescore? The current score will be replaced.')) return;
     setRescoringIds((prev) => new Set(prev).add(job.id));
     try {
       await discoveryApi(`/jobs/${job.id}/rescore`, { method: 'POST' });
       await load();
     } catch (e) {
-      alert('דירוג מחדש נכשל: ' + e.message);
+      alert('Rescoring failed: ' + e.message);
     } finally {
       setRescoringIds((prev) => {
         const next = new Set(prev);
@@ -116,7 +116,7 @@ export default function RunDetail() {
     // once would just re-trigger the rate-limit cascade.
     const failed = visibleJobs.filter(isFailed);
     if (failed.length === 0) return;
-    if (!confirm(`לדרג מחדש ${failed.length} משרות שנכשלו?`)) return;
+    if (!confirm(`Rescore ${failed.length} failed jobs?`)) return;
     setBulkRescoring(true);
     for (const j of failed) {
       try {
@@ -124,7 +124,7 @@ export default function RunDetail() {
       } catch (e) {
         // On the first transport failure we assume the API is still down
         // and stop — no sense pushing the whole list through.
-        alert(`דירוג מחדש נעצר: ${e.message}`);
+        alert(`Rescoring stopped: ${e.message}`);
         break;
       }
     }
@@ -146,7 +146,7 @@ export default function RunDetail() {
       setPromptLastSaved(data?.updated_at);
       setPromptLoaded(true);
     } catch (e) {
-      setPromptResult({ type: 'error', message: 'טעינת הפרומפט נכשלה: ' + e.message });
+      setPromptResult({ type: 'error', message: 'Failed to load prompt: ' + e.message });
     } finally {
       setPromptLoading(false);
     }
@@ -164,7 +164,7 @@ export default function RunDetail() {
       setPromptLastSaved(data?.updated_at);
       setPromptResult({ type: 'success', message: successMsg });
     } catch (e) {
-      setPromptResult({ type: 'error', message: 'שמירה נכשלה: ' + e.message });
+      setPromptResult({ type: 'error', message: 'Save failed: ' + e.message });
     } finally {
       setSavingPrompt(false);
     }
@@ -175,15 +175,15 @@ export default function RunDetail() {
 
   async function savePrompt() {
     if (missingPlaceholders.length > 0) {
-      const msg = `חסרים פלייסהולדרים: ${missingPlaceholders.join(', ')}. ללא פלייסהולדרים הניתוח ישבר. לשמור בכל זאת?`;
+      const msg = `Missing placeholders: ${missingPlaceholders.join(', ')}. Without them, scoring will break. Save anyway?`;
       if (!confirm(msg)) return;
     }
-    await persistPrompt({ evaluator_prompt: evaluatorPrompt }, 'הפרומפט נשמר. רצה דירוג מחדש כדי לראות את ההשפעה.');
+    await persistPrompt({ evaluator_prompt: evaluatorPrompt }, 'Prompt saved. Run a rescore to see the effect.');
   }
 
   async function resetPrompt() {
-    if (!confirm('לאפס את הפרומפט לברירת המחדל של השירות? ההתאמה האישית תימחק.')) return;
-    await persistPrompt({ evaluator_prompt: '' }, 'הפרומפט אופס לברירת המחדל.');
+    if (!confirm('Reset the prompt to the service default? Your customization will be removed.')) return;
+    await persistPrompt({ evaluator_prompt: '' }, 'Prompt reset to default.');
   }
 
   if (loading) return (
@@ -203,7 +203,7 @@ export default function RunDetail() {
   );
   if (!run) return null;
 
-  const statusMap = { pending: 'ממתין', scraping: 'סורק משרות...', scoring: 'מדרג עם AI...', completed: 'הושלם', failed: 'נכשל' };
+  const statusMap = { pending: 'Pending', scraping: 'Scraping jobs...', scoring: 'AI scoring...', completed: 'Completed', failed: 'Failed' };
   const isActive = run.status === 'pending' || run.status === 'scraping' || run.status === 'scoring';
   const visibleJobs = jobs.filter((j) => !j.dismissed && !j.is_duplicate);
   // Any job with a non-trivial description can be re-scored — the button
@@ -231,7 +231,7 @@ export default function RunDetail() {
       <div className="absolute -top-[140px] -right-[220px] w-[540px] h-[540px] blur-[60px] pointer-events-none -z-1" style={{ background: 'radial-gradient(circle, rgba(0,0,0,0.03) 0%, transparent 65%)' }} />
       <div className="absolute top-[40%] -left-[200px] w-[420px] h-[420px] blur-[60px] pointer-events-none -z-1" style={{ background: 'radial-gradient(circle, rgba(0,0,0,0.02) 0%, transparent 65%)' }} />
 
-      <Link to="/discovery" className="inline-flex items-center gap-[0.3rem] text-[0.82rem] text-primary mb-5 transition-all tracking-[0.02em] hover:opacity-75 hover:translate-x-[3px]">&larr; חזרה לגילוי משרות</Link>
+      <Link to="/discovery" className="inline-flex items-center gap-[0.3rem] text-[0.82rem] text-primary mb-5 transition-all tracking-[0.02em] hover:opacity-75 hover:-translate-x-[3px]">&larr; Back to Job Discovery</Link>
 
       <Card className="p-6 mb-6">
         <h2 className="font-serif text-[1.6rem] font-bold text-foreground mb-3 tracking-[-0.01em]">{run.criteria_name}</h2>
@@ -239,23 +239,23 @@ export default function RunDetail() {
           <Badge variant="outline" className={`text-[0.7rem] font-medium py-[0.22rem] px-[0.65rem] rounded-full tracking-[0.06em] font-mono shrink-0 ${runStatusBadge}`}>
             {statusMap[run.status] || run.status}
           </Badge>
-          <span>נסרקו: {run.jobs_scraped}</span>
-          <span>דורגו: {run.jobs_scored}</span>
-          <span>נשמרו: {run.jobs_saved}</span>
-          <span>כפילויות: {run.jobs_skipped_duplicate}</span>
+          <span>Scraped: {run.jobs_scraped}</span>
+          <span>Scored: {run.jobs_scored}</span>
+          <span>Saved: {run.jobs_saved}</span>
+          <span>Duplicates: {run.jobs_skipped_duplicate}</span>
         </div>
-        {isActive && <div className="mt-4 p-3 bg-muted text-muted-foreground text-[0.88rem] rounded border border-border">מעבד... הדף יתעדכן אוטומטית</div>}
+        {isActive && <div className="mt-4 p-3 bg-muted text-muted-foreground text-[0.88rem] rounded border border-border">Processing... the page will update automatically</div>}
         {run.error && <div className="mt-4 p-3 bg-destructive/10 text-destructive text-[0.88rem] rounded border border-destructive/20">{run.error}</div>}
         {!isActive && failedCount > 0 && (
           <div className="mt-4 p-[0.85rem_1rem] bg-[rgba(196,84,84,0.04)] border border-[rgba(196,84,84,0.22)] rounded flex items-center justify-between gap-4 text-red text-[0.88rem]">
-            <span>{failedCount} משרות לא דורגו — ניתן לנסות שוב</span>
+            <span>{failedCount} jobs failed scoring — you can retry</span>
             <Button
               size="sm"
               onClick={rescoreAllFailed}
               disabled={bulkRescoring}
               className="shrink-0"
             >
-              {bulkRescoring ? 'מדרג מחדש...' : 'דרג הכל מחדש'}
+              {bulkRescoring ? 'Rescoring...' : 'Rescore All Failed'}
             </Button>
           </div>
         )}
@@ -270,52 +270,51 @@ export default function RunDetail() {
             onClick={togglePromptPanel}
             aria-expanded={promptOpen}
           >
-            <span className="text-[0.9rem] text-primary w-[0.9rem] inline-block text-center" aria-hidden="true">{promptOpen ? '▾' : '◂'}</span>
-            <span className="font-serif text-[1rem] tracking-[0.01em] transition-colors group-hover:text-primary">פרומפט הערכה</span>
+            <span className="text-[0.9rem] text-primary w-[0.9rem] inline-block text-center" aria-hidden="true">{promptOpen ? '▾' : '▸'}</span>
+            <span className="font-serif text-[1rem] tracking-[0.01em] transition-colors group-hover:text-primary">Evaluator Prompt</span>
             <span className={`text-[0.66rem] tracking-[0.14em] uppercase font-medium py-[0.2rem] px-[0.55rem] rounded-full border ${promptIsOverride ? 'bg-primary/10 text-primary border-primary/20' : 'bg-muted text-muted-foreground border-border'}`}>
-              {promptIsOverride ? 'מותאם אישית' : 'ברירת מחדל'}
+              {promptIsOverride ? 'Custom' : 'Default'}
             </span>
           </button>
           {promptLastSaved && (
             <span className="text-[0.72rem] text-muted-foreground tracking-[0.04em]">
-              עודכן {new Date(promptLastSaved).toLocaleString('he-IL')}
+              Updated {new Date(promptLastSaved).toLocaleString('en-US')}
             </span>
           )}
         </div>
 
         {promptOpen && (
           promptLoading ? (
-            <div className="p-[1.25rem_1.5rem] text-muted-foreground text-[0.88rem] border-t border-dashed border-border">טוען פרומפט…</div>
+            <div className="p-[1.25rem_1.5rem] text-muted-foreground text-[0.88rem] border-t border-dashed border-border">Loading prompt...</div>
           ) : (
             <div className="p-[1rem_1.5rem_1.25rem] border-t border-dashed border-border flex flex-col gap-3">
               <p className="text-[0.82rem] text-muted-foreground leading-[1.55]">
-                ערוך את פרומפט ההערכה. השינויים משפיעים על כל דירוג מחדש הבא — אין צורך לנווט להגדרות.
+                Edit the evaluator prompt. Changes affect the next rescore — no need to navigate to settings.
               </p>
               {missingPlaceholders.length > 0 && (
                 <div className="text-[0.8rem] p-[0.55rem_0.8rem] bg-[rgba(196,84,84,0.06)] border border-[rgba(196,84,84,0.22)] rounded text-red flex flex-wrap gap-[0.3rem] items-center">
-                  חסרים פלייסהולדרים: {missingPlaceholders.map((p) => <code key={p} className="font-code text-[0.78rem] bg-[rgba(196,84,84,0.08)] py-[0.08rem] px-[0.4rem] rounded-[4px]">{p}</code>).reduce((acc, cur, i) => i === 0 ? [cur] : [...acc, ' · ', cur], [])}
+                  Missing placeholders: {missingPlaceholders.map((p) => <code key={p} className="font-code text-[0.78rem] bg-[rgba(196,84,84,0.08)] py-[0.08rem] px-[0.4rem] rounded-[4px]">{p}</code>).reduce((acc, cur, i) => i === 0 ? [cur] : [...acc, ' · ', cur], [])}
                 </div>
               )}
               <textarea
                 className="min-h-[360px] resize-y p-[0.9rem_1rem] font-code text-[0.82rem] leading-[1.6] text-foreground bg-muted border border-border rounded text-left whitespace-pre-wrap transition-all focus:outline-none focus:border-ring focus:ring-[3px] focus:ring-ring/20"
-                style={{ direction: 'ltr' }}
                 value={evaluatorPrompt}
                 onChange={(e) => { setEvaluatorPrompt(e.target.value); setPromptResult(null); }}
                 dir="auto"
                 spellCheck={false}
               />
               <div className="flex items-center justify-end flex-wrap gap-2 pt-1">
-                <span className="me-auto text-[0.72rem] text-muted-foreground tracking-[0.04em]">
-                  {evaluatorPrompt.length.toLocaleString()} תווים · ≈{Math.ceil(evaluatorPrompt.length / 4).toLocaleString()} tokens
+                <span className="mr-auto text-[0.72rem] text-muted-foreground tracking-[0.04em]">
+                  {evaluatorPrompt.length.toLocaleString()} chars · ~{Math.ceil(evaluatorPrompt.length / 4).toLocaleString()} tokens
                 </span>
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={resetPrompt}
                   disabled={savingPrompt}
-                  title="החזר את פרומפט ההערכה לברירת המחדל המובנית"
+                  title="Reset the evaluator prompt to the built-in default"
                 >
-                  אפס לברירת מחדל
+                  Reset to Default
                 </Button>
                 {isPromptDirty && (
                   <Button
@@ -324,7 +323,7 @@ export default function RunDetail() {
                     onClick={() => { setEvaluatorPrompt(originalPrompt); setPromptResult(null); }}
                     disabled={savingPrompt}
                   >
-                    ביטול שינויים
+                    Discard Changes
                   </Button>
                 )}
                 <Button
@@ -332,7 +331,7 @@ export default function RunDetail() {
                   onClick={savePrompt}
                   disabled={savingPrompt || !isPromptDirty}
                 >
-                  {savingPrompt ? 'שומר…' : 'שמור'}
+                  {savingPrompt ? 'Saving...' : 'Save'}
                 </Button>
               </div>
               {promptResult && (
@@ -346,7 +345,7 @@ export default function RunDetail() {
       </Card>
 
       {visibleJobs.length === 0 && !isActive ? (
-        <p className="text-center text-muted-foreground py-12 text-[0.95rem]">לא נמצאו משרות</p>
+        <p className="text-center text-muted-foreground py-12 text-[0.95rem]">No jobs found</p>
       ) : (
         <div className="flex flex-col gap-4">
           {visibleJobs.map((j) => (
@@ -361,10 +360,10 @@ export default function RunDetail() {
                   {j.score != null ? (
                     <>
                       <div className="font-serif text-[1.9rem] font-bold leading-none tracking-[-0.02em]" style={{ color: verdictColor(j.verdict) }}>{j.score}</div>
-                      <div className="text-[0.7rem] font-medium mt-1 tracking-[0.06em]" style={{ color: verdictColor(j.verdict) }}>{VERDICT_HE[j.verdict] || j.verdict || '-'}</div>
+                      <div className="text-[0.7rem] font-medium mt-1 tracking-[0.06em]" style={{ color: verdictColor(j.verdict) }}>{VERDICT_LABELS[j.verdict] || j.verdict || '-'}</div>
                     </>
                   ) : (
-                    <div className="text-[0.7rem] font-medium mt-1 tracking-[0.06em]" style={{ color: 'var(--muted-foreground)' }}>{VERDICT_HE[j.verdict] || j.verdict || '-'}</div>
+                    <div className="text-[0.7rem] font-medium mt-1 tracking-[0.06em]" style={{ color: 'var(--muted-foreground)' }}>{VERDICT_LABELS[j.verdict] || j.verdict || '-'}</div>
                   )}
                 </div>
               </div>
@@ -385,7 +384,7 @@ export default function RunDetail() {
               )}
 
               <div className="flex gap-2 items-center mt-3">
-                {j.job_url && <Button variant="outline" size="sm" asChild><a href={j.job_url} target="_blank" rel="noopener noreferrer">צפה במשרה</a></Button>}
+                {j.job_url && <Button variant="outline" size="sm" asChild><a href={j.job_url} target="_blank" rel="noopener noreferrer">View Job</a></Button>}
                 {isRescorable(j) && (
                   <Button
                     variant="outline"
@@ -393,7 +392,7 @@ export default function RunDetail() {
                     onClick={() => rescoreJob(j)}
                     disabled={rescoringIds.has(j.id) || bulkRescoring}
                   >
-                    {rescoringIds.has(j.id) ? 'מדרג...' : 'דרג מחדש'}
+                    {rescoringIds.has(j.id) ? 'Scoring...' : 'Rescore'}
                   </Button>
                 )}
                 {(j.evaluator_snapshot_input || j.analyst_snapshot_input) && (
@@ -402,14 +401,14 @@ export default function RunDetail() {
                     size="sm"
                     onClick={() => setSnapshotsJob(j)}
                   >
-                    קריאות Claude
+                    Claude Calls
                   </Button>
                 )}
                 {!j.saved_to_tracker && j.score != null && (
-                  <Button size="sm" onClick={() => saveJob(j.id)}>שמור למעקב</Button>
+                  <Button size="sm" onClick={() => saveJob(j.id)}>Save to Tracker</Button>
                 )}
-                {j.saved_to_tracker && <span className="text-[0.72rem] text-green font-medium py-1 px-[0.7rem] bg-green-bg border border-[rgba(45,143,94,0.18)] rounded-full tracking-[0.06em]">נשמר</span>}
-                <Button variant="destructive" size="sm" onClick={() => dismissJob(j.id)}>הסתר</Button>
+                {j.saved_to_tracker && <span className="text-[0.72rem] text-green font-medium py-1 px-[0.7rem] bg-green-bg border border-[rgba(45,143,94,0.18)] rounded-full tracking-[0.06em]">Saved</span>}
+                <Button variant="destructive" size="sm" onClick={() => dismissJob(j.id)}>Dismiss</Button>
               </div>
             </div>
           ))}
@@ -434,7 +433,7 @@ export default function RunDetail() {
 
 function RunDetailLoadingSkeleton() {
   return (
-    <div className="animate-page-in-fast relative pt-2" role="status" aria-live="polite" aria-label="טוען פרטי ריצה">
+    <div className="animate-page-in-fast relative pt-2" role="status" aria-live="polite" aria-label="Loading run details">
       <div className="skeleton w-[120px] h-[14px] rounded-[4px] mb-6" aria-hidden="true" />
 
       <div className="p-[1.5rem_1.5rem_1.8rem] bg-card border border-border rounded-lg shadow-sm mb-8 relative overflow-hidden" aria-hidden="true">
@@ -486,14 +485,14 @@ function RunDetailLoadingSkeleton() {
 
       {/* Cycling subtitle */}
       <div className="mt-10 pt-[1.4rem] border-t border-dashed border-border flex items-center gap-[0.65rem] font-serif text-[0.92rem] text-muted-foreground italic tracking-[-0.005em] relative">
-        <span className="absolute -top-px start-0 w-9 h-px bg-primary opacity-50" />
+        <span className="absolute -top-px left-0 w-9 h-px bg-primary opacity-50" />
         <span className="font-serif text-[1.15rem] text-primary opacity-75 not-italic" aria-hidden="true">§</span>
         <span className="relative inline-block h-[1.4em] min-w-[22ch]" aria-hidden="true">
-          <span className="absolute inset-0 start-0 opacity-0 translate-y-[6px] animate-cycle-fade whitespace-nowrap" style={{ animationDelay: '0s' }}>מאחזר את הריצה</span>
-          <span className="absolute inset-0 start-0 opacity-0 translate-y-[6px] animate-cycle-fade whitespace-nowrap" style={{ animationDelay: '2s' }}>טוען משרות מדורגות</span>
-          <span className="absolute inset-0 start-0 opacity-0 translate-y-[6px] animate-cycle-fade whitespace-nowrap" style={{ animationDelay: '4s' }}>ממיין לפי ציון</span>
+          <span className="absolute inset-0 left-0 opacity-0 translate-y-[6px] animate-cycle-fade whitespace-nowrap" style={{ animationDelay: '0s' }}>Fetching the run</span>
+          <span className="absolute inset-0 left-0 opacity-0 translate-y-[6px] animate-cycle-fade whitespace-nowrap" style={{ animationDelay: '2s' }}>Loading scored jobs</span>
+          <span className="absolute inset-0 left-0 opacity-0 translate-y-[6px] animate-cycle-fade whitespace-nowrap" style={{ animationDelay: '4s' }}>Sorting by score</span>
         </span>
-        <span className="sr-only">טוען</span>
+        <span className="sr-only">Loading</span>
       </div>
     </div>
   );

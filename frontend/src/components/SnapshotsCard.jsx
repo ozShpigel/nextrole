@@ -33,7 +33,7 @@ function Panel({ label, body, empty }) {
             className="px-2 py-1 text-[0.75rem] font-medium bg-bg-surface border border-border rounded-sm text-text-secondary hover:border-border-hover hover:text-text-primary transition-all"
             onClick={copy}
           >
-            {copied ? 'הועתק' : 'העתק'}
+            {copied ? 'Copied' : 'Copy'}
           </button>
         )}
       </div>
@@ -50,15 +50,15 @@ export default function SnapshotsCard({ snapshots }) {
   const stages = [
     {
       key: 'analyst',
-      label: 'אנליסט · Parse',
-      hint: 'שלב הפרסינג',
+      label: 'Analyst · Parse',
+      hint: 'Parsing stage',
       input: snapshots.analystInput,
       output: snapshots.analystOutput,
     },
     {
       key: 'evaluator',
-      label: 'הערכה · Evaluate',
-      hint: 'שלב הציון',
+      label: 'Evaluator · Evaluate',
+      hint: 'Scoring stage',
       input: snapshots.evaluatorInput,
       output: snapshots.evaluatorOutput,
     },
@@ -79,16 +79,16 @@ export default function SnapshotsCard({ snapshots }) {
                 <Panel
                   label="Input"
                   body={prettyJson(s.input)}
-                  empty="אין קלט שמור"
+                  empty="No saved input"
                 />
                 <Panel
                   label="Output"
                   body={s.output}
-                  empty="אין פלט שמור"
+                  empty="No saved output"
                 />
               </>
             ) : (
-              <div className="text-[0.84rem] text-text-dim py-2 text-center">לא זמין — שלב דילג</div>
+              <div className="text-[0.84rem] text-text-dim py-2 text-center">Not available — stage skipped</div>
             )}
           </div>
         );

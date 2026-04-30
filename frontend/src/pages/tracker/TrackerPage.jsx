@@ -8,10 +8,10 @@ import AddApplication from './AddApplication';
 import Statistics from './Statistics';
 
 const TABS = [
-  { key: 'dashboard', label: 'דשבורד' },
-  { key: 'list', label: 'רשימת משרות' },
-  { key: 'add', label: 'הוסף משרה' },
-  { key: 'stats', label: 'סטטיסטיקות' },
+  { key: 'dashboard', label: 'Dashboard' },
+  { key: 'list', label: 'Applications' },
+  { key: 'add', label: 'Add Application' },
+  { key: 'stats', label: 'Statistics' },
 ];
 
 export default function TrackerPage() {
@@ -26,8 +26,8 @@ export default function TrackerPage() {
   return (
     <div className="min-h-[calc(100vh-56px)] bg-background animate-page-in-fast">
       <div className="bg-muted border-b border-border py-5 mb-8">
-        <h1 className="font-sans text-[1.4rem] font-bold text-foreground max-w-[1100px] mx-auto px-6 tracking-[-0.01em]">מעקב משרות</h1>
-        <p className="text-muted-foreground text-[0.85rem] max-w-[1100px] mt-[0.15rem] mx-auto px-6">ניהול ומעקב אחר תהליכי גיוס</p>
+        <h1 className="font-sans text-[1.4rem] font-bold text-foreground max-w-[1100px] mx-auto px-6 tracking-[-0.01em]">Application Tracker</h1>
+        <p className="text-muted-foreground text-[0.85rem] max-w-[1100px] mt-[0.15rem] mx-auto px-6">Manage and track your hiring processes</p>
       </div>
 
       <div className="max-w-[1100px] mx-auto px-6 pb-8">

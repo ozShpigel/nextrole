@@ -8,11 +8,11 @@ import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
 
 const STATUS_LABEL = {
-  pending: 'ממתין',
-  scraping: 'סורק',
-  scoring: 'מדרג',
-  completed: 'הושלם',
-  failed: 'נכשל',
+  pending: 'Pending',
+  scraping: 'Scraping',
+  scoring: 'Scoring',
+  completed: 'Completed',
+  failed: 'Failed',
 };
 
 function statusClass(status) {
@@ -41,12 +41,12 @@ function relativeTime(iso) {
   const then = new Date(iso).getTime();
   const diff = Date.now() - then;
   const mins = Math.floor(diff / 60000);
-  if (mins < 1) return 'עכשיו';
-  if (mins < 60) return `${mins} דק'`;
+  if (mins < 1) return 'now';
+  if (mins < 60) return `${mins}m`;
   const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs} ש'`;
+  if (hrs < 24) return `${hrs}h`;
   const days = Math.floor(hrs / 24);
-  return `${days} י'`;
+  return `${days}d`;
 }
 
 export default function DiscoveryPage() {
@@ -118,28 +118,28 @@ export default function DiscoveryPage() {
       await discoveryApi(`/run/${criteriaId}`, { method: 'POST' });
       load();
     } catch (e) {
-      alert('שגיאה בהפעלת חיפוש: ' + e.message);
+      alert('Error starting search: ' + e.message);
     }
   }
 
   async function deleteCriteria(id) {
-    if (!confirm('למחוק קריטריון חיפוש זה?')) return;
+    if (!confirm('Delete this search criteria?')) return;
     try {
       await discoveryApi(`/criteria/${id}`, { method: 'DELETE' });
       load();
     } catch (e) {
-      alert('מחיקה נכשלה: ' + e.message);
+      alert('Delete failed: ' + e.message);
     }
   }
 
   async function abortRun(runId, e) {
     e.stopPropagation();
-    if (!confirm('לבטל את הרחיפוש הזה?')) return;
+    if (!confirm('Abort this search?')) return;
     try {
       await discoveryApi(`/runs/${runId}/abort`, { method: 'POST' });
       load();
     } catch (err) {
-      alert('ביטול נכשל: ' + err.message);
+      alert('Abort failed: ' + err.message);
     }
   }
 
@@ -172,13 +172,13 @@ export default function DiscoveryPage() {
               <span className="absolute top-1/2 left-1/2 w-[7px] h-[7px] rounded-full origin-[0_0] opacity-80 animate-[wakeupOrbit_1.4s_ease-in-out_0.7s_infinite]" style={{ background: '#8b6fc0' }} />
             </div>
             <div className="flex flex-col gap-[0.35rem] flex-1 min-w-0">
-              <div className="font-serif text-[1.05rem] font-bold text-foreground tracking-[-0.005em]">מעירים את שירות החיפוש</div>
+              <div className="font-serif text-[1.05rem] font-bold text-foreground tracking-[-0.005em]">Waking up the discovery service</div>
               <div className="text-[0.82rem] text-muted-foreground leading-[1.65]">
-                השירות היה במצב שינה (Render Free Tier). ההתעוררות יכולה לקחת עד כדקה — אנחנו ממתינים וננסה שוב אוטומטית.
+                The service was asleep (Render Free Tier). Waking up can take up to a minute — we are waiting and will retry automatically.
               </div>
               {wakeAttempt > 0 && (
                 <div className="mt-1 font-mono text-[0.7rem] tracking-[0.14em] uppercase text-primary tabular-nums">
-                  ניסיון {wakeAttempt}
+                  Attempt {wakeAttempt}
                   {wakeElapsed > 0 && <span className="text-muted-foreground tracking-[0.08em]"> · {wakeElapsed}s</span>}
                 </div>
               )}
@@ -201,13 +201,13 @@ export default function DiscoveryPage() {
         <div className="flex items-start justify-between gap-4 max-[640px]:flex-col">
           <div>
             <Badge variant="outline" className="font-mono text-[0.65rem] tracking-[0.26em] uppercase text-muted-foreground font-medium border-border bg-muted/50 mb-[1.2rem]">Discovery · LinkedIn + Indeed</Badge>
-            <h1 className="font-serif text-[clamp(2rem,4vw,2.7rem)] font-bold text-foreground leading-[1.1] mb-[0.65rem] tracking-[-0.01em]">גילוי משרות</h1>
+            <h1 className="font-serif text-[clamp(2rem,4vw,2.7rem)] font-bold text-foreground leading-[1.1] mb-[0.65rem] tracking-[-0.01em]">Job Discovery</h1>
             <p className="text-muted-foreground text-[0.95rem] max-w-[560px] leading-[1.6]">
-              חיפוש אוטומטי של משרות מ-LinkedIn ו-Indeed עם דירוג והתאמה באמצעות Claude.
+              Automated job search from LinkedIn and Indeed with AI-powered scoring and matching via Claude.
             </p>
           </div>
           <Button onClick={() => { setEditItem(null); setShowForm(true); }}>
-            + קריטריון חדש
+            + New Criteria
           </Button>
         </div>
         <Separator className="mt-[1.6rem]" />
@@ -217,17 +217,17 @@ export default function DiscoveryPage() {
       <div className="grid grid-cols-3 gap-px bg-border border border-border rounded-lg overflow-hidden mb-10 backdrop-blur-[8px] max-[640px]:grid-cols-1">
         <div className="bg-card p-[1rem_1.25rem] flex flex-col gap-1 transition-colors hover:bg-background">
           <span className="font-serif text-[1.55rem] font-bold text-foreground tabular-nums leading-[1.1] tracking-[-0.01em]">{criteria.length}</span>
-          <span className="text-[0.7rem] text-muted-foreground tracking-[0.12em] uppercase font-medium">קריטריונים פעילים</span>
+          <span className="text-[0.7rem] text-muted-foreground tracking-[0.12em] uppercase font-medium">Active Criteria</span>
         </div>
         <div className="bg-card p-[1rem_1.25rem] flex flex-col gap-1 transition-colors hover:bg-background">
           <span className="font-serif text-[1.55rem] font-bold text-foreground tabular-nums leading-[1.1] tracking-[-0.01em]">{runs.length}</span>
-          <span className="text-[0.7rem] text-muted-foreground tracking-[0.12em] uppercase font-medium">חיפושים בהיסטוריה</span>
+          <span className="text-[0.7rem] text-muted-foreground tracking-[0.12em] uppercase font-medium">Search History</span>
         </div>
         <div className="bg-card p-[1rem_1.25rem] flex flex-col gap-1 transition-colors hover:bg-background">
           <span className={`font-serif font-bold tabular-nums leading-[1.1] tracking-[-0.01em] ${!lastRun ? 'text-muted-foreground text-[1.1rem] font-medium' : 'text-[1.55rem] text-foreground'}`}>
             {lastRun ? relativeTime(lastRun) : '—'}
           </span>
-          <span className="text-[0.7rem] text-muted-foreground tracking-[0.12em] uppercase font-medium">חיפוש אחרון</span>
+          <span className="text-[0.7rem] text-muted-foreground tracking-[0.12em] uppercase font-medium">Last Search</span>
         </div>
       </div>
 
@@ -235,11 +235,11 @@ export default function DiscoveryPage() {
         <div className="flex items-start gap-4 p-[1rem_1.25rem] mb-8 bg-red-bg border border-[rgba(196,84,84,0.18)] rounded-lg animate-[resultIn_0.3s_ease_both] max-[640px]:flex-col max-[640px]:items-stretch">
           <div className="shrink-0 w-9 h-9 rounded-full bg-[rgba(196,84,84,0.12)] border border-[rgba(196,84,84,0.2)] text-red flex items-center justify-center font-serif font-bold text-[1.2rem]">!</div>
           <div className="flex-1 min-w-0">
-            <div className="text-red text-[0.92rem] font-semibold mb-[0.2rem] font-serif">שגיאה בטעינה</div>
-            <div className="text-muted-foreground text-[0.82rem] font-mono break-words text-right" style={{ direction: 'ltr' }}>{error}</div>
+            <div className="text-red text-[0.92rem] font-semibold mb-[0.2rem] font-serif">Loading Error</div>
+            <div className="text-muted-foreground text-[0.82rem] font-mono break-words">{error}</div>
           </div>
           <div className="shrink-0">
-            <Button variant="outline" size="sm" onClick={load}>נסה שוב</Button>
+            <Button variant="outline" size="sm" onClick={load}>Retry</Button>
           </div>
         </div>
       )}
@@ -256,18 +256,18 @@ export default function DiscoveryPage() {
       <section className="mb-[3.25rem] relative">
         <div className="flex items-baseline gap-[0.85rem] mb-[1.3rem] flex-wrap">
           <Badge variant="outline" className="font-serif text-[0.78rem] font-bold text-foreground tracking-[0.14em] tabular-nums border-border bg-muted/50">01</Badge>
-          <span className="font-serif text-[1.35rem] font-bold text-foreground tracking-[-0.005em]">קריטריוני חיפוש</span>
+          <span className="font-serif text-[1.35rem] font-bold text-foreground tracking-[-0.005em]">Search Criteria</span>
         </div>
 
         {criteria.length === 0 ? (
           <Card className="border-[1.5px] border-dashed p-[2.75rem_1.5rem] text-center shadow-none">
             <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-muted border border-border text-primary font-serif text-[1.5rem] font-bold mb-[0.85rem]">+</div>
-            <div className="font-serif text-[1.05rem] font-semibold text-foreground mb-[0.3rem]">אין קריטריוני חיפוש</div>
+            <div className="font-serif text-[1.05rem] font-semibold text-foreground mb-[0.3rem]">No search criteria</div>
             <div className="text-muted-foreground text-[0.85rem] leading-[1.6] mb-[1.1rem] max-w-[360px] mx-auto">
-              הגדר קריטריון ראשון כדי להתחיל לסרוק משרות אוטומטית מ-LinkedIn ו-Indeed.
+              Define your first criteria to start automatically scanning jobs from LinkedIn and Indeed.
             </div>
             <Button onClick={() => { setEditItem(null); setShowForm(true); }}>
-              + צור קריטריון חדש
+              + Create New Criteria
             </Button>
           </Card>
         ) : (
@@ -284,8 +284,8 @@ export default function DiscoveryPage() {
                 <div className="flex justify-between items-start gap-3 mb-[0.85rem]">
                   <h3 className="font-serif text-[1.15rem] font-bold text-foreground tracking-[-0.005em] leading-[1.3] flex-1 min-w-0">{c.name}</h3>
                   <div className="flex gap-[0.35rem] shrink-0">
-                    <Button variant="outline" size="sm" onClick={() => { setEditItem(c); setShowForm(true); }}>ערוך</Button>
-                    <Button variant="destructive" size="sm" onClick={() => deleteCriteria(c.id)}>מחק</Button>
+                    <Button variant="outline" size="sm" onClick={() => { setEditItem(c); setShowForm(true); }}>Edit</Button>
+                    <Button variant="destructive" size="sm" onClick={() => deleteCriteria(c.id)}>Delete</Button>
                   </div>
                 </div>
 
@@ -296,20 +296,20 @@ export default function DiscoveryPage() {
                 <div className="flex flex-col gap-[0.35rem] py-[0.7rem] mb-[0.85rem] border-t border-dashed border-border border-b">
                   {c.locations.length > 0 && (
                     <div className="flex items-center justify-between gap-2 text-[0.8rem]">
-                      <span className="text-muted-foreground tracking-[0.05em] text-[0.7rem] uppercase font-medium">מיקום</span>
-                      <span className="text-foreground font-medium text-left min-w-0 overflow-hidden text-ellipsis whitespace-nowrap" style={{ direction: 'ltr' }} title={c.locations.join(', ')}>
+                      <span className="text-muted-foreground tracking-[0.05em] text-[0.7rem] uppercase font-medium">Location</span>
+                      <span className="text-foreground font-medium min-w-0 overflow-hidden text-ellipsis whitespace-nowrap" title={c.locations.join(', ')}>
                         {c.locations.join(' · ')}
                       </span>
                     </div>
                   )}
                   <div className="flex items-center justify-between gap-2 text-[0.8rem]">
-                    <span className="text-muted-foreground tracking-[0.05em] text-[0.7rem] uppercase font-medium">אתרים</span>
-                    <span className="text-foreground font-medium text-left min-w-0 overflow-hidden text-ellipsis whitespace-nowrap" style={{ direction: 'ltr' }}>{c.site_names.join(' · ')}</span>
+                    <span className="text-muted-foreground tracking-[0.05em] text-[0.7rem] uppercase font-medium">Sites</span>
+                    <span className="text-foreground font-medium min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">{c.site_names.join(' · ')}</span>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-[0.6rem] mb-[0.85rem]">
-                  <span className="text-[0.7rem] text-muted-foreground tracking-[0.1em] uppercase font-medium">סף</span>
+                  <span className="text-[0.7rem] text-muted-foreground tracking-[0.1em] uppercase font-medium">Threshold</span>
                   <div className="flex-1 h-[5px] bg-muted rounded-full overflow-hidden relative">
                     <div
                       className="h-full rounded-full transition-all duration-500"
@@ -317,12 +317,12 @@ export default function DiscoveryPage() {
                     />
                   </div>
                   <span className="font-serif text-[0.9rem] font-bold text-foreground tabular-nums tracking-[-0.01em]">
-                    {c.min_score_to_save}<small className="text-[0.65rem] text-muted-foreground font-medium font-mono tracking-[0.1em] uppercase ms-[0.2rem]">/100</small>
+                    {c.min_score_to_save}<small className="text-[0.65rem] text-muted-foreground font-medium font-mono tracking-[0.1em] uppercase ml-[0.2rem]">/100</small>
                   </span>
                 </div>
 
                 <Button className="w-full mt-auto" onClick={() => triggerRun(c.id)}>
-                  הפעל חיפוש ←
+                  Run Search →
                 </Button>
               </Card>
             ))}
@@ -334,22 +334,22 @@ export default function DiscoveryPage() {
       <section className="mb-[3.25rem] relative">
         <div className="flex items-baseline gap-[0.85rem] mb-[1.3rem] flex-wrap">
           <Badge variant="outline" className="font-serif text-[0.78rem] font-bold text-foreground tracking-[0.14em] tabular-nums border-border bg-muted/50">02</Badge>
-          <span className="font-serif text-[1.35rem] font-bold text-foreground tracking-[-0.005em]">היסטוריית חיפושים</span>
+          <span className="font-serif text-[1.35rem] font-bold text-foreground tracking-[-0.005em]">Search History</span>
         </div>
 
         {runs.length === 0 ? (
           <Card className="border-[1.5px] border-dashed p-[2.75rem_1.5rem] text-center shadow-none">
             <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-muted border border-border text-primary font-serif text-[1.5rem] font-bold mb-[0.85rem]">↻</div>
-            <div className="font-serif text-[1.05rem] font-semibold text-foreground mb-[0.3rem]">אין חיפושים עדיין</div>
+            <div className="font-serif text-[1.05rem] font-semibold text-foreground mb-[0.3rem]">No searches yet</div>
             <div className="text-muted-foreground text-[0.85rem] leading-[1.6] mb-[1.1rem] max-w-[360px] mx-auto">
-              הרץ את הקריטריון הראשון שלך כדי להתחיל לאסוף משרות.
+              Run your first criteria to start collecting jobs.
             </div>
           </Card>
         ) : (
-          <div className="relative pe-7">
+          <div className="relative pl-7">
             {/* Vertical timeline line */}
             <div
-              className="absolute top-2 bottom-2 right-[7px] w-px pointer-events-none"
+              className="absolute top-2 bottom-2 left-[7px] w-px pointer-events-none"
               style={{ background: 'linear-gradient(180deg, transparent, var(--border) 10%, var(--border) 90%, transparent)' }}
             />
             {runs.map((r, i) => {
@@ -357,9 +357,9 @@ export default function DiscoveryPage() {
               const isActive = r.status === 'scraping' || r.status === 'scoring' || r.status === 'pending';
               return (
                 <div key={r.id} className="relative mb-[0.85rem] animate-card-in" style={{ animationDelay: `${i * 50}ms` }}>
-                  <span className={`absolute top-[18px] -right-7 -me-1 w-[11px] h-[11px] rounded-full border-2 border-background shadow-[0_0_0_1px_rgba(0,0,0,0.08)] z-[1] ${statusDotColors[sCls] || 'bg-muted-foreground'}`} />
+                  <span className={`absolute top-[18px] -left-7 -ml-1 w-[11px] h-[11px] rounded-full border-2 border-background shadow-[0_0_0_1px_rgba(0,0,0,0.08)] z-[1] ${statusDotColors[sCls] || 'bg-muted-foreground'}`} />
                   <Card
-                    className="p-[1rem_1.25rem] transition-all cursor-pointer hover:border-border hover:-translate-x-[3px] hover:shadow-md hover:bg-background"
+                    className="p-[1rem_1.25rem] transition-all cursor-pointer hover:border-border hover:translate-x-[3px] hover:shadow-md hover:bg-background"
                     onClick={() => navigate(`/discovery/${r.id}`)}
                   >
                     <div className="flex justify-between items-center gap-2 mb-2">
@@ -370,8 +370,8 @@ export default function DiscoveryPage() {
                           type="button"
                           className="bg-transparent border border-border text-muted-foreground w-[1.55rem] h-[1.55rem] rounded-full text-[0.8rem] leading-none cursor-pointer inline-flex items-center justify-center transition-all shrink-0 hover:text-red hover:border-[rgba(196,84,84,0.4)] hover:bg-[rgba(196,84,84,0.06)]"
                           onClick={(e) => abortRun(r.id, e)}
-                          title="בטל חיפוש"
-                          aria-label="בטל חיפוש"
+                          title="Abort search"
+                          aria-label="Abort search"
                         >
                           ✕
                         </button>
@@ -380,23 +380,23 @@ export default function DiscoveryPage() {
                     <div className="flex gap-[1.1rem] text-[0.78rem] text-muted-foreground pt-[0.55rem] border-t border-dashed border-border flex-wrap max-[640px]:gap-2">
                       <span className="inline-flex items-baseline gap-[0.35rem]">
                         <span className="font-serif font-bold text-foreground tabular-nums">{r.jobs_scraped}</span>
-                        <span>נסרקו</span>
+                        <span>scraped</span>
                       </span>
                       <span className="inline-flex items-baseline gap-[0.35rem]">
                         <span className="font-serif font-bold text-foreground tabular-nums">{r.jobs_scored}</span>
-                        <span>דורגו</span>
+                        <span>scored</span>
                       </span>
                       <span className="inline-flex items-baseline gap-[0.35rem]">
                         <span className="font-serif font-bold text-foreground tabular-nums">{r.jobs_saved}</span>
-                        <span>נשמרו</span>
+                        <span>saved</span>
                       </span>
                       <span className="inline-flex items-baseline gap-[0.35rem]">
                         <span className="font-serif font-bold text-foreground tabular-nums">{r.jobs_skipped_duplicate}</span>
-                        <span>כפילויות</span>
+                        <span>duplicates</span>
                       </span>
                     </div>
-                    <div className="text-[0.72rem] text-muted-foreground mt-[0.4rem] tracking-[0.02em] text-right tabular-nums" style={{ direction: 'ltr' }}>
-                      {new Date(r.started_at).toLocaleString('he-IL')}
+                    <div className="text-[0.72rem] text-muted-foreground mt-[0.4rem] tracking-[0.02em] tabular-nums">
+                      {new Date(r.started_at).toLocaleString('en-US')}
                     </div>
                   </Card>
                 </div>
@@ -411,22 +411,24 @@ export default function DiscoveryPage() {
 
 function DiscoveryLoadingSkeleton() {
   return (
-    <div className="animate-page-in-fast relative" role="status" aria-live="polite" aria-label="טוען את דף גילוי המשרות">
+    <div className="animate-page-in-fast relative" role="status" aria-live="polite" aria-label="Loading job discovery page">
       {/* Hero preview */}
       <header className="relative mb-10 pb-[1.6rem]">
         <div className="skeleton w-[180px] h-6 rounded-full mb-[1.3rem]" aria-hidden="true" />
         <h1 className="font-serif text-[clamp(2rem,4vw,2.7rem)] font-bold text-foreground leading-[1.1] mb-[0.85rem] tracking-[-0.01em] flex flex-wrap items-baseline gap-0" aria-hidden="true">
-          <span className="inline-block opacity-0 translate-y-[6px] animate-[letterInk_0.55s_cubic-bezier(0.22,1,0.36,1)_forwards]" style={{ animationDelay: 'calc(0 * 55ms + 80ms)' }}>ג</span>
-          <span className="inline-block opacity-0 translate-y-[6px] animate-[letterInk_0.55s_cubic-bezier(0.22,1,0.36,1)_forwards]" style={{ animationDelay: 'calc(1 * 55ms + 80ms)' }}>י</span>
-          <span className="inline-block opacity-0 translate-y-[6px] animate-[letterInk_0.55s_cubic-bezier(0.22,1,0.36,1)_forwards]" style={{ animationDelay: 'calc(2 * 55ms + 80ms)' }}>ל</span>
-          <span className="inline-block opacity-0 translate-y-[6px] animate-[letterInk_0.55s_cubic-bezier(0.22,1,0.36,1)_forwards]" style={{ animationDelay: 'calc(3 * 55ms + 80ms)' }}>ו</span>
-          <span className="inline-block opacity-0 translate-y-[6px] animate-[letterInk_0.55s_cubic-bezier(0.22,1,0.36,1)_forwards]" style={{ animationDelay: 'calc(4 * 55ms + 80ms)' }}>י</span>
+          <span className="inline-block opacity-0 translate-y-[6px] animate-[letterInk_0.55s_cubic-bezier(0.22,1,0.36,1)_forwards]" style={{ animationDelay: 'calc(0 * 55ms + 80ms)' }}>J</span>
+          <span className="inline-block opacity-0 translate-y-[6px] animate-[letterInk_0.55s_cubic-bezier(0.22,1,0.36,1)_forwards]" style={{ animationDelay: 'calc(1 * 55ms + 80ms)' }}>o</span>
+          <span className="inline-block opacity-0 translate-y-[6px] animate-[letterInk_0.55s_cubic-bezier(0.22,1,0.36,1)_forwards]" style={{ animationDelay: 'calc(2 * 55ms + 80ms)' }}>b</span>
           <span className="inline-block w-[0.35em]">&nbsp;</span>
-          <span className="inline-block opacity-0 translate-y-[6px] animate-[letterInk_0.55s_cubic-bezier(0.22,1,0.36,1)_forwards]" style={{ animationDelay: 'calc(5 * 55ms + 80ms)' }}>מ</span>
-          <span className="inline-block opacity-0 translate-y-[6px] animate-[letterInk_0.55s_cubic-bezier(0.22,1,0.36,1)_forwards]" style={{ animationDelay: 'calc(6 * 55ms + 80ms)' }}>ש</span>
-          <span className="inline-block opacity-0 translate-y-[6px] animate-[letterInk_0.55s_cubic-bezier(0.22,1,0.36,1)_forwards]" style={{ animationDelay: 'calc(7 * 55ms + 80ms)' }}>ר</span>
-          <span className="inline-block opacity-0 translate-y-[6px] animate-[letterInk_0.55s_cubic-bezier(0.22,1,0.36,1)_forwards]" style={{ animationDelay: 'calc(8 * 55ms + 80ms)' }}>ו</span>
-          <span className="inline-block opacity-0 translate-y-[6px] animate-[letterInk_0.55s_cubic-bezier(0.22,1,0.36,1)_forwards]" style={{ animationDelay: 'calc(9 * 55ms + 80ms)' }}>ת</span>
+          <span className="inline-block opacity-0 translate-y-[6px] animate-[letterInk_0.55s_cubic-bezier(0.22,1,0.36,1)_forwards]" style={{ animationDelay: 'calc(3 * 55ms + 80ms)' }}>D</span>
+          <span className="inline-block opacity-0 translate-y-[6px] animate-[letterInk_0.55s_cubic-bezier(0.22,1,0.36,1)_forwards]" style={{ animationDelay: 'calc(4 * 55ms + 80ms)' }}>i</span>
+          <span className="inline-block opacity-0 translate-y-[6px] animate-[letterInk_0.55s_cubic-bezier(0.22,1,0.36,1)_forwards]" style={{ animationDelay: 'calc(5 * 55ms + 80ms)' }}>s</span>
+          <span className="inline-block opacity-0 translate-y-[6px] animate-[letterInk_0.55s_cubic-bezier(0.22,1,0.36,1)_forwards]" style={{ animationDelay: 'calc(6 * 55ms + 80ms)' }}>c</span>
+          <span className="inline-block opacity-0 translate-y-[6px] animate-[letterInk_0.55s_cubic-bezier(0.22,1,0.36,1)_forwards]" style={{ animationDelay: 'calc(7 * 55ms + 80ms)' }}>o</span>
+          <span className="inline-block opacity-0 translate-y-[6px] animate-[letterInk_0.55s_cubic-bezier(0.22,1,0.36,1)_forwards]" style={{ animationDelay: 'calc(8 * 55ms + 80ms)' }}>v</span>
+          <span className="inline-block opacity-0 translate-y-[6px] animate-[letterInk_0.55s_cubic-bezier(0.22,1,0.36,1)_forwards]" style={{ animationDelay: 'calc(9 * 55ms + 80ms)' }}>e</span>
+          <span className="inline-block opacity-0 translate-y-[6px] animate-[letterInk_0.55s_cubic-bezier(0.22,1,0.36,1)_forwards]" style={{ animationDelay: 'calc(10 * 55ms + 80ms)' }}>r</span>
+          <span className="inline-block opacity-0 translate-y-[6px] animate-[letterInk_0.55s_cubic-bezier(0.22,1,0.36,1)_forwards]" style={{ animationDelay: 'calc(11 * 55ms + 80ms)' }}>y</span>
         </h1>
         <div className="skeleton h-3 rounded-[4px] mt-[0.55rem] w-[70%]" aria-hidden="true" />
         <div className="skeleton h-3 rounded-[4px] mt-[0.55rem] w-[45%]" aria-hidden="true" />
@@ -468,7 +470,7 @@ function DiscoveryLoadingSkeleton() {
               style={{ animationDelay: `${i * 70 + 320}ms` }}
               aria-hidden="true"
             >
-              <div className="absolute top-0 start-0 w-[38px] h-[2px] opacity-35" style={{ background: 'linear-gradient(90deg, var(--primary), transparent)' }} />
+              <div className="absolute top-0 left-0 w-[38px] h-[2px] opacity-35" style={{ background: 'linear-gradient(90deg, var(--primary), transparent)' }} />
               <div className="flex justify-between items-center gap-4">
                 <div className="skeleton w-[55%] h-5 rounded-[4px]" />
                 <div className="skeleton w-[72px] h-6 rounded-full" />
@@ -486,14 +488,14 @@ function DiscoveryLoadingSkeleton() {
 
       {/* Cycling subtitle */}
       <div className="mt-10 pt-[1.4rem] border-t border-dashed border-border flex items-center gap-[0.65rem] font-serif text-[0.92rem] text-muted-foreground italic tracking-[-0.005em] relative max-[640px]:text-[0.85rem]">
-        <span className="absolute -top-px start-0 w-9 h-px bg-primary opacity-50" />
+        <span className="absolute -top-px left-0 w-9 h-px bg-primary opacity-50" />
         <span className="font-serif text-[1.15rem] text-primary opacity-75 not-italic" aria-hidden="true">§</span>
         <span className="relative inline-block h-[1.4em] min-w-[22ch] max-[640px]:min-w-[16ch]" aria-hidden="true">
-          <span className="absolute inset-0 start-0 opacity-0 translate-y-[6px] animate-cycle-fade whitespace-nowrap" style={{ animationDelay: '0s' }}>מושכים את קריטריוני החיפוש</span>
-          <span className="absolute inset-0 start-0 opacity-0 translate-y-[6px] animate-cycle-fade whitespace-nowrap" style={{ animationDelay: '2s' }}>טוענים ריצות אחרונות</span>
-          <span className="absolute inset-0 start-0 opacity-0 translate-y-[6px] animate-cycle-fade whitespace-nowrap" style={{ animationDelay: '4s' }}>מסנכרנים עם שירות הגילוי</span>
+          <span className="absolute inset-0 left-0 opacity-0 translate-y-[6px] animate-cycle-fade whitespace-nowrap" style={{ animationDelay: '0s' }}>Fetching search criteria</span>
+          <span className="absolute inset-0 left-0 opacity-0 translate-y-[6px] animate-cycle-fade whitespace-nowrap" style={{ animationDelay: '2s' }}>Loading recent runs</span>
+          <span className="absolute inset-0 left-0 opacity-0 translate-y-[6px] animate-cycle-fade whitespace-nowrap" style={{ animationDelay: '4s' }}>Syncing with discovery service</span>
         </span>
-        <span className="sr-only">טוען את הדף</span>
+        <span className="sr-only">Loading page</span>
       </div>
     </div>
   );

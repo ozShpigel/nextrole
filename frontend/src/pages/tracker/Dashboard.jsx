@@ -37,7 +37,7 @@ export default function Dashboard() {
   }, []);
 
   if (loading) return <DashboardLoadingSkeleton />;
-  if (error) return <Card className="p-6 mb-4"><p className="text-muted-foreground">שגיאה בטעינת הנתונים: {error}</p></Card>;
+  if (error) return <Card className="p-6 mb-4"><p className="text-muted-foreground">Error loading data: {error}</p></Card>;
 
   return (
     <>
@@ -46,30 +46,30 @@ export default function Dashboard() {
           <Card className="group py-6 px-5 text-center relative overflow-hidden transition-all hover:border-border hover:-translate-y-[3px] hover:shadow-md">
             <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-primary to-ring opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
             <div className="font-sans text-[2rem] font-bold text-foreground tracking-[-0.02em]">{stats.total}</div>
-            <div className="text-[0.78rem] text-muted-foreground mt-[0.3rem] uppercase tracking-[0.06em] font-medium">סה&quot;כ משרות</div>
+            <div className="text-[0.78rem] text-muted-foreground mt-[0.3rem] uppercase tracking-[0.06em] font-medium">Total Applications</div>
           </Card>
           <Card className="group py-6 px-5 text-center relative overflow-hidden transition-all hover:border-border hover:-translate-y-[3px] hover:shadow-md">
             <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-primary to-ring opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
             <div className="font-sans text-[2rem] font-bold text-foreground tracking-[-0.02em]">{stats.inProgress}</div>
-            <div className="text-[0.78rem] text-muted-foreground mt-[0.3rem] uppercase tracking-[0.06em] font-medium">בתהליך</div>
+            <div className="text-[0.78rem] text-muted-foreground mt-[0.3rem] uppercase tracking-[0.06em] font-medium">In Progress</div>
           </Card>
           <Card className="group py-6 px-5 text-center relative overflow-hidden transition-all hover:border-border hover:-translate-y-[3px] hover:shadow-md">
             <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-primary to-ring opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
             <div className="font-sans text-[2rem] font-bold text-foreground tracking-[-0.02em]">{stats.avgScore || '-'}</div>
-            <div className="text-[0.78rem] text-muted-foreground mt-[0.3rem] uppercase tracking-[0.06em] font-medium">ציון ממוצע</div>
+            <div className="text-[0.78rem] text-muted-foreground mt-[0.3rem] uppercase tracking-[0.06em] font-medium">Average Score</div>
           </Card>
           <Card className="group py-6 px-5 text-center relative overflow-hidden transition-all hover:border-border hover:-translate-y-[3px] hover:shadow-md">
             <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-primary to-ring opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
             <div className="font-sans text-[2rem] font-bold text-foreground tracking-[-0.02em]">{stats.responseRate}%</div>
-            <div className="text-[0.78rem] text-muted-foreground mt-[0.3rem] uppercase tracking-[0.06em] font-medium">אחוז מענה</div>
+            <div className="text-[0.78rem] text-muted-foreground mt-[0.3rem] uppercase tracking-[0.06em] font-medium">Response Rate</div>
           </Card>
         </div>
       )}
 
       <Card className="p-6 mb-4 transition-all hover:border-border hover:shadow-md">
-        <h3 className="text-[0.95rem] font-semibold text-foreground mb-3 pb-[0.6rem] border-b border-border">ראיונות קרובים</h3>
+        <h3 className="text-[0.95rem] font-semibold text-foreground mb-3 pb-[0.6rem] border-b border-border">Upcoming Interviews</h3>
         {upcoming.length === 0 ? (
-          <p className="text-center py-12 text-muted-foreground text-[0.88rem]">אין ראיונות קרובים</p>
+          <p className="text-center py-12 text-muted-foreground text-[0.88rem]">No upcoming interviews</p>
         ) : (
           upcoming.map((u, i) => (
             <div key={i} className="bg-muted border border-border rounded p-[1rem_1.25rem] mb-3 transition-all hover:border-border hover:shadow-sm">
@@ -84,9 +84,9 @@ export default function Dashboard() {
       </Card>
 
       <Card className="p-6 mb-4 transition-all hover:border-border hover:shadow-md mt-4">
-        <h3 className="text-[0.95rem] font-semibold text-foreground mb-3 pb-[0.6rem] border-b border-border">פעילות אחרונה</h3>
+        <h3 className="text-[0.95rem] font-semibold text-foreground mb-3 pb-[0.6rem] border-b border-border">Recent Activity</h3>
         {recent.length === 0 ? (
-          <p className="text-center py-12 text-muted-foreground text-[0.88rem]">אין פעילות אחרונה</p>
+          <p className="text-center py-12 text-muted-foreground text-[0.88rem]">No recent activity</p>
         ) : (
           recent.map((a) => (
             <div key={a.id} className="group flex gap-4 py-[0.85rem] border-b border-border items-start transition-colors last:border-b-0 cursor-pointer" onClick={() => navigate(`/tracker/${a.id}`)}>
@@ -103,11 +103,11 @@ export default function Dashboard() {
   );
 }
 
-const DASHBOARD_HERO_LETTERS = ['ד', 'ש', 'ב', 'ו', 'ר', 'ד'];
+const DASHBOARD_HERO_LETTERS = ['D', 'a', 's', 'h', 'b', 'o', 'a', 'r', 'd'];
 
 function DashboardLoadingSkeleton() {
   return (
-    <div className="animate-page-in pb-4 relative" role="status" aria-live="polite" aria-label="טוען דשבורד">
+    <div className="animate-page-in pb-4 relative" role="status" aria-live="polite" aria-label="Loading dashboard">
       {/* Hero */}
       <header className="mb-8 pb-5" aria-hidden="true">
         <span className="inline-block font-mono text-[0.7rem] tracking-[0.22em] uppercase text-primary mb-[0.55rem] opacity-85">Overview · 2026</span>
@@ -190,14 +190,14 @@ function DashboardLoadingSkeleton() {
 
       {/* Cycling subtitle */}
       <div className="mt-9 pt-5 border-t border-dashed border-border flex items-center gap-[0.65rem] font-serif text-[0.92rem] text-muted-foreground italic tracking-[-0.005em] relative">
-        <div className="absolute top-[-1px] start-0 w-[36px] h-px bg-primary opacity-50" />
+        <div className="absolute top-[-1px] left-0 w-[36px] h-px bg-primary opacity-50" />
         <span className="font-serif text-[1.15rem] text-primary opacity-75 not-italic" aria-hidden="true">§</span>
         <span className="relative inline-block h-[1.4em] min-w-[22ch]" aria-hidden="true">
-          <span className="absolute inset-0 start-0 opacity-0 translate-y-[6px] whitespace-nowrap" style={{ animation: 'cycleFade 6s cubic-bezier(0.22, 1, 0.36, 1) infinite', animationDelay: '0s' }}>מאחזר משרות פעילות</span>
-          <span className="absolute inset-0 start-0 opacity-0 translate-y-[6px] whitespace-nowrap" style={{ animation: 'cycleFade 6s cubic-bezier(0.22, 1, 0.36, 1) infinite', animationDelay: '2s' }}>מסכם סטטיסטיקות</span>
-          <span className="absolute inset-0 start-0 opacity-0 translate-y-[6px] whitespace-nowrap" style={{ animation: 'cycleFade 6s cubic-bezier(0.22, 1, 0.36, 1) infinite', animationDelay: '4s' }}>ממפה ראיונות קרובים</span>
+          <span className="absolute inset-0 left-0 opacity-0 translate-y-[6px] whitespace-nowrap" style={{ animation: 'cycleFade 6s cubic-bezier(0.22, 1, 0.36, 1) infinite', animationDelay: '0s' }}>Fetching active applications</span>
+          <span className="absolute inset-0 left-0 opacity-0 translate-y-[6px] whitespace-nowrap" style={{ animation: 'cycleFade 6s cubic-bezier(0.22, 1, 0.36, 1) infinite', animationDelay: '2s' }}>Summarizing statistics</span>
+          <span className="absolute inset-0 left-0 opacity-0 translate-y-[6px] whitespace-nowrap" style={{ animation: 'cycleFade 6s cubic-bezier(0.22, 1, 0.36, 1) infinite', animationDelay: '4s' }}>Mapping upcoming interviews</span>
         </span>
-        <span className="sr-only">טוען דשבורד</span>
+        <span className="sr-only">Loading dashboard</span>
       </div>
     </div>
   );

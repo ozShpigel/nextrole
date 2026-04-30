@@ -39,52 +39,52 @@ export default function InterviewModal({ appId, interview, onClose, onSaved }) {
       }
       onSaved();
     } catch (e) {
-      alert('שגיאה: ' + e.message);
+      alert('Error: ' + e.message);
     }
   }
 
   return (
     <Modal isOpen onClose={onClose}>
-      <h3 className="mb-5 text-foreground text-[1.05rem] font-semibold">{isEdit ? 'ערוך ראיון' : 'הוסף ראיון'}</h3>
+      <h3 className="mb-5 text-foreground text-[1.05rem] font-semibold">{isEdit ? 'Edit Interview' : 'Add Interview'}</h3>
       <div className="mb-5">
-        <label className="block text-[0.8rem] text-muted-foreground mb-[0.4rem] font-medium uppercase tracking-[0.04em]">סוג ראיון</label>
-        <select value={form.type} onChange={(e) => update('type', e.target.value)} className="w-full py-[0.65rem] px-[0.9rem] bg-background border border-border rounded-lg text-foreground font-sans text-[0.88rem] rtl transition-all focus:outline-none focus:border-ring focus:ring-[3px] focus:ring-ring/20">
+        <label className="block text-[0.8rem] text-muted-foreground mb-[0.4rem] font-medium uppercase tracking-[0.04em]">Interview Type</label>
+        <select value={form.type} onChange={(e) => update('type', e.target.value)} className="w-full py-[0.65rem] px-[0.9rem] bg-background border border-border rounded-lg text-foreground font-sans text-[0.88rem] transition-all focus:outline-none focus:border-ring focus:ring-[3px] focus:ring-ring/20">
           {INTERVIEW_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
         </select>
       </div>
       <div className="mb-5">
-        <label className="block text-[0.8rem] text-muted-foreground mb-[0.4rem] font-medium uppercase tracking-[0.04em]">תאריך ושעה</label>
-        <input type="datetime-local" value={form.scheduledAt} onChange={(e) => update('scheduledAt', e.target.value)} className="w-full py-[0.65rem] px-[0.9rem] bg-background border border-border rounded-lg text-foreground font-sans text-[0.88rem] rtl transition-all focus:outline-none focus:border-ring focus:ring-[3px] focus:ring-ring/20" />
+        <label className="block text-[0.8rem] text-muted-foreground mb-[0.4rem] font-medium uppercase tracking-[0.04em]">Date & Time</label>
+        <input type="datetime-local" value={form.scheduledAt} onChange={(e) => update('scheduledAt', e.target.value)} className="w-full py-[0.65rem] px-[0.9rem] bg-background border border-border rounded-lg text-foreground font-sans text-[0.88rem] transition-all focus:outline-none focus:border-ring focus:ring-[3px] focus:ring-ring/20" />
       </div>
       <div className="mb-5">
-        <label className="block text-[0.8rem] text-muted-foreground mb-[0.4rem] font-medium uppercase tracking-[0.04em]">מראיין/ת</label>
-        <input type="text" value={form.interviewer} onChange={(e) => update('interviewer', e.target.value)} placeholder="שם" className="w-full py-[0.65rem] px-[0.9rem] bg-background border border-border rounded-lg text-foreground font-sans text-[0.88rem] rtl transition-all focus:outline-none focus:border-ring focus:ring-[3px] focus:ring-ring/20" />
+        <label className="block text-[0.8rem] text-muted-foreground mb-[0.4rem] font-medium uppercase tracking-[0.04em]">Interviewer</label>
+        <input type="text" value={form.interviewer} onChange={(e) => update('interviewer', e.target.value)} placeholder="Name" className="w-full py-[0.65rem] px-[0.9rem] bg-background border border-border rounded-lg text-foreground font-sans text-[0.88rem] transition-all focus:outline-none focus:border-ring focus:ring-[3px] focus:ring-ring/20" />
       </div>
       <div className="mb-5">
-        <label className="block text-[0.8rem] text-muted-foreground mb-[0.4rem] font-medium uppercase tracking-[0.04em]">נושאים</label>
-        <input type="text" value={form.topics} onChange={(e) => update('topics', e.target.value)} placeholder="נושאים לראיון" className="w-full py-[0.65rem] px-[0.9rem] bg-background border border-border rounded-lg text-foreground font-sans text-[0.88rem] rtl transition-all focus:outline-none focus:border-ring focus:ring-[3px] focus:ring-ring/20" />
+        <label className="block text-[0.8rem] text-muted-foreground mb-[0.4rem] font-medium uppercase tracking-[0.04em]">Topics</label>
+        <input type="text" value={form.topics} onChange={(e) => update('topics', e.target.value)} placeholder="Interview topics" className="w-full py-[0.65rem] px-[0.9rem] bg-background border border-border rounded-lg text-foreground font-sans text-[0.88rem] transition-all focus:outline-none focus:border-ring focus:ring-[3px] focus:ring-ring/20" />
       </div>
       {isEdit && (
         <>
           <div className="mb-5">
-            <label className="block text-[0.8rem] text-muted-foreground mb-[0.4rem] font-medium uppercase tracking-[0.04em]">הערות</label>
-            <textarea value={form.notes} onChange={(e) => update('notes', e.target.value)} className="w-full py-[0.65rem] px-[0.9rem] bg-background border border-border rounded-lg text-foreground font-sans text-[0.88rem] rtl transition-all focus:outline-none focus:border-ring focus:ring-[3px] focus:ring-ring/20 min-h-[120px] resize-y leading-[1.7]" />
+            <label className="block text-[0.8rem] text-muted-foreground mb-[0.4rem] font-medium uppercase tracking-[0.04em]">Notes</label>
+            <textarea value={form.notes} onChange={(e) => update('notes', e.target.value)} dir="auto" className="w-full py-[0.65rem] px-[0.9rem] bg-background border border-border rounded-lg text-foreground font-sans text-[0.88rem] transition-all focus:outline-none focus:border-ring focus:ring-[3px] focus:ring-ring/20 min-h-[120px] resize-y leading-[1.7]" />
           </div>
           <div className="mb-5">
-            <label className="block text-[0.8rem] text-muted-foreground mb-[0.4rem] font-medium uppercase tracking-[0.04em]">פידבק</label>
-            <textarea value={form.feedback} onChange={(e) => update('feedback', e.target.value)} className="w-full py-[0.65rem] px-[0.9rem] bg-background border border-border rounded-lg text-foreground font-sans text-[0.88rem] rtl transition-all focus:outline-none focus:border-ring focus:ring-[3px] focus:ring-ring/20 min-h-[120px] resize-y leading-[1.7]" />
+            <label className="block text-[0.8rem] text-muted-foreground mb-[0.4rem] font-medium uppercase tracking-[0.04em]">Feedback</label>
+            <textarea value={form.feedback} onChange={(e) => update('feedback', e.target.value)} dir="auto" className="w-full py-[0.65rem] px-[0.9rem] bg-background border border-border rounded-lg text-foreground font-sans text-[0.88rem] transition-all focus:outline-none focus:border-ring focus:ring-[3px] focus:ring-ring/20 min-h-[120px] resize-y leading-[1.7]" />
           </div>
           <div className="mb-5">
             <label className="flex items-center gap-2 text-[0.8rem] text-muted-foreground font-medium">
               <input type="checkbox" checked={form.completed} onChange={(e) => update('completed', e.target.checked)} />
-              הושלם
+              Completed
             </label>
           </div>
         </>
       )}
       <div className="flex gap-2 flex-wrap">
-        <Button onClick={save}>{isEdit ? 'שמור' : 'הוסף'}</Button>
-        <Button variant="outline" onClick={onClose}>ביטול</Button>
+        <Button onClick={save}>{isEdit ? 'Save' : 'Add'}</Button>
+        <Button variant="outline" onClick={onClose}>Cancel</Button>
       </div>
     </Modal>
   );

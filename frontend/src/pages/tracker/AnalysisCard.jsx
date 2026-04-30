@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { VERDICT_HE } from '../../utils/constants';
+import { VERDICT_LABELS } from '../../utils/constants';
 import { Card } from '@/components/ui/card';
 
 function scoreColor(score, max) {
@@ -50,9 +50,9 @@ const VERDICT_COLOR = {
 };
 
 const DIMS = [
-  { key: 'technical', label: 'טכני', posLabel: 'חוזקות', negLabel: 'פערים', posKey: 'strengths', negKey: 'gaps' },
-  { key: 'cultural', label: 'תרבותי', posLabel: 'סימנים חיוביים', negLabel: 'חששות', posKey: 'positiveSignals', negKey: 'concerns' },
-  { key: 'roleCharacteristics', label: 'התאמה לתפקיד', posLabel: 'הזדמנויות', negLabel: 'סיכונים', posKey: 'opportunities', negKey: 'risks' },
+  { key: 'technical', label: 'Technical', posLabel: 'Strengths', negLabel: 'Gaps', posKey: 'strengths', negKey: 'gaps' },
+  { key: 'cultural', label: 'Cultural', posLabel: 'Positive Signals', negLabel: 'Concerns', posKey: 'positiveSignals', negKey: 'concerns' },
+  { key: 'roleCharacteristics', label: 'Role Fit', posLabel: 'Opportunities', negLabel: 'Risks', posKey: 'opportunities', negKey: 'risks' },
 ];
 
 export default function AnalysisCard({ matchAnalysisJson }) {
@@ -79,7 +79,7 @@ export default function AnalysisCard({ matchAnalysisJson }) {
         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen(!open); } }}
         role="button" tabIndex={0} aria-expanded={open}
       >
-        <h3 className="text-[0.95rem] font-semibold text-foreground" style={{ border: 'none', margin: 0, padding: 0 }}>ניתוח AI</h3>
+        <h3 className="text-[0.95rem] font-semibold text-foreground" style={{ border: 'none', margin: 0, padding: 0 }}>AI Analysis</h3>
       </div>
       {open && (
         <div className="mt-5">
@@ -88,11 +88,11 @@ export default function AnalysisCard({ matchAnalysisJson }) {
             <ScoreRing score={a.overallScore} maxScore={100} size={148} stroke={9} />
             <div className="flex flex-col gap-[0.6rem]">
               <div className={`font-serif text-[1.5rem] font-bold leading-[1.2] tracking-[-0.02em] ${verdictColorClass}`}>
-                {VERDICT_HE[a.verdict] || VERDICT_HE.INSUFFICIENT_DATA}
+                {VERDICT_LABELS[a.verdict] || VERDICT_LABELS.INSUFFICIENT_DATA}
               </div>
               {rec && (
                 <div className={`text-[0.85rem] font-semibold py-[0.3rem] px-[0.9rem] rounded-[20px] w-fit ${rec.shouldApply ? 'bg-green-bg text-green border border-[rgba(45,143,94,0.15)]' : 'bg-red-bg text-red border border-[rgba(196,84,84,0.15)]'}`}>
-                  {rec.shouldApply ? 'כדאי להגיש' : 'לא כדאי להגיש'}
+                  {rec.shouldApply ? 'Worth Applying' : 'Not Recommended'}
                 </div>
               )}
             </div>
@@ -124,7 +124,7 @@ export default function AnalysisCard({ matchAnalysisJson }) {
                   {active.data[active.posKey]?.length > 0 && (
                     <div className="mb-3 last:mb-0">
                       <span className="block text-[0.75rem] text-muted-foreground uppercase tracking-[0.06em] font-medium mb-[0.3rem]">{active.posLabel}</span>
-                      <ul className="list-disc pr-5 m-0">
+                      <ul className="list-disc pl-5 m-0">
                         {active.data[active.posKey].map((item, i) => <li key={i} className="text-[0.84rem] mb-[0.3rem] text-foreground leading-[1.6] marker:text-green">{item}</li>)}
                       </ul>
                     </div>
@@ -132,7 +132,7 @@ export default function AnalysisCard({ matchAnalysisJson }) {
                   {active.data[active.negKey]?.length > 0 && (
                     <div className="mb-3 last:mb-0">
                       <span className="block text-[0.75rem] text-muted-foreground uppercase tracking-[0.06em] font-medium mb-[0.3rem]">{active.negLabel}</span>
-                      <ul className="list-disc pr-5 m-0">
+                      <ul className="list-disc pl-5 m-0">
                         {active.data[active.negKey].map((item, i) => <li key={i} className="text-[0.84rem] mb-[0.3rem] text-foreground leading-[1.6] marker:text-red">{item}</li>)}
                       </ul>
                     </div>
@@ -145,19 +145,19 @@ export default function AnalysisCard({ matchAnalysisJson }) {
           {/* Recommendation */}
           {rec && (rec.keyReasons?.length > 0 || rec.questionsToAsk?.length > 0 || rec.greenFlags?.length > 0 || rec.redFlags?.length > 0) && (
             <div className="mt-5 pt-4 border-t border-border">
-              <h4 className="text-[0.9rem] font-semibold text-foreground mb-3">המלצה</h4>
+              <h4 className="text-[0.9rem] font-semibold text-foreground mb-3">Recommendation</h4>
               {rec.keyReasons?.length > 0 && (
                 <div className="mb-3">
-                  <span className="block text-[0.75rem] text-muted-foreground uppercase tracking-[0.06em] font-medium mb-[0.3rem]">סיבות עיקריות</span>
-                  <ul className="list-disc pr-5 m-0">
+                  <span className="block text-[0.75rem] text-muted-foreground uppercase tracking-[0.06em] font-medium mb-[0.3rem]">Key Reasons</span>
+                  <ul className="list-disc pl-5 m-0">
                     {rec.keyReasons.map((item, i) => <li key={i} className="text-[0.84rem] mb-[0.3rem] text-foreground leading-[1.6]">{item}</li>)}
                   </ul>
                 </div>
               )}
               {rec.questionsToAsk?.length > 0 && (
                 <div className="mb-3">
-                  <span className="block text-[0.75rem] text-muted-foreground uppercase tracking-[0.06em] font-medium mb-[0.3rem]">שאלות לשאול</span>
-                  <ul className="list-disc pr-5 m-0">
+                  <span className="block text-[0.75rem] text-muted-foreground uppercase tracking-[0.06em] font-medium mb-[0.3rem]">Questions to Ask</span>
+                  <ul className="list-disc pl-5 m-0">
                     {rec.questionsToAsk.map((item, i) => <li key={i} className="text-[0.84rem] mb-[0.3rem] text-foreground leading-[1.6]">{item}</li>)}
                   </ul>
                 </div>
@@ -174,7 +174,7 @@ export default function AnalysisCard({ matchAnalysisJson }) {
           {/* Honest assessment */}
           {a.honestAssessment && (
             <div className="mt-5 pt-4 border-t border-border">
-              <h4 className="text-[0.9rem] font-semibold text-foreground mb-3">הערכה כנה</h4>
+              <h4 className="text-[0.9rem] font-semibold text-foreground mb-3">Honest Assessment</h4>
               <p className="text-[0.88rem] leading-[1.75] text-foreground whitespace-pre-wrap bg-background border border-border rounded p-5 m-0">{a.honestAssessment}</p>
             </div>
           )}

@@ -1,14 +1,14 @@
-export const STATUS_HE = {
-  Analyzing: 'בניתוח',
-  DecidedToApply: 'החלטתי להגיש',
-  Applied: 'הוגש',
-  PhoneScreen: 'שיחת טלפון',
-  TechnicalInterview: 'ראיון טכני',
-  FinalRound: 'סבב אחרון',
-  OfferReceived: 'הצעה התקבלה',
-  Accepted: 'התקבלתי',
-  Rejected: 'נדחה',
-  Withdrawn: 'נסוג',
+export const STATUS_LABELS = {
+  Analyzing: 'Analyzing',
+  DecidedToApply: 'Decided to Apply',
+  Applied: 'Applied',
+  PhoneScreen: 'Phone Screen',
+  TechnicalInterview: 'Technical Interview',
+  FinalRound: 'Final Round',
+  OfferReceived: 'Offer Received',
+  Accepted: 'Accepted',
+  Rejected: 'Rejected',
+  Withdrawn: 'Withdrawn',
 };
 
 export const STATUS_COLORS = {
@@ -28,20 +28,20 @@ export const INTERVIEW_TYPES = ['Phone', 'Technical', 'Final', 'HR'];
 
 export const NOTE_CATEGORIES = ['Preparation', 'Research', 'Thoughts', 'FollowUp'];
 
-export const NOTE_CATEGORIES_HE = {
-  Preparation: 'הכנה',
-  Research: 'מחקר',
-  Thoughts: 'מחשבות',
-  FollowUp: 'מעקב',
+export const NOTE_CATEGORY_LABELS = {
+  Preparation: 'Preparation',
+  Research: 'Research',
+  Thoughts: 'Thoughts',
+  FollowUp: 'Follow-up',
 };
 
-export const VERDICT_HE = {
-  STRONG_YES: 'בהחלט כן',
-  YES: 'כן',
-  MAYBE: 'אולי',
-  NO: 'לא',
-  STRONG_NO: 'בהחלט לא',
-  INSUFFICIENT_DATA: 'אין מספיק נתונים',
-  MATCH_FAILED: 'דירוג נכשל',
-  ERROR: 'שגיאה',
+export const VERDICT_LABELS = {
+  STRONG_YES: 'Strong Yes',
+  YES: 'Yes',
+  MAYBE: 'Maybe',
+  NO: 'No',
+  STRONG_NO: 'Strong No',
+  INSUFFICIENT_DATA: 'Insufficient Data',
+  MATCH_FAILED: 'Match Failed',
+  ERROR: 'Error',
 };

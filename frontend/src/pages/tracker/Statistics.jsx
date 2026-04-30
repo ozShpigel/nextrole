@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { api } from '../../utils/api';
-import { STATUS_HE } from '../../utils/constants';
+import { STATUS_LABELS } from '../../utils/constants';
 import { Card } from '@/components/ui/card';
 
 const BAR_COLORS = {
@@ -34,29 +34,29 @@ export default function Statistics() {
         <Card className="group py-6 px-5 text-center relative overflow-hidden transition-all hover:border-border hover:-translate-y-[3px] hover:shadow-md">
           <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-primary to-ring opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
           <div className="font-sans text-[2rem] font-bold text-foreground tracking-[-0.02em]">{stats.total}</div>
-          <div className="text-[0.78rem] text-muted-foreground mt-[0.3rem] uppercase tracking-[0.06em] font-medium">סה&quot;כ משרות</div>
+          <div className="text-[0.78rem] text-muted-foreground mt-[0.3rem] uppercase tracking-[0.06em] font-medium">Total Applications</div>
         </Card>
         <Card className="group py-6 px-5 text-center relative overflow-hidden transition-all hover:border-border hover:-translate-y-[3px] hover:shadow-md">
           <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-primary to-ring opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
           <div className="font-sans text-[2rem] font-bold text-foreground tracking-[-0.02em]">{stats.applied}</div>
-          <div className="text-[0.78rem] text-muted-foreground mt-[0.3rem] uppercase tracking-[0.06em] font-medium">הוגשו</div>
+          <div className="text-[0.78rem] text-muted-foreground mt-[0.3rem] uppercase tracking-[0.06em] font-medium">Applied</div>
         </Card>
         <Card className="group py-6 px-5 text-center relative overflow-hidden transition-all hover:border-border hover:-translate-y-[3px] hover:shadow-md">
           <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-primary to-ring opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
           <div className="font-sans text-[2rem] font-bold text-foreground tracking-[-0.02em]">{stats.avgScore || '-'}</div>
-          <div className="text-[0.78rem] text-muted-foreground mt-[0.3rem] uppercase tracking-[0.06em] font-medium">ציון ממוצע</div>
+          <div className="text-[0.78rem] text-muted-foreground mt-[0.3rem] uppercase tracking-[0.06em] font-medium">Average Score</div>
         </Card>
         <Card className="group py-6 px-5 text-center relative overflow-hidden transition-all hover:border-border hover:-translate-y-[3px] hover:shadow-md">
           <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-primary to-ring opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
           <div className="font-sans text-[2rem] font-bold text-foreground tracking-[-0.02em]">{stats.responseRate}%</div>
-          <div className="text-[0.78rem] text-muted-foreground mt-[0.3rem] uppercase tracking-[0.06em] font-medium">אחוז מענה</div>
+          <div className="text-[0.78rem] text-muted-foreground mt-[0.3rem] uppercase tracking-[0.06em] font-medium">Response Rate</div>
         </Card>
       </div>
 
       <Card className="p-6 mb-4 transition-all hover:border-border hover:shadow-md mt-4">
-        <h3 className="text-[0.95rem] font-semibold text-foreground mb-3 pb-[0.6rem] border-b border-border">התפלגות לפי סטטוס</h3>
+        <h3 className="text-[0.95rem] font-semibold text-foreground mb-3 pb-[0.6rem] border-b border-border">Status Breakdown</h3>
         <div className="mt-4">
-          {Object.entries(STATUS_HE).map(([key, label]) => {
+          {Object.entries(STATUS_LABELS).map(([key, label]) => {
             const count = breakdown[key] || 0;
             const pct = (count / max * 100).toFixed(0);
             const color = BAR_COLORS[key] || 'var(--muted-foreground)';

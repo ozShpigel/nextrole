@@ -320,7 +320,6 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     overflow-x: hidden;
-    direction: rtl;
     letter-spacing: 0.01em;
   }
   a { text-decoration: none; color: inherit; }

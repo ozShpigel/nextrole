@@ -21,27 +21,27 @@ export default function ApplicationList() {
   }
 
   async function deleteApp(id) {
-    if (!confirm('למחוק את המשרה? כל הראיונות וההערות ימחקו גם כן.')) return;
+    if (!confirm('Delete this application? All interviews and notes will also be deleted.')) return;
     try {
       await api(`/applications/${id}`, { method: 'DELETE' });
       load();
     } catch (e) {
-      alert('מחיקה נכשלה: ' + e.message);
+      alert('Delete failed: ' + e.message);
     }
   }
 
   if (apps.length === 0) {
-    return <Card className="p-6 mb-4 transition-all hover:border-border hover:shadow-md"><p className="text-center py-12 text-muted-foreground text-[0.88rem]">אין משרות עדיין. הוסף משרה חדשה!</p></Card>;
+    return <Card className="p-6 mb-4 transition-all hover:border-border hover:shadow-md"><p className="text-center py-12 text-muted-foreground text-[0.88rem]">No applications yet. Add a new application!</p></Card>;
   }
 
   return (
     <Card className="p-6 mb-4 transition-all hover:border-border hover:shadow-md">
       <div className="hidden md:grid grid-cols-[2fr_1.5fr_1fr_0.8fr_0.5fr_minmax(3.5rem,auto)] gap-4 py-[0.6rem] px-5 text-[0.72rem] text-muted-foreground border-b border-border uppercase tracking-[0.07em] font-medium">
-        <span>תפקיד</span>
-        <span>חברה</span>
-        <span>סטטוס</span>
-        <span>ציון</span>
-        <span>תאריך</span>
+        <span>Position</span>
+        <span>Company</span>
+        <span>Status</span>
+        <span>Score</span>
+        <span>Date</span>
         <span></span>
       </div>
       {apps.map((a) => (
@@ -57,7 +57,7 @@ export default function ApplicationList() {
               size="sm"
               onClick={(e) => { e.stopPropagation(); deleteApp(a.id); }}
             >
-              מחק
+              Delete
             </Button>
           </div>
         </div>

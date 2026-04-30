@@ -1,8 +1,8 @@
-# Job Application Platform — Claude Code Guide
+# NextRole — Claude Code Guide
 
 ## Project
 
-This is a job application platform that automates the job hunting process
+NextRole is a job application platform that automates the job hunting process
 end-to-end. It discovers job listings from sites like LinkedIn and Indeed, uses AI
 to score and match them against your professional profile, monitors your email for
 application updates, and provides a dashboard to track everything — from discovery
@@ -13,7 +13,7 @@ through interviews to final status — in one place.
 | Layer | Tech |
 |---|---|
 | Backend | ASP.NET Core (C#) · Python FastAPI |
-| Frontend | React + Vite |
+| Frontend | React + Vite + shadcn/ui + Tailwind CSS v4 |
 | Database | MongoDB |
 
 ## Project Structure
@@ -30,7 +30,7 @@ through interviews to final status — in one place.
 - Use context7 MCP server to fetch up-to-date documentation for libraries
 - All Claude/Anthropic AI calls live exclusively in the API — the Scraper delegates scoring via HTTP
 - Mailbot is a one-shot process (run via cron/scheduler), not a long-running service
-- Frontend is a Hebrew RTL SPA
+- Frontend is an English LTR SPA using shadcn/ui components with the default neutral theme
 - AI prompts use system/user separation: trusted instructions in the API system prompt field, untrusted external data (job descriptions, emails) in the user message wrapped in XML tags
 - `scoring_config` keys are validated against an allowlist before persisting to MongoDB
 

@@ -379,6 +379,21 @@ export default function RunDetail() {
                 </div>
               )}
 
+              {j.company_news?.length > 0 && (
+                <details className="my-2">
+                  <summary className="text-[0.78rem] font-medium text-muted-foreground cursor-pointer hover:text-foreground transition-colors">
+                    Company News ({j.company_news.length})
+                  </summary>
+                  <ul className="mt-1 pl-4 list-disc">
+                    {j.company_news.map((n, i) => (
+                      <li key={i} className="text-[0.78rem] text-muted-foreground leading-[1.6] mb-[0.2rem]">
+                        {n.title}{n.source && <span className="text-muted-foreground/60"> — {n.source}</span>}
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              )}
+
               {j.honest_assessment && (
                 <div dir="rtl" className="text-[0.85rem] text-muted-foreground leading-[1.7] my-3 p-[0.9rem_1.1rem] bg-muted/50 border border-dashed border-border rounded text-right">{j.honest_assessment}</div>
               )}

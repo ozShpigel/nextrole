@@ -171,6 +171,20 @@ export default function AnalysisCard({ matchAnalysisJson }) {
             </div>
           )}
 
+          {/* Company news analysis */}
+          {a.companyNewsAnalysis && (a.companyNewsAnalysis.greenSignals?.length > 0 || a.companyNewsAnalysis.redSignals?.length > 0) && (
+            <div className="mt-5 pt-4 border-t border-border">
+              <h4 className="text-[0.9rem] font-semibold text-foreground mb-3">Company News Signals</h4>
+              <div className="flex gap-2 flex-wrap">
+                {(a.companyNewsAnalysis.greenSignals || []).map((s, i) => <span key={`ng${i}`} className="py-1 px-[0.65rem] rounded-sm text-[0.78rem] font-medium border transition-transform hover:-translate-y-px bg-green-bg text-green border-[rgba(45,143,94,0.12)]">{s}</span>)}
+                {(a.companyNewsAnalysis.redSignals || []).map((s, i) => <span key={`nr${i}`} className="py-1 px-[0.65rem] rounded-sm text-[0.78rem] font-medium border transition-transform hover:-translate-y-px bg-red-bg text-red border-[rgba(196,84,84,0.12)]">{s}</span>)}
+              </div>
+              {a.companyNewsAnalysis.summary && (
+                <p dir="rtl" className="text-[0.84rem] text-muted-foreground leading-[1.6] mt-2 text-right">{a.companyNewsAnalysis.summary}</p>
+              )}
+            </div>
+          )}
+
           {/* Honest assessment */}
           {a.honestAssessment && (
             <div className="mt-5 pt-4 border-t border-border">

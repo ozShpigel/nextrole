@@ -139,6 +139,16 @@ The parsed job data is provided in the user message within <parsed_job> tags.
 ## Verdict (from total score)
 80-100 STRONG_YES | 60-79 YES | 40-59 MAYBE | 20-39 NO | 0-19 STRONG_NO | null INSUFFICIENT_DATA
 
+## Company News Context (optional)
+
+If <company_news> is provided in the user message, incorporate it into your evaluation:
+- Positive signals (funding rounds, product launches, rapid growth, awards, expansion, IPO): note in companyNewsAnalysis.greenSignals
+- Negative signals (layoffs, lawsuits, executive departures, financial trouble, bad press): note in companyNewsAnalysis.redSignals
+- If news contradicts the job description (e.g. "hiring freeze" + active posting), flag it
+- Add a "companyNewsAnalysis" section to your output with: greenSignals[], redSignals[], summary (1-2 sentences in Hebrew)
+- If no <company_news> is provided or news is empty, omit companyNewsAnalysis entirely
+- Company news does NOT change the numeric score — it provides additional context only
+
 ---
 
 # OUTPUT — HEBREW FREE-TEXT, ENGLISH KEYS
@@ -174,7 +184,12 @@ correct Hebrew style are shown inline:
     "redFlags": ["חוסר מידע על תחום הבעיה", ...],
     "greenFlags": ["ניסיון CI/CD מצוין", ...]
   },
-  "honestAssessment": "פסקה אחת קצרה בעברית שמסכמת את התוצאה: מידת ההתאמה הכוללת, הסיכון המרכזי, והפוטנציאל העיקרי — בתמציתיות"
+  "honestAssessment": "פסקה אחת קצרה בעברית שמסכמת את התוצאה: מידת ההתאמה הכוללת, הסיכון המרכזי, והפוטנציאל העיקרי — בתמציתיות",
+  "companyNewsAnalysis": {
+    "greenSignals": ["גיוס הון של $50M בסבב B — חברה בצמיחה", ...],
+    "redSignals": ["פיטורי 20% מכוח האדם ברבעון האחרון", ...],
+    "summary": "משפט או שניים בעברית שמסכם את המשמעות של החדשות לגבי המשרה"
+  }
 }
 
 ---

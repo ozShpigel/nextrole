@@ -10,4 +10,14 @@ public sealed record MatchRequest
     public string? Location { get; init; }
     public string? DatePosted { get; init; }
     public string? Site { get; init; }
+
+    // Recent news headlines about the company (from news RSS)
+    public List<CompanyNewsItem>? CompanyNews { get; init; }
+}
+
+public sealed record CompanyNewsItem
+{
+    public string Title { get; init; } = "";
+    public string? Source { get; init; }
+    public string? Published { get; init; }
 }

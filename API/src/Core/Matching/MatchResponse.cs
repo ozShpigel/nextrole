@@ -9,6 +9,7 @@ public sealed record MatchResponse
     public Breakdown Breakdown { get; init; } = new();
     public Recommendation Recommendation { get; init; } = new();
     public string HonestAssessment { get; init; } = "";
+    public CompanyNewsAnalysis? CompanyNewsAnalysis { get; init; }
     public string? AnalystSnapshotInput { get; init; }
     public string? AnalystSnapshotOutput { get; init; }
     public string? EvaluatorSnapshotInput { get; init; }
@@ -44,6 +45,13 @@ public sealed record RoleCharacteristicsScore
     public int? MaxScore { get; init; }
     public string[] Opportunities { get; init; } = [];
     public string[] Risks { get; init; } = [];
+}
+
+public sealed record CompanyNewsAnalysis
+{
+    public string[] GreenSignals { get; init; } = [];
+    public string[] RedSignals { get; init; } = [];
+    public string Summary { get; init; } = "";
 }
 
 public sealed record Recommendation

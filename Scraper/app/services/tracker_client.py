@@ -193,7 +193,7 @@ async def save_to_tracker(
     payload = {
         "jobTitle": title,
         "company": company,
-        "status": "Analyzing",
+        "status": "DecidedToApply",
         "jobDescription": description or "",
         "matchScore": score,
         "matchVerdict": verdict,

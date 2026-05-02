@@ -149,6 +149,14 @@ If <company_news> is provided in the user message, incorporate it into your eval
 - If no <company_news> is provided or news is empty, omit companyNewsAnalysis entirely
 - Company news does NOT change the numeric score — it provides additional context only
 
+## Glassdoor Rating (optional)
+
+If <glassdoor_rating> is provided in the user message:
+- Factor the rating into the Cultural Fit assessment — a rating below 3.0 is a concern, above 4.0 is a positive signal
+- Mention the rating and review count in the relevant cultural breakdown (positiveSignals or concerns)
+- A low review count (<50) makes the rating less reliable — note this
+- The Glassdoor rating does NOT directly change the numeric score, but it should inform the cultural fit analysis
+
 ---
 
 # OUTPUT — HEBREW FREE-TEXT, ENGLISH KEYS

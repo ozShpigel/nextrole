@@ -50,7 +50,7 @@ public sealed class JobMatchService : IJobMatchService
             RawDescription = request.JobDescription
         };
 
-        var (matchResponse, evalSnap) = await _claudeClient.EvaluateMatchAsync(profile, parsedJob, request.CompanyNews, cancellationToken);
+        var (matchResponse, evalSnap) = await _claudeClient.EvaluateMatchAsync(profile, parsedJob, request.CompanyNews, request.GlassdoorData, cancellationToken);
 
         var correctedVerdict = VerdictFromScore(matchResponse.OverallScore) ?? matchResponse.Verdict;
         var correctedShouldApply = matchResponse.OverallScore >= 60;

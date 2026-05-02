@@ -27,6 +27,7 @@ async def score_job(
     date_posted: str | None,
     site: str,
     company_news: list[dict] | None = None,
+    glassdoor_data: dict | None = None,
 ) -> MatchResult:
     """Call the unified API to score a scraped job.
 
@@ -46,6 +47,7 @@ async def score_job(
         "datePosted": date_posted,
         "site": site,
         "companyNews": company_news,
+        "glassdoorData": glassdoor_data,
     }
 
     # Budget covers a warm Render instance doing Analyst (Haiku) + Evaluator

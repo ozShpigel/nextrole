@@ -26,7 +26,7 @@ public sealed class PromptBuilder
         return (system, user);
     }
 
-    public (string System, string User) BuildEvaluationPrompt(string profile, ParsedJob parsedJob, string evaluatorPrompt, List<CompanyNewsItem>? companyNews = null)
+    public (string System, string User) BuildEvaluationPrompt(string profile, ParsedJob parsedJob, string evaluatorPrompt, List<CompanyNewsItem>? companyNews = null, GlassdoorData? glassdoorData = null)
     {
         if (string.IsNullOrWhiteSpace(evaluatorPrompt))
         {
@@ -55,6 +55,12 @@ public sealed class PromptBuilder
         {
             var newsJson = JsonSerializer.Serialize(companyNews, new JsonSerializerOptions { WriteIndented = true });
             userParts += $"\n\n<company_news>\n{newsJson}\n</company_news>";
+        }
+
+        if (glassdoorData is not null)
+        {
+            var gdJson = JsonSerializer.Serialize(glassdoorData, new JsonSerializerOptions { WriteIndented = true });
+            userParts += $"\n\n<glassdoor_rating>\n{gdJson}\n</glassdoor_rating>";
         }
 
         userParts += "\n\nEvaluate this job against the candidate profile and return valid JSON matching the schema defined in your instructions.";

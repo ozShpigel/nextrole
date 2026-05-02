@@ -29,8 +29,9 @@ class DiscoveredJob(BaseModel):
     analyst_snapshot_output: str | None = None
     evaluator_snapshot_input: str | None = None
     evaluator_snapshot_output: str | None = None
-    # Company news context (raw headlines from news RSS)
+    # Company enrichment (news headlines + Glassdoor rating)
     company_news: list[dict] | None = None
+    glassdoor_data: dict | None = None
     # Tracking
     is_duplicate: bool = False
     saved_to_tracker: bool = False

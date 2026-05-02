@@ -89,12 +89,12 @@ public sealed class ClaudeClient : IClaudeClient
         return (parsedJob, new ClaudeCallSnapshot(inputJson, content));
     }
 
-    public async Task<(MatchResponse Response, ClaudeCallSnapshot Snapshot)> EvaluateMatchAsync(string profile, ParsedJob parsedJob, List<CompanyNewsItem>? companyNews = null, CancellationToken cancellationToken = default)
+    public async Task<(MatchResponse Response, ClaudeCallSnapshot Snapshot)> EvaluateMatchAsync(string profile, ParsedJob parsedJob, List<CompanyNewsItem>? companyNews = null, GlassdoorData? glassdoorData = null, CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Evaluating job match");
 
         var evaluatorPrompt = await _profileProvider.GetEvaluatorPromptAsync(cancellationToken);
-        var (systemPrompt, userMessage) = _promptBuilder.BuildEvaluationPrompt(profile, parsedJob, evaluatorPrompt, companyNews);
+        var (systemPrompt, userMessage) = _promptBuilder.BuildEvaluationPrompt(profile, parsedJob, evaluatorPrompt, companyNews, glassdoorData);
         var cfg = (await _profileProvider.GetScoringConfigAsync(cancellationToken)).Evaluator;
 
         _logger.LogInformation("=== Claude evaluate request ===");

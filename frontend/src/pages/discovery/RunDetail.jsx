@@ -355,6 +355,15 @@ export default function RunDetail() {
                   <h3 className="font-serif text-[1.15rem] font-bold text-foreground m-0 tracking-[-0.005em]">{j.title}</h3>
                   <div className="text-[0.88rem] text-muted-foreground mt-[0.15rem]">{j.company}</div>
                   {j.location && <div className="text-[0.78rem] text-muted-foreground mt-[0.1rem] tracking-[0.02em]">{j.location}</div>}
+                  {j.glassdoor_data && (
+                    <div className="flex items-center gap-[0.35rem] mt-[0.25rem]">
+                      <span className="text-[0.75rem] font-medium" style={{ color: j.glassdoor_data.rating >= 4.0 ? 'var(--green)' : j.glassdoor_data.rating >= 3.0 ? 'var(--yellow)' : 'var(--red)' }}>
+                        {j.glassdoor_data.rating.toFixed(1)} / 5
+                      </span>
+                      {j.glassdoor_data.reviewCount && <span className="text-[0.7rem] text-muted-foreground">({j.glassdoor_data.reviewCount.toLocaleString()} reviews)</span>}
+                      {j.glassdoor_data.url && <a href={j.glassdoor_data.url} target="_blank" rel="noopener noreferrer" className="text-[0.7rem] text-primary hover:opacity-75">Glassdoor</a>}
+                    </div>
+                  )}
                 </div>
                 <div className="text-center shrink-0 py-[0.4rem] px-3 bg-muted border border-border rounded">
                   {j.score != null ? (

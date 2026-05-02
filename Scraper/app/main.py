@@ -11,7 +11,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from app.config import Settings
 from app.models.api_models import CreateCriteriaRequest, UpdateCriteriaRequest
 from app.models.search_criteria import SearchCriteria
-from app.services import match_client, news_client, orchestrator, tracker_client
+from app.services import glassdoor_client, match_client, news_client, orchestrator, tracker_client
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -206,6 +206,7 @@ async def rescore_job(job_id: str):
         raise HTTPException(404, "Job not found")
 
     company_news = await news_client.fetch_company_news(doc["company"])
+    glassdoor_data = await glassdoor_client.fetch_glassdoor_rating(doc["company"])
 
     result = await match_client.score_job(
         settings=settings,
@@ -216,6 +217,7 @@ async def rescore_job(job_id: str):
         date_posted=doc.get("date_posted"),
         site=doc.get("site", "linkedin"),
         company_news=company_news or None,
+        glassdoor_data=glassdoor_data,
     )
 
     if result.status == "too_short":
@@ -239,6 +241,7 @@ async def rescore_job(job_id: str):
             "should_apply": should_apply,
             "match_analysis": result.data,
             "company_news": company_news or None,
+            "glassdoor_data": glassdoor_data,
             "analyst_snapshot_input": result.data.get("analystSnapshotInput"),
             "analyst_snapshot_output": result.data.get("analystSnapshotOutput"),
             "evaluator_snapshot_input": result.data.get("evaluatorSnapshotInput"),

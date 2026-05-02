@@ -7,7 +7,7 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.config import Settings
 from app.models.discovered_job import DiscoveredJob
-from app.services import match_client, news_client, scraper, tracker_client
+from app.services import glassdoor_client, match_client, news_client, scraper, tracker_client
 
 logger = logging.getLogger(__name__)
 
@@ -55,9 +55,12 @@ async def run_discovery(db: AsyncIOMotorDatabase, settings: Settings, criteria_i
         if not await tracker_client.warm_up_api(settings):
             raise RuntimeError("API unreachable after warm-up — aborting run")
 
-        # Prefetch company news in parallel for all unique companies.
+        # Prefetch company news and Glassdoor ratings in parallel for all unique companies.
         all_companies = [j["company"] for j in jobs if j.get("company")]
-        news_cache = await news_client.prefetch_company_news(all_companies)
+        news_cache, glassdoor_cache = await asyncio.gather(
+            news_client.prefetch_company_news(all_companies),
+            glassdoor_client.prefetch_glassdoor_ratings(all_companies),
+        )
 
         logger.info("Run %s: scoring %d jobs", run.id, len(jobs))
         for i, job_data in enumerate(jobs):
@@ -84,6 +87,7 @@ async def run_discovery(db: AsyncIOMotorDatabase, settings: Settings, criteria_i
                     continue
 
                 company_news = await news_client.fetch_company_news(company, news_cache)
+                glassdoor_data = await glassdoor_client.fetch_glassdoor_rating(company, glassdoor_cache)
 
                 match_result = await match_client.score_job(
                     settings=settings,
@@ -94,6 +98,7 @@ async def run_discovery(db: AsyncIOMotorDatabase, settings: Settings, criteria_i
                     date_posted=job_data.get("date_posted"),
                     site=job_data.get("site", "linkedin"),
                     company_news=company_news or None,
+                    glassdoor_data=glassdoor_data,
                 )
 
                 # Three failure modes, two verdicts:
@@ -141,6 +146,7 @@ async def run_discovery(db: AsyncIOMotorDatabase, settings: Settings, criteria_i
                     should_apply=should_apply,
                     match_analysis=match_response,
                     company_news=company_news or None,
+                    glassdoor_data=glassdoor_data,
                     analyst_snapshot_input=match_response.get("analystSnapshotInput"),
                     analyst_snapshot_output=match_response.get("analystSnapshotOutput"),
                     evaluator_snapshot_input=match_response.get("evaluatorSnapshotInput"),

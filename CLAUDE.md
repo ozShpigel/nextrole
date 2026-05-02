@@ -34,6 +34,19 @@ through interviews to final status — in one place.
 - AI prompts use system/user separation: trusted instructions in the API system prompt field, untrusted external data (job descriptions, emails) in the user message wrapped in XML tags
 - `scoring_config` keys are validated against an allowlist before persisting to MongoDB
 
+## Company Enrichment
+
+The Scraper enriches each discovered job with external data before scoring:
+
+- **Company News** — Google News RSS headlines (`news_client.py`). Passed to the evaluator prompt in `<company_news>` XML tags. AI reports green/red signals in `companyNewsAnalysis` (does not change numeric score).
+- **Glassdoor Rating** — scraped from DuckDuckGo search snippets (`glassdoor_client.py`). Passed in `<glassdoor_rating>` XML tags. AI factors it into the cultural fit narrative.
+
+Both are prefetched in parallel after scraping, cached per company within a discovery run, and stored on the `DiscoveredJob` document. If either fetch fails, scoring proceeds normally without it.
+
+## Testing
+
+E2E tests use Playwright. Use the `e2e-test-writer` agent to write tests — it has the full setup details, database config, and conventions.
+
 ## Security
 
 - CORS defaults to restrictive (empty) — set `CorsOrigins` env var explicitly

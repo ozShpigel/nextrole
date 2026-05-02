@@ -29,6 +29,11 @@ token.json
 # Docker
 docker-compose.override.yml
 
+# Playwright
+test-results/
+playwright-report/
+blob-report/
+
 # OS
 .DS_Store
 Thumbs.db

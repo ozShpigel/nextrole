@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { discoveryApi } from '../../utils/api';
 import CriteriaForm from './CriteriaForm';
@@ -62,8 +62,9 @@ export default function DiscoveryPage() {
   const [wakeStartedAt, setWakeStartedAt] = useState(null);
   const [wakeElapsed, setWakeElapsed] = useState(0);
   const navigate = useNavigate();
+  const pollRef = useRef(null);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); return () => clearInterval(pollRef.current); }, []);
 
   // Tick the elapsed counter while a wake-up is in progress.
   useEffect(() => {
@@ -105,12 +106,30 @@ export default function DiscoveryPage() {
       setCriteria(c);
       const r = await discoveryApi('/runs', { onRetry });
       setRuns(r);
+      startPollingIfNeeded(r);
     } catch (e) {
       setError(e.message);
     } finally {
       setLoading(false);
       setWakingUp(false);
     }
+  }
+
+  function startPollingIfNeeded(runsList) {
+    clearInterval(pollRef.current);
+    const hasActive = runsList.some((r) => r.status === 'pending' || r.status === 'scraping' || r.status === 'scoring');
+    if (!hasActive) return;
+    pollRef.current = setInterval(async () => {
+      try {
+        const c = await discoveryApi('/criteria');
+        setCriteria(c);
+        const r = await discoveryApi('/runs');
+        setRuns(r);
+        if (!r.some((run) => run.status === 'pending' || run.status === 'scraping' || run.status === 'scoring')) {
+          clearInterval(pollRef.current);
+        }
+      } catch { /* keep polling */ }
+    }, 5000);
   }
 
   async function triggerRun(criteriaId) {

@@ -8,7 +8,7 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from app.config import Settings
 from app.models.discovered_job import DiscoveredJob
 from app.services import glassdoor_client, match_client, news_client, scraper, tracker_client
-from app.services.match_utils import extract_flat
+from app.utils.match_utils import extract_flat
 
 logger = logging.getLogger(__name__)
 

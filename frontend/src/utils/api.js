@@ -63,7 +63,7 @@ export async function api(path, options = {}) {
   return res.json();
 }
 
-export async function profileApi(path, options = {}) {
+export async function matchApi(path, options = {}) {
   const { fetchOptions, headers, retries, onRetry, retryMinDelayMs, retryMaxDelayMs } = extractRetryOptions(options);
   const url = API_BASE ? `${API_BASE}/api/match${path}` : `/api/match${path}`;
   const res = await fetchWithRetry(url, {

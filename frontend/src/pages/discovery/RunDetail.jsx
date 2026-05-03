@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { discoveryApi, profileApi } from '../../utils/api';
+import { discoveryApi, matchApi } from '../../utils/api';
 import { VERDICT_LABELS, EVALUATOR_PLACEHOLDERS } from '../../utils/constants';
 import SnapshotsModal from '../../components/SnapshotsModal';
 import { Card } from '@/components/ui/card';
@@ -136,7 +136,7 @@ export default function RunDetail() {
     if (!next || promptLoaded) return;
     setPromptLoading(true);
     try {
-      const data = await profileApi('/profile');
+      const data = await matchApi('/profile');
       const p = data?.evaluator_prompt || '';
       setEvaluatorPrompt(p);
       setOriginalPrompt(p);
@@ -154,7 +154,7 @@ export default function RunDetail() {
     setSavingPrompt(true);
     setPromptResult(null);
     try {
-      const data = await profileApi('/profile', { method: 'PUT', body: JSON.stringify(body) });
+      const data = await matchApi('/profile', { method: 'PUT', body: JSON.stringify(body) });
       const p = data?.evaluator_prompt || '';
       setEvaluatorPrompt(p);
       setOriginalPrompt(p);

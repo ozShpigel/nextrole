@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { profileApi } from '../../utils/api';
+import { matchApi } from '../../utils/api';
 import { EVALUATOR_PLACEHOLDERS } from '../../utils/constants';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
@@ -147,7 +147,7 @@ export default function SettingsPage() {
 
   async function load() {
     try {
-      const data = await profileApi('/profile');
+      const data = await matchApi('/profile');
       const content = data?.content || '';
       setProfile(content);
       setOriginalProfile(content);
@@ -184,7 +184,7 @@ export default function SettingsPage() {
     setSaving(true);
     setResult(null);
     try {
-      const data = await profileApi('/profile', {
+      const data = await matchApi('/profile', {
         method: 'PUT',
         body: JSON.stringify(body),
       });

@@ -24,12 +24,18 @@ try
 
     // Services
     builder.Services.AddSingleton<IGmailEmailService, GmailEmailService>();
-    builder.Services.AddSingleton<IEmailParser, ClaudeEmailParser>();
     builder.Services.AddSingleton<MailbotOrchestrator>();
+
+    var trackerUrl = builder.Configuration["Tracker:BaseUrl"] ?? "http://localhost:5002";
+
+    builder.Services.AddHttpClient<IEmailParser, HttpEmailParser>(client =>
+    {
+        client.BaseAddress = new Uri(trackerUrl);
+        client.Timeout = TimeSpan.FromSeconds(120);
+    });
 
     builder.Services.AddHttpClient<ITrackerApiClient, TrackerApiClient>(client =>
     {
-        var trackerUrl = builder.Configuration["Tracker:BaseUrl"] ?? "http://localhost:5002";
         client.BaseAddress = new Uri(trackerUrl);
         client.Timeout = TimeSpan.FromSeconds(120);
     });
@@ -37,19 +43,6 @@ try
     var host = builder.Build();
 
     var logger = host.Services.GetRequiredService<ILogger<Program>>();
-    var cfg = host.Services.GetRequiredService<IConfiguration>();
-    var anthropicKey = cfg["Anthropic:ApiKey"]?.Trim();
-    if (string.IsNullOrEmpty(anthropicKey))
-    {
-        logger.LogWarning(
-            "Anthropic API key is missing. Set environment variable Anthropic__ApiKey on the Mailbot service on Render. Claude parsing will fail.");
-    }
-    else
-    {
-        logger.LogInformation(
-            "Anthropic API key is configured ({KeyLength} characters). If logs show invalid x-api-key, create a new key at https://console.anthropic.com/settings/api-keys and update Anthropic__ApiKey on Render.",
-            anthropicKey.Length);
-    }
 
     var orchestrator = host.Services.GetRequiredService<MailbotOrchestrator>();
 

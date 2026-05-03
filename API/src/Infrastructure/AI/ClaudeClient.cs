@@ -3,6 +3,7 @@ using System.Text.Json.Nodes;
 using Anthropic.SDK;
 using Anthropic.SDK.Messaging;
 using ApplicationTracker.Core.AI;
+using ApplicationTracker.Core.Email;
 using ApplicationTracker.Core.Matching;
 using ApplicationTracker.Core.Profile;
 using Microsoft.Extensions.Configuration;
@@ -67,6 +68,41 @@ public sealed class ClaudeClient : IClaudeClient
         _logger.LogInformation("Match evaluation completed. Verdict: {Verdict}, Score: {Score}",
             result.Verdict, result.OverallScore);
         return (result, snapshot);
+    }
+
+    public async Task<EmailParseResult?> ParseEmailAsync(
+        string subject, string from, string body, List<string> knownCompanies,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Parsing email: {Subject}", subject);
+
+        var companiesList = string.Join(", ", knownCompanies);
+        var systemPrompt = string.Format(PromptSeeds.EmailParser, companiesList);
+        var userMessage = $"<email>\n<subject>{subject}</subject>\n<from>{from}</from>\n<body>{body}</body>\n</email>";
+
+        var parameters = new MessageParameters
+        {
+            System = new List<SystemMessage> { new(systemPrompt) },
+            Messages = new List<Message> { new(RoleType.User, userMessage) },
+            MaxTokens = 512,
+            Model = "claude-sonnet-4-20250514",
+            Temperature = 0.3m,
+            Stream = false
+        };
+
+        var response = await _client.Messages.GetClaudeMessageAsync(parameters, cancellationToken);
+        var content = response.Message?.ToString()?.Trim();
+
+        if (string.IsNullOrWhiteSpace(content) || content.Equals("null", StringComparison.OrdinalIgnoreCase))
+        {
+            _logger.LogInformation("Email not relevant: {Subject}", subject);
+            return null;
+        }
+
+        var jsonContent = ExtractJson(content);
+        var result = JsonSerializer.Deserialize<EmailParseResult>(jsonContent, CaseInsensitive);
+        _logger.LogInformation("Parsed email from {Company}: {Type}", result?.Company, result?.UpdateType);
+        return result;
     }
 
     private async Task<(T Result, ClaudeCallSnapshot Snapshot)> CallClaudeAsync<T>(

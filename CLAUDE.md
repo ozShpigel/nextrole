@@ -6,7 +6,7 @@ NextRole is a job application platform that automates the job hunting process
 end-to-end. It discovers job listings from sites like LinkedIn and Indeed, uses AI
 to score and match them against your professional profile, monitors your email for
 application updates, and provides a dashboard to track everything — from discovery
-through interviews to final status — in one place. See `project-scope.md` and `implementation-plan.md` for full detail.
+through interviews to final status — in one place. See `docs/project-scope.md` and `docs/implementation-plan.md` for full detail.
 
 ## Tech Stack
 

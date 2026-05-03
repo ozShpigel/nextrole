@@ -9,10 +9,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 
 from app.config import Settings
-from app.models.api_models import CreateCriteriaRequest, UpdateCriteriaRequest
+from app.schemas.criteria import CreateCriteriaRequest, UpdateCriteriaRequest
 from app.models.search_criteria import SearchCriteria
 from app.services import glassdoor_client, match_client, news_client, orchestrator, tracker_client
-from app.services.match_utils import extract_flat
+from app.utils.match_utils import extract_flat
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

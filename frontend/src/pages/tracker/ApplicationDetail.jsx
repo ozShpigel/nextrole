@@ -214,7 +214,7 @@ function SalaryField({ appId, initialValue }) {
       <label className="text-[0.82rem] text-muted-foreground font-medium shrink-0">Salary</label>
       <input
         className="max-w-[200px] h-8 text-[0.84rem] px-2 rounded-md border border-border bg-background text-foreground"
-        placeholder="e.g. 150-180K"
+        placeholder="e.g. 25-30K/mo"
         value={value}
         onChange={(e) => setValue(e.target.value)}
         onBlur={save}

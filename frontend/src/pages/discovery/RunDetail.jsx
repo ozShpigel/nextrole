@@ -1,13 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { discoveryApi, profileApi } from '../../utils/api';
-import { VERDICT_LABELS } from '../../utils/constants';
+import { VERDICT_LABELS, EVALUATOR_PLACEHOLDERS } from '../../utils/constants';
 import SnapshotsModal from '../../components/SnapshotsModal';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-
-const EVALUATOR_PLACEHOLDERS = ['{{USER_PROFILE}}', '{{PARSED_JOB}}'];
 
 function verdictColor(verdict) {
   if (verdict === 'STRONG_YES' || verdict === 'YES') return 'var(--green)';

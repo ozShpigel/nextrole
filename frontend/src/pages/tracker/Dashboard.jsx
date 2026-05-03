@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../../utils/api';
 import { formatDate, formatDateTime } from '../../utils/format';
 import StatusBadge from '../../components/StatusBadge';
+import StatCard from '../../components/StatCard';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 
@@ -19,13 +20,13 @@ export default function Dashboard() {
       setLoading(true);
       setError(null);
       try {
-        const apps = await api('/applications');
+        const [apps, s, u] = await Promise.all([
+          api('/applications'),
+          api('/stats'),
+          api('/interviews/upcoming'),
+        ]);
         setRecent(apps.slice(0, 5));
-        await new Promise(r => setTimeout(r, 300));
-        const s = await api('/stats');
         setStats(s);
-        await new Promise(r => setTimeout(r, 300));
-        const u = await api('/interviews/upcoming');
         setUpcoming(u);
       } catch (e) {
         setError(e.message);
@@ -43,26 +44,10 @@ export default function Dashboard() {
     <>
       {stats && (
         <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] max-md:grid-cols-2 gap-3 mb-6">
-          <Card className="group py-6 px-5 text-center relative overflow-hidden transition-all hover:border-border hover:-translate-y-[3px] hover:shadow-md">
-            <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-primary to-ring opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
-            <div className="font-sans text-[2rem] font-bold text-foreground tracking-[-0.02em]">{stats.total}</div>
-            <div className="text-[0.78rem] text-muted-foreground mt-[0.3rem] uppercase tracking-[0.06em] font-medium">Total Applications</div>
-          </Card>
-          <Card className="group py-6 px-5 text-center relative overflow-hidden transition-all hover:border-border hover:-translate-y-[3px] hover:shadow-md">
-            <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-primary to-ring opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
-            <div className="font-sans text-[2rem] font-bold text-foreground tracking-[-0.02em]">{stats.inProgress}</div>
-            <div className="text-[0.78rem] text-muted-foreground mt-[0.3rem] uppercase tracking-[0.06em] font-medium">In Progress</div>
-          </Card>
-          <Card className="group py-6 px-5 text-center relative overflow-hidden transition-all hover:border-border hover:-translate-y-[3px] hover:shadow-md">
-            <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-primary to-ring opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
-            <div className="font-sans text-[2rem] font-bold text-foreground tracking-[-0.02em]">{stats.avgScore || '-'}</div>
-            <div className="text-[0.78rem] text-muted-foreground mt-[0.3rem] uppercase tracking-[0.06em] font-medium">Average Score</div>
-          </Card>
-          <Card className="group py-6 px-5 text-center relative overflow-hidden transition-all hover:border-border hover:-translate-y-[3px] hover:shadow-md">
-            <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-primary to-ring opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
-            <div className="font-sans text-[2rem] font-bold text-foreground tracking-[-0.02em]">{stats.responseRate}%</div>
-            <div className="text-[0.78rem] text-muted-foreground mt-[0.3rem] uppercase tracking-[0.06em] font-medium">Response Rate</div>
-          </Card>
+          <StatCard value={stats.total} label="Total Applications" />
+          <StatCard value={stats.inProgress} label="In Progress" />
+          <StatCard value={stats.avgScore || '-'} label="Average Score" />
+          <StatCard value={`${stats.responseRate}%`} label="Response Rate" />
         </div>
       )}
 

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { profileApi } from '../../utils/api';
+import { EVALUATOR_PLACEHOLDERS } from '../../utils/constants';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Badge } from '../../components/ui/badge';
@@ -43,8 +44,6 @@ function mergeScoringConfig(incoming) {
     min_score_to_save: sc.min_score_to_save ?? DEFAULT_CONFIG.min_score_to_save,
   };
 }
-
-const EVALUATOR_PLACEHOLDERS = ['{{USER_PROFILE}}', '{{PARSED_JOB}}'];
 
 const estimateTokens = (text) => Math.ceil((text?.length || 0) / 4);
 

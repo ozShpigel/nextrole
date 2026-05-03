@@ -13,14 +13,14 @@ export default function ScoreBar({ label, score, maxScore }) {
 
   return (
     <div className="flex items-center gap-3 mb-[0.65rem]">
-      <span className="min-w-[130px] text-[0.82rem] text-text-secondary">{label}</span>
-      <div className="flex-1 h-[22px] bg-bg-elevated rounded-sm overflow-hidden border border-border">
+      <span className="min-w-[130px] text-[0.82rem] text-muted-foreground">{label}</span>
+      <div className="flex-1 h-[22px] bg-muted rounded-sm overflow-hidden border border-border">
         <div
           className={`h-full rounded-[5px] transition-[width] duration-[800ms] ease-[cubic-bezier(0.22,1,0.36,1)] flex items-center justify-center text-[0.72rem] font-semibold ${BAR_COLORS[color] || 'bg-red'}`}
           style={{ width: `${pct}%` }}
         />
       </div>
-      <span className="min-w-[30px] text-start text-[0.82rem] text-text-dim">{score != null ? score : 'N/A'}/{maxScore != null ? maxScore : '?'}</span>
+      <span className="min-w-[30px] text-start text-[0.82rem] text-muted-foreground">{score != null ? score : 'N/A'}/{maxScore != null ? maxScore : '?'}</span>
     </div>
   );
 }

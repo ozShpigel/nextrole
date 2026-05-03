@@ -24,13 +24,13 @@ function Panel({ label, body, empty }) {
   }
 
   return (
-    <div className="bg-bg-surface border border-border rounded p-4 mb-2">
+    <div className="bg-muted border border-border rounded p-4 mb-2">
       <div className="flex justify-between items-center mb-2">
-        <span className="text-[0.75rem] font-medium text-text-dim uppercase tracking-[0.06em]">{label}</span>
+        <span className="text-[0.75rem] font-medium text-muted-foreground uppercase tracking-[0.06em]">{label}</span>
         {body && (
           <button
             type="button"
-            className="px-2 py-1 text-[0.75rem] font-medium bg-bg-surface border border-border rounded-sm text-text-secondary hover:border-border-hover hover:text-text-primary transition-all"
+            className="px-2 py-1 text-[0.75rem] font-medium bg-muted border border-border rounded-sm text-muted-foreground hover:border-border hover:text-foreground transition-all"
             onClick={copy}
           >
             {copied ? 'Copied' : 'Copy'}
@@ -38,9 +38,9 @@ function Panel({ label, body, empty }) {
         )}
       </div>
       {body ? (
-        <pre className="text-[0.78rem] leading-relaxed bg-bg-input border border-border rounded p-3 overflow-x-auto whitespace-pre-wrap font-code text-text-primary" dir="ltr">{body}</pre>
+        <pre className="text-[0.78rem] leading-relaxed bg-muted/50 border border-border rounded p-3 overflow-x-auto whitespace-pre-wrap font-code text-foreground" dir="ltr">{body}</pre>
       ) : (
-        <div className="text-[0.84rem] text-text-dim py-2 text-center">{empty}</div>
+        <div className="text-[0.84rem] text-muted-foreground py-2 text-center">{empty}</div>
       )}
     </div>
   );
@@ -71,8 +71,8 @@ export default function SnapshotsCard({ snapshots }) {
         return (
           <div key={s.key} className="border-b border-border pb-4 last:border-b-0 last:pb-0">
             <div className="flex items-baseline justify-between mb-3">
-              <span className="text-[0.9rem] font-semibold text-text-bright">{s.label}</span>
-              <span className="text-[0.75rem] text-text-dim">{s.hint}</span>
+              <span className="text-[0.9rem] font-semibold text-foreground">{s.label}</span>
+              <span className="text-[0.75rem] text-muted-foreground">{s.hint}</span>
             </div>
             {hasAny ? (
               <>
@@ -88,7 +88,7 @@ export default function SnapshotsCard({ snapshots }) {
                 />
               </>
             ) : (
-              <div className="text-[0.84rem] text-text-dim py-2 text-center">Not available — stage skipped</div>
+              <div className="text-[0.84rem] text-muted-foreground py-2 text-center">Not available — stage skipped</div>
             )}
           </div>
         );

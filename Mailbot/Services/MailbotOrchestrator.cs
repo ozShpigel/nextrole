@@ -46,13 +46,15 @@ public sealed class MailbotOrchestrator
                     "Could not reach Application Tracker (timeout or error). Sync aborted — will not treat as empty.";
                 _logger.LogError("{Message}", msg);
                 result.Errors.Add(msg);
-                return result with { Success = false };
+                result.Success = false;
+                return result;
             }
 
             if (!activeApps.Any())
             {
                 _logger.LogInformation("No active applications to check");
-                return result with { Success = true };
+                result.Success = true;
+                return result;
             }
 
             var companies = activeApps.Select(a => a.Company).Distinct().ToList();
@@ -61,12 +63,13 @@ public sealed class MailbotOrchestrator
 
             // Step 2: Get emails from LAST 24 HOURS ONLY
             var emails = await _gmail.GetEmailsFromLast24HoursAsync(ct);
-            result = result with { EmailsChecked = emails.Count };
+            result.EmailsChecked = emails.Count;
 
             if (!emails.Any())
             {
                 _logger.LogInformation("No new emails in last 24 hours");
-                return result with { Success = true };
+                result.Success = true;
+                return result;
             }
 
             // Step 3: Parse ONLY emails from tracked companies
@@ -111,12 +114,9 @@ public sealed class MailbotOrchestrator
                 }
             }
 
-            result = result with
-            {
-                EmailsParsed = parsed,
-                ApplicationsUpdated = updated,
-                Success = true
-            };
+            result.EmailsParsed = parsed;
+            result.ApplicationsUpdated = updated;
+            result.Success = true;
 
             _logger.LogInformation(
                 "=== Sync Complete === Checked: {Checked}, Parsed: {Parsed}, Updated: {Updated}",
@@ -126,7 +126,7 @@ public sealed class MailbotOrchestrator
         {
             _logger.LogError(ex, "Email sync failed");
             result.Errors.Add($"Sync failed: {ex.Message}");
-            result = result with { Success = false };
+            result.Success = false;
         }
 
         return result;
@@ -141,7 +141,6 @@ public sealed class MailbotOrchestrator
                     app.Id, "Applied", "Email confirmation received", ct);
 
             case "InterviewScheduled":
-                // Add interview to tracker
                 var interviewAdded = await _tracker.AddInterviewAsync(app.Id, new AddInterviewRequest
                 {
                     ScheduledAt = CombineDateAndTime(update.InterviewDate, update.InterviewTime),
@@ -151,7 +150,6 @@ public sealed class MailbotOrchestrator
                     Notes = "Auto-detected from email"
                 }, ct);
 
-                // Update application status based on interview type
                 var newStatus = update.InterviewType?.ToLower() switch
                 {
                     "phone" or "hr" => "PhoneScreen",
@@ -160,8 +158,10 @@ public sealed class MailbotOrchestrator
                     _ => "PhoneScreen"
                 };
 
-                await _tracker.UpdateApplicationStatusAsync(
+                var statusUpdated = await _tracker.UpdateApplicationStatusAsync(
                     app.Id, newStatus, $"Interview scheduled: {update.InterviewType}", ct);
+                if (!statusUpdated)
+                    _logger.LogWarning("Interview added for {AppId} but status update to {Status} failed", app.Id, newStatus);
 
                 return interviewAdded;
 
@@ -183,9 +183,11 @@ public sealed class MailbotOrchestrator
         }
     }
 
-    private static DateTime CombineDateAndTime(DateTime? date, string? time)
+    private DateTime CombineDateAndTime(DateTime? date, string? time)
     {
         var baseDate = date ?? DateTime.UtcNow.AddDays(3);
+        if (date is null)
+            _logger.LogWarning("No interview date provided, using fallback: {Date:yyyy-MM-dd}", baseDate);
 
         if (string.IsNullOrWhiteSpace(time) || !TimeSpan.TryParse(time, out var timeSpan))
             return baseDate;

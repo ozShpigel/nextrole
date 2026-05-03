@@ -7,6 +7,7 @@ using ApplicationTracker.Core.Models;
 using ApplicationTracker.Core.Profile;
 using ApplicationTracker.Infrastructure.AI;
 using ApplicationTracker.Infrastructure.Profile;
+using ApplicationTracker.Core.Repositories;
 using ApplicationTracker.Infrastructure.Repositories;
 using Microsoft.AspNetCore.Mvc;
 using MongoDB.Driver;
@@ -210,16 +211,17 @@ app.MapGet("/api/applications/{id:guid}", async (
     var application = await appRepo.GetByIdAsync(id, ct);
     if (application is null) return Results.NotFound();
 
-    var interviews = await interviewRepo.GetByApplicationIdAsync(id, ct);
-    var notes = await noteRepo.GetByApplicationIdAsync(id, ct);
-    var statusUpdates = await statusRepo.GetByApplicationIdAsync(id, ct);
+    var interviewsTask = interviewRepo.GetByApplicationIdAsync(id, ct);
+    var notesTask = noteRepo.GetByApplicationIdAsync(id, ct);
+    var statusUpdatesTask = statusRepo.GetByApplicationIdAsync(id, ct);
+    await Task.WhenAll(interviewsTask, notesTask, statusUpdatesTask);
 
     return Results.Ok(new
     {
         application,
-        interviews,
-        notes,
-        statusUpdates
+        interviews = interviewsTask.Result,
+        notes = notesTask.Result,
+        statusUpdates = statusUpdatesTask.Result
     });
 })
 .WithName("GetApplication")
@@ -271,10 +273,19 @@ app.MapPut("/api/applications/{id:guid}/status", async (
 app.MapDelete("/api/applications/{id:guid}", async (
     Guid id,
     IApplicationRepository repo,
+    ILogger<Program> logger,
     CancellationToken ct) =>
 {
-    await repo.DeleteAsync(id, ct);
-    return Results.NoContent();
+    try
+    {
+        await repo.DeleteAsync(id, ct);
+        return Results.NoContent();
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "Error deleting application {Id}", id);
+        return Results.Problem("Error deleting application");
+    }
 })
 .WithName("DeleteApplication")
 .WithSummary("Delete application");
@@ -429,9 +440,14 @@ app.MapGet("/api/applications/{id:guid}/timeline", async (
     INoteRepository noteRepo,
     CancellationToken ct) =>
 {
-    var statusUpdates = await statusRepo.GetByApplicationIdAsync(id, ct);
-    var interviews = await interviewRepo.GetByApplicationIdAsync(id, ct);
-    var notes = await noteRepo.GetByApplicationIdAsync(id, ct);
+    var statusUpdatesTask = statusRepo.GetByApplicationIdAsync(id, ct);
+    var interviewsTask = interviewRepo.GetByApplicationIdAsync(id, ct);
+    var notesTask = noteRepo.GetByApplicationIdAsync(id, ct);
+    await Task.WhenAll(statusUpdatesTask, interviewsTask, notesTask);
+
+    var statusUpdates = statusUpdatesTask.Result;
+    var interviews = interviewsTask.Result;
+    var notes = notesTask.Result;
 
     var timeline = new List<TimelineItem>();
 
@@ -463,11 +479,15 @@ app.MapGet("/api/interviews/upcoming", async (
     var appIds = interviews.Select(i => i.ApplicationId).Distinct();
     var apps = (await appRepo.GetByIdsAsync(appIds, ct)).ToDictionary(a => a.Id);
 
-    var result = interviews.Select(i => new
+    var result = interviews.Select(i =>
     {
-        interview = i,
-        jobTitle = apps.TryGetValue(i.ApplicationId, out var a) ? a.JobTitle : null,
-        company = apps.TryGetValue(i.ApplicationId, out var b) ? b.Company : null
+        apps.TryGetValue(i.ApplicationId, out var app);
+        return new
+        {
+            interview = i,
+            jobTitle = app?.JobTitle,
+            company = app?.Company
+        };
     });
 
     return Results.Ok(result);

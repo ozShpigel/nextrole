@@ -1,6 +1,6 @@
 using ApplicationTracker.Core.Models;
 
-namespace ApplicationTracker.Infrastructure.Repositories;
+namespace ApplicationTracker.Core.Repositories;
 
 public interface IApplicationRepository
 {

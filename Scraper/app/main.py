@@ -12,6 +12,7 @@ from app.config import Settings
 from app.models.api_models import CreateCriteriaRequest, UpdateCriteriaRequest
 from app.models.search_criteria import SearchCriteria
 from app.services import glassdoor_client, match_client, news_client, orchestrator, tracker_client
+from app.services.match_utils import extract_flat
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -103,7 +104,7 @@ async def create_criteria(req: CreateCriteriaRequest):
 
 @app.put("/api/discovery/criteria/{criteria_id}")
 async def update_criteria(criteria_id: str, req: UpdateCriteriaRequest):
-    updates = {k: v for k, v in req.model_dump().items() if v is not None}
+    updates = req.model_dump(exclude_unset=True)
     if not updates:
         raise HTTPException(400, "No fields to update")
     updates["updated_at"] = datetime.now(timezone.utc)
@@ -184,15 +185,6 @@ async def abort_run(run_id: str):
 # Discovered Jobs Actions
 # ---------------------------------------------------------------------------
 
-def _extract_flat(match_analysis: dict) -> tuple[int | None, str | None, bool | None]:
-    """Mirror of orchestrator._extract_flat — pull flat fields for persistence."""
-    score = match_analysis.get("overallScore")
-    verdict = match_analysis.get("verdict")
-    recommendation = match_analysis.get("recommendation") or {}
-    should_apply = recommendation.get("shouldApply")
-    return score, verdict, should_apply
-
-
 @app.post("/api/discovery/jobs/{job_id}/rescore")
 async def rescore_job(job_id: str):
     """Re-run match scoring on a single job — overwrites any existing score.
@@ -205,7 +197,7 @@ async def rescore_job(job_id: str):
     if not doc:
         raise HTTPException(404, "Job not found")
 
-    company_news = await news_client.fetch_company_news(doc["company"])
+    company_news = await news_client.fetch_company_news(doc["company"]) or None
     glassdoor_data = await glassdoor_client.fetch_glassdoor_rating(doc["company"])
 
     result = await match_client.score_job(
@@ -216,7 +208,7 @@ async def rescore_job(job_id: str):
         description=doc.get("description"),
         date_posted=doc.get("date_posted"),
         site=doc.get("site", "linkedin"),
-        company_news=company_news or None,
+        company_news=company_news,
         glassdoor_data=glassdoor_data,
     )
 
@@ -232,7 +224,7 @@ async def rescore_job(job_id: str):
     if result.status == "api_error":
         raise HTTPException(503, "API still unreachable — try again in a moment")
 
-    score, verdict, should_apply = _extract_flat(result.data)
+    score, verdict, should_apply = extract_flat(result.data)
     await db.discovered_jobs.update_one(
         {"id": job_id},
         {"$set": {
@@ -240,7 +232,7 @@ async def rescore_job(job_id: str):
             "verdict": verdict,
             "should_apply": should_apply,
             "match_analysis": result.data,
-            "company_news": company_news or None,
+            "company_news": company_news,
             "glassdoor_data": glassdoor_data,
             "analyst_snapshot_input": result.data.get("analystSnapshotInput"),
             "analyst_snapshot_output": result.data.get("analystSnapshotOutput"),

@@ -11,10 +11,11 @@ namespace Mailbot.Services;
 /// Uses Claude to parse job-related emails and extract structured updates.
 /// Only parses emails from tracked companies.
 /// </summary>
-public sealed class ClaudeEmailParser : IEmailParser
+public sealed class ClaudeEmailParser : IEmailParser, IDisposable
 {
     private readonly AnthropicClient _claude;
     private readonly ILogger<ClaudeEmailParser> _logger;
+    private readonly string _model;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -29,7 +30,10 @@ public sealed class ClaudeEmailParser : IEmailParser
 
         _claude = new AnthropicClient(apiKey);
         _logger = logger;
+        _model = config["Anthropic:Model"] ?? "claude-opus-4-20250514";
     }
+
+    public void Dispose() => (_claude as IDisposable)?.Dispose();
 
     public async Task<EmailUpdate?> ParseEmailAsync(
         EmailMessage email,
@@ -70,7 +74,7 @@ public sealed class ClaudeEmailParser : IEmailParser
             {
                 System = new List<SystemMessage> { new(systemPrompt) },
                 Messages = new List<Message> { new(RoleType.User, userMessage) },
-                Model = "claude-opus-4-20250514",
+                Model = _model,
                 MaxTokens = 512,
                 Temperature = 0.3m,
                 Stream = false

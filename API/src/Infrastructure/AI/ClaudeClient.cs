@@ -12,6 +12,11 @@ namespace ApplicationTracker.Infrastructure.AI;
 
 public sealed class ClaudeClient : IClaudeClient
 {
+    private static readonly JsonSerializerOptions CaseInsensitive = new()
+    {
+        PropertyNameCaseInsensitive = true
+    };
+
     private readonly AnthropicClient _client;
     private readonly PromptBuilder _promptBuilder;
     private readonly IProfileProvider _profileProvider;
@@ -39,70 +44,37 @@ public sealed class ClaudeClient : IClaudeClient
 
     public async Task<(ParsedJob Parsed, ClaudeCallSnapshot Snapshot)> ParseJobDescriptionAsync(string jobDescription, CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("Parsing job description");
+        _logger.LogInformation("Parsing job description ({Length} chars)", jobDescription.Length);
 
         var analystPrompt = await _profileProvider.GetAnalystPromptAsync(cancellationToken);
         var (systemPrompt, userMessage) = _promptBuilder.BuildAnalysisPrompt(jobDescription, analystPrompt);
         var cfg = (await _profileProvider.GetScoringConfigAsync(cancellationToken)).Analyst;
 
-        _logger.LogInformation("=== Claude parse request ===");
-        _logger.LogInformation("Model: {Model} | MaxTokens: {MaxTokens} | Temp: {Temp} | Thinking: {Thinking}",
-            cfg.Model, cfg.MaxTokens, cfg.Temperature, cfg.ThinkingEnabled);
-        _logger.LogInformation("Job description length: {Length} chars", jobDescription.Length);
-        _logger.LogDebug("=== Full system prompt ===\n{Prompt}\n=== End system prompt ===", systemPrompt);
-
-        var parameters = new MessageParameters
-        {
-            System = new List<SystemMessage> { new(systemPrompt) },
-            Messages = new List<Message> { new(RoleType.User, userMessage) },
-            MaxTokens = cfg.MaxTokens,
-            Model = cfg.Model,
-            Stream = false,
-            Temperature = cfg.Temperature
-        };
-
-        if (cfg.ThinkingEnabled && cfg.ThinkingBudget > 0 && cfg.MaxTokens > cfg.ThinkingBudget)
-        {
-            parameters.Thinking = new ThinkingParameters
-            {
-                BudgetTokens = cfg.ThinkingBudget
-            };
-            parameters.Temperature = 1m;
-        }
-
-        var inputJson = SerializeCallInput(parameters, userMessage);
-
-        var response = await _client.Messages.GetClaudeMessageAsync(parameters, cancellationToken);
-        if (response?.Message == null)
-            throw new InvalidOperationException("Empty response from Claude API");
-
-        var content = response.Message.ToString() ?? "";
-        _logger.LogDebug("Received parse response from Claude. Length: {Length} chars", content.Length);
-
-        var jsonContent = ExtractJson(content);
-        var parsedJob = JsonSerializer.Deserialize<ParsedJob>(jsonContent, new JsonSerializerOptions
-        {
-            PropertyNameCaseInsensitive = true
-        }) ?? throw new InvalidOperationException("Failed to deserialize ParsedJob");
-
-        _logger.LogInformation("Job parsed. Title: {Title}", parsedJob.JobTitle);
-        return (parsedJob, new ClaudeCallSnapshot(inputJson, content));
+        var (result, snapshot) = await CallClaudeAsync<ParsedJob>(systemPrompt, userMessage, cfg, "parse", cancellationToken);
+        _logger.LogInformation("Job parsed. Title: {Title}", result.JobTitle);
+        return (result, snapshot);
     }
 
     public async Task<(MatchResponse Response, ClaudeCallSnapshot Snapshot)> EvaluateMatchAsync(string profile, ParsedJob parsedJob, List<CompanyNewsItem>? companyNews = null, GlassdoorData? glassdoorData = null, CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("Evaluating job match");
+        _logger.LogInformation("Evaluating job match: {Title} at {Company}", parsedJob.JobTitle, parsedJob.Company);
 
         var evaluatorPrompt = await _profileProvider.GetEvaluatorPromptAsync(cancellationToken);
         var (systemPrompt, userMessage) = _promptBuilder.BuildEvaluationPrompt(profile, parsedJob, evaluatorPrompt, companyNews, glassdoorData);
         var cfg = (await _profileProvider.GetScoringConfigAsync(cancellationToken)).Evaluator;
 
-        _logger.LogInformation("=== Claude evaluate request ===");
-        _logger.LogInformation("Model: {Model} | MaxTokens: {MaxTokens} | Temp: {Temp} | Thinking: {Thinking}",
-            cfg.Model, cfg.MaxTokens, cfg.Temperature, cfg.ThinkingEnabled);
-        _logger.LogInformation("Profile length: {ProfileLen} chars | User message length: {MsgLen} chars",
-            profile.Length, userMessage.Length);
-        _logger.LogInformation("Job: {Title} at {Company}", parsedJob.JobTitle, parsedJob.Company);
+        var (result, snapshot) = await CallClaudeAsync<MatchResponse>(systemPrompt, userMessage, cfg, "evaluate", cancellationToken);
+        _logger.LogInformation("Match evaluation completed. Verdict: {Verdict}, Score: {Score}",
+            result.Verdict, result.OverallScore);
+        return (result, snapshot);
+    }
+
+    private async Task<(T Result, ClaudeCallSnapshot Snapshot)> CallClaudeAsync<T>(
+        string systemPrompt, string userMessage, RoleScoringConfig cfg, string label,
+        CancellationToken cancellationToken) where T : class
+    {
+        _logger.LogInformation("=== Claude {Label} request === Model: {Model} | MaxTokens: {MaxTokens} | Temp: {Temp} | Thinking: {Thinking}",
+            label, cfg.Model, cfg.MaxTokens, cfg.Temperature, cfg.ThinkingEnabled);
         _logger.LogDebug("=== Full system prompt ===\n{Prompt}\n=== End system prompt ===", systemPrompt);
 
         var parameters = new MessageParameters
@@ -131,17 +103,13 @@ public sealed class ClaudeClient : IClaudeClient
             throw new InvalidOperationException("Empty response from Claude API");
 
         var content = response.Message.ToString() ?? "";
-        _logger.LogDebug("Received evaluate response from Claude. Length: {Length} chars", content.Length);
+        _logger.LogDebug("Received {Label} response from Claude. Length: {Length} chars", label, content.Length);
 
         var jsonContent = ExtractJson(content);
-        var matchResponse = JsonSerializer.Deserialize<MatchResponse>(jsonContent, new JsonSerializerOptions
-        {
-            PropertyNameCaseInsensitive = true
-        }) ?? throw new InvalidOperationException("Failed to deserialize MatchResponse");
+        var result = JsonSerializer.Deserialize<T>(jsonContent, CaseInsensitive)
+            ?? throw new InvalidOperationException($"Failed to deserialize {typeof(T).Name}");
 
-        _logger.LogInformation("Match evaluation completed. Verdict: {Verdict}, Score: {Score}",
-            matchResponse.Verdict, matchResponse.OverallScore);
-        return (matchResponse, new ClaudeCallSnapshot(inputJson, content));
+        return (result, new ClaudeCallSnapshot(inputJson, content));
     }
 
     private static string SerializeCallInput(MessageParameters parameters, string userPrompt)

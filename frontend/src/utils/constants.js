@@ -35,6 +35,8 @@ export const NOTE_CATEGORY_LABELS = {
   FollowUp: 'Follow-up',
 };
 
+export const EVALUATOR_PLACEHOLDERS = ['{{USER_PROFILE}}', '{{PARSED_JOB}}'];
+
 export const VERDICT_LABELS = {
   STRONG_YES: 'Strong Yes',
   YES: 'Yes',

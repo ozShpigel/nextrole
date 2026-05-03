@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { discoveryApi } from '../../utils/api';
+import { relativeTime } from '../../utils/format';
 import CriteriaForm from './CriteriaForm';
 import { Card, CardHeader, CardContent, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -35,19 +36,6 @@ const statusBadgeColors = {
   'status-yellow': 'bg-yellow-bg text-yellow border-[rgba(166,139,43,0.18)]',
   'status-dim': 'bg-muted/50 text-muted-foreground border-border',
 };
-
-function relativeTime(iso) {
-  if (!iso) return '—';
-  const then = new Date(iso).getTime();
-  const diff = Date.now() - then;
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return 'now';
-  if (mins < 60) return `${mins}m`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h`;
-  const days = Math.floor(hrs / 24);
-  return `${days}d`;
-}
 
 export default function DiscoveryPage() {
   const [criteria, setCriteria] = useState([]);

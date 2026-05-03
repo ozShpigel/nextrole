@@ -8,17 +8,9 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from app.config import Settings
 from app.models.discovered_job import DiscoveredJob
 from app.services import glassdoor_client, match_client, news_client, scraper, tracker_client
+from app.services.match_utils import extract_flat
 
 logger = logging.getLogger(__name__)
-
-
-def _extract_flat(match_analysis: dict) -> tuple[int | None, str | None, bool | None]:
-    """Pull sort/filter fields out of the rich MatchResponse."""
-    score = match_analysis.get("overallScore")
-    verdict = match_analysis.get("verdict")
-    recommendation = match_analysis.get("recommendation") or {}
-    should_apply = recommendation.get("shouldApply")
-    return score, verdict, should_apply
 
 
 async def run_discovery(db: AsyncIOMotorDatabase, settings: Settings, criteria_id: str):
@@ -37,7 +29,7 @@ async def run_discovery(db: AsyncIOMotorDatabase, settings: Settings, criteria_i
 
     try:
         logger.info("Run %s: scraping for criteria '%s'", run.id, criteria.name)
-        jobs = await asyncio.get_event_loop().run_in_executor(
+        jobs = await asyncio.get_running_loop().run_in_executor(
             None, scraper.scrape_for_criteria, criteria
         )
 
@@ -67,26 +59,26 @@ async def run_discovery(db: AsyncIOMotorDatabase, settings: Settings, criteria_i
             try:
                 title = job_data["title"]
                 company = job_data["company"]
+                base_job = {
+                    "run_id": run.id,
+                    "criteria_id": criteria.id,
+                    "title": title,
+                    "company": company,
+                    "location": job_data.get("location"),
+                    "description": job_data.get("description"),
+                    "job_url": job_data.get("job_url"),
+                    "date_posted": job_data.get("date_posted"),
+                    "site": job_data.get("site", "linkedin"),
+                }
 
                 is_dup = await tracker_client.check_duplicate(settings, company, title)
                 if is_dup:
-                    disc_job = DiscoveredJob(
-                        run_id=run.id,
-                        criteria_id=criteria.id,
-                        title=title,
-                        company=company,
-                        location=job_data.get("location"),
-                        description=job_data.get("description"),
-                        job_url=job_data.get("job_url"),
-                        date_posted=job_data.get("date_posted"),
-                        site=job_data.get("site", "linkedin"),
-                        is_duplicate=True,
-                    )
+                    disc_job = DiscoveredJob(**base_job, is_duplicate=True)
                     await db.discovered_jobs.insert_one(disc_job.model_dump())
                     run.jobs_skipped_duplicate += 1
                     continue
 
-                company_news = await news_client.fetch_company_news(company, news_cache)
+                company_news = await news_client.fetch_company_news(company, news_cache) or None
                 glassdoor_data = await glassdoor_client.fetch_glassdoor_rating(company, glassdoor_cache)
 
                 match_result = await match_client.score_job(
@@ -97,28 +89,13 @@ async def run_discovery(db: AsyncIOMotorDatabase, settings: Settings, criteria_i
                     description=job_data.get("description"),
                     date_posted=job_data.get("date_posted"),
                     site=job_data.get("site", "linkedin"),
-                    company_news=company_news or None,
+                    company_news=company_news,
                     glassdoor_data=glassdoor_data,
                 )
 
-                # Three failure modes, two verdicts:
-                # - "too_short": description too thin for the analyst → INSUFFICIENT_DATA (terminal).
-                # - "rate_limited": Anthropic 429 on the API → MATCH_FAILED; pause before next job
-                #   so the rate-limit window has time to reset.
-                # - "api_error": timeout / 502 / cold-start → MATCH_FAILED; rescore later from UI.
                 if match_result.status != "ok":
-                    disc_job = DiscoveredJob(
-                        run_id=run.id,
-                        criteria_id=criteria.id,
-                        title=title,
-                        company=company,
-                        location=job_data.get("location"),
-                        description=job_data.get("description"),
-                        job_url=job_data.get("job_url"),
-                        date_posted=job_data.get("date_posted"),
-                        site=job_data.get("site", "linkedin"),
-                        verdict="INSUFFICIENT_DATA" if match_result.status == "too_short" else "MATCH_FAILED",
-                    )
+                    verdict = "INSUFFICIENT_DATA" if match_result.status == "too_short" else "MATCH_FAILED"
+                    disc_job = DiscoveredJob(**base_job, verdict=verdict)
                     await db.discovered_jobs.insert_one(disc_job.model_dump())
                     if i < len(jobs) - 1:
                         if match_result.status == "rate_limited":
@@ -129,23 +106,15 @@ async def run_discovery(db: AsyncIOMotorDatabase, settings: Settings, criteria_i
                     continue
 
                 match_response = match_result.data
-                score, verdict, should_apply = _extract_flat(match_response)
+                score, verdict, should_apply = extract_flat(match_response)
 
                 disc_job = DiscoveredJob(
-                    run_id=run.id,
-                    criteria_id=criteria.id,
-                    title=title,
-                    company=company,
-                    location=job_data.get("location"),
-                    description=job_data.get("description"),
-                    job_url=job_data.get("job_url"),
-                    date_posted=job_data.get("date_posted"),
-                    site=job_data.get("site", "linkedin"),
+                    **base_job,
                     score=score,
                     verdict=verdict,
                     should_apply=should_apply,
                     match_analysis=match_response,
-                    company_news=company_news or None,
+                    company_news=company_news,
                     glassdoor_data=glassdoor_data,
                     analyst_snapshot_input=match_response.get("analystSnapshotInput"),
                     analyst_snapshot_output=match_response.get("analystSnapshotOutput"),

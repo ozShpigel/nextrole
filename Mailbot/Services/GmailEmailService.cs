@@ -132,39 +132,32 @@ public sealed class GmailEmailService : IGmailEmailService
             ? $"after:{yesterdayFormatted}"
             : _query;
 
-        if (string.IsNullOrWhiteSpace(_query))
-        {
-            _logger.LogInformation("Fetching emails since {Date} (last 24 hours) with default query: {Query}", yesterday, effectiveQuery);
-        }
-        else
-        {
-            _logger.LogInformation("Fetching emails using configured Gmail query: {Query}", effectiveQuery);
-        }
+        _logger.LogInformation("Fetching emails with query: {Query}", effectiveQuery);
 
         var request = _gmail.Users.Messages.List("me");
         request.Q = effectiveQuery;
-
-        var response = await request.ExecuteAsync(ct);
-
-        if (response.Messages == null || !response.Messages.Any())
-        {
-            _logger.LogInformation("No emails found in last 24 hours");
-            return new List<EmailMessage>();
-        }
+        request.MaxResults = 500;
 
         var emails = new List<EmailMessage>();
 
-        foreach (var message in response.Messages)
+        do
         {
-            var fullMessage = await _gmail.Users.Messages.Get("me", message.Id).ExecuteAsync(ct);
-            var email = ParseGmailMessage(fullMessage);
+            var response = await request.ExecuteAsync(ct);
 
-            // Double-check it's actually from last 24 hours
-            if (email.ReceivedAt >= yesterday)
+            if (response.Messages == null || !response.Messages.Any())
+                break;
+
+            foreach (var message in response.Messages)
             {
-                emails.Add(email);
+                var fullMessage = await _gmail.Users.Messages.Get("me", message.Id).ExecuteAsync(ct);
+                var email = ParseGmailMessage(fullMessage);
+
+                if (email.ReceivedAt >= yesterday)
+                    emails.Add(email);
             }
-        }
+
+            request.PageToken = response.NextPageToken;
+        } while (request.PageToken != null);
 
         _logger.LogInformation("Found {Count} emails from last 24 hours", emails.Count);
         return emails;
@@ -211,11 +204,12 @@ public sealed class GmailEmailService : IGmailEmailService
         return string.Empty;
     }
 
-    private static DateTime ParseEmailDate(string dateString)
+    private DateTime ParseEmailDate(string dateString)
     {
-        if (DateTime.TryParse(dateString, out var date))
-            return date;
+        if (DateTimeOffset.TryParse(dateString, out var dto))
+            return dto.UtcDateTime;
 
+        _logger.LogWarning("Failed to parse email date '{DateString}', falling back to UtcNow", dateString);
         return DateTime.UtcNow;
     }
 }

@@ -10,14 +10,7 @@ try
     // so appsettings.json and credentials.json are found regardless of cwd
     var exeDir = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location)!;
 
-    var credentialsSecretPath = "/etc/secrets/credentials.json";
-    var credentialsLocalPath = Path.Combine(exeDir, "credentials.json");
-
     Console.WriteLine($"Mailbot starting. exeDir: {exeDir}");
-    Console.WriteLine($"Checking credentials secret path: {credentialsSecretPath}");
-    Console.WriteLine($"Secret credentials.json exists: {File.Exists(credentialsSecretPath)}");
-    Console.WriteLine($"Checking local credentials path: {credentialsLocalPath}");
-    Console.WriteLine($"Local credentials.json exists: {File.Exists(credentialsLocalPath)}");
 
     var builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings
     {

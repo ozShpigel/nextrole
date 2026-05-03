@@ -1,4 +1,5 @@
 using ApplicationTracker.Core.Models;
+using ApplicationTracker.Core.Repositories;
 using MongoDB.Driver;
 
 namespace ApplicationTracker.Infrastructure.Repositories;

@@ -76,7 +76,10 @@ async def prefetch_company_news(companies: list[str]) -> dict[str, list[dict]]:
 
     logger.info("Prefetching news for %d unique companies", len(unique))
     tasks = [fetch_company_news(c, cache) for c in unique]
-    await asyncio.gather(*tasks, return_exceptions=True)
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+    failed = sum(1 for r in results if isinstance(r, Exception))
+    if failed:
+        logger.warning("News prefetch: %d/%d fetches raised exceptions", failed, len(results))
     logger.info("News prefetch complete: %d companies, %d with results",
                 len(unique), sum(1 for v in cache.values() if v))
 

@@ -223,25 +223,14 @@ public sealed class MongoProfileProvider : IProfileProvider
 
     public async Task<string> GetAnalystPromptAsync(CancellationToken cancellationToken = default)
     {
-        var stored = await ReadStoredPromptAsync("analyst_prompt", cancellationToken);
-        return !string.IsNullOrWhiteSpace(stored) ? stored : PromptSeeds.Analyst;
+        var doc = await GetProfileDocumentAsync(cancellationToken);
+        return doc.AnalystPrompt;
     }
 
     public async Task<string> GetEvaluatorPromptAsync(CancellationToken cancellationToken = default)
     {
-        var stored = await ReadStoredPromptAsync("evaluator_prompt", cancellationToken);
-        return !string.IsNullOrWhiteSpace(stored) ? stored : PromptSeeds.Evaluator;
-    }
-
-    private async Task<string?> ReadStoredPromptAsync(string field, CancellationToken cancellationToken)
-    {
-        var filter = Builders<BsonDocument>.Filter.Eq("id", DocId);
-        var doc = await _collection.Find(filter).FirstOrDefaultAsync(cancellationToken);
-        if (doc != null && doc.Contains(field) && doc[field].IsString)
-        {
-            return doc[field].AsString;
-        }
-        return null;
+        var doc = await GetProfileDocumentAsync(cancellationToken);
+        return doc.EvaluatorPrompt;
     }
 
     private async Task<ProfileDocument> SeedFromFileAsync(CancellationToken cancellationToken)
@@ -262,14 +251,26 @@ public sealed class MongoProfileProvider : IProfileProvider
             _logger.LogWarning("Seed file missing: {FilePath}. Inserted empty profile.", filePath);
         }
 
+        var defaults = new ScoringConfig();
         var defaultConfig = new BsonDocument
         {
-            ["model"] = "claude-opus-4-20250514",
-            ["temperature"] = 0.5,
-            ["max_tokens"] = 4096,
-            ["thinking_enabled"] = false,
-            ["thinking_budget"] = 2048,
-            ["min_score_to_save"] = 70
+            ["analyst"] = new BsonDocument
+            {
+                ["model"] = defaults.Analyst.Model,
+                ["temperature"] = (double)defaults.Analyst.Temperature,
+                ["max_tokens"] = defaults.Analyst.MaxTokens,
+                ["thinking_enabled"] = defaults.Analyst.ThinkingEnabled,
+                ["thinking_budget"] = defaults.Analyst.ThinkingBudget,
+            },
+            ["evaluator"] = new BsonDocument
+            {
+                ["model"] = defaults.Evaluator.Model,
+                ["temperature"] = (double)defaults.Evaluator.Temperature,
+                ["max_tokens"] = defaults.Evaluator.MaxTokens,
+                ["thinking_enabled"] = defaults.Evaluator.ThinkingEnabled,
+                ["thinking_budget"] = defaults.Evaluator.ThinkingBudget,
+            },
+            ["min_score_to_save"] = defaults.MinScoreToSave
         };
 
         var doc = new BsonDocument

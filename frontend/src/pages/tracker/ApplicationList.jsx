@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 
 export default function ApplicationList() {
   const [apps, setApps] = useState([]);
+  const [error, setError] = useState(null);
   const navigate = useNavigate();
 
   useEffect(() => { load(); }, []);
@@ -15,8 +16,9 @@ export default function ApplicationList() {
   async function load() {
     try {
       setApps(await api('/applications'));
+      setError(null);
     } catch (e) {
-      console.error('List error:', e);
+      setError(e.message);
     }
   }
 
@@ -28,6 +30,10 @@ export default function ApplicationList() {
     } catch (e) {
       alert('Delete failed: ' + e.message);
     }
+  }
+
+  if (error) {
+    return <Card className="p-6 mb-4"><p className="text-center py-12 text-destructive text-[0.88rem]">Failed to load applications: {error}</p></Card>;
   }
 
   if (apps.length === 0) {

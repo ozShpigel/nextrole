@@ -1,14 +1,7 @@
 import { useState } from 'react';
 import { VERDICT_LABELS } from '../../utils/constants';
+import { scoreColor } from '../../utils/format';
 import { Card } from '@/components/ui/card';
-
-function scoreColor(score, max) {
-  if (score == null || max == null || max === 0) return 'var(--muted-foreground)';
-  const pct = score / max;
-  if (pct >= 0.6) return 'var(--color-green)';
-  if (pct >= 0.4) return 'var(--color-yellow)';
-  return 'var(--color-red)';
-}
 
 function ScoreRing({ score, maxScore, size = 140, stroke = 8 }) {
   const pct = score != null && maxScore > 0 ? score / maxScore : 0;
@@ -74,7 +67,7 @@ export default function AnalysisCard({ matchAnalysisJson }) {
   return (
     <Card className="p-6 mb-4 transition-all hover:border-border hover:shadow-md">
       <div
-        className={`cursor-pointer flex justify-between items-center select-none${open ? '' : ' collapsed'}`}
+        className="cursor-pointer flex justify-between items-center select-none"
         onClick={() => setOpen(!open)}
         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen(!open); } }}
         role="button" tabIndex={0} aria-expanded={open}

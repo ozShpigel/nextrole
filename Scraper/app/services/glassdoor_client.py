@@ -99,7 +99,10 @@ async def prefetch_glassdoor_ratings(companies: list[str]) -> dict[str, dict | N
 
     logger.info("Prefetching Glassdoor ratings for %d unique companies", len(unique))
     tasks = [fetch_glassdoor_rating(c, cache) for c in unique]
-    await asyncio.gather(*tasks, return_exceptions=True)
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+    failed = sum(1 for r in results if isinstance(r, Exception))
+    if failed:
+        logger.warning("Glassdoor prefetch: %d/%d fetches raised exceptions", failed, len(results))
     found = sum(1 for v in cache.values() if v is not None)
     logger.info("Glassdoor prefetch complete: %d companies, %d with ratings", len(unique), found)
 

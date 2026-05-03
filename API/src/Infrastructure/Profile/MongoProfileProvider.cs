@@ -76,6 +76,9 @@ public sealed class MongoProfileProvider : IProfileProvider
         Dictionary<string, object?>? scoringConfig,
         string? analystPrompt,
         string? evaluatorPrompt,
+        string? elevatorPitch = null,
+        string? professionalIntro = null,
+        string? extendedIntro = null,
         CancellationToken cancellationToken = default)
     {
         var filter = Builders<BsonDocument>.Filter.Eq("id", DocId);
@@ -111,6 +114,9 @@ public sealed class MongoProfileProvider : IProfileProvider
         // (empty string clears the override → GET falls back to bundled seed)
         CarryOrOverwrite(update, existing, "analyst_prompt", analystPrompt);
         CarryOrOverwrite(update, existing, "evaluator_prompt", evaluatorPrompt);
+        CarryOrOverwrite(update, existing, "elevator_pitch", elevatorPitch);
+        CarryOrOverwrite(update, existing, "professional_intro", professionalIntro);
+        CarryOrOverwrite(update, existing, "extended_intro", extendedIntro);
 
         await _collection.ReplaceOneAsync(
             filter,
@@ -121,11 +127,12 @@ public sealed class MongoProfileProvider : IProfileProvider
         _cache.Remove(CacheKey);
 
         _logger.LogInformation(
-            "Profile upserted (content={ContentState}, configKeys={ConfigKeys}, analyst={AnalystState}, evaluator={EvaluatorState})",
+            "Profile upserted (content={ContentState}, configKeys={ConfigKeys}, analyst={AnalystState}, evaluator={EvaluatorState}, intros={IntroState})",
             content is null ? "unchanged" : $"{content.Length} chars",
             mergedConfig.ElementCount,
             FieldStateDescription(analystPrompt),
-            FieldStateDescription(evaluatorPrompt));
+            FieldStateDescription(evaluatorPrompt),
+            $"pitch={FieldStateDescription(elevatorPitch)}/pro={FieldStateDescription(professionalIntro)}/ext={FieldStateDescription(extendedIntro)}");
     }
 
     public async Task<ScoringConfig> GetScoringConfigAsync(CancellationToken cancellationToken = default)
@@ -312,6 +319,10 @@ public sealed class MongoProfileProvider : IProfileProvider
             updatedAt = doc["updated_at"].ToUniversalTime();
         }
 
+        var elevatorPitch = doc.Contains("elevator_pitch") && doc["elevator_pitch"].IsString ? doc["elevator_pitch"].AsString : null;
+        var professionalIntro = doc.Contains("professional_intro") && doc["professional_intro"].IsString ? doc["professional_intro"].AsString : null;
+        var extendedIntro = doc.Contains("extended_intro") && doc["extended_intro"].IsString ? doc["extended_intro"].AsString : null;
+
         return new ProfileDocument
         {
             Content = content,
@@ -320,6 +331,9 @@ public sealed class MongoProfileProvider : IProfileProvider
             EvaluatorPrompt = evaluatorPrompt,
             AnalystIsOverride = analystIsOverride,
             EvaluatorIsOverride = evaluatorIsOverride,
+            ElevatorPitch = elevatorPitch,
+            ProfessionalIntro = professionalIntro,
+            ExtendedIntro = extendedIntro,
             UpdatedAt = updatedAt
         };
     }

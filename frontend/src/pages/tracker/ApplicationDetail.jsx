@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { api } from '../../utils/api';
+import { api, matchApi } from '../../utils/api';
 import { scoreColor } from '../../utils/format';
 import StatusBadge from '../../components/StatusBadge';
 import CollapsibleSection from '../../components/CollapsibleSection';
 import SnapshotsCard from '../../components/SnapshotsCard';
 import AnalysisCard from './AnalysisCard';
+import IntroductionCard from './IntroductionCard';
 import Timeline from './Timeline';
 import InterviewList from './InterviewList';
 import NoteList from './NoteList';
@@ -18,6 +19,7 @@ import { Button } from '@/components/ui/button';
 export default function ApplicationDetail() {
   const { id } = useParams();
   const [data, setData] = useState(null);
+  const [intros, setIntros] = useState(null);
   const [modal, setModal] = useState(null); // { type: 'status'|'interview'|'editInterview'|'note', data? }
 
   const load = useCallback(async () => {
@@ -29,6 +31,14 @@ export default function ApplicationDetail() {
   }, [id]);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    matchApi('/profile').then(p => setIntros({
+      elevatorPitch: p?.elevator_pitch || '',
+      professionalIntro: p?.professional_intro || '',
+      extendedIntro: p?.extended_intro || '',
+    })).catch(() => {});
+  }, []);
 
   function closeAndReload() {
     setModal(null);
@@ -91,6 +101,16 @@ export default function ApplicationDetail() {
 
         {/* AI Analysis */}
         <AnalysisCard matchAnalysisJson={app.matchAnalysis} />
+
+        {/* Self-introduction based on stage */}
+        {intros && (
+          <IntroductionCard
+            status={app.status}
+            elevatorPitch={intros.elevatorPitch}
+            professionalIntro={intros.professionalIntro}
+            extendedIntro={intros.extendedIntro}
+          />
+        )}
 
         {/* Company enrichment data */}
         <CompanyEnrichment companyNewsJson={app.companyNews} glassdoorDataJson={app.glassdoorData} />

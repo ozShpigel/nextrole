@@ -80,6 +80,7 @@ const SECTIONS = [
   { id: 'settings-section-03', num: '03', name: 'Evaluator Prompt', short: 'Evaluator' },
   { id: 'settings-section-04', num: '04', name: 'Analysis Config', short: 'Tuning' },
   { id: 'settings-section-05', num: '05', name: 'Scoring Structure', short: 'Scoring' },
+  { id: 'settings-section-06', num: '06', name: 'Introductions', short: 'Intros' },
 ];
 
 function scrollToSection(id) {
@@ -103,6 +104,13 @@ export default function SettingsPage() {
   const [config, setConfig] = useState(DEFAULT_CONFIG);
   const [originalConfig, setOriginalConfig] = useState(DEFAULT_CONFIG);
 
+  const [elevatorPitch, setElevatorPitch] = useState('');
+  const [originalElevatorPitch, setOriginalElevatorPitch] = useState('');
+  const [professionalIntro, setProfessionalIntro] = useState('');
+  const [originalProfessionalIntro, setOriginalProfessionalIntro] = useState('');
+  const [extendedIntro, setExtendedIntro] = useState('');
+  const [originalExtendedIntro, setOriginalExtendedIntro] = useState('');
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [lastUpdated, setLastUpdated] = useState(null);
@@ -112,11 +120,13 @@ export default function SettingsPage() {
   const [savingAnalyst, setSavingAnalyst] = useState(false);
   const [savingEvaluator, setSavingEvaluator] = useState(false);
   const [savingConfig, setSavingConfig] = useState(false);
+  const [savingIntros, setSavingIntros] = useState(false);
 
   const [profileResult, setProfileResult] = useState(null);
   const [analystResult, setAnalystResult] = useState(null);
   const [evaluatorResult, setEvaluatorResult] = useState(null);
   const [configResult, setConfigResult] = useState(null);
+  const [introsResult, setIntrosResult] = useState(null);
 
   // UI-only confirmation state
   const [confirmReset, setConfirmReset] = useState(null); // 'analyst' | 'evaluator' | null
@@ -162,6 +172,16 @@ export default function SettingsPage() {
       setOriginalEvaluatorPrompt(evaluator);
       setEvaluatorIsOverride(!!data?.evaluator_prompt_is_override);
 
+      const ep = data?.elevator_pitch || '';
+      setElevatorPitch(ep);
+      setOriginalElevatorPitch(ep);
+      const pi = data?.professional_intro || '';
+      setProfessionalIntro(pi);
+      setOriginalProfessionalIntro(pi);
+      const ei = data?.extended_intro || '';
+      setExtendedIntro(ei);
+      setOriginalExtendedIntro(ei);
+
       setLastUpdated(data?.updated_at);
       if (data?.scoring_config) {
         const merged = mergeScoringConfig(data.scoring_config);
@@ -179,6 +199,9 @@ export default function SettingsPage() {
   const isAnalystDirty = analystPrompt !== originalAnalystPrompt;
   const isEvaluatorDirty = evaluatorPrompt !== originalEvaluatorPrompt;
   const isConfigDirty = JSON.stringify(config) !== JSON.stringify(originalConfig);
+  const isIntrosDirty = elevatorPitch !== originalElevatorPitch
+    || professionalIntro !== originalProfessionalIntro
+    || extendedIntro !== originalExtendedIntro;
 
   async function saveField(body, setSaving, setResult, onSuccess, label) {
     setSaving(true);
@@ -243,6 +266,17 @@ export default function SettingsPage() {
     'Analysis config',
   );
 
+  const saveIntros = () => saveField(
+    { elevator_pitch: elevatorPitch, professional_intro: professionalIntro, extended_intro: extendedIntro },
+    setSavingIntros, setIntrosResult,
+    () => {
+      setOriginalElevatorPitch(elevatorPitch);
+      setOriginalProfessionalIntro(professionalIntro);
+      setOriginalExtendedIntro(extendedIntro);
+    },
+    'Introductions',
+  );
+
   function confirmResetAccept() {
     if (confirmReset === 'analyst') {
       saveField(
@@ -300,6 +334,7 @@ export default function SettingsPage() {
     '03': isEvaluatorDirty,
     '04': isConfigDirty,
     '05': false,
+    '06': isIntrosDirty,
   };
   const dirtyList = SECTIONS.filter((s) => dirtyMap[s.num]);
 
@@ -608,6 +643,66 @@ export default function SettingsPage() {
           <VerdictItem className="bg-[rgba(196,84,84,0.07)] text-red border-[rgba(196,84,84,0.2)]" label="STRONG_NO · 0–19" />
         </div>
       </section>
+
+      {/* 06 — Introductions */}
+      <section className="mb-16 relative animate-section-in" id="settings-section-06" style={{ animationDelay: '0.2s' }}>
+        <div className="flex items-end gap-4 mb-[0.65rem] flex-wrap pb-[0.55rem] border-b border-border relative">
+          <span className="absolute bottom-[-1px] left-0 w-11 h-0.5 bg-gradient-to-r from-muted-foreground to-transparent rounded-sm" />
+          <span className="font-serif text-[2.4rem] font-bold text-muted-foreground tracking-[-0.03em] tabular-nums leading-[0.85] shrink-0 min-w-[2.6ch] relative">
+            <span className="absolute bottom-[0.35em] left-0 w-[0.55em] h-0.5 bg-muted-foreground opacity-25 origin-left transition-all" />
+            06
+          </span>
+          <span className="font-serif text-[1.55rem] font-bold text-foreground tracking-[-0.012em] leading-[1.15] pb-[0.1rem]">Introductions</span>
+        </div>
+        <p className="text-[0.92rem] text-muted-foreground leading-[1.75] mt-[0.85rem] mb-6 max-w-[640px]">
+          Self-introduction texts shown on the tracker detail page based on application stage.
+          Each stage displays the most relevant introduction type.
+        </p>
+
+        <IntroTextarea
+          label="Elevator Pitch"
+          hint="Shown at Decided to Apply and Applied stages — a 30-second self-introduction"
+          value={elevatorPitch}
+          onChange={(v) => { setElevatorPitch(v); setIntrosResult(null); }}
+          minHeight={140}
+        />
+
+        <IntroTextarea
+          label="Professional Introduction"
+          hint="Shown alongside the elevator pitch at Phone Screen stage — a 1-2 minute professional self-introduction"
+          value={professionalIntro}
+          onChange={(v) => { setProfessionalIntro(v); setIntrosResult(null); }}
+          minHeight={200}
+        />
+
+        <IntroTextarea
+          label="Extended Introduction"
+          hint="Shown at Technical Interview and Final Round stages — a 3-4 minute detailed introduction"
+          value={extendedIntro}
+          onChange={(v) => { setExtendedIntro(v); setIntrosResult(null); }}
+          minHeight={260}
+        />
+
+        <div className="flex justify-end items-center gap-[0.6rem] mt-6 pt-[1.1rem] border-t border-dashed border-border relative">
+          <span className="absolute top-[-1px] right-0 w-9 h-px bg-muted-foreground opacity-50" />
+          {isIntrosDirty && (
+            <Button variant="outline" size="sm" onClick={() => {
+              setElevatorPitch(originalElevatorPitch);
+              setProfessionalIntro(originalProfessionalIntro);
+              setExtendedIntro(originalExtendedIntro);
+            }} disabled={savingIntros}>
+              Discard changes
+            </Button>
+          )}
+          <Button
+            onClick={saveIntros}
+            disabled={savingIntros || !isIntrosDirty}
+          >
+            {savingIntros ? 'Saving...' : 'Save introductions'}
+          </Button>
+        </div>
+        {introsResult && <SaveResult result={introsResult} />}
+      </section>
     </div>
   );
 }
@@ -673,6 +768,31 @@ function SaveResult({ result }) {
         }}
       />
       {result.message}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Intro Textarea                                                     */
+/* ------------------------------------------------------------------ */
+function IntroTextarea({ label, hint, value, onChange, minHeight }) {
+  return (
+    <div className="mb-5">
+      <div className="flex items-baseline gap-[0.45rem] mb-[0.35rem]">
+        <span className="text-[0.7rem] text-muted-foreground tracking-[0.14em] uppercase font-semibold flex items-center gap-[0.4rem]">
+          <span className="w-[3px] h-[3px] rounded-full bg-muted-foreground opacity-45 shrink-0" />
+          {label}
+        </span>
+      </div>
+      <p className="text-[0.78rem] text-muted-foreground leading-[1.55] mb-2">{hint}</p>
+      <textarea
+        className="w-full p-[1rem_1.25rem] border border-border rounded-lg text-foreground text-[0.88rem] resize-y outline-none leading-[1.8] whitespace-pre-wrap transition-all hover:border-muted-foreground/30 focus:border-ring focus:bg-white focus:shadow-[0_0_0_4px_rgba(0,0,0,0.04)] selection:bg-primary/10 selection:text-foreground"
+        style={{ minHeight: `${minHeight}px`, background: 'var(--card)' }}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        dir="auto"
+        spellCheck={false}
+      />
     </div>
   );
 }

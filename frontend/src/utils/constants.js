@@ -37,6 +37,20 @@ export const NOTE_CATEGORY_LABELS = {
 
 export const EVALUATOR_PLACEHOLDERS = ['{{USER_PROFILE}}', '{{PARSED_JOB}}'];
 
+export const STATUS_INTRO_MAP = {
+  DecidedToApply: ['elevatorPitch'],
+  Applied: ['elevatorPitch'],
+  PhoneScreen: ['elevatorPitch', 'professionalIntro'],
+  TechnicalInterview: ['extendedIntro'],
+  FinalRound: ['extendedIntro'],
+};
+
+export const INTRO_LABELS = {
+  elevatorPitch: 'Elevator Pitch · 30s',
+  professionalIntro: 'Professional Introduction · 1-2min',
+  extendedIntro: 'Extended Introduction · 3-4min',
+};
+
 export const VERDICT_LABELS = {
   STRONG_YES: 'Strong Yes',
   YES: 'Yes',

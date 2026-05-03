@@ -142,6 +142,8 @@ async def run_discovery(db: AsyncIOMotorDatabase, settings: Settings, criteria_i
                         analyst_snapshot_output=disc_job.analyst_snapshot_output,
                         evaluator_snapshot_input=disc_job.evaluator_snapshot_input,
                         evaluator_snapshot_output=disc_job.evaluator_snapshot_output,
+                        company_news=company_news,
+                        glassdoor_data=glassdoor_data,
                     )
                     if saved:
                         disc_job.saved_to_tracker = True

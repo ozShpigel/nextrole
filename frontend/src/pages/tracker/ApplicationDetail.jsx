@@ -85,6 +85,9 @@ export default function ApplicationDetail() {
         {/* AI Analysis */}
         <AnalysisCard matchAnalysisJson={app.matchAnalysis} />
 
+        {/* Company enrichment data */}
+        <CompanyEnrichment companyNewsJson={app.companyNews} glassdoorDataJson={app.glassdoorData} />
+
         {/* Raw Claude call artifacts */}
         {(app.analystSnapshotInput || app.evaluatorSnapshotInput) && (
           <CollapsibleSection title="Raw Claude Calls" defaultOpen={false}>
@@ -139,6 +142,46 @@ export default function ApplicationDetail() {
         )}
       </div>
     </div>
+  );
+}
+
+function CompanyEnrichment({ companyNewsJson, glassdoorDataJson }) {
+  const news = companyNewsJson ? JSON.parse(companyNewsJson) : null;
+  const glassdoor = glassdoorDataJson ? JSON.parse(glassdoorDataJson) : null;
+
+  if (!news?.length && !glassdoor) return null;
+
+  return (
+    <Card className="p-6 mb-4 transition-all hover:border-border hover:shadow-md">
+      <h3 className="text-[0.95rem] font-semibold text-foreground mb-3 pb-[0.6rem] border-b border-border">Company Info</h3>
+
+      {glassdoor && (
+        <div className="flex items-center gap-[0.45rem] mb-3">
+          <span className="text-[0.82rem] font-medium" style={{
+            color: glassdoor.rating >= 4.0 ? 'var(--green)'
+                 : glassdoor.rating >= 3.0 ? 'var(--yellow)'
+                 : 'var(--red)'
+          }}>
+            Glassdoor {glassdoor.rating.toFixed(1)} / 5
+          </span>
+          {glassdoor.reviewCount && <span className="text-[0.75rem] text-muted-foreground">({glassdoor.reviewCount.toLocaleString()} reviews)</span>}
+          {glassdoor.url && <a href={glassdoor.url} target="_blank" rel="noopener noreferrer" className="text-[0.75rem] text-primary hover:opacity-75">View</a>}
+        </div>
+      )}
+
+      {news?.length > 0 && (
+        <div>
+          <h4 className="text-[0.82rem] font-medium text-muted-foreground mb-1">Recent News ({news.length})</h4>
+          <ul className="pl-4 list-disc">
+            {news.map((n, i) => (
+              <li key={i} className="text-[0.78rem] text-muted-foreground leading-[1.6] mb-[0.2rem]">
+                {n.title}{n.source && <span className="text-muted-foreground/60"> — {n.source}</span>}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </Card>
   );
 }
 

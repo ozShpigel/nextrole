@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 
 import httpx
@@ -188,6 +189,8 @@ async def save_to_tracker(
     analyst_snapshot_output: str | None = None,
     evaluator_snapshot_input: str | None = None,
     evaluator_snapshot_output: str | None = None,
+    company_news: list[dict] | None = None,
+    glassdoor_data: dict | None = None,
 ) -> bool:
     """Save a discovered job to the tracker."""
     payload = {
@@ -202,6 +205,8 @@ async def save_to_tracker(
         "analystSnapshotOutput": analyst_snapshot_output,
         "evaluatorSnapshotInput": evaluator_snapshot_input,
         "evaluatorSnapshotOutput": evaluator_snapshot_output,
+        "companyNews": json.dumps(company_news, ensure_ascii=False) if company_news else None,
+        "glassdoorData": json.dumps(glassdoor_data, ensure_ascii=False) if glassdoor_data else None,
         "source": "discovery",
     }
 

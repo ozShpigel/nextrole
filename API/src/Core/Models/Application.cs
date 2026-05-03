@@ -19,6 +19,8 @@ public sealed record Application
     public string? AnalystSnapshotOutput { get; init; }
     public string? EvaluatorSnapshotInput { get; init; }
     public string? EvaluatorSnapshotOutput { get; init; }
+    public string? CompanyNews { get; init; }
+    public string? GlassdoorData { get; init; }
     public DateTime CreatedAt { get; init; } = DateTime.UtcNow;
     public DateTime? AppliedAt { get; init; }
     public DateTime UpdatedAt { get; init; } = DateTime.UtcNow;

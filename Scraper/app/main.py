@@ -266,6 +266,8 @@ async def save_job(job_id: str):
         analyst_snapshot_output=doc.get("analyst_snapshot_output"),
         evaluator_snapshot_input=doc.get("evaluator_snapshot_input"),
         evaluator_snapshot_output=doc.get("evaluator_snapshot_output"),
+        company_news=doc.get("company_news"),
+        glassdoor_data=doc.get("glassdoor_data"),
     )
     if saved:
         await db.discovered_jobs.update_one({"id": job_id}, {"$set": {"saved_to_tracker": True}})

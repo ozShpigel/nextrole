@@ -140,6 +140,22 @@ public static class ApplicationEndpoints
         .WithName("DeleteApplication")
         .WithSummary("Delete application");
 
+        app.MapPut("/api/applications/{id:guid}/salary", async (
+            Guid id,
+            [FromBody] SalaryUpdateRequest request,
+            IApplicationRepository repo,
+            CancellationToken ct) =>
+        {
+            var existing = await repo.GetByIdAsync(id, ct);
+            if (existing is null) return Results.NotFound();
+
+            var updated = existing with { Salary = request.Salary, UpdatedAt = DateTime.UtcNow };
+            await repo.UpdateAsync(updated, ct);
+            return Results.Ok(updated);
+        })
+        .WithName("UpdateApplicationSalary")
+        .WithSummary("Update application salary");
+
         app.MapGet("/api/applications/exists", async (
             [FromQuery] string company,
             [FromQuery] string jobTitle,

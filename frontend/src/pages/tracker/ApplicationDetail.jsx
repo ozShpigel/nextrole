@@ -66,13 +66,20 @@ export default function ApplicationDetail() {
             <div>
               <h2 className="text-foreground mb-1 text-[1.3rem] font-bold tracking-[-0.01em]">{app.jobTitle}</h2>
               <div className="text-muted-foreground text-[0.95rem]">{app.company}</div>
-              <div className="mt-4"><StatusBadge status={app.status} /></div>
+              <div className="mt-4 flex items-center gap-3 flex-wrap">
+                <StatusBadge status={app.status} />
+                <DaysInStage updatedAt={app.updatedAt} />
+              </div>
             </div>
             <div className="text-center">
               <div className="font-sans text-[2.2rem] font-bold tracking-[-0.02em]" style={{ color: scoreColor(app.matchScore) }}>{app.matchScore ?? '-'}</div>
               <div className="text-muted-foreground text-[0.84rem]">{app.matchVerdict || ''}</div>
             </div>
           </div>
+
+          <NextAction status={app.status} updatedAt={app.updatedAt} interviews={interviews} />
+
+          <SalaryField appId={app.id} initialValue={app.salary} />
 
           <div className="flex gap-2 flex-wrap mt-4">
             <Button onClick={() => setModal({ type: 'status' })}>Update Status</Button>
@@ -141,6 +148,79 @@ export default function ApplicationDetail() {
           <NoteModal appId={app.id} onClose={() => setModal(null)} onSaved={closeAndReload} />
         )}
       </div>
+    </div>
+  );
+}
+
+function daysAgo(dateStr) {
+  if (!dateStr) return null;
+  const diff = Date.now() - new Date(dateStr).getTime();
+  return Math.floor(diff / (1000 * 60 * 60 * 24));
+}
+
+function DaysInStage({ updatedAt }) {
+  const days = daysAgo(updatedAt);
+  if (days === null) return null;
+  const label = days === 0 ? 'Today' : days === 1 ? '1 day' : `${days} days`;
+  const color = days >= 14 ? 'var(--red)' : days >= 7 ? 'var(--yellow)' : 'var(--muted-foreground)';
+  return <span className="text-[0.78rem] font-medium" style={{ color }}>{label} in stage</span>;
+}
+
+function NextAction({ status, updatedAt, interviews }) {
+  const days = daysAgo(updatedAt);
+  let suggestion = null;
+
+  if (status === 'Applied' && days >= 7) {
+    suggestion = 'Consider sending a follow-up email';
+  } else if (status === 'DecidedToApply') {
+    suggestion = 'Submit your application';
+  } else if (status === 'PhoneScreen' || status === 'TechnicalInterview' || status === 'FinalRound') {
+    const upcoming = interviews?.find(i => new Date(i.scheduledAt) > new Date());
+    suggestion = upcoming
+      ? `Prepare for interview on ${new Date(upcoming.scheduledAt).toLocaleDateString()}`
+      : 'Schedule your next interview';
+  } else if (status === 'OfferReceived') {
+    suggestion = 'Review offer terms and respond';
+  }
+
+  if (!suggestion) return null;
+  return (
+    <div className="mb-3 py-[0.45rem] px-3 rounded-md bg-primary/5 border border-primary/15 text-[0.82rem] text-primary font-medium">
+      → {suggestion}
+    </div>
+  );
+}
+
+function SalaryField({ appId, initialValue }) {
+  const [value, setValue] = useState(initialValue || '');
+  const [saved, setSaved] = useState(false);
+
+  async function save() {
+    try {
+      await api(`/applications/${appId}/salary`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ salary: value || null }),
+      });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (e) {
+      alert('Failed to save salary: ' + e.message);
+    }
+  }
+
+  return (
+    <div className="flex items-center gap-2 mb-3">
+      <label className="text-[0.82rem] text-muted-foreground font-medium shrink-0">Salary</label>
+      <input
+        className="max-w-[200px] h-8 text-[0.84rem] px-2 rounded-md border border-border bg-background text-foreground"
+        placeholder="e.g. 150-180K"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onBlur={save}
+        onKeyDown={(e) => e.key === 'Enter' && save()}
+      />
+      {saved && <span className="text-[0.75rem] text-green-600 font-medium">Saved</span>}
     </div>
   );
 }

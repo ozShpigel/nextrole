@@ -1,4 +1,5 @@
 using ApplicationTracker.Api.DTOs;
+using ApplicationTracker.Core.AI;
 using ApplicationTracker.Core.Models;
 using ApplicationTracker.Core.Repositories;
 using Microsoft.AspNetCore.Mvc;
@@ -155,6 +156,25 @@ public static class ApplicationEndpoints
         })
         .WithName("UpdateApplicationSalary")
         .WithSummary("Update application salary");
+
+        app.MapPost("/api/applications/{id:guid}/company-summary", async (
+            Guid id,
+            IApplicationRepository repo,
+            IClaudeClient claude,
+            ILogger<Program> logger,
+            CancellationToken ct) =>
+        {
+            var existing = await repo.GetByIdAsync(id, ct);
+            if (existing is null) return Results.NotFound();
+
+            var summary = await claude.SummarizeCompanyAsync(existing.Company, ct);
+            var updated = existing with { CompanySummary = summary, UpdatedAt = DateTime.UtcNow };
+            await repo.UpdateAsync(updated, ct);
+
+            return Results.Ok(new { company_summary = summary });
+        })
+        .WithName("GenerateCompanySummary")
+        .WithSummary("Generate AI company summary");
 
         app.MapGet("/api/applications/exists", async (
             [FromQuery] string company,

@@ -112,7 +112,8 @@ export default function ApplicationDetail() {
           />
         )}
 
-        {/* Company enrichment data */}
+        {/* Company summary & enrichment data */}
+        <CompanySummaryBlock appId={app.id} initialSummary={app.companySummary} />
         <CompanyEnrichment companyNewsJson={app.companyNews} glassdoorDataJson={app.glassdoorData} />
 
         {/* Raw Claude call artifacts */}
@@ -242,6 +243,41 @@ function SalaryField({ appId, initialValue }) {
       />
       {saved && <span className="text-[0.75rem] text-green-600 font-medium">Saved</span>}
     </div>
+  );
+}
+
+function CompanySummaryBlock({ appId, initialSummary }) {
+  const [summary, setSummary] = useState(initialSummary || '');
+  const [loading, setLoading] = useState(false);
+
+  async function generate() {
+    setLoading(true);
+    try {
+      const res = await api(`/applications/${appId}/company-summary`, { method: 'POST' });
+      setSummary(res.company_summary);
+    } catch (e) {
+      alert('Failed to generate summary: ' + e.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <Card className="p-6 mb-4 transition-all hover:border-border hover:shadow-md">
+      <div className="flex items-center justify-between mb-3 pb-[0.6rem] border-b border-border">
+        <h3 className="text-[0.95rem] font-semibold text-foreground">Company Summary</h3>
+        <Button variant="outline" size="sm" onClick={generate} disabled={loading}>
+          {loading ? 'Generating...' : summary ? 'Regenerate' : 'Generate'}
+        </Button>
+      </div>
+      {summary ? (
+        <p dir="rtl" className="text-[0.88rem] leading-[1.75] text-foreground whitespace-pre-wrap text-right m-0">
+          {summary}
+        </p>
+      ) : (
+        <p className="text-[0.82rem] text-muted-foreground italic m-0">Click Generate to create an AI summary of this company.</p>
+      )}
+    </Card>
   );
 }
 

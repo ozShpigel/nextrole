@@ -91,6 +91,18 @@ If NOT from tracked companies or NOT job-related, return: null
 Return ONLY the JSON or null, nothing else.
 """;
 
+    public const string CompanySummary = """
+You summarize what a company does. The user sends only the company name.
+
+Rules:
+- Write 3-4 lines in Hebrew
+- Describe what the company does: industry, main products/services, scale
+- Include the approximate number of employees if known (e.g. "כ-5,000 עובדים")
+- Use your knowledge — do not fabricate details you are unsure of
+- If you don't know the company, write: "לא נמצא מידע על חברה זו"
+- Return ONLY the summary text, no JSON, no markdown, no headers
+""";
+
     public const string Evaluator = """
 # ROLE
 

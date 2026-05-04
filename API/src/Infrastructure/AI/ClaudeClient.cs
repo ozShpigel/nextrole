@@ -105,6 +105,28 @@ public sealed class ClaudeClient : IClaudeClient
         return result;
     }
 
+    public async Task<string> SummarizeCompanyAsync(string companyName, CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Generating company summary for: {Company}", companyName);
+
+        var parameters = new MessageParameters
+        {
+            System = new List<SystemMessage> { new(PromptSeeds.CompanySummary) },
+            Messages = new List<Message> { new(RoleType.User, companyName) },
+            MaxTokens = 512,
+            Model = "claude-sonnet-4-20250514",
+            Temperature = 0.3m,
+            Stream = false
+        };
+
+        var response = await _client.Messages.GetClaudeMessageAsync(parameters, cancellationToken);
+        var content = response.Message?.ToString()?.Trim()
+            ?? throw new InvalidOperationException("Empty response from Claude API");
+
+        _logger.LogInformation("Company summary generated for: {Company}", companyName);
+        return content;
+    }
+
     private async Task<(T Result, ClaudeCallSnapshot Snapshot)> CallClaudeAsync<T>(
         string systemPrompt, string userMessage, RoleScoringConfig cfg, string label,
         CancellationToken cancellationToken) where T : class

@@ -40,8 +40,9 @@ The Scraper enriches each discovered job with external data before scoring:
 
 - **Company News** — Google News RSS headlines (`news_client.py`). Passed to the evaluator prompt in `<company_news>` XML tags. AI reports green/red signals in `companyNewsAnalysis` (does not change numeric score).
 - **Glassdoor Rating** — scraped from DuckDuckGo search snippets (`glassdoor_client.py`). Passed in `<glassdoor_rating>` XML tags. AI factors it into the cultural fit narrative.
+- **Company Summary** — on-demand AI-generated Hebrew summary (3-4 lines) of what the company does, including approximate employee count. Generated via `POST /api/applications/{id}/company-summary` using Claude's knowledge base (no external data). Persisted on the `Application` document.
 
-Both are prefetched in parallel after scraping, cached per company within a discovery run, and stored on the `DiscoveredJob` document. If either fetch fails, scoring proceeds normally without it.
+Both news and Glassdoor are prefetched in parallel after scraping, cached per company within a discovery run, and stored on the `DiscoveredJob` document. If either fetch fails, scoring proceeds normally without it.
 
 ## Testing
 

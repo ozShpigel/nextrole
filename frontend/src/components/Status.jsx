@@ -1,6 +1,6 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { api } from '../utils/api';
-import { STATUS_LABELS } from '../utils/constants';
+import { STATUS_LABELS } from '../constants/tracker';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';

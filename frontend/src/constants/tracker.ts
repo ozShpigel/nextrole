@@ -1,4 +1,4 @@
-export const STATUS_LABELS = {
+export const STATUS_LABELS: Record<string, string> = {
   Analyzing: 'Analyzing',
   DecidedToApply: 'Decided to Apply',
   Applied: 'Applied',
@@ -11,7 +11,7 @@ export const STATUS_LABELS = {
   Withdrawn: 'Withdrawn',
 };
 
-export const STATUS_COLORS = {
+export const STATUS_COLORS: Record<string, string> = {
   Analyzing: 'analyzing',
   DecidedToApply: 'decidedtoapply',
   Applied: 'applied',
@@ -24,20 +24,18 @@ export const STATUS_COLORS = {
   Withdrawn: 'withdrawn',
 };
 
-export const INTERVIEW_TYPES = ['Phone', 'Technical', 'Final', 'HR'];
+export const INTERVIEW_TYPES = ['Phone', 'Technical', 'Final', 'HR'] as const;
 
-export const NOTE_CATEGORIES = ['Preparation', 'Research', 'Thoughts', 'FollowUp'];
+export const NOTE_CATEGORIES = ['Preparation', 'Research', 'Thoughts', 'FollowUp'] as const;
 
-export const NOTE_CATEGORY_LABELS = {
+export const NOTE_CATEGORY_LABELS: Record<string, string> = {
   Preparation: 'Preparation',
   Research: 'Research',
   Thoughts: 'Thoughts',
   FollowUp: 'Follow-up',
 };
 
-export const EVALUATOR_PLACEHOLDERS = ['{{USER_PROFILE}}', '{{PARSED_JOB}}'];
-
-export const STATUS_INTRO_MAP = {
+export const STATUS_INTRO_MAP: Record<string, string[]> = {
   DecidedToApply: ['elevatorPitch'],
   Applied: ['elevatorPitch'],
   PhoneScreen: ['elevatorPitch', 'professionalIntro'],
@@ -45,19 +43,8 @@ export const STATUS_INTRO_MAP = {
   FinalRound: ['extendedIntro'],
 };
 
-export const INTRO_LABELS = {
+export const INTRO_LABELS: Record<string, string> = {
   elevatorPitch: 'Elevator Pitch · 30s',
   professionalIntro: 'Professional Introduction · 1-2min',
   extendedIntro: 'Extended Introduction · 3-4min',
-};
-
-export const VERDICT_LABELS = {
-  STRONG_YES: 'Strong Yes',
-  YES: 'Yes',
-  MAYBE: 'Maybe',
-  NO: 'No',
-  STRONG_NO: 'Strong No',
-  INSUFFICIENT_DATA: 'Insufficient Data',
-  MATCH_FAILED: 'Match Failed',
-  ERROR: 'Error',
 };

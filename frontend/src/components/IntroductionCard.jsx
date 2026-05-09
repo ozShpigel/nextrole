@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { STATUS_INTRO_MAP, INTRO_LABELS } from '../utils/constants';
+﻿import { useState } from 'react';
+import { STATUS_INTRO_MAP, INTRO_LABELS } from '../constants/tracker';
 import { Card } from '@/components/ui/card';
 
 export default function IntroductionCard({ status, elevatorPitch, professionalIntro, extendedIntro }) {

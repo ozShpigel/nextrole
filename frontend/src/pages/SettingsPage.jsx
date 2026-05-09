@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+﻿import { useState, useEffect, useRef, useMemo } from 'react';
 import { matchApi } from '../utils/api';
-import { EVALUATOR_PLACEHOLDERS } from '../utils/constants';
+import { EVALUATOR_PLACEHOLDERS } from '../constants/scoring';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';

@@ -1,6 +1,6 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { formatDateTime } from '../utils/format';
-import { NOTE_CATEGORIES, NOTE_CATEGORY_LABELS } from '../utils/constants';
+import { NOTE_CATEGORIES, NOTE_CATEGORY_LABELS } from '../constants/tracker';
 import { api } from '../utils/api';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';

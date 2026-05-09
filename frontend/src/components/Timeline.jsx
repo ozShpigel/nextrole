@@ -1,5 +1,5 @@
-import { formatDateTime } from '../utils/format';
-import { NOTE_CATEGORY_LABELS } from '../utils/constants';
+﻿import { formatDateTime } from '../utils/format';
+import { NOTE_CATEGORY_LABELS } from '../constants/tracker';
 import { StatusBadge } from './Status';
 
 export default function Timeline({ statusUpdates, interviews, notes }) {

@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { VERDICT_LABELS } from '../utils/constants';
+﻿import { useState } from 'react';
+import { VERDICT_LABELS } from '../constants/scoring';
 import { scoreColor } from '../utils/format';
 import { Card } from '@/components/ui/card';
 

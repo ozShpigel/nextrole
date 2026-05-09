@@ -1,18 +1,18 @@
-export function formatDate(dateStr) {
+export function formatDate(dateStr: string | null | undefined): string {
   if (!dateStr) return '-';
   const d = new Date(dateStr);
   if (isNaN(d.getTime())) return '-';
   return `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}/${d.getFullYear()}`;
 }
 
-export function formatDateTime(dateStr) {
+export function formatDateTime(dateStr: string | null | undefined): string {
   if (!dateStr) return '-';
   const d = new Date(dateStr);
   if (isNaN(d.getTime())) return '-';
   return `${formatDate(dateStr)} ${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
 }
 
-export function scoreColor(score, max) {
+export function scoreColor(score: number | null | undefined, max?: number | null): string {
   if (score == null) return 'var(--muted-foreground)';
   const pct = max != null && max > 0 ? score / max : score / 100;
   if (pct >= 0.6) return '#059669';
@@ -20,7 +20,7 @@ export function scoreColor(score, max) {
   return '#ef4444';
 }
 
-export function barColor(score, max) {
+export function barColor(score: number | null | undefined, max: number | null | undefined): string {
   if (score == null || max == null || max === 0) return 'red';
   const pct = score / max;
   if (pct >= 0.6) return 'green';
@@ -28,7 +28,7 @@ export function barColor(score, max) {
   return 'red';
 }
 
-export function relativeTime(iso) {
+export function relativeTime(iso: string | null | undefined): string {
   if (!iso) return '—';
   const then = new Date(iso).getTime();
   const diff = Date.now() - then;

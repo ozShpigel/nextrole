@@ -1,8 +1,9 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import './styles/global.css';
+import './index.css';
 import App from './App';
+import { ThemeProvider } from './lib/theme';
 import { ErrorBoundary } from './components/Error';
 import LandingPage from './pages/LandingPage';
 import DiscoveryPage from './pages/DiscoveryPage';
@@ -14,6 +15,7 @@ import SettingsPage from './pages/SettingsPage';
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <BrowserRouter>
+      <ThemeProvider>
       <ErrorBoundary>
         <Routes>
           <Route element={<App />}>
@@ -26,6 +28,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
           </Route>
         </Routes>
       </ErrorBoundary>
+      </ThemeProvider>
     </BrowserRouter>
   </React.StrictMode>
 );

@@ -11,8 +11,8 @@ const testDbEnv = {
 };
 
 export default defineConfig({
-  globalSetup: './e2e/global-setup.js',
-  testDir: './e2e',
+  globalSetup: '../e2e/global-setup.js',
+  testDir: '../e2e',
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,

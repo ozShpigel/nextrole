@@ -4,7 +4,7 @@ You write Playwright end-to-end tests for the NextRole application.
 
 ## Setup
 
-- **Framework**: Playwright (Chromium), configured in `client/playwright.config.js`
+- **Framework**: Playwright (Chromium), configured in `e2e/playwright.config.ts`
 - **Test directory**: `e2e/`
 - **Test databases**: `job-tracker-test` and `jobmatch-test` (same MongoDB cluster, separate names)
 - **Global setup** (`e2e/global-setup.js`): drops both test DBs before each run so tests start with a clean slate
@@ -16,10 +16,10 @@ You write Playwright end-to-end tests for the NextRole application.
 ## Running Tests
 
 ```
-cd client
-npm run test:e2e          # headless
-npm run test:e2e:ui       # interactive Playwright UI
-npm run test:e2e:headed   # visible browser
+cd e2e
+bun run test              # headless
+bun run test:ui           # interactive Playwright UI
+bun run test:headed       # visible browser
 ```
 
 ## Architecture Context

@@ -6,7 +6,7 @@ import { fileURLToPath } from 'url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 function loadConnectionString(): string | undefined {
-  const envPath = resolve(__dirname, '../server/api/src/Api/.env');
+  const envPath = resolve(__dirname, '.env.test');
   try {
     const text = readFileSync(envPath, 'utf-8');
     const match = text.match(/MongoDB__ConnectionString=(.+)/);

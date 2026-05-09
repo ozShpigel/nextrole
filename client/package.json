@@ -1,5 +1,5 @@
 {
-  "name": "job-application-platform",
+  "name": "client",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -8,10 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest",
-    "test:e2e": "npx playwright test",
-    "test:e2e:ui": "npx playwright test --ui",
-    "test:e2e:headed": "npx playwright test --headed"
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.15",
@@ -34,7 +31,6 @@
     "tw-animate-css": "^1.4.0"
   },
   "devDependencies": {
-    "@playwright/test": "^1.59.1",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
@@ -43,7 +39,6 @@
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^4.3.0",
     "jsdom": "^29.1.1",
-    "mongodb": "^7.2.0",
     "typescript": "^6.0.3",
     "vite": "^6.0.0",
     "vitest": "^4.1.5"

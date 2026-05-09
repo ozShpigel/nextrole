@@ -11,9 +11,9 @@ const testDbEnv = {
 };
 
 export default defineConfig({
-  globalSetup: '../e2e/global-setup.ts',
-  globalTeardown: '../e2e/global-teardown.ts',
-  testDir: '../e2e/tests',
+  globalSetup: './global-setup.ts',
+  globalTeardown: './global-teardown.ts',
+  testDir: './tests',
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
@@ -57,6 +57,7 @@ export default defineConfig({
     },
     {
       command: 'npx vite --port 5173',
+      cwd: '../client',
       port: FRONTEND_PORT,
       reuseExistingServer: !process.env.CI,
       timeout: 10_000,

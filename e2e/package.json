@@ -1,0 +1,15 @@
+{
+  "name": "e2e",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "npx playwright test",
+    "test:ui": "npx playwright test --ui",
+    "test:headed": "npx playwright test --headed"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.59.1",
+    "mongodb": "^7.2.0",
+    "typescript": "^6.0.3"
+  }
+}

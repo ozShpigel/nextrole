@@ -94,7 +94,7 @@ test.describe('Feature Name', () => {
 
 ## Playwright Configuration
 
-Before writing tests, check if a `playwright.config.ts` exists in the project. If not, create one with sensible defaults:
+Before writing tests, check if `e2e/playwright.config.ts` exists in the project. If not, create one with sensible defaults:
 - Base URL pointing to the local dev server
 - Reasonable timeouts
 - HTML reporter

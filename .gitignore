@@ -23,6 +23,7 @@ venv/
 
 # Secrets
 .env
+.env.test
 credentials.json
 token.json
 

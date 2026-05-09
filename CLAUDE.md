@@ -6,7 +6,7 @@ NextRole is a job application platform that automates the job hunting process
 end-to-end. It discovers job listings from sites like LinkedIn and Indeed, uses AI
 to score and match them against your professional profile, monitors your email for
 application updates, and provides a dashboard to track everything — from discovery
-through interviews to final status — in one place. See `docs/project-scope.md` and `docs/implementation-plan.md` for full detail.
+through interviews to final status — in one place. See `project-scope.md` and `implementation-plan.md` for full detail.
 
 ## Tech Stack
 
@@ -31,6 +31,8 @@ through interviews to final status — in one place. See `docs/project-scope.md`
 - Use Bun as the runtime and package manager (not npm/yarn)
 - Use shadcn/ui components for all UI (import from @/components/ui/*)
 - Use shadcn's semantic color tokens (e.g. bg-background, text-muted-foreground, text-destructive) instead of hardcoded Tailwind colors
+- Use Axios for HTTP requests (not fetch)
+- Use TanStack React Query (useQuery, useMutation) for server state management (not useEffect + useState)
 - Use context7 MCP server to fetch up-to-date documentation for libraries
 - All Claude/Anthropic AI calls live exclusively in the API — the Scraper delegates scoring via HTTP
 - Mailbot is a one-shot process (run via cron/scheduler), not a long-running service

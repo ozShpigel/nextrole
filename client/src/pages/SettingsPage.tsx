@@ -1,5 +1,6 @@
 ﻿import { useState, useEffect, useRef, useMemo } from 'react';
 import { matchApi } from '../lib/api';
+import type { ProfileResponse, ConfigValue } from '../lib/types';
 import { EVALUATOR_PLACEHOLDERS } from '../lib/scoring';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -47,8 +48,14 @@ const DEFAULT_CONFIG: ScoringConfig = {
   min_score_to_save: 70,
 };
 
-function mergeScoringConfig(incoming: any): ScoringConfig {
-  const sc = incoming || {};
+interface IncomingScoringConfig {
+  analyst?: Partial<RoleConfig>;
+  evaluator?: Partial<RoleConfig>;
+  min_score_to_save?: number;
+}
+
+function mergeScoringConfig(incoming: Record<string, unknown>): ScoringConfig {
+  const sc = (incoming || {}) as IncomingScoringConfig;
   const hasNested = sc.analyst || sc.evaluator;
   const evaluatorSource = hasNested ? (sc.evaluator || {}) : sc;
   return {
@@ -190,7 +197,7 @@ export default function SettingsPage() {
 
   async function load(): Promise<void> {
     try {
-      const data: any = await matchApi('/profile');
+      const data = await matchApi('/profile') as ProfileResponse;
       const content = data?.content || '';
       setProfile(content);
       setOriginalProfile(content);
@@ -237,19 +244,19 @@ export default function SettingsPage() {
     || extendedIntro !== originalExtendedIntro;
 
   async function saveField(
-    body: Record<string, any>,
+    body: Record<string, unknown>,
     setSaving: React.Dispatch<React.SetStateAction<boolean>>,
     setResult: React.Dispatch<React.SetStateAction<SaveResultData | null>>,
-    onSuccess: (data: any) => void,
+    onSuccess: (data: ProfileResponse) => void,
     label: string,
   ): Promise<void> {
     setSaving(true);
     setResult(null);
     try {
-      const data: any = await matchApi('/profile', {
+      const data = await matchApi('/profile', {
         method: 'PUT',
         body: JSON.stringify(body),
-      });
+      }) as ProfileResponse;
       setLastUpdated(data?.updated_at);
       if (data?.analyst_prompt_is_override !== undefined) setAnalystIsOverride(!!data.analyst_prompt_is_override);
       if (data?.evaluator_prompt_is_override !== undefined) setEvaluatorIsOverride(!!data.evaluator_prompt_is_override);
@@ -272,7 +279,7 @@ export default function SettingsPage() {
   const saveAnalyst = () => saveField(
     { analyst_prompt: analystPrompt },
     setSavingAnalyst, setAnalystResult,
-    (data: any) => {
+    (data: ProfileResponse) => {
       const v = data?.analyst_prompt || '';
       setAnalystPrompt(v);
       setOriginalAnalystPrompt(v);
@@ -283,7 +290,7 @@ export default function SettingsPage() {
   const saveEvaluator = () => saveField(
     { evaluator_prompt: evaluatorPrompt },
     setSavingEvaluator, setEvaluatorResult,
-    (data: any) => {
+    (data: ProfileResponse) => {
       const v = data?.evaluator_prompt || '';
       setEvaluatorPrompt(v);
       setOriginalEvaluatorPrompt(v);
@@ -295,7 +302,7 @@ export default function SettingsPage() {
   const saveConfig = () => saveField(
     { scoring_config: config },
     setSavingConfig, setConfigResult,
-    (data: any) => {
+    (data: ProfileResponse) => {
       if (data?.scoring_config) {
         const merged = mergeScoringConfig(data.scoring_config);
         setConfig(merged);
@@ -321,7 +328,7 @@ export default function SettingsPage() {
       saveField(
         { analyst_prompt: '' },
         setSavingAnalyst, setAnalystResult,
-        (data: any) => {
+        (data: ProfileResponse) => {
           const v = data?.analyst_prompt || '';
           setAnalystPrompt(v);
           setOriginalAnalystPrompt(v);
@@ -332,7 +339,7 @@ export default function SettingsPage() {
       saveField(
         { evaluator_prompt: '' },
         setSavingEvaluator, setEvaluatorResult,
-        (data: any) => {
+        (data: ProfileResponse) => {
           const v = data?.evaluator_prompt || '';
           setEvaluatorPrompt(v);
           setOriginalEvaluatorPrompt(v);
@@ -343,7 +350,7 @@ export default function SettingsPage() {
     setConfirmReset(null);
   }
 
-  function updateConfig(path: string, value: any): void {
+  function updateConfig(path: string, value: ConfigValue): void {
     setConfig(prev => {
       if (!path.includes('.')) return { ...prev, [path]: value };
       const [role, key] = path.split('.');
@@ -543,7 +550,7 @@ export default function SettingsPage() {
             titleEn="Parse"
             hint="Lightweight and fast — extracts fields from a job description"
             values={config.analyst}
-            onChange={(k: string, v: any) => updateConfig(`analyst.${k}`, v)}
+            onChange={(k: string, v: ConfigValue) => updateConfig(`analyst.${k}`, v)}
             idPrefix="cfg-a"
           />
           <RoleConfigPanel
@@ -553,7 +560,7 @@ export default function SettingsPage() {
             titleEn="Evaluate"
             hint="Deep analysis — score, verdict, and evaluation"
             values={config.evaluator}
-            onChange={(k: string, v: any) => updateConfig(`evaluator.${k}`, v)}
+            onChange={(k: string, v: ConfigValue) => updateConfig(`evaluator.${k}`, v)}
             idPrefix="cfg-e"
           />
         </div>
@@ -1089,7 +1096,7 @@ interface RoleConfigPanelProps {
   titleEn: string;
   hint: string;
   values: RoleConfig;
-  onChange: (key: string, value: any) => void;
+  onChange: (key: string, value: ConfigValue) => void;
   idPrefix: string;
 }
 

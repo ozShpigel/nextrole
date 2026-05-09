@@ -1,6 +1,7 @@
 ﻿import { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { api, matchApi } from '../lib/api';
+import type { ProfileResponse } from '../lib/types';
 import { scoreColor } from '../lib/format';
 import { StatusBadge, StatusModal } from '../components/Status';
 import CollapsibleSection from '../components/CollapsibleSection';
@@ -16,17 +17,27 @@ import { Skeleton } from '@/components/ui/skeleton';
 
 interface Interview {
   id: string;
+  type: string;
   scheduledAt: string;
-  [key: string]: any;
+  interviewer?: string;
+  topics?: string;
+  notes?: string;
+  feedback?: string;
+  completed: boolean;
 }
 
 interface Note {
   id: string;
-  [key: string]: any;
+  category?: string;
+  content: string;
+  createdAt: string;
 }
 
 interface StatusUpdate {
-  [key: string]: any;
+  timestamp: string;
+  fromStatus: string;
+  toStatus: string;
+  note?: string;
 }
 
 interface Application {
@@ -47,7 +58,6 @@ interface Application {
   analystSnapshotOutput: string | null;
   evaluatorSnapshotInput: string | null;
   evaluatorSnapshotOutput: string | null;
-  [key: string]: any;
 }
 
 interface ApplicationDetailData {
@@ -87,7 +97,7 @@ export default function ApplicationDetail() {
   useEffect(() => { load(); }, [load]);
 
   useEffect(() => {
-    matchApi('/profile').then((p: any) => setIntros({
+    matchApi('/profile').then((p: ProfileResponse) => setIntros({
       elevatorPitch: p?.elevator_pitch || '',
       professionalIntro: p?.professional_intro || '',
       extendedIntro: p?.extended_intro || '',

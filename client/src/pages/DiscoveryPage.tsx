@@ -10,14 +10,27 @@ import WakeUpIndicator from '../components/WakeUpIndicator';
 
 interface Criteria {
   id: string;
-  [key: string]: any;
+  name: string;
+  job_titles: string[];
+  locations: string[];
+  site_names: string[];
+  results_wanted: number;
+  hours_old: number;
+  country: string;
+  is_remote: boolean | null;
+  min_score_to_save: number;
 }
 
 interface Run {
   id: string;
   status: string;
+  criteria_name: string;
+  jobs_scraped: number;
+  jobs_scored: number;
+  jobs_saved: number;
+  jobs_skipped_duplicate: number;
   started_at?: string;
-  [key: string]: any;
+  error?: string;
 }
 
 interface RetryInfo {

@@ -1,4 +1,5 @@
 import { NavLink, Outlet } from 'react-router-dom';
+import { Sun, Moon } from 'lucide-react';
 import { useTheme } from './lib/theme';
 
 const navLinkClass = ({ isActive }: { isActive: boolean }): string =>
@@ -21,7 +22,7 @@ export default function App() {
               className="ml-2 p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-all"
               aria-label="Toggle theme"
             >
-              {theme === 'dark' ? '☀️' : '🌙'}
+              {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
             </button>
           </div>
         </div>

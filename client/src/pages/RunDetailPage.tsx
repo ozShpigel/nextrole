@@ -1,6 +1,7 @@
 ﻿import { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { discoveryApi, matchApi } from '../lib/api';
+import type { ProfileResponse } from '../lib/types';
 import { VERDICT_LABELS, EVALUATOR_PLACEHOLDERS } from '../lib/scoring';
 import { SnapshotsModal } from '../components/Snapshots';
 import { Card } from '@/components/ui/card';
@@ -179,7 +180,7 @@ export default function RunDetail() {
     if (!next || promptLoaded) return;
     setPromptLoading(true);
     try {
-      const data: any = await matchApi('/profile');
+      const data = await matchApi('/profile') as ProfileResponse;
       const p = data?.evaluator_prompt || '';
       setEvaluatorPrompt(p);
       setOriginalPrompt(p);
@@ -197,7 +198,7 @@ export default function RunDetail() {
     setSavingPrompt(true);
     setPromptResult(null);
     try {
-      const data: any = await matchApi('/profile', { method: 'PUT', body: JSON.stringify(body) });
+      const data = await matchApi('/profile', { method: 'PUT', body: JSON.stringify(body) }) as ProfileResponse;
       const p = data?.evaluator_prompt || '';
       setEvaluatorPrompt(p);
       setOriginalPrompt(p);

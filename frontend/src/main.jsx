@@ -3,13 +3,13 @@ import ReactDOM from 'react-dom/client';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import './styles/global.css';
 import App from './App';
-import ErrorBoundary from './components/ErrorBoundary';
-import Landing from './pages/Landing';
-import DiscoveryPage from './pages/discovery/DiscoveryPage';
-import RunDetail from './pages/discovery/RunDetail';
-import TrackerPage from './pages/tracker/TrackerPage';
-import ApplicationDetail from './pages/tracker/ApplicationDetail';
-import SettingsPage from './pages/settings/SettingsPage';
+import { ErrorBoundary } from './components/Error';
+import LandingPage from './pages/LandingPage';
+import DiscoveryPage from './pages/DiscoveryPage';
+import RunDetailPage from './pages/RunDetailPage';
+import TrackerPage from './pages/TrackerPage';
+import ApplicationDetailPage from './pages/ApplicationDetailPage';
+import SettingsPage from './pages/SettingsPage';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
@@ -17,11 +17,11 @@ ReactDOM.createRoot(document.getElementById('root')).render(
       <ErrorBoundary>
         <Routes>
           <Route element={<App />}>
-            <Route path="/" element={<Landing />} />
+            <Route path="/" element={<LandingPage />} />
             <Route path="/discovery" element={<DiscoveryPage />} />
-            <Route path="/discovery/:runId" element={<RunDetail />} />
+            <Route path="/discovery/:runId" element={<RunDetailPage />} />
             <Route path="/tracker" element={<TrackerPage />} />
-            <Route path="/tracker/:id" element={<ApplicationDetail />} />
+            <Route path="/tracker/:id" element={<ApplicationDetailPage />} />
             <Route path="/settings" element={<SettingsPage />} />
           </Route>
         </Routes>

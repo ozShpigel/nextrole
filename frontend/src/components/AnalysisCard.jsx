@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { VERDICT_LABELS } from '../../utils/constants';
-import { scoreColor } from '../../utils/format';
+import { VERDICT_LABELS } from '../utils/constants';
+import { scoreColor } from '../utils/format';
 import { Card } from '@/components/ui/card';
 
 function ScoreRing({ score, maxScore, size = 140, stroke = 8 }) {
@@ -20,8 +20,7 @@ function ScoreRing({ score, maxScore, size = 140, stroke = 8 }) {
             cx={half} cy={half} r={r}
             stroke={color} strokeWidth={stroke} strokeLinecap="round"
             strokeDasharray={C} strokeDashoffset={offset}
-            className="animate-ring-draw"
-            style={{ '--circ': C, transform: 'rotate(-90deg)', transformOrigin: '50% 50%' }}
+            style={{ transform: 'rotate(-90deg)', transformOrigin: '50% 50%' }}
           />
         )}
       </svg>
@@ -34,11 +33,11 @@ function ScoreRing({ score, maxScore, size = 140, stroke = 8 }) {
 }
 
 const VERDICT_COLOR = {
-  STRONG_YES: 'text-green',
-  YES: 'text-green',
-  MAYBE: 'text-yellow',
-  NO: 'text-red',
-  STRONG_NO: 'text-red',
+  STRONG_YES: 'text-emerald-600',
+  YES: 'text-emerald-600',
+  MAYBE: 'text-amber-600',
+  NO: 'text-red-500',
+  STRONG_NO: 'text-red-500',
   INSUFFICIENT_DATA: 'text-muted-foreground',
 };
 
@@ -84,7 +83,7 @@ export default function AnalysisCard({ matchAnalysisJson }) {
                 {VERDICT_LABELS[a.verdict] || VERDICT_LABELS.INSUFFICIENT_DATA}
               </div>
               {rec && (
-                <div className={`text-[0.85rem] font-semibold py-[0.3rem] px-[0.9rem] rounded-[20px] w-fit ${rec.shouldApply ? 'bg-green-bg text-green border border-[rgba(45,143,94,0.15)]' : 'bg-red-bg text-red border border-[rgba(196,84,84,0.15)]'}`}>
+                <div className={`text-[0.85rem] font-semibold py-[0.3rem] px-[0.9rem] rounded-[20px] w-fit ${rec.shouldApply ? 'bg-emerald-50 text-emerald-600 border border-emerald-600/15' : 'bg-red-50 text-red-500 border border-red-500/15'}`}>
                   {rec.shouldApply ? 'Worth Applying' : 'Not Recommended'}
                 </div>
               )}
@@ -112,13 +111,13 @@ export default function AnalysisCard({ matchAnalysisJson }) {
               </div>
 
               {active && (
-                <div className="mt-3 p-[1rem_1.25rem] bg-muted border border-border rounded animate-detail-reveal" key={activeDim}>
+                <div className="mt-3 p-[1rem_1.25rem] bg-muted border border-border rounded animate-in fade-in duration-200" key={activeDim}>
                   <h4 className="text-[0.9rem] font-semibold text-foreground mb-3">{active.label}</h4>
                   {active.data[active.posKey]?.length > 0 && (
                     <div className="mb-3 last:mb-0">
                       <span className="block text-[0.75rem] text-muted-foreground uppercase tracking-[0.06em] font-medium mb-[0.3rem]">{active.posLabel}</span>
                       <ul className="list-disc pl-5 m-0">
-                        {active.data[active.posKey].map((item, i) => <li key={i} className="text-[0.84rem] mb-[0.3rem] text-foreground leading-[1.6] marker:text-green">{item}</li>)}
+                        {active.data[active.posKey].map((item, i) => <li key={i} className="text-[0.84rem] mb-[0.3rem] text-foreground leading-[1.6] marker:text-emerald-600">{item}</li>)}
                       </ul>
                     </div>
                   )}
@@ -126,7 +125,7 @@ export default function AnalysisCard({ matchAnalysisJson }) {
                     <div className="mb-3 last:mb-0">
                       <span className="block text-[0.75rem] text-muted-foreground uppercase tracking-[0.06em] font-medium mb-[0.3rem]">{active.negLabel}</span>
                       <ul className="list-disc pl-5 m-0">
-                        {active.data[active.negKey].map((item, i) => <li key={i} className="text-[0.84rem] mb-[0.3rem] text-foreground leading-[1.6] marker:text-red">{item}</li>)}
+                        {active.data[active.negKey].map((item, i) => <li key={i} className="text-[0.84rem] mb-[0.3rem] text-foreground leading-[1.6] marker:text-red-500">{item}</li>)}
                       </ul>
                     </div>
                   )}
@@ -157,8 +156,8 @@ export default function AnalysisCard({ matchAnalysisJson }) {
               )}
               {(rec.greenFlags?.length > 0 || rec.redFlags?.length > 0) && (
                 <div className="flex gap-2 flex-wrap mt-2">
-                  {(rec.greenFlags || []).map((f, i) => <span key={`g${i}`} className="py-1 px-[0.65rem] rounded-sm text-[0.78rem] font-medium border transition-transform hover:-translate-y-px bg-green-bg text-green border-[rgba(45,143,94,0.12)]">{f}</span>)}
-                  {(rec.redFlags || []).map((f, i) => <span key={`r${i}`} className="py-1 px-[0.65rem] rounded-sm text-[0.78rem] font-medium border transition-transform hover:-translate-y-px bg-red-bg text-red border-[rgba(196,84,84,0.12)]">{f}</span>)}
+                  {(rec.greenFlags || []).map((f, i) => <span key={`g${i}`} className="py-1 px-[0.65rem] rounded-sm text-[0.78rem] font-medium border transition-transform hover:-translate-y-px bg-emerald-50 text-emerald-600 border-emerald-600/12">{f}</span>)}
+                  {(rec.redFlags || []).map((f, i) => <span key={`r${i}`} className="py-1 px-[0.65rem] rounded-sm text-[0.78rem] font-medium border transition-transform hover:-translate-y-px bg-red-50 text-red-500 border-red-500/12">{f}</span>)}
                 </div>
               )}
             </div>
@@ -169,8 +168,8 @@ export default function AnalysisCard({ matchAnalysisJson }) {
             <div className="mt-5 pt-4 border-t border-border">
               <h4 className="text-[0.9rem] font-semibold text-foreground mb-3">Company News Signals</h4>
               <div className="flex gap-2 flex-wrap">
-                {(a.companyNewsAnalysis.greenSignals || []).map((s, i) => <span key={`ng${i}`} className="py-1 px-[0.65rem] rounded-sm text-[0.78rem] font-medium border transition-transform hover:-translate-y-px bg-green-bg text-green border-[rgba(45,143,94,0.12)]">{s}</span>)}
-                {(a.companyNewsAnalysis.redSignals || []).map((s, i) => <span key={`nr${i}`} className="py-1 px-[0.65rem] rounded-sm text-[0.78rem] font-medium border transition-transform hover:-translate-y-px bg-red-bg text-red border-[rgba(196,84,84,0.12)]">{s}</span>)}
+                {(a.companyNewsAnalysis.greenSignals || []).map((s, i) => <span key={`ng${i}`} className="py-1 px-[0.65rem] rounded-sm text-[0.78rem] font-medium border transition-transform hover:-translate-y-px bg-emerald-50 text-emerald-600 border-emerald-600/12">{s}</span>)}
+                {(a.companyNewsAnalysis.redSignals || []).map((s, i) => <span key={`nr${i}`} className="py-1 px-[0.65rem] rounded-sm text-[0.78rem] font-medium border transition-transform hover:-translate-y-px bg-red-50 text-red-500 border-red-500/12">{s}</span>)}
               </div>
               {a.companyNewsAnalysis.summary && (
                 <p dir="rtl" className="text-[0.84rem] text-muted-foreground leading-[1.6] mt-2 text-right">{a.companyNewsAnalysis.summary}</p>

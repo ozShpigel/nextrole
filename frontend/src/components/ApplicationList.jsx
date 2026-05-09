@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api } from '../../utils/api';
-import { formatDate, scoreColor } from '../../utils/format';
-import StatusBadge from '../../components/StatusBadge';
+import { api } from '../utils/api';
+import { formatDate, scoreColor } from '../utils/format';
+import { StatusBadge } from './Status';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 
@@ -53,7 +53,7 @@ export default function ApplicationList() {
       </div>
       {apps.map((a) => {
         const days = a.updatedAt ? Math.floor((Date.now() - new Date(a.updatedAt).getTime()) / 86400000) : null;
-        const daysColor = days >= 14 ? 'var(--red)' : days >= 7 ? 'var(--yellow)' : undefined;
+        const daysColor = days >= 14 ? '#ef4444' : days >= 7 ? '#d97706' : undefined;
         return (
           <div key={a.id} className="grid grid-cols-[1fr_1fr] md:grid-cols-[2fr_1.5fr_1fr_0.5fr_0.8fr_0.5fr_minmax(3.5rem,auto)] items-center gap-4 py-[0.9rem] px-5 border-b border-border cursor-pointer transition-colors hover:bg-accent last:border-b-0" onClick={() => navigate(`/tracker/${a.id}`)}>
             <div><div className="font-semibold text-foreground text-[0.9rem]">{a.jobTitle}</div></div>

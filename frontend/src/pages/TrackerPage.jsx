@@ -2,10 +2,10 @@ import { useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import Dashboard from './Dashboard';
-import ApplicationList from './ApplicationList';
-import AddApplication from './AddApplication';
-import Statistics from './Statistics';
+import Dashboard from '../components/Dashboard';
+import ApplicationList from '../components/ApplicationList';
+import AddApplication from '../components/AddApplication';
+import Statistics from '../components/Statistics';
 
 const TABS = [
   { key: 'dashboard', label: 'Dashboard' },
@@ -24,7 +24,7 @@ export default function TrackerPage() {
   }
 
   return (
-    <div className="min-h-[calc(100vh-56px)] bg-background animate-page-in-fast">
+    <div className="min-h-[calc(100vh-56px)] bg-background animate-in fade-in slide-in-from-bottom-1 duration-300">
       <div className="bg-muted border-b border-border py-5 mb-8">
         <h1 className="font-sans text-[1.4rem] font-bold text-foreground max-w-[1100px] mx-auto px-6 tracking-[-0.01em]">Application Tracker</h1>
         <p className="text-muted-foreground text-[0.85rem] max-w-[1100px] mt-[0.15rem] mx-auto px-6">Manage and track your hiring processes</p>

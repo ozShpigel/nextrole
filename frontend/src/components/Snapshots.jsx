@@ -1,4 +1,11 @@
 import { useState } from 'react';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog';
 
 function prettyJson(raw) {
   if (raw == null) return null;
@@ -46,7 +53,7 @@ function Panel({ label, body, empty }) {
   );
 }
 
-export default function SnapshotsCard({ snapshots }) {
+export function SnapshotsCard({ snapshots }) {
   const stages = [
     {
       key: 'analyst',
@@ -94,5 +101,23 @@ export default function SnapshotsCard({ snapshots }) {
         );
       })}
     </div>
+  );
+}
+
+export function SnapshotsModal({ title, snapshots, onClose }) {
+  return (
+    <Dialog open={true} onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle className="text-[0.95rem] font-semibold">
+            Raw Claude Calls
+          </DialogTitle>
+          {title && <DialogDescription className="text-[0.84rem]">{title}</DialogDescription>}
+        </DialogHeader>
+        <div className="overflow-y-auto">
+          <SnapshotsCard snapshots={snapshots} />
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }

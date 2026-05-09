@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api } from '../../utils/api';
-import { formatDate, formatDateTime } from '../../utils/format';
-import StatusBadge from '../../components/StatusBadge';
-import StatCard from '../../components/StatCard';
+import { api } from '../utils/api';
+import { formatDate, formatDateTime } from '../utils/format';
+import { StatusBadge } from './Status';
+import { StatCard } from './Stats';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export default function Dashboard() {
   const [stats, setStats] = useState(null);
@@ -75,7 +76,7 @@ export default function Dashboard() {
         ) : (
           recent.map((a) => (
             <div key={a.id} className="group flex gap-4 py-[0.85rem] border-b border-border items-start transition-colors last:border-b-0 cursor-pointer" onClick={() => navigate(`/tracker/${a.id}`)}>
-              <div className="w-[34px] h-[34px] rounded-[9px] flex items-center justify-center text-[0.8rem] shrink-0 transition-transform group-hover:scale-[1.08] bg-blue-bg text-blue">&#x1F4CB;</div>
+              <div className="w-[34px] h-[34px] rounded-[9px] flex items-center justify-center text-[0.8rem] shrink-0 transition-transform group-hover:scale-[1.08] bg-blue-50 text-blue-500">&#x1F4CB;</div>
               <div className="flex-1">
                 <div className="text-[0.84rem] mt-[0.15rem]"><strong>{a.jobTitle}</strong> - {a.company} <StatusBadge status={a.status} /></div>
                 <div className="text-[0.73rem] text-muted-foreground">{formatDate(a.createdAt)}</div>
@@ -88,29 +89,16 @@ export default function Dashboard() {
   );
 }
 
-const DASHBOARD_HERO_LETTERS = ['D', 'a', 's', 'h', 'b', 'o', 'a', 'r', 'd'];
-
 function DashboardLoadingSkeleton() {
   return (
-    <div className="animate-page-in pb-4 relative" role="status" aria-live="polite" aria-label="Loading dashboard">
+    <div className="animate-in fade-in slide-in-from-bottom-1 duration-500 pb-4 relative" role="status" aria-live="polite" aria-label="Loading dashboard">
       {/* Hero */}
       <header className="mb-8 pb-5" aria-hidden="true">
         <span className="inline-block font-mono text-[0.7rem] tracking-[0.22em] uppercase text-primary mb-[0.55rem] opacity-85">Overview · 2026</span>
-        <h2 className="font-serif text-[clamp(1.6rem,3vw,2rem)] font-bold text-foreground leading-[1.1] m-0 mb-[0.8rem] tracking-[-0.01em] flex items-baseline">
-          {DASHBOARD_HERO_LETTERS.map((ch, i) => (
-            <span
-              key={i}
-              className="inline-block opacity-0 translate-y-[6px]"
-              style={{
-                animation: 'letterInk 0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards',
-                animationDelay: `${i * 60 + 80}ms`,
-              }}
-            >{ch}</span>
-          ))}
+        <h2 className="font-serif text-[clamp(1.6rem,3vw,2rem)] font-bold text-foreground leading-[1.1] m-0 mb-[0.8rem] tracking-[-0.01em] animate-in fade-in duration-300">
+          Dashboard
         </h2>
-        <div className="mt-[1.1rem] h-px relative overflow-hidden" style={{ background: 'linear-gradient(to left, transparent, hsl(var(--border) / 0.4) 50%, transparent)' }}>
-          <span className="absolute top-[-1px] bottom-[-1px] w-[28%] animate-track-sweep" style={{ background: 'linear-gradient(90deg, transparent 0%, hsl(var(--muted-foreground) / 0.55) 50%, transparent 100%)', filter: 'blur(0.5px)', boxShadow: '0 0 6px hsl(var(--muted-foreground) / 0.3)' }} />
-        </div>
+        <div className="mt-[1.1rem] h-px" style={{ background: 'linear-gradient(to left, transparent, hsl(var(--border) / 0.4) 50%, transparent)' }} />
       </header>
 
       {/* Summary grid skeleton */}
@@ -118,15 +106,12 @@ function DashboardLoadingSkeleton() {
         {[0, 1, 2, 3].map((i) => (
           <Card
             key={i}
-            className="py-[1.6rem] px-5 text-center relative overflow-hidden"
-            style={{
-              animation: 'cardRise 0.65s cubic-bezier(0.22, 1, 0.36, 1) both',
-              animationDelay: `${i * 70 + 220}ms`,
-            }}
+            className="py-[1.6rem] px-5 text-center relative overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-300"
+            style={{ animationDelay: `${i * 70 + 220}ms` }}
           >
             <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-primary to-ring opacity-30" />
-            <span className="skeleton block w-[48px] h-[34px] rounded mx-auto mb-[0.55rem]" />
-            <span className="skeleton block w-[82px] h-[10px] rounded-[3px] mx-auto" />
+            <Skeleton className="block w-[48px] h-[34px] rounded mx-auto mb-[0.55rem]" />
+            <Skeleton className="block w-[82px] h-[10px] rounded-[3px] mx-auto" />
           </Card>
         ))}
       </div>
@@ -134,20 +119,19 @@ function DashboardLoadingSkeleton() {
       {/* Section 01 */}
       <Card
         className="p-6 mb-4 flex flex-col gap-[0.85rem] relative overflow-hidden"
-        style={{ animation: 'cardRise 0.65s cubic-bezier(0.22, 1, 0.36, 1) both', animationDelay: '580ms' }}
         aria-hidden="true"
       >
         <div className="flex items-baseline gap-3 pb-[0.7rem] mb-1 border-b border-border">
           <Badge variant="outline" className="font-serif text-[0.78rem] font-bold tracking-[0.14em] tabular-nums">01</Badge>
-          <span className="skeleton flex-1 max-w-[200px] h-[14px] rounded" />
+          <Skeleton className="flex-1 max-w-[200px] h-[14px] rounded" />
         </div>
         {[0, 1].map((i) => (
           <div key={i} className="py-[0.85rem] px-4 border border-border rounded bg-muted flex flex-col gap-2">
             <div className="flex justify-between items-center gap-4">
-              <span className="skeleton w-[45%] h-[14px] rounded" />
-              <span className="skeleton w-[90px] h-[12px] rounded" />
+              <Skeleton className="w-[45%] h-[14px] rounded" />
+              <Skeleton className="w-[90px] h-[12px] rounded" />
             </div>
-            <span className="skeleton w-[70%] h-[12px] rounded" />
+            <Skeleton className="w-[70%] h-[12px] rounded" />
           </div>
         ))}
       </Card>
@@ -155,19 +139,18 @@ function DashboardLoadingSkeleton() {
       {/* Section 02 */}
       <Card
         className="p-6 mb-4 flex flex-col gap-[0.85rem] relative overflow-hidden"
-        style={{ animation: 'cardRise 0.65s cubic-bezier(0.22, 1, 0.36, 1) both', animationDelay: '650ms' }}
         aria-hidden="true"
       >
         <div className="flex items-baseline gap-3 pb-[0.7rem] mb-1 border-b border-border">
           <Badge variant="outline" className="font-serif text-[0.78rem] font-bold tracking-[0.14em] tabular-nums">02</Badge>
-          <span className="skeleton flex-1 max-w-[200px] h-[14px] rounded" />
+          <Skeleton className="flex-1 max-w-[200px] h-[14px] rounded" />
         </div>
         {[0, 1, 2].map((i) => (
           <div key={i} className="flex gap-4 py-3 border-b border-border items-start last:border-b-0">
-            <span className="skeleton w-[34px] h-[34px] rounded-[9px] shrink-0" />
+            <Skeleton className="w-[34px] h-[34px] rounded-[9px] shrink-0" />
             <div className="flex-1 flex flex-col gap-[0.4rem]">
-              <span className="skeleton w-[70%] h-[12px] rounded" />
-              <span className="skeleton w-[45%] h-[12px] rounded" />
+              <Skeleton className="w-[70%] h-[12px] rounded" />
+              <Skeleton className="w-[45%] h-[12px] rounded" />
             </div>
           </div>
         ))}
@@ -177,11 +160,7 @@ function DashboardLoadingSkeleton() {
       <div className="mt-9 pt-5 border-t border-dashed border-border flex items-center gap-[0.65rem] font-serif text-[0.92rem] text-muted-foreground italic tracking-[-0.005em] relative">
         <div className="absolute top-[-1px] left-0 w-[36px] h-px bg-primary opacity-50" />
         <span className="font-serif text-[1.15rem] text-primary opacity-75 not-italic" aria-hidden="true">§</span>
-        <span className="relative inline-block h-[1.4em] min-w-[22ch]" aria-hidden="true">
-          <span className="absolute inset-0 left-0 opacity-0 translate-y-[6px] whitespace-nowrap" style={{ animation: 'cycleFade 6s cubic-bezier(0.22, 1, 0.36, 1) infinite', animationDelay: '0s' }}>Fetching active applications</span>
-          <span className="absolute inset-0 left-0 opacity-0 translate-y-[6px] whitespace-nowrap" style={{ animation: 'cycleFade 6s cubic-bezier(0.22, 1, 0.36, 1) infinite', animationDelay: '2s' }}>Summarizing statistics</span>
-          <span className="absolute inset-0 left-0 opacity-0 translate-y-[6px] whitespace-nowrap" style={{ animation: 'cycleFade 6s cubic-bezier(0.22, 1, 0.36, 1) infinite', animationDelay: '4s' }}>Mapping upcoming interviews</span>
-        </span>
+        <span aria-hidden="true">Loading...</span>
         <span className="sr-only">Loading dashboard</span>
       </div>
     </div>

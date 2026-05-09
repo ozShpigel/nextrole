@@ -27,6 +27,10 @@ through interviews to final status — in one place. See `docs/project-scope.md`
 
 ## Key Conventions
 
+- Use TypeScript throughout
+- Use Bun as the runtime and package manager (not npm/yarn)
+- Use shadcn/ui components for all UI (import from @/components/ui/*)
+- Use shadcn's semantic color tokens (e.g. bg-background, text-muted-foreground, text-destructive) instead of hardcoded Tailwind colors
 - Use context7 MCP server to fetch up-to-date documentation for libraries
 - All Claude/Anthropic AI calls live exclusively in the API — the Scraper delegates scoring via HTTP
 - Mailbot is a one-shot process (run via cron/scheduler), not a long-running service

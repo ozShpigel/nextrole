@@ -1,9 +1,9 @@
 import { barColor } from '../utils/format';
 
 const BAR_COLORS = {
-  green: 'bg-green',
-  yellow: 'bg-yellow',
-  red: 'bg-red',
+  green: 'bg-emerald-600',
+  yellow: 'bg-amber-600',
+  red: 'bg-red-500',
 };
 
 export default function ScoreBar({ label, score, maxScore }) {
@@ -16,7 +16,7 @@ export default function ScoreBar({ label, score, maxScore }) {
       <span className="min-w-[130px] text-[0.82rem] text-muted-foreground">{label}</span>
       <div className="flex-1 h-[22px] bg-muted rounded-sm overflow-hidden border border-border">
         <div
-          className={`h-full rounded-[5px] transition-[width] duration-[800ms] ease-[cubic-bezier(0.22,1,0.36,1)] flex items-center justify-center text-[0.72rem] font-semibold ${BAR_COLORS[color] || 'bg-red'}`}
+          className={`h-full rounded-[5px] transition-[width] duration-[800ms] ease-[cubic-bezier(0.22,1,0.36,1)] flex items-center justify-center text-[0.72rem] font-semibold ${BAR_COLORS[color] || 'bg-red-500'}`}
           style={{ width: `${pct}%` }}
         />
       </div>

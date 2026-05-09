@@ -1,17 +1,18 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { discoveryApi, matchApi } from '../../utils/api';
-import { VERDICT_LABELS, EVALUATOR_PLACEHOLDERS } from '../../utils/constants';
-import SnapshotsModal from '../../components/SnapshotsModal';
+import { discoveryApi, matchApi } from '../utils/api';
+import { VERDICT_LABELS, EVALUATOR_PLACEHOLDERS } from '../utils/constants';
+import { SnapshotsModal } from '../components/Snapshots';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 
 function verdictColor(verdict) {
-  if (verdict === 'STRONG_YES' || verdict === 'YES') return 'var(--green)';
-  if (verdict === 'MAYBE') return 'var(--yellow)';
-  if (verdict === 'NO' || verdict === 'STRONG_NO') return 'var(--red)';
-  if (verdict === 'MATCH_FAILED') return 'var(--red)';
+  if (verdict === 'STRONG_YES' || verdict === 'YES') return '#059669';
+  if (verdict === 'MAYBE') return '#d97706';
+  if (verdict === 'NO' || verdict === 'STRONG_NO') return '#ef4444';
+  if (verdict === 'MATCH_FAILED') return '#ef4444';
   return 'var(--muted-foreground)';
 }
 
@@ -185,7 +186,7 @@ export default function RunDetail() {
   }
 
   if (loading) return (
-    <div className="relative max-w-[960px] mx-auto px-7 pt-14 pb-20 animate-page-in isolate max-[640px]:px-4 max-[640px]:pt-10 max-[640px]:pb-14">
+    <div className="relative max-w-[960px] mx-auto px-7 pt-14 pb-20 animate-in fade-in slide-in-from-bottom-1 duration-500 isolate max-[640px]:px-4 max-[640px]:pt-10 max-[640px]:pb-14">
       {/* Atmospheric glows */}
       <div className="absolute -top-[140px] -right-[220px] w-[540px] h-[540px] blur-[60px] pointer-events-none -z-1" style={{ background: 'radial-gradient(circle, rgba(0,0,0,0.03) 0%, transparent 65%)' }} />
       <div className="absolute top-[40%] -left-[200px] w-[420px] h-[420px] blur-[60px] pointer-events-none -z-1" style={{ background: 'radial-gradient(circle, rgba(0,0,0,0.02) 0%, transparent 65%)' }} />
@@ -193,7 +194,7 @@ export default function RunDetail() {
     </div>
   );
   if (error) return (
-    <div className="relative max-w-[960px] mx-auto px-7 pt-14 pb-20 animate-page-in isolate max-[640px]:px-4 max-[640px]:pt-10 max-[640px]:pb-14">
+    <div className="relative max-w-[960px] mx-auto px-7 pt-14 pb-20 animate-in fade-in slide-in-from-bottom-1 duration-500 isolate max-[640px]:px-4 max-[640px]:pt-10 max-[640px]:pb-14">
       <div className="absolute -top-[140px] -right-[220px] w-[540px] h-[540px] blur-[60px] pointer-events-none -z-1" style={{ background: 'radial-gradient(circle, rgba(0,0,0,0.03) 0%, transparent 65%)' }} />
       <div className="absolute top-[40%] -left-[200px] w-[420px] h-[420px] blur-[60px] pointer-events-none -z-1" style={{ background: 'radial-gradient(circle, rgba(0,0,0,0.02) 0%, transparent 65%)' }} />
       <div className="mt-4 p-3 bg-destructive/10 text-destructive text-[0.88rem] rounded border border-destructive/20">{error}</div>
@@ -218,13 +219,13 @@ export default function RunDetail() {
   const failedCount = visibleJobs.filter(isFailed).length;
 
   const runStatusBadge = run.status === 'completed'
-    ? 'bg-green-bg text-green border-[rgba(45,143,94,0.18)]'
+    ? 'bg-emerald-50 text-emerald-600 border-emerald-600/18'
     : run.status === 'failed'
-      ? 'bg-red-bg text-red border-[rgba(196,84,84,0.18)]'
-      : 'bg-yellow-bg text-yellow border-[rgba(166,139,43,0.18)]';
+      ? 'bg-red-50 text-red-500 border-red-500/18'
+      : 'bg-amber-50 text-amber-600 border-amber-600/18';
 
   return (
-    <div className="relative max-w-[960px] mx-auto px-7 pt-14 pb-20 animate-page-in isolate max-[640px]:px-4 max-[640px]:pt-10 max-[640px]:pb-14">
+    <div className="relative max-w-[960px] mx-auto px-7 pt-14 pb-20 animate-in fade-in slide-in-from-bottom-1 duration-500 isolate max-[640px]:px-4 max-[640px]:pt-10 max-[640px]:pb-14">
       {/* Atmospheric glows */}
       <div className="absolute -top-[140px] -right-[220px] w-[540px] h-[540px] blur-[60px] pointer-events-none -z-1" style={{ background: 'radial-gradient(circle, rgba(0,0,0,0.03) 0%, transparent 65%)' }} />
       <div className="absolute top-[40%] -left-[200px] w-[420px] h-[420px] blur-[60px] pointer-events-none -z-1" style={{ background: 'radial-gradient(circle, rgba(0,0,0,0.02) 0%, transparent 65%)' }} />
@@ -245,7 +246,7 @@ export default function RunDetail() {
         {isActive && <div className="mt-4 p-3 bg-muted text-muted-foreground text-[0.88rem] rounded border border-border">Processing... the page will update automatically</div>}
         {run.error && <div className="mt-4 p-3 bg-destructive/10 text-destructive text-[0.88rem] rounded border border-destructive/20">{run.error}</div>}
         {!isActive && failedCount > 0 && (
-          <div className="mt-4 p-[0.85rem_1rem] bg-[rgba(196,84,84,0.04)] border border-[rgba(196,84,84,0.22)] rounded flex items-center justify-between gap-4 text-red text-[0.88rem]">
+          <div className="mt-4 p-[0.85rem_1rem] bg-red-500/[0.04] border border-red-500/[0.22] rounded flex items-center justify-between gap-4 text-red-500 text-[0.88rem]">
             <span>{failedCount} jobs failed scoring — you can retry</span>
             <Button
               size="sm"
@@ -290,8 +291,8 @@ export default function RunDetail() {
                 Edit the evaluator prompt. Changes affect the next rescore — no need to navigate to settings.
               </p>
               {missingPlaceholders.length > 0 && (
-                <div className="text-[0.8rem] p-[0.55rem_0.8rem] bg-[rgba(196,84,84,0.06)] border border-[rgba(196,84,84,0.22)] rounded text-red flex flex-wrap gap-[0.3rem] items-center">
-                  Missing placeholders: {missingPlaceholders.map((p) => <code key={p} className="font-code text-[0.78rem] bg-[rgba(196,84,84,0.08)] py-[0.08rem] px-[0.4rem] rounded-[4px]">{p}</code>).reduce((acc, cur, i) => i === 0 ? [cur] : [...acc, ' · ', cur], [])}
+                <div className="text-[0.8rem] p-[0.55rem_0.8rem] bg-red-500/[0.06] border border-red-500/[0.22] rounded text-red-500 flex flex-wrap gap-[0.3rem] items-center">
+                  Missing placeholders: {missingPlaceholders.map((p) => <code key={p} className="font-code text-[0.78rem] bg-red-500/[0.08] py-[0.08rem] px-[0.4rem] rounded-[4px]">{p}</code>).reduce((acc, cur, i) => i === 0 ? [cur] : [...acc, ' · ', cur], [])}
                 </div>
               )}
               <textarea
@@ -333,7 +334,7 @@ export default function RunDetail() {
                 </Button>
               </div>
               {promptResult && (
-                <div className={`text-[0.82rem] p-[0.55rem_0.85rem] rounded border ${promptResult.type === 'success' ? 'bg-green-bg text-green border-[rgba(45,143,94,0.18)]' : 'bg-red-bg text-red border-[rgba(196,84,84,0.22)]'}`}>
+                <div className={`text-[0.82rem] p-[0.55rem_0.85rem] rounded border ${promptResult.type === 'success' ? 'bg-emerald-50 text-emerald-600 border-emerald-600/18' : 'bg-red-50 text-red-500 border-red-500/[0.22]'}`}>
                   {promptResult.message}
                 </div>
               )}
@@ -355,7 +356,7 @@ export default function RunDetail() {
                   {j.location && <div className="text-[0.78rem] text-muted-foreground mt-[0.1rem] tracking-[0.02em]">{j.location}</div>}
                   {j.glassdoor_data && (
                     <div className="flex items-center gap-[0.35rem] mt-[0.25rem]">
-                      <span className="text-[0.75rem] font-medium" style={{ color: j.glassdoor_data.rating >= 4.0 ? 'var(--green)' : j.glassdoor_data.rating >= 3.0 ? 'var(--yellow)' : 'var(--red)' }}>
+                      <span className="text-[0.75rem] font-medium" style={{ color: j.glassdoor_data.rating >= 4.0 ? '#059669' : j.glassdoor_data.rating >= 3.0 ? '#d97706' : '#ef4444' }}>
                         {j.glassdoor_data.rating.toFixed(1)} / 5
                       </span>
                       {j.glassdoor_data.reviewCount && <span className="text-[0.7rem] text-muted-foreground">({j.glassdoor_data.reviewCount.toLocaleString()} reviews)</span>}
@@ -377,12 +378,12 @@ export default function RunDetail() {
 
               {j.key_strengths?.length > 0 && (
                 <div className="flex flex-wrap gap-[0.4rem] mb-2">
-                  {j.key_strengths.map((s, i) => <Badge key={i} variant="outline" className="bg-green-bg text-green border-[rgba(45,143,94,0.18)] text-[0.75rem]">{s}</Badge>)}
+                  {j.key_strengths.map((s, i) => <Badge key={i} variant="outline" className="bg-emerald-50 text-emerald-600 border-emerald-600/18 text-[0.75rem]">{s}</Badge>)}
                 </div>
               )}
               {j.key_concerns?.length > 0 && (
                 <div className="flex flex-wrap gap-[0.4rem] mb-2">
-                  {j.key_concerns.map((c, i) => <Badge key={i} variant="outline" className="bg-red-bg text-red border-[rgba(196,84,84,0.18)] text-[0.75rem]">{c}</Badge>)}
+                  {j.key_concerns.map((c, i) => <Badge key={i} variant="outline" className="bg-red-50 text-red-500 border-red-500/18 text-[0.75rem]">{c}</Badge>)}
                 </div>
               )}
 
@@ -429,7 +430,7 @@ export default function RunDetail() {
                 {!j.saved_to_tracker && j.score != null && (
                   <Button size="sm" onClick={() => saveJob(j.id)}>Save to Tracker</Button>
                 )}
-                {j.saved_to_tracker && <span className="text-[0.72rem] text-green font-medium py-1 px-[0.7rem] bg-green-bg border border-[rgba(45,143,94,0.18)] rounded-full tracking-[0.06em]">Saved</span>}
+                {j.saved_to_tracker && <span className="text-[0.72rem] text-emerald-600 font-medium py-1 px-[0.7rem] bg-emerald-50 border border-emerald-600/18 rounded-full tracking-[0.06em]">Saved</span>}
                 <Button variant="destructive" size="sm" onClick={() => dismissJob(j.id)}>Dismiss</Button>
               </div>
             </div>
@@ -455,52 +456,48 @@ export default function RunDetail() {
 
 function RunDetailLoadingSkeleton() {
   return (
-    <div className="animate-page-in-fast relative pt-2" role="status" aria-live="polite" aria-label="Loading run details">
-      <div className="skeleton w-[120px] h-[14px] rounded-[4px] mb-6" aria-hidden="true" />
+    <div className="animate-in fade-in slide-in-from-bottom-1 duration-300 relative pt-2" role="status" aria-live="polite" aria-label="Loading run details">
+      <Skeleton className="w-[120px] h-[14px] rounded-[4px] mb-6" aria-hidden="true" />
 
       <div className="p-[1.5rem_1.5rem_1.8rem] bg-card border border-border rounded-lg shadow-sm mb-8 relative overflow-hidden" aria-hidden="true">
-        <div className="skeleton w-[48%] h-7 rounded-[4px]" />
+        <Skeleton className="w-[48%] h-7 rounded-[4px]" />
         <div className="flex flex-wrap gap-3 mt-4">
-          <span className="skeleton w-[90px] h-[22px] rounded-full" />
-          <span className="skeleton inline-block w-[82px] h-[18px] rounded-full" />
-          <span className="skeleton inline-block w-[82px] h-[18px] rounded-full" />
-          <span className="skeleton inline-block w-[82px] h-[18px] rounded-full" />
-          <span className="skeleton inline-block w-[82px] h-[18px] rounded-full" />
+          <Skeleton className="w-[90px] h-[22px] rounded-full" />
+          <Skeleton className="inline-block w-[82px] h-[18px] rounded-full" />
+          <Skeleton className="inline-block w-[82px] h-[18px] rounded-full" />
+          <Skeleton className="inline-block w-[82px] h-[18px] rounded-full" />
+          <Skeleton className="inline-block w-[82px] h-[18px] rounded-full" />
         </div>
-        <div className="mt-[1.6rem] h-px relative overflow-hidden" style={{ background: 'linear-gradient(to left, transparent, rgba(161,161,170,0.18) 50%, transparent)' }}>
-          <span
-            className="absolute top-[-1px] bottom-[-1px] w-[28%] blur-[0.5px] shadow-[0_0_6px_rgba(161,161,170,0.3)] animate-track-sweep"
-            style={{ background: 'linear-gradient(90deg, transparent 0%, rgba(161,161,170,0.55) 50%, transparent 100%)' }}
-          />
-        </div>
+        <div className="mt-[1.6rem] h-px" style={{ background: 'linear-gradient(to left, transparent, rgba(161,161,170,0.18) 50%, transparent)' }} />
+
       </div>
 
       <div className="flex flex-col gap-4">
         {[0, 1, 2].map((i) => (
           <div
             key={i}
-            className="p-[1.3rem_1.35rem_1.1rem] bg-card border border-border rounded-lg shadow-sm flex flex-col gap-[0.85rem] animate-[cardRise_0.6s_cubic-bezier(0.22,1,0.36,1)_both]"
+            className="p-[1.3rem_1.35rem_1.1rem] bg-card border border-border rounded-lg shadow-sm flex flex-col gap-[0.85rem] animate-in fade-in slide-in-from-bottom-2 duration-300"
             style={{ animationDelay: `${i * 80 + 200}ms` }}
             aria-hidden="true"
           >
             <div className="flex justify-between items-start gap-5">
               <div className="flex flex-col gap-[0.3rem] flex-1 min-w-0">
-                <div className="skeleton w-[65%] h-[18px] rounded-[4px]" />
-                <div className="skeleton w-[40%] h-[14px] rounded-[4px] mt-[0.45rem]" />
-                <div className="skeleton w-[28%] h-3 rounded-[4px] mt-[0.4rem]" />
+                <Skeleton className="w-[65%] h-[18px] rounded-[4px]" />
+                <Skeleton className="w-[40%] h-[14px] rounded-[4px] mt-[0.45rem]" />
+                <Skeleton className="w-[28%] h-3 rounded-[4px] mt-[0.4rem]" />
               </div>
               <div className="flex flex-col items-end gap-1 shrink-0">
-                <div className="skeleton w-12 h-8 rounded-[6px]" />
-                <div className="skeleton w-[72px] h-3 rounded-[4px] mt-[0.4rem]" />
+                <Skeleton className="w-12 h-8 rounded-[6px]" />
+                <Skeleton className="w-[72px] h-3 rounded-[4px] mt-[0.4rem]" />
               </div>
             </div>
             <div className="flex flex-wrap gap-[0.4rem]">
-              <span className="skeleton inline-block w-[90px] h-[22px] rounded-full" />
-              <span className="skeleton inline-block w-[58px] h-[22px] rounded-full" />
-              <span className="skeleton inline-block w-[90px] h-[22px] rounded-full" />
+              <Skeleton className="inline-block w-[90px] h-[22px] rounded-full" />
+              <Skeleton className="inline-block w-[58px] h-[22px] rounded-full" />
+              <Skeleton className="inline-block w-[90px] h-[22px] rounded-full" />
             </div>
-            <div className="skeleton w-full h-3 rounded-[4px]" />
-            <div className="skeleton w-[70%] h-3 rounded-[4px]" />
+            <Skeleton className="w-full h-3 rounded-[4px]" />
+            <Skeleton className="w-[70%] h-3 rounded-[4px]" />
           </div>
         ))}
       </div>
@@ -509,11 +506,7 @@ function RunDetailLoadingSkeleton() {
       <div className="mt-10 pt-[1.4rem] border-t border-dashed border-border flex items-center gap-[0.65rem] font-serif text-[0.92rem] text-muted-foreground italic tracking-[-0.005em] relative">
         <span className="absolute -top-px left-0 w-9 h-px bg-primary opacity-50" />
         <span className="font-serif text-[1.15rem] text-primary opacity-75 not-italic" aria-hidden="true">§</span>
-        <span className="relative inline-block h-[1.4em] min-w-[22ch]" aria-hidden="true">
-          <span className="absolute inset-0 left-0 opacity-0 translate-y-[6px] animate-cycle-fade whitespace-nowrap" style={{ animationDelay: '0s' }}>Fetching the run</span>
-          <span className="absolute inset-0 left-0 opacity-0 translate-y-[6px] animate-cycle-fade whitespace-nowrap" style={{ animationDelay: '2s' }}>Loading scored jobs</span>
-          <span className="absolute inset-0 left-0 opacity-0 translate-y-[6px] animate-cycle-fade whitespace-nowrap" style={{ animationDelay: '4s' }}>Sorting by score</span>
-        </span>
+        <span aria-hidden="true">Loading...</span>
         <span className="sr-only">Loading</span>
       </div>
     </div>

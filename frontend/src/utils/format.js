@@ -15,9 +15,9 @@ export function formatDateTime(dateStr) {
 export function scoreColor(score, max) {
   if (score == null) return 'var(--muted-foreground)';
   const pct = max != null && max > 0 ? score / max : score / 100;
-  if (pct >= 0.6) return 'var(--color-green)';
-  if (pct >= 0.4) return 'var(--color-yellow)';
-  return 'var(--color-red)';
+  if (pct >= 0.6) return '#059669';
+  if (pct >= 0.4) return '#d97706';
+  return '#ef4444';
 }
 
 export function barColor(score, max) {

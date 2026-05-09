@@ -1,20 +1,18 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { api, matchApi } from '../../utils/api';
-import { scoreColor } from '../../utils/format';
-import StatusBadge from '../../components/StatusBadge';
-import CollapsibleSection from '../../components/CollapsibleSection';
-import SnapshotsCard from '../../components/SnapshotsCard';
-import AnalysisCard from './AnalysisCard';
-import IntroductionCard from './IntroductionCard';
-import Timeline from './Timeline';
-import InterviewList from './InterviewList';
-import NoteList from './NoteList';
-import StatusModal from './StatusModal';
-import InterviewModal from './InterviewModal';
-import NoteModal from './NoteModal';
+import { api, matchApi } from '../utils/api';
+import { scoreColor } from '../utils/format';
+import { StatusBadge, StatusModal } from '../components/Status';
+import CollapsibleSection from '../components/CollapsibleSection';
+import { SnapshotsCard } from '../components/Snapshots';
+import AnalysisCard from '../components/AnalysisCard';
+import IntroductionCard from '../components/IntroductionCard';
+import Timeline from '../components/Timeline';
+import { InterviewList, InterviewModal } from '../components/Interviews';
+import { NoteList, NoteModal } from '../components/Notes';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export default function ApplicationDetail() {
   const { id } = useParams();
@@ -56,7 +54,7 @@ export default function ApplicationDetail() {
   }
 
   if (!data) return (
-    <div className="min-h-[calc(100vh-56px)] bg-background animate-page-in-fast">
+    <div className="min-h-[calc(100vh-56px)] bg-background animate-in fade-in slide-in-from-bottom-1 duration-300">
       <div className="max-w-[1100px] mx-auto px-6 pb-8">
         <ApplicationDetailLoadingSkeleton />
       </div>
@@ -66,7 +64,7 @@ export default function ApplicationDetail() {
   const { application: app, interviews, notes, statusUpdates } = data;
 
   return (
-    <div className="min-h-[calc(100vh-56px)] bg-background animate-page-in-fast">
+    <div className="min-h-[calc(100vh-56px)] bg-background animate-in fade-in slide-in-from-bottom-1 duration-300">
       <div className="max-w-[1100px] mx-auto px-6 pb-8">
         <Link to="/tracker" state={{ tab: 'list' }} className="text-primary cursor-pointer text-[0.88rem] mb-5 inline-flex items-center gap-[0.4rem] font-medium transition-all hover:text-primary/80 hover:gap-[0.6rem]">&larr; Back to List</Link>
 
@@ -183,7 +181,7 @@ function DaysInStage({ updatedAt }) {
   const days = daysAgo(updatedAt);
   if (days === null) return null;
   const label = days === 0 ? 'Today' : days === 1 ? '1 day' : `${days} days`;
-  const color = days >= 14 ? 'var(--red)' : days >= 7 ? 'var(--yellow)' : 'var(--muted-foreground)';
+  const color = days >= 14 ? '#ef4444' : days >= 7 ? '#d97706' : 'var(--muted-foreground)';
   return <span className="text-[0.78rem] font-medium" style={{ color }}>{label} in stage</span>;
 }
 
@@ -294,9 +292,9 @@ function CompanyEnrichment({ companyNewsJson, glassdoorDataJson }) {
       {glassdoor && (
         <div className="flex items-center gap-[0.45rem] mb-3">
           <span className="text-[0.82rem] font-medium" style={{
-            color: glassdoor.rating >= 4.0 ? 'var(--green)'
-                 : glassdoor.rating >= 3.0 ? 'var(--yellow)'
-                 : 'var(--red)'
+            color: glassdoor.rating >= 4.0 ? '#059669'
+                 : glassdoor.rating >= 3.0 ? '#d97706'
+                 : '#ef4444'
           }}>
             Glassdoor {glassdoor.rating.toFixed(1)} / 5
           </span>
@@ -323,74 +321,71 @@ function CompanyEnrichment({ companyNewsJson, glassdoorDataJson }) {
 
 function ApplicationDetailLoadingSkeleton() {
   return (
-    <div className="animate-page-in pb-4 relative" role="status" aria-live="polite" aria-label="Loading application details">
-      <div className="skeleton w-[120px] h-[14px] rounded mb-5" aria-hidden="true" />
+    <div className="animate-in fade-in slide-in-from-bottom-1 duration-500 pb-4 relative" role="status" aria-live="polite" aria-label="Loading application details">
+      <Skeleton className="w-[120px] h-[14px] rounded mb-5" aria-hidden="true" />
 
       {/* Hero card */}
       <div
-        className="bg-card border border-border rounded-lg p-6 mb-4 shadow-sm flex flex-col gap-[0.85rem] relative overflow-hidden pb-5"
-        style={{ animation: 'cardRise 0.65s cubic-bezier(0.22, 1, 0.36, 1) both', animationDelay: '0ms' }}
+        className="bg-card border border-border rounded-lg p-6 mb-4 shadow-sm flex flex-col gap-[0.85rem] relative overflow-hidden pb-5 animate-in fade-in slide-in-from-bottom-2 duration-300"
         aria-hidden="true"
       >
         <div className="flex justify-between items-start gap-6 flex-wrap">
           <div className="flex-1 min-w-0 flex flex-col gap-[0.55rem]">
-            <span className="skeleton w-[62%] h-[22px] rounded" />
-            <span className="skeleton w-[40%] h-[14px] rounded" />
-            <span className="skeleton w-[86px] h-[22px] rounded-sm" />
+            <Skeleton className="w-[62%] h-[22px] rounded" />
+            <Skeleton className="w-[40%] h-[14px] rounded" />
+            <Skeleton className="w-[86px] h-[22px] rounded-sm" />
           </div>
           <div className="flex flex-col items-center gap-[0.4rem] shrink-0">
-            <span className="skeleton w-[64px] h-[42px] rounded-sm" />
-            <span className="skeleton w-[72px] h-[12px] rounded" />
+            <Skeleton className="w-[64px] h-[42px] rounded-sm" />
+            <Skeleton className="w-[72px] h-[12px] rounded" />
           </div>
         </div>
         <div className="flex gap-2 flex-wrap mt-[0.4rem]">
-          <span className="skeleton w-[96px] h-[32px] rounded-lg" />
-          <span className="skeleton w-[96px] h-[32px] rounded-lg" />
-          <span className="skeleton w-[96px] h-[32px] rounded-lg" />
-          <span className="skeleton w-[64px] h-[32px] rounded-lg" />
+          <Skeleton className="w-[96px] h-[32px] rounded-lg" />
+          <Skeleton className="w-[96px] h-[32px] rounded-lg" />
+          <Skeleton className="w-[96px] h-[32px] rounded-lg" />
+          <Skeleton className="w-[64px] h-[32px] rounded-lg" />
         </div>
-        <div className="mt-[1.1rem] h-px relative overflow-hidden" style={{ background: 'linear-gradient(to left, transparent, rgba(163,163,163,0.18) 50%, transparent)' }}>
-          <span className="absolute top-[-1px] bottom-[-1px] w-[28%] animate-track-sweep" style={{ background: 'linear-gradient(90deg, transparent 0%, rgba(163,163,163,0.55) 50%, transparent 100%)', filter: 'blur(0.5px)', boxShadow: '0 0 6px rgba(163,163,163,0.3)' }} />
-        </div>
+        <div className="mt-[1.1rem] h-px" style={{ background: 'linear-gradient(to left, transparent, rgba(163,163,163,0.18) 50%, transparent)' }} />
       </div>
 
       {/* Analysis card skeleton */}
       <div
-        className="bg-card border border-border rounded-lg p-6 mb-4 shadow-sm flex flex-col gap-[0.85rem] relative overflow-hidden"
-        style={{ animation: 'cardRise 0.65s cubic-bezier(0.22, 1, 0.36, 1) both', animationDelay: '70ms' }}
+        className="bg-card border border-border rounded-lg p-6 mb-4 shadow-sm flex flex-col gap-[0.85rem] relative overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-300"
+        style={{ animationDelay: '70ms' }}
         aria-hidden="true"
       >
         <div className="flex items-baseline gap-3 pb-[0.7rem] mb-1 border-b border-border">
           <span className="font-serif text-[0.78rem] font-bold text-foreground tracking-[0.14em] py-[0.18rem] px-2 border border-border rounded bg-muted/50 tabular-nums">A</span>
-          <span className="skeleton flex-1 max-w-[200px] h-[14px] rounded" />
+          <Skeleton className="flex-1 max-w-[200px] h-[14px] rounded" />
         </div>
         <div className="flex flex-wrap gap-[0.4rem] mb-1">
-          <span className="skeleton inline-block w-[96px] h-[22px] rounded-full" />
-          <span className="skeleton inline-block w-[62px] h-[22px] rounded-full" />
-          <span className="skeleton inline-block w-[96px] h-[22px] rounded-full" />
-          <span className="skeleton inline-block w-[62px] h-[22px] rounded-full" />
+          <Skeleton className="inline-block w-[96px] h-[22px] rounded-full" />
+          <Skeleton className="inline-block w-[62px] h-[22px] rounded-full" />
+          <Skeleton className="inline-block w-[96px] h-[22px] rounded-full" />
+          <Skeleton className="inline-block w-[62px] h-[22px] rounded-full" />
         </div>
-        <span className="skeleton w-full h-[12px] rounded" />
-        <span className="skeleton w-[70%] h-[12px] rounded" />
-        <span className="skeleton w-[45%] h-[12px] rounded" />
+        <Skeleton className="w-full h-[12px] rounded" />
+        <Skeleton className="w-[70%] h-[12px] rounded" />
+        <Skeleton className="w-[45%] h-[12px] rounded" />
       </div>
 
       {/* Timeline card skeleton */}
       <div
-        className="bg-card border border-border rounded-lg p-6 mb-4 shadow-sm flex flex-col gap-[0.85rem] relative overflow-hidden"
-        style={{ animation: 'cardRise 0.65s cubic-bezier(0.22, 1, 0.36, 1) both', animationDelay: '140ms' }}
+        className="bg-card border border-border rounded-lg p-6 mb-4 shadow-sm flex flex-col gap-[0.85rem] relative overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-300"
+        style={{ animationDelay: '140ms' }}
         aria-hidden="true"
       >
         <div className="flex items-baseline gap-3 pb-[0.7rem] mb-1 border-b border-border">
           <span className="font-serif text-[0.78rem] font-bold text-foreground tracking-[0.14em] py-[0.18rem] px-2 border border-border rounded bg-muted/50 tabular-nums">§</span>
-          <span className="skeleton flex-1 max-w-[200px] h-[14px] rounded" />
+          <Skeleton className="flex-1 max-w-[200px] h-[14px] rounded" />
         </div>
         {[0, 1, 2].map((i) => (
           <div key={i} className="flex gap-4 py-3 border-b border-border items-start last:border-b-0">
-            <span className="skeleton w-[34px] h-[34px] rounded-[9px] shrink-0" />
+            <Skeleton className="w-[34px] h-[34px] rounded-[9px] shrink-0" />
             <div className="flex-1 flex flex-col gap-[0.4rem]">
-              <span className="skeleton w-[70%] h-[12px] rounded" />
-              <span className="skeleton w-[45%] h-[12px] rounded" />
+              <Skeleton className="w-[70%] h-[12px] rounded" />
+              <Skeleton className="w-[45%] h-[12px] rounded" />
             </div>
           </div>
         ))}
@@ -400,11 +395,7 @@ function ApplicationDetailLoadingSkeleton() {
       <div className="mt-9 pt-5 border-t border-dashed border-border flex items-center gap-[0.65rem] font-serif text-[0.92rem] text-muted-foreground italic tracking-[-0.005em] relative">
         <div className="absolute top-[-1px] left-0 w-[36px] h-px bg-primary opacity-50" />
         <span className="font-serif text-[1.15rem] text-primary opacity-75 not-italic" aria-hidden="true">§</span>
-        <span className="relative inline-block h-[1.4em] min-w-[22ch]" aria-hidden="true">
-          <span className="absolute inset-0 left-0 opacity-0 translate-y-[6px] whitespace-nowrap" style={{ animation: 'cycleFade 6s cubic-bezier(0.22, 1, 0.36, 1) infinite', animationDelay: '0s' }}>Fetching application data</span>
-          <span className="absolute inset-0 left-0 opacity-0 translate-y-[6px] whitespace-nowrap" style={{ animation: 'cycleFade 6s cubic-bezier(0.22, 1, 0.36, 1) infinite', animationDelay: '2s' }}>Loading interviews and notes</span>
-          <span className="absolute inset-0 left-0 opacity-0 translate-y-[6px] whitespace-nowrap" style={{ animation: 'cycleFade 6s cubic-bezier(0.22, 1, 0.36, 1) infinite', animationDelay: '4s' }}>Building timeline</span>
-        </span>
+        <span aria-hidden="true">Loading...</span>
         <span className="sr-only">Loading application details</span>
       </div>
     </div>

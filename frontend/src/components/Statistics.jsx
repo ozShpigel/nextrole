@@ -1,19 +1,20 @@
 import { useState, useEffect } from 'react';
-import { api } from '../../utils/api';
-import { STATUS_LABELS } from '../../utils/constants';
-import StatCard from '../../components/StatCard';
+import { api } from '../utils/api';
+import { STATUS_LABELS } from '../utils/constants';
+import { StatCard } from './Stats';
 import { Card } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
 
 const BAR_COLORS = {
-  Analyzing: 'var(--color-yellow)',
-  DecidedToApply: 'var(--color-purple)',
-  Applied: 'var(--color-blue)',
-  PhoneScreen: 'var(--color-green)',
-  TechnicalInterview: 'var(--color-green)',
-  FinalRound: 'var(--color-green)',
+  Analyzing: '#d97706',
+  DecidedToApply: '#a855f7',
+  Applied: '#3b82f6',
+  PhoneScreen: '#059669',
+  TechnicalInterview: '#059669',
+  FinalRound: '#059669',
   OfferReceived: '#6ee7b7',
-  Accepted: 'var(--color-green)',
-  Rejected: 'var(--color-red)',
+  Accepted: '#059669',
+  Rejected: '#ef4444',
   Withdrawn: '#9ca3af',
 };
 
@@ -28,8 +29,8 @@ export default function Statistics() {
     <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] max-md:grid-cols-2 gap-3 mb-6">
       {[0, 1, 2, 3].map((i) => (
         <Card key={i} className="py-6 px-5 text-center">
-          <div className="skeleton w-12 h-8 rounded mx-auto mb-2" />
-          <div className="skeleton w-20 h-3 rounded mx-auto" />
+          <Skeleton className="w-12 h-8 rounded mx-auto mb-2" />
+          <Skeleton className="w-20 h-3 rounded mx-auto" />
         </Card>
       ))}
     </div>

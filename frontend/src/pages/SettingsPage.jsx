@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { matchApi } from '../../utils/api';
-import { EVALUATOR_PLACEHOLDERS } from '../../utils/constants';
-import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
-import { Button } from '../../components/ui/button';
-import { Badge } from '../../components/ui/badge';
-import { Separator } from '../../components/ui/separator';
+import { matchApi } from '../utils/api';
+import { EVALUATOR_PLACEHOLDERS } from '../utils/constants';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { Button } from '../components/ui/button';
+import { Badge } from '../components/ui/badge';
+import { Separator } from '../components/ui/separator';
+import { Skeleton } from '../components/ui/skeleton';
 
 const MODEL_OPTIONS = [
   'claude-sonnet-4-6',
@@ -341,7 +342,7 @@ export default function SettingsPage() {
   if (loading) return <SettingsLoadingSkeleton />;
 
   return (
-    <div className="relative max-w-[960px] mx-auto px-7 pt-16 pb-32 animate-page-in isolate max-sm:px-4 max-sm:pt-10 max-sm:pb-14">
+    <div className="relative max-w-[960px] mx-auto px-7 pt-16 pb-32 animate-in fade-in slide-in-from-bottom-1 duration-500 isolate max-sm:px-4 max-sm:pt-10 max-sm:pb-14">
       <FolioRail activeId={activeSection} dirtyMap={dirtyMap} />
       <UnsavedDock dirtyList={dirtyList} />
 
@@ -370,7 +371,7 @@ export default function SettingsPage() {
       )}
 
       {/* 01 — Profile Editor */}
-      <section className="mb-16 relative animate-section-in" id="settings-section-01">
+      <section className="mb-16 relative animate-in fade-in slide-in-from-bottom-2 duration-300" id="settings-section-01">
         <div className="flex items-end gap-4 mb-[0.65rem] flex-wrap pb-[0.55rem] border-b border-border relative">
           <span className="absolute bottom-[-1px] left-0 w-11 h-0.5 bg-gradient-to-r from-muted-foreground to-transparent rounded-sm" />
           <span className="font-serif text-[2.4rem] font-bold text-muted-foreground tracking-[-0.03em] tabular-nums leading-[0.85] shrink-0 min-w-[2.6ch] relative group">
@@ -483,7 +484,7 @@ export default function SettingsPage() {
       />
 
       {/* 04 — Scoring Config */}
-      <section className="mb-16 relative animate-section-in" id="settings-section-04" style={{ animationDelay: '0.12s' }}>
+      <section className="mb-16 relative animate-in fade-in slide-in-from-bottom-2 duration-300" id="settings-section-04" style={{ animationDelay: '0.12s' }}>
         <div className="flex items-end gap-4 mb-[0.65rem] flex-wrap pb-[0.55rem] border-b border-border relative">
           <span className="absolute bottom-[-1px] left-0 w-11 h-0.5 bg-gradient-to-r from-muted-foreground to-transparent rounded-sm" />
           <span className="font-serif text-[2.4rem] font-bold text-muted-foreground tracking-[-0.03em] tabular-nums leading-[0.85] shrink-0 min-w-[2.6ch] relative">
@@ -558,7 +559,7 @@ export default function SettingsPage() {
       </section>
 
       {/* 05 — Scoring Structure */}
-      <section className="mb-16 relative animate-section-in" id="settings-section-05" style={{ animationDelay: '0.16s' }}>
+      <section className="mb-16 relative animate-in fade-in slide-in-from-bottom-2 duration-300" id="settings-section-05" style={{ animationDelay: '0.16s' }}>
         <div className="flex items-end gap-4 mb-[0.65rem] flex-wrap pb-[0.55rem] border-b border-border relative">
           <span className="absolute bottom-[-1px] left-0 w-11 h-0.5 bg-gradient-to-r from-muted-foreground to-transparent rounded-sm" />
           <span className="font-serif text-[2.4rem] font-bold text-muted-foreground tracking-[-0.03em] tabular-nums leading-[0.85] shrink-0 min-w-[2.6ch] relative">
@@ -580,7 +581,7 @@ export default function SettingsPage() {
           }}
         >
           <div
-            className="relative animate-bar-fill origin-right"
+            className="relative origin-right"
             style={{
               flex: 35,
               background: 'linear-gradient(90deg, #c9a37c 0%, #a88256 100%)',
@@ -589,7 +590,7 @@ export default function SettingsPage() {
             }}
           />
           <div
-            className="relative animate-bar-fill origin-right border-r border-[rgba(255,255,255,0.55)]"
+            className="relative origin-right border-r border-[rgba(255,255,255,0.55)]"
             style={{
               flex: 35,
               background: 'linear-gradient(90deg, #5cbea9 0%, #3d9b85 100%)',
@@ -598,7 +599,7 @@ export default function SettingsPage() {
             }}
           />
           <div
-            className="relative animate-bar-fill origin-right border-r border-[rgba(255,255,255,0.55)]"
+            className="relative origin-right border-r border-[rgba(255,255,255,0.55)]"
             style={{
               flex: 30,
               background: 'linear-gradient(90deg, #a88ed8 0%, #8b6fc0 100%)',
@@ -636,16 +637,16 @@ export default function SettingsPage() {
         </div>
 
         <div className="flex flex-wrap gap-2 pt-3 border-t border-dashed border-border mt-2">
-          <VerdictItem className="bg-[rgba(45,143,94,0.08)] text-green border-[rgba(45,143,94,0.22)]" label="STRONG_YES · 80–100" />
-          <VerdictItem className="bg-[rgba(45,143,94,0.04)] text-green border-[rgba(45,143,94,0.14)] opacity-[0.92]" label="YES · 60–79" />
-          <VerdictItem className="bg-[rgba(166,139,43,0.06)] text-yellow border-[rgba(166,139,43,0.2)]" label="MAYBE · 40–59" />
-          <VerdictItem className="bg-[rgba(196,84,84,0.04)] text-red border-[rgba(196,84,84,0.14)] opacity-[0.92]" label="NO · 20–39" />
-          <VerdictItem className="bg-[rgba(196,84,84,0.07)] text-red border-[rgba(196,84,84,0.2)]" label="STRONG_NO · 0–19" />
+          <VerdictItem className="bg-emerald-600/[0.08] text-emerald-600 border-emerald-600/[0.22]" label="STRONG_YES · 80–100" />
+          <VerdictItem className="bg-emerald-600/[0.04] text-emerald-600 border-emerald-600/[0.14] opacity-[0.92]" label="YES · 60–79" />
+          <VerdictItem className="bg-amber-600/[0.06] text-amber-600 border-amber-600/20" label="MAYBE · 40–59" />
+          <VerdictItem className="bg-red-500/[0.04] text-red-500 border-red-500/[0.14] opacity-[0.92]" label="NO · 20–39" />
+          <VerdictItem className="bg-red-500/[0.07] text-red-500 border-red-500/20" label="STRONG_NO · 0–19" />
         </div>
       </section>
 
       {/* 06 — Introductions */}
-      <section className="mb-16 relative animate-section-in" id="settings-section-06" style={{ animationDelay: '0.2s' }}>
+      <section className="mb-16 relative animate-in fade-in slide-in-from-bottom-2 duration-300" id="settings-section-06" style={{ animationDelay: '0.2s' }}>
         <div className="flex items-end gap-4 mb-[0.65rem] flex-wrap pb-[0.55rem] border-b border-border relative">
           <span className="absolute bottom-[-1px] left-0 w-11 h-0.5 bg-gradient-to-r from-muted-foreground to-transparent rounded-sm" />
           <span className="font-serif text-[2.4rem] font-bold text-muted-foreground tracking-[-0.03em] tabular-nums leading-[0.85] shrink-0 min-w-[2.6ch] relative">
@@ -752,7 +753,7 @@ function SaveResult({ result }) {
   const isSuccess = result.type === 'success';
   return (
     <div
-      className={`flex items-center gap-[0.65rem] mt-4 p-[0.8rem_1.1rem] rounded text-[0.84rem] font-medium border animate-result-in relative overflow-hidden ${
+      className={`flex items-center gap-[0.65rem] mt-4 p-[0.8rem_1.1rem] rounded text-[0.84rem] font-medium border animate-in fade-in duration-200 relative overflow-hidden ${
         isSuccess
           ? 'bg-emerald-50/70 border-emerald-200/50 text-emerald-700'
           : 'bg-red-50/70 border-red-200/50 text-red-700'
@@ -817,7 +818,7 @@ function PromptSection({
 
   return (
     <section
-      className="mb-16 relative animate-section-in pl-6 max-sm:pl-[1.15rem]"
+      className="mb-16 relative animate-in fade-in slide-in-from-bottom-2 duration-300 pl-6 max-sm:pl-[1.15rem]"
       id={sectionId}
       style={{ animationDelay: sectionDelays[sectionIndex] || '0s' }}
     >
@@ -884,15 +885,15 @@ function PromptSection({
               key={token}
               className={`inline-flex items-center gap-[0.4rem] py-[0.22rem] pr-[0.6rem] pl-[0.7rem] rounded-full font-mono text-[0.74rem] tabular-nums tracking-[0.02em] transition-all ${
                 present
-                  ? 'border border-[rgba(45,143,94,0.22)] bg-[rgba(45,143,94,0.04)] text-green'
-                  : 'border border-[rgba(196,84,84,0.35)] bg-[rgba(196,84,84,0.05)] text-red animate-[placeholderMiss_0.25s_ease_both]'
+                  ? 'border border-emerald-600/[0.22] bg-emerald-600/[0.04] text-emerald-600'
+                  : 'border border-red-500/[0.35] bg-red-500/5 text-red-500'
               }`}
             >
               <span>{token}</span>
               <span className="font-serif text-[0.9rem] leading-none" aria-hidden="true">
                 {present ? '✓' : '✗'}
               </span>
-              {!present && <span className="text-[0.7rem] tracking-[0.08em] uppercase text-red">missing</span>}
+              {!present && <span className="text-[0.7rem] tracking-[0.08em] uppercase text-red-500">missing</span>}
             </span>
           ))}
         </div>
@@ -918,7 +919,7 @@ function PromptSection({
       )}
 
       {confirmingReset && (
-        <div className="flex items-center justify-between gap-5 mb-[0.9rem] p-[0.95rem_1.15rem] rounded-lg animate-confirm-slide flex-wrap bg-muted/30 border border-border max-sm:flex-col max-sm:items-stretch max-sm:gap-[0.7rem]" role="alertdialog" aria-live="assertive">
+        <div className="flex items-center justify-between gap-5 mb-[0.9rem] p-[0.95rem_1.15rem] rounded-lg animate-in fade-in slide-in-from-top-1 duration-200 flex-wrap bg-muted/30 border border-border max-sm:flex-col max-sm:items-stretch max-sm:gap-[0.7rem]" role="alertdialog" aria-live="assertive">
           <div className="flex flex-col gap-1 flex-[1_1_260px] min-w-0">
             <strong className="font-serif text-[0.95rem] font-bold tracking-[-0.005em] text-foreground">Reset to default?</strong>
             <span className="text-[0.8rem] leading-[1.6] text-muted-foreground max-w-[520px]">
@@ -955,7 +956,7 @@ function PromptSection({
       />
 
       {confirmUnsafeSave && (
-        <div className="flex items-center justify-between gap-5 mb-[0.9rem] p-[0.95rem_1.15rem] rounded-lg animate-confirm-slide flex-wrap bg-destructive/5 border border-destructive/20 max-sm:flex-col max-sm:items-stretch max-sm:gap-[0.7rem]" role="alertdialog" aria-live="assertive">
+        <div className="flex items-center justify-between gap-5 mb-[0.9rem] p-[0.95rem_1.15rem] rounded-lg animate-in fade-in slide-in-from-top-1 duration-200 flex-wrap bg-destructive/5 border border-destructive/20 max-sm:flex-col max-sm:items-stretch max-sm:gap-[0.7rem]" role="alertdialog" aria-live="assertive">
           <div className="flex flex-col gap-1 flex-[1_1_260px] min-w-0">
             <strong className="font-serif text-[0.95rem] font-bold tracking-[-0.005em] text-destructive">Missing placeholder in prompt</strong>
             <span className="text-[0.8rem] leading-[1.6] text-muted-foreground max-w-[520px]">
@@ -1000,7 +1001,7 @@ function PromptSection({
             </Button>
           )}
           <Button
-            className={saveWarning ? 'shadow-[0_0_0_3px_hsl(var(--destructive)/0.18),0_1px_2px_rgba(0,0,0,0.06)] animate-warn-pulse hover:shadow-[0_0_0_4px_hsl(var(--destructive)/0.22),0_2px_6px_rgba(0,0,0,0.08)]' : ''}
+            className={saveWarning ? 'shadow-[0_0_0_3px_hsl(var(--destructive)/0.18),0_1px_2px_rgba(0,0,0,0.06)] animate-pulse hover:shadow-[0_0_0_4px_hsl(var(--destructive)/0.22),0_2px_6px_rgba(0,0,0,0.08)]' : ''}
             onClick={onSave}
             disabled={saving || !isDirty}
             title={saveWarning ? 'Missing placeholder — additional confirmation required' : undefined}
@@ -1078,7 +1079,7 @@ function RoleConfigPanel({ role, stage, titleHe, titleEn, hint, values, onChange
             <span className="font-mono text-[0.72rem] tracking-[0.22em] uppercase font-semibold" style={{ color: roleColor }}>{titleEn}</span>
           </h3>
           <span
-            className="w-2 h-2 rounded-full shrink-0 animate-pulse-dot"
+            className="w-2 h-2 rounded-full shrink-0 animate-pulse"
             style={{
               background: roleColor,
               boxShadow: `0 0 0 3px ${roleColorSoft}`,
@@ -1189,7 +1190,7 @@ function RoleConfigPanel({ role, stage, titleHe, titleEn, hint, values, onChange
 /* ------------------------------------------------------------------ */
 function FolioRail({ activeId, dirtyMap }) {
   return (
-    <aside className="hidden xl:block fixed top-1/2 left-7 -translate-y-1/2 z-40 w-[108px] py-5 px-3 font-mono animate-rail-in pointer-events-auto" aria-label="Page navigation">
+    <aside className="hidden xl:block fixed top-1/2 left-7 -translate-y-1/2 z-40 w-[108px] py-5 px-3 font-mono animate-in fade-in slide-in-from-left-2 duration-500 pointer-events-auto" aria-label="Page navigation">
       {/* Vertical line */}
       <span
         className="absolute top-0 bottom-0 right-0 w-px"
@@ -1221,7 +1222,7 @@ function FolioRail({ activeId, dirtyMap }) {
                 <span className={`text-[0.66rem] tracking-[0.18em] uppercase font-medium whitespace-nowrap transition-all ${
                   isActive ? 'opacity-100 text-foreground font-semibold' : 'opacity-70'
                 }`} style={{ color: isActive ? undefined : 'inherit' }}>{s.short}</span>
-                {isDirty && <span className="w-1.5 h-1.5 rounded-full bg-destructive shadow-[0_0_0_3px_oklch(0.6_0.2_25/0.15)] shrink-0 animate-dirty-pulse" aria-hidden="true" />}
+                {isDirty && <span className="w-1.5 h-1.5 rounded-full bg-destructive shadow-[0_0_0_3px_oklch(0.6_0.2_25/0.15)] shrink-0 animate-pulse" aria-hidden="true" />}
               </button>
             </li>
           );
@@ -1263,7 +1264,7 @@ function UnsavedDock({ dirtyList }) {
       >
         <div className="inline-flex items-center gap-[0.55rem] pr-[0.9rem] border-r border-border font-mono text-[0.82rem] text-foreground font-medium max-[860px]:pr-[0.7rem] max-[860px]:text-[0.76rem]">
           <span className="w-2 h-2 rounded-full bg-amber-400 relative shrink-0">
-            <span className="absolute inset-[-4px] rounded-full bg-amber-400 opacity-30 animate-dock-pulse" />
+            <span className="absolute inset-[-4px] rounded-full bg-amber-400 opacity-30 animate-pulse" />
           </span>
           <span className="font-serif text-[1.1rem] font-bold text-foreground leading-none tabular-nums">{dirtyList.length}</span>
           <span className="text-muted-foreground tracking-[0.01em]">
@@ -1292,60 +1293,25 @@ function UnsavedDock({ dirtyList }) {
 /* ------------------------------------------------------------------ */
 /* Loading Skeleton                                                   */
 /* ------------------------------------------------------------------ */
-const SETTINGS_HERO_LETTERS = ['S', 'e', 't', 't', 'i', 'n', 'g', 's'];
-
 function SettingsLoadingSkeleton() {
   return (
-    <div className="relative max-w-[960px] mx-auto px-7 pt-16 pb-32 animate-page-in isolate" role="status" aria-live="polite" aria-label="Loading settings">
+    <div className="relative max-w-[960px] mx-auto px-7 pt-16 pb-32 animate-in fade-in slide-in-from-bottom-1 duration-500 isolate" role="status" aria-live="polite" aria-label="Loading settings">
       <header className="mb-12 pb-6 relative" aria-hidden="true">
         <span className="inline-block font-mono text-[0.72rem] tracking-[0.22em] uppercase text-muted-foreground mb-[0.65rem] opacity-85">Configuration · 2026</span>
-        <h1 className="font-serif text-[clamp(2.2rem,4.5vw,3rem)] font-bold text-foreground leading-[1.05] m-0 mb-4 tracking-[-0.015em] flex items-baseline">
-          {SETTINGS_HERO_LETTERS.map((ch, i) => (
-            <span
-              key={i}
-              className="inline-block opacity-0 translate-y-2 relative"
-              style={{
-                animation: 'settingsLetterInk 0.6s cubic-bezier(0.22,1,0.36,1) forwards',
-                animationDelay: `${i * 65 + 80}ms`,
-              }}
-            >
-              {ch}
-              <span
-                className="absolute bottom-[0.08em] left-0 right-0 h-[0.12em]"
-                style={{
-                  background: 'linear-gradient(90deg, transparent, oklch(0.7 0 0 / 0.25), transparent)',
-                  opacity: 0,
-                  animation: 'settingsLetterUnderline 1.5s ease-out forwards',
-                  animationDelay: `${i * 65 + 220}ms`,
-                }}
-              />
-            </span>
-          ))}
+        <h1 className="font-serif text-[clamp(2.2rem,4.5vw,3rem)] font-bold text-foreground leading-[1.05] m-0 mb-4 tracking-[-0.015em] animate-in fade-in duration-300">
+          Settings
         </h1>
-        <div className="skeleton w-[62%] h-[14px] rounded-[4px] mt-2" />
-        {/* Track wipe */}
+        <Skeleton className="w-[62%] h-[14px] rounded-[4px] mt-2" />
         <div
-          className="mt-[1.4rem] h-px relative overflow-hidden"
+          className="mt-[1.4rem] h-px"
           style={{ background: 'linear-gradient(to left, transparent, oklch(0.7 0 0 / 0.2) 50%, transparent)' }}
-        >
-          <span
-            className="absolute top-[-1px] bottom-[-1px] w-[28%] animate-track-sweep"
-            style={{
-              background: 'linear-gradient(90deg, transparent 0%, oklch(0.7 0 0 / 0.55) 50%, transparent 100%)',
-              filter: 'blur(0.5px)',
-              boxShadow: '0 0 6px oklch(0.7 0 0 / 0.3)',
-            }}
-          />
-        </div>
+        />
       </header>
 
       {/* Section ghost - profile editor */}
       <section
-        className="mb-10 pb-8 border-b border-border"
-        style={{
-          animation: 'settingsSectionRise 0.65s cubic-bezier(0.22,1,0.36,1) both',
-          animationDelay: '280ms',
-        }}
+        className="mb-10 pb-8 border-b border-border animate-in fade-in slide-in-from-bottom-2 duration-300"
+        style={{ animationDelay: '280ms' }}
         aria-hidden="true"
       >
         <div className="flex items-baseline gap-[0.85rem] mb-4">
@@ -1353,10 +1319,10 @@ function SettingsLoadingSkeleton() {
             01
             <span className="absolute bottom-[-0.35rem] left-0 w-[1.8rem] h-px bg-muted-foreground opacity-40" />
           </span>
-          <span className="skeleton w-[140px] h-4 rounded-[4px]" />
-          <span className="skeleton w-[92px] h-[18px] rounded-full ml-auto max-[720px]:hidden" />
+          <Skeleton className="w-[140px] h-4 rounded-[4px]" />
+          <Skeleton className="w-[92px] h-[18px] rounded-full ml-auto max-[720px]:hidden" />
         </div>
-        <div className="skeleton w-[68%] h-3 rounded-[4px]" />
+        <Skeleton className="w-[68%] h-3 rounded-[4px]" />
         {/* Editor preview */}
         <div className="relative bg-card/60 border border-border rounded-lg p-[1.2rem_1.25rem_1.35rem] pl-12 mt-4 overflow-hidden">
           <div className="absolute inset-0 right-auto w-9 bg-muted/30 border-r border-border flex flex-col justify-around py-[0.9rem]">
@@ -1365,22 +1331,19 @@ function SettingsLoadingSkeleton() {
             ))}
           </div>
           <div className="flex flex-col gap-[0.85rem] leading-[1.75]">
-            <span className="skeleton h-3 rounded-[4px] w-3/4" />
-            <span className="skeleton h-3 rounded-[4px] w-full" />
-            <span className="skeleton h-3 rounded-[4px] w-[45%]" />
-            <span className="skeleton h-3 rounded-[4px] w-full" />
-            <span className="skeleton h-3 rounded-[4px] w-3/4" />
+            <Skeleton className="h-3 rounded-[4px] w-3/4" />
+            <Skeleton className="h-3 rounded-[4px] w-full" />
+            <Skeleton className="h-3 rounded-[4px] w-[45%]" />
+            <Skeleton className="h-3 rounded-[4px] w-full" />
+            <Skeleton className="h-3 rounded-[4px] w-3/4" />
           </div>
         </div>
       </section>
 
       {/* Section ghost - role configs */}
       <section
-        className="mb-10 pb-8"
-        style={{
-          animation: 'settingsSectionRise 0.65s cubic-bezier(0.22,1,0.36,1) both',
-          animationDelay: '390ms',
-        }}
+        className="mb-10 pb-8 animate-in fade-in slide-in-from-bottom-2 duration-300"
+        style={{ animationDelay: '390ms' }}
         aria-hidden="true"
       >
         <div className="flex items-baseline gap-[0.85rem] mb-4">
@@ -1388,7 +1351,7 @@ function SettingsLoadingSkeleton() {
             04
             <span className="absolute bottom-[-0.35rem] left-0 w-[1.8rem] h-px bg-muted-foreground opacity-40" />
           </span>
-          <span className="skeleton w-[140px] h-4 rounded-[4px]" />
+          <Skeleton className="w-[140px] h-4 rounded-[4px]" />
         </div>
         <div className="grid grid-cols-2 gap-px bg-border border border-border rounded-lg overflow-hidden mt-4 max-[720px]:grid-cols-1">
           {/* Analyst panel */}
@@ -1396,18 +1359,15 @@ function SettingsLoadingSkeleton() {
             <span className="absolute top-0 left-0 w-[42px] h-0.5 opacity-50" style={{ background: 'linear-gradient(90deg, rgba(168,130,86,0.9), transparent)' }} />
             <div className="flex items-center gap-[0.65rem] pb-[0.65rem] border-b border-border">
               <span
-                className="w-2 h-2 rounded-full shrink-0"
-                style={{
-                  background: '#a88256',
-                  animation: 'settingsPulseDot 1.8s ease-in-out infinite',
-                }}
+                className="w-2 h-2 rounded-full shrink-0 animate-pulse"
+                style={{ background: '#a88256' }}
               />
-              <span className="skeleton flex-1 max-w-[140px] h-[14px] rounded-[4px]" />
+              <Skeleton className="flex-1 max-w-[140px] h-[14px] rounded-[4px]" />
             </div>
             {[0, 1, 2, 3].map((i) => (
               <div key={i} className="flex flex-col gap-[0.4rem]">
-                <span className="skeleton w-[48%] h-[10px] rounded-[3px]" />
-                <span className="skeleton w-full h-[34px] rounded-lg" />
+                <Skeleton className="w-[48%] h-[10px] rounded-[3px]" />
+                <Skeleton className="w-full h-[34px] rounded-lg" />
               </div>
             ))}
           </div>
@@ -1416,19 +1376,15 @@ function SettingsLoadingSkeleton() {
             <span className="absolute top-0 left-0 w-[42px] h-0.5 opacity-50" style={{ background: 'linear-gradient(90deg, rgba(61,155,133,0.9), transparent)' }} />
             <div className="flex items-center gap-[0.65rem] pb-[0.65rem] border-b border-border">
               <span
-                className="w-2 h-2 rounded-full shrink-0"
-                style={{
-                  background: 'var(--teal)',
-                  animation: 'settingsPulseDot 1.8s ease-in-out infinite',
-                  animationDelay: '0.9s',
-                }}
+                className="w-2 h-2 rounded-full shrink-0 animate-pulse"
+                style={{ background: '#0d9488' }}
               />
-              <span className="skeleton flex-1 max-w-[140px] h-[14px] rounded-[4px]" />
+              <Skeleton className="flex-1 max-w-[140px] h-[14px] rounded-[4px]" />
             </div>
             {[0, 1, 2, 3].map((i) => (
               <div key={i} className="flex flex-col gap-[0.4rem]">
-                <span className="skeleton w-[48%] h-[10px] rounded-[3px]" />
-                <span className="skeleton w-full h-[34px] rounded-lg" />
+                <Skeleton className="w-[48%] h-[10px] rounded-[3px]" />
+                <Skeleton className="w-full h-[34px] rounded-lg" />
               </div>
             ))}
           </div>
@@ -1439,51 +1395,9 @@ function SettingsLoadingSkeleton() {
       <div className="mt-11 pt-[1.4rem] border-t border-dashed border-border flex items-center gap-[0.7rem] font-serif text-[0.95rem] text-muted-foreground italic tracking-[-0.005em] relative">
         <span className="absolute top-[-1px] left-0 w-9 h-px bg-muted-foreground opacity-50" />
         <span className="font-serif text-[1.2rem] text-muted-foreground opacity-75 not-italic" aria-hidden="true">§</span>
-        <span className="relative inline-block h-[1.4em] min-w-[22ch] max-[720px]:min-w-[16ch]" aria-hidden="true">
-          <span className="absolute inset-0 left-0 opacity-0 translate-y-1.5 animate-cycle-fade whitespace-nowrap" style={{ animationDelay: '0s' }}>Fetching profile</span>
-          <span className="absolute inset-0 left-0 opacity-0 translate-y-1.5 animate-cycle-fade whitespace-nowrap" style={{ animationDelay: '2s' }}>Reading prompts and config</span>
-          <span className="absolute inset-0 left-0 opacity-0 translate-y-1.5 animate-cycle-fade whitespace-nowrap" style={{ animationDelay: '4s' }}>Preparing the dashboard</span>
-        </span>
+        <span aria-hidden="true">Loading...</span>
         <span className="sr-only">Loading settings</span>
       </div>
-
-      {/* Inline keyframes for loading-specific animations */}
-      <style>{`
-        @keyframes settingsLetterInk {
-          0%   { opacity: 0; transform: translateY(8px); filter: blur(2px); }
-          60%  { opacity: 1; filter: blur(0); }
-          100% { opacity: 1; transform: translateY(0); filter: blur(0); }
-        }
-        @keyframes settingsLetterUnderline {
-          0%   { opacity: 0; transform: scaleX(0.2); }
-          40%  { opacity: 1; transform: scaleX(1); }
-          100% { opacity: 0; transform: scaleX(1); }
-        }
-        @keyframes settingsSectionRise {
-          from { opacity: 0; transform: translateY(12px); }
-          to   { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes settingsPulseDot {
-          0%, 100% { transform: scale(1); opacity: 1; }
-          50%      { transform: scale(1.25); opacity: 0.6; }
-        }
-        @keyframes placeholderMiss {
-          from { transform: translateX(-2px); }
-          40%  { transform: translateX(2px); }
-          to   { transform: translateX(0); }
-        }
-        @media (prefers-reduced-motion: reduce) {
-          .skeleton,
-          [style*="settingsLetterInk"],
-          [style*="settingsLetterUnderline"],
-          [style*="settingsSectionRise"] {
-            animation-duration: 0.001s !important;
-            animation-iteration-count: 1 !important;
-            opacity: 1 !important;
-            transform: none !important;
-          }
-        }
-      `}</style>
     </div>
   );
 }

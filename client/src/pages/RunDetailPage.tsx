@@ -1,7 +1,7 @@
 ﻿import { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { discoveryApi, matchApi } from '../lib/api';
-import { VERDICT_LABELS, EVALUATOR_PLACEHOLDERS } from '../constants/scoring';
+import { VERDICT_LABELS, EVALUATOR_PLACEHOLDERS } from '../lib/scoring';
 import { SnapshotsModal } from '../components/Snapshots';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';

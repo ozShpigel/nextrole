@@ -1,5 +1,5 @@
 ﻿import { formatDateTime } from '../lib/format';
-import { NOTE_CATEGORY_LABELS } from '../constants/tracker';
+import { NOTE_CATEGORY_LABELS } from '../lib/tracker';
 import { StatusBadge } from './Status';
 
 interface StatusUpdate {

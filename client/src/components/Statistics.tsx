@@ -1,6 +1,6 @@
 ﻿import { useState, useEffect } from 'react';
 import { api } from '../lib/api';
-import { STATUS_LABELS } from '../constants/tracker';
+import { STATUS_LABELS } from '../lib/tracker';
 import { StatCard } from './Stats';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';

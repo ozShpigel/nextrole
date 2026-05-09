@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { STATUS_INTRO_MAP, INTRO_LABELS } from '../constants/tracker';
+﻿import { useState } from 'react';
+import { STATUS_INTRO_MAP, INTRO_LABELS } from '../lib/tracker';
 import { Card } from '@/components/ui/card';
 
 interface IntroductionCardProps {

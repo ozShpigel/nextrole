@@ -1,7 +1,7 @@
-import { useNavigate } from 'react-router-dom';
+﻿import { useNavigate } from 'react-router-dom';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { statusClass, statusDotColors, statusBadgeColors, STATUS_LABEL, type DiscoveryStatus, type StatusClass } from '../constants/discovery';
+import { statusClass, statusDotColors, statusBadgeColors, STATUS_LABEL, type DiscoveryStatus, type StatusClass } from '../lib/discovery';
 
 interface DiscoveryRun {
   id: string;

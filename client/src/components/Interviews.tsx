@@ -1,7 +1,7 @@
 ﻿import { useState } from 'react';
 import { formatDateTime } from '../lib/format';
 import { api } from '../lib/api';
-import { INTERVIEW_TYPES } from '../constants/tracker';
+import { INTERVIEW_TYPES } from '../lib/tracker';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';

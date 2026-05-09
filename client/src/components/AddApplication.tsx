@@ -1,6 +1,6 @@
 ﻿import { useState } from 'react';
 import { api } from '../lib/api';
-import { STATUS_LABELS } from '../constants/tracker';
+import { STATUS_LABELS } from '../lib/tracker';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';

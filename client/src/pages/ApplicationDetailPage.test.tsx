@@ -142,4 +142,88 @@ describe('ApplicationDetailPage', () => {
     expect(screen.getByTestId('timeline')).toBeInTheDocument();
     expect(screen.getByTestId('analysis-card')).toBeInTheDocument();
   });
+
+  it('shows pre-filled salary from data', async () => {
+    vi.mocked(api).mockResolvedValue({
+      ...mockDetailData,
+      application: { ...mockApplication, salary: '25-28K' },
+    });
+    vi.mocked(matchApi).mockResolvedValue({});
+
+    renderWithRouter(<ApplicationDetail />);
+
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText('e.g. 25-30K/mo')).toHaveValue('25-28K');
+    });
+  });
+
+  it('shows interview count in section title', async () => {
+    vi.mocked(api).mockResolvedValue({
+      ...mockDetailData,
+      interviews: [
+        { id: '1', type: 'Phone', scheduledAt: new Date().toISOString(), completed: false },
+        { id: '2', type: 'Technical', scheduledAt: new Date().toISOString(), completed: false },
+      ],
+    });
+    vi.mocked(matchApi).mockResolvedValue({});
+
+    renderWithRouter(<ApplicationDetail />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Interviews (2)')).toBeInTheDocument();
+    });
+  });
+
+  it('shows note count in section title', async () => {
+    vi.mocked(api).mockResolvedValue({
+      ...mockDetailData,
+      notes: [
+        { id: '1', content: 'Research note', category: 'Research', createdAt: new Date().toISOString() },
+      ],
+    });
+    vi.mocked(matchApi).mockResolvedValue({});
+
+    renderWithRouter(<ApplicationDetail />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Notes (1)')).toBeInTheDocument();
+    });
+  });
+
+  it('shows glassdoor rating from data', async () => {
+    vi.mocked(api).mockResolvedValue({
+      ...mockDetailData,
+      application: {
+        ...mockApplication,
+        glassdoorData: JSON.stringify({ rating: 4.2, reviewCount: 1500, url: null }),
+      },
+    });
+    vi.mocked(matchApi).mockResolvedValue({});
+
+    renderWithRouter(<ApplicationDetail />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Glassdoor 4.2 / 5')).toBeInTheDocument();
+    });
+    expect(screen.getByText('(1,500 reviews)')).toBeInTheDocument();
+  });
+
+  it('shows company news from data', async () => {
+    vi.mocked(api).mockResolvedValue({
+      ...mockDetailData,
+      application: {
+        ...mockApplication,
+        companyNews: JSON.stringify([
+          { title: 'Company raises $50M Series B', source: 'TechCrunch' },
+        ]),
+      },
+    });
+    vi.mocked(matchApi).mockResolvedValue({});
+
+    renderWithRouter(<ApplicationDetail />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Company raises $50M Series B')).toBeInTheDocument();
+    });
+  });
 });

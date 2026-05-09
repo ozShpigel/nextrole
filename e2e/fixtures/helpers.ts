@@ -235,48 +235,48 @@ export async function insertJob(overrides: Partial<JobDoc> = {}): Promise<JobDoc
 
 export interface ApplicationDoc {
   _id: string;
-  jobTitle: string;
-  company: string;
-  status: string;
-  matchScore: number | null;
-  matchVerdict: string | null;
-  jobDescription: string | null;
-  matchAnalysis: string | null;
-  analystSnapshotInput: string | null;
-  analystSnapshotOutput: string | null;
-  evaluatorSnapshotInput: string | null;
-  evaluatorSnapshotOutput: string | null;
-  companyNews: string | null;
-  glassdoorData: string | null;
-  companySummary: string | null;
-  salary: string | null;
-  createdAt: Date;
-  appliedAt: Date | null;
-  updatedAt: Date;
+  JobTitle: string;
+  Company: string;
+  Status: string;
+  MatchScore: number | null;
+  MatchVerdict: string | null;
+  JobDescription: string | null;
+  MatchAnalysis: string | null;
+  AnalystSnapshotInput: string | null;
+  AnalystSnapshotOutput: string | null;
+  EvaluatorSnapshotInput: string | null;
+  EvaluatorSnapshotOutput: string | null;
+  CompanyNews: string | null;
+  GlassdoorData: string | null;
+  CompanySummary: string | null;
+  Salary: string | null;
+  CreatedAt: Date;
+  AppliedAt: Date | null;
+  UpdatedAt: Date;
 }
 
 export async function insertApplication(overrides: Partial<ApplicationDoc> = {}): Promise<ApplicationDoc> {
   const db = await getDb();
   const doc: ApplicationDoc = {
     _id: crypto.randomUUID(),
-    jobTitle: 'Backend Engineer',
-    company: 'TestCorp',
-    status: 'Applied',
-    matchScore: 82,
-    matchVerdict: 'YES',
-    jobDescription: 'A test job description for backend engineer.',
-    matchAnalysis: null,
-    analystSnapshotInput: null,
-    analystSnapshotOutput: null,
-    evaluatorSnapshotInput: null,
-    evaluatorSnapshotOutput: null,
-    companyNews: null,
-    glassdoorData: null,
-    companySummary: null,
-    salary: null,
-    createdAt: new Date(),
-    appliedAt: new Date(),
-    updatedAt: new Date(),
+    JobTitle: 'Backend Engineer',
+    Company: 'TestCorp',
+    Status: 'Applied',
+    MatchScore: 82,
+    MatchVerdict: 'YES',
+    JobDescription: 'A test job description for backend engineer.',
+    MatchAnalysis: null,
+    AnalystSnapshotInput: null,
+    AnalystSnapshotOutput: null,
+    EvaluatorSnapshotInput: null,
+    EvaluatorSnapshotOutput: null,
+    CompanyNews: null,
+    GlassdoorData: null,
+    CompanySummary: null,
+    Salary: null,
+    CreatedAt: new Date(),
+    AppliedAt: new Date(),
+    UpdatedAt: new Date(),
     ...overrides,
   };
   await db.collection('applications').insertOne(doc);
@@ -285,30 +285,30 @@ export async function insertApplication(overrides: Partial<ApplicationDoc> = {})
 
 export interface InterviewDoc {
   _id: string;
-  applicationId: string;
-  scheduledAt: Date;
-  type: string;
-  interviewer: string | null;
-  topics: string | null;
-  notes: string | null;
-  feedback: string | null;
-  completed: boolean;
-  createdAt: Date;
+  ApplicationId: string;
+  ScheduledAt: Date;
+  Type: string;
+  Interviewer: string | null;
+  Topics: string | null;
+  Notes: string | null;
+  Feedback: string | null;
+  Completed: boolean;
+  CreatedAt: Date;
 }
 
 export async function insertInterview(overrides: Partial<InterviewDoc> = {}): Promise<InterviewDoc> {
   const db = await getDb();
   const doc: InterviewDoc = {
     _id: crypto.randomUUID(),
-    applicationId: '',
-    scheduledAt: new Date(Date.now() + 86400000),
-    type: 'Technical',
-    interviewer: null,
-    topics: null,
-    notes: null,
-    feedback: null,
-    completed: false,
-    createdAt: new Date(),
+    ApplicationId: '',
+    ScheduledAt: new Date(Date.now() + 86400000),
+    Type: 'Technical',
+    Interviewer: null,
+    Topics: null,
+    Notes: null,
+    Feedback: null,
+    Completed: false,
+    CreatedAt: new Date(),
     ...overrides,
   };
   await db.collection('interviews').insertOne(doc);
@@ -317,20 +317,20 @@ export async function insertInterview(overrides: Partial<InterviewDoc> = {}): Pr
 
 export interface NoteDoc {
   _id: string;
-  applicationId: string;
-  content: string;
-  category: string | null;
-  createdAt: Date;
+  ApplicationId: string;
+  Content: string;
+  Category: string | null;
+  CreatedAt: Date;
 }
 
 export async function insertNote(overrides: Partial<NoteDoc> = {}): Promise<NoteDoc> {
   const db = await getDb();
   const doc: NoteDoc = {
     _id: crypto.randomUUID(),
-    applicationId: '',
-    content: 'Test note content',
-    category: null,
-    createdAt: new Date(),
+    ApplicationId: '',
+    Content: 'Test note content',
+    Category: null,
+    CreatedAt: new Date(),
     ...overrides,
   };
   await db.collection('notes').insertOne(doc);
@@ -339,22 +339,22 @@ export async function insertNote(overrides: Partial<NoteDoc> = {}): Promise<Note
 
 export interface StatusUpdateDoc {
   _id: string;
-  applicationId: string;
-  fromStatus: string;
-  toStatus: string;
-  note: string | null;
-  timestamp: Date;
+  ApplicationId: string;
+  FromStatus: string;
+  ToStatus: string;
+  Note: string | null;
+  Timestamp: Date;
 }
 
 export async function insertStatusUpdate(overrides: Partial<StatusUpdateDoc> = {}): Promise<StatusUpdateDoc> {
   const db = await getDb();
   const doc: StatusUpdateDoc = {
     _id: crypto.randomUUID(),
-    applicationId: '',
-    fromStatus: 'Analyzing',
-    toStatus: 'Applied',
-    note: null,
-    timestamp: new Date(),
+    ApplicationId: '',
+    FromStatus: 'Analyzing',
+    ToStatus: 'Applied',
+    Note: null,
+    Timestamp: new Date(),
     ...overrides,
   };
   await db.collection('statusUpdates').insertOne(doc);

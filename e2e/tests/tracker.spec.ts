@@ -7,8 +7,8 @@ test.describe('Tracker — Dashboard Data Flow', () => {
   });
 
   test('dashboard shows seeded applications in recent activity', async ({ page }) => {
-    await insertApplication({ jobTitle: 'Frontend Dev', company: 'Acme Inc' });
-    await insertApplication({ jobTitle: 'Backend Dev', company: 'Beta Corp' });
+    await insertApplication({ JobTitle: 'Frontend Dev', Company: 'Acme Inc' });
+    await insertApplication({ JobTitle: 'Backend Dev', Company: 'Beta Corp' });
 
     await page.goto('/tracker');
 
@@ -17,7 +17,7 @@ test.describe('Tracker — Dashboard Data Flow', () => {
   });
 
   test('clicking a recent activity item navigates to detail', async ({ page }) => {
-    const app = await insertApplication({ jobTitle: 'Clickable App', company: 'NavCo' });
+    const app = await insertApplication({ JobTitle: 'Clickable App', Company: 'NavCo' });
 
     await page.goto('/tracker');
 
@@ -32,8 +32,8 @@ test.describe('Tracker — Application List Data Flow', () => {
   });
 
   test('lists seeded applications with scores and status', async ({ page }) => {
-    await insertApplication({ jobTitle: 'ML Engineer', company: 'DataCo', status: 'PhoneScreen', matchScore: 90 });
-    await insertApplication({ jobTitle: 'DevOps Lead', company: 'CloudInc', status: 'Applied', matchScore: 65 });
+    await insertApplication({ JobTitle: 'ML Engineer', Company: 'DataCo', Status: 'PhoneScreen', MatchScore: 90 });
+    await insertApplication({ JobTitle: 'DevOps Lead', Company: 'CloudInc', Status: 'Applied', MatchScore: 65 });
 
     await page.goto('/tracker');
     await page.getByRole('button', { name: 'Applications' }).click();
@@ -48,7 +48,7 @@ test.describe('Tracker — Application List Data Flow', () => {
   });
 
   test('clicking a row navigates to application detail', async ({ page }) => {
-    const app = await insertApplication({ jobTitle: 'Nav Test Job', company: 'NavCorp' });
+    const app = await insertApplication({ JobTitle: 'Nav Test Job', Company: 'NavCorp' });
 
     await page.goto('/tracker');
     await page.getByRole('button', { name: 'Applications' }).click();
@@ -58,7 +58,7 @@ test.describe('Tracker — Application List Data Flow', () => {
   });
 
   test('delete removes application and shows empty state', async ({ page }) => {
-    await insertApplication({ jobTitle: 'Delete Me', company: 'GoneCo' });
+    await insertApplication({ JobTitle: 'Delete Me', Company: 'GoneCo' });
 
     await page.goto('/tracker');
     await page.getByRole('button', { name: 'Applications' }).click();
@@ -81,10 +81,10 @@ test.describe('Tracker — Add Application', () => {
     await page.goto('/tracker');
     await page.getByRole('button', { name: 'Add Application' }).click();
 
-    await page.getByLabel('Job Title *').fill('New Test Position');
-    await page.getByLabel('Company *').fill('NewCo');
+    await page.getByPlaceholder('Senior Backend Engineer').fill('New Test Position');
+    await page.getByPlaceholder('Company name').fill('NewCo');
 
-    await page.getByRole('button', { name: 'Add Application', exact: true }).click();
+    await page.locator('form').getByRole('button', { name: 'Add Application' }).click();
 
     await expect(page.getByText('New Test Position')).toBeVisible();
     await expect(page.getByText('NewCo')).toBeVisible();

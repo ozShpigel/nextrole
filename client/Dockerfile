@@ -1,8 +1,8 @@
 FROM node:20-alpine AS build
 WORKDIR /app
-COPY frontend/package.json frontend/package-lock.json* ./
+COPY client/package.json client/bun.lock* ./
 RUN npm install
-COPY frontend/ .
+COPY client/ .
 # Vite inlines VITE_* env vars at build time. Setting any of these to a public
 # service URL makes the browser call that service directly (CORS), bypassing
 # the nginx reverse-proxy and the Cloudflare cold-start amplification that
@@ -15,5 +15,5 @@ RUN npm run build
 
 FROM nginx:alpine
 COPY --from=build /app/dist /usr/share/nginx/html
-COPY frontend/nginx.conf /etc/nginx/templates/default.conf.template
+COPY client/nginx.conf /etc/nginx/templates/default.conf.template
 EXPOSE 80

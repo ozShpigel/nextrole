@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef } from 'react';
+﻿import { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { discoveryApi, matchApi } from '../utils/api';
+import { discoveryApi, matchApi } from '../lib/api';
 import { VERDICT_LABELS, EVALUATOR_PLACEHOLDERS } from '../constants/scoring';
 import { SnapshotsModal } from '../components/Snapshots';
 import { Card } from '@/components/ui/card';

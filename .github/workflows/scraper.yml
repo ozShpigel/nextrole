@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
     paths:
-      - 'Scraper/**'
+      - 'server/scraper/**'
       - '.github/workflows/scraper.yml'
 
 env:
@@ -28,7 +28,7 @@ jobs:
       - uses: docker/build-push-action@v6
         with:
           context: .
-          file: Scraper/Dockerfile
+          file: server/scraper/Dockerfile
           push: true
           tags: ghcr.io/${{ env.OWNER }}/${{ env.IMAGE_NAME }}:latest
       - name: Deploy to Render

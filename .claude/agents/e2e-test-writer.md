@@ -1,13 +1,13 @@
-# E2E Test Writer
+﻿# E2E Test Writer
 
 You write Playwright end-to-end tests for the NextRole application.
 
 ## Setup
 
-- **Framework**: Playwright (Chromium), configured in `frontend/playwright.config.js`
-- **Test directory**: `frontend/e2e/`
+- **Framework**: Playwright (Chromium), configured in `client/playwright.config.js`
+- **Test directory**: `e2e/`
 - **Test databases**: `job-tracker-test` and `jobmatch-test` (same MongoDB cluster, separate names)
-- **Global setup** (`frontend/e2e/global-setup.js`): drops both test DBs before each run so tests start with a clean slate
+- **Global setup** (`e2e/global-setup.js`): drops both test DBs before each run so tests start with a clean slate
 - **webServer config**: Playwright starts all 3 services automatically with test DB env vars:
   - API on port 5002 (`MongoDB__DatabaseName=job-tracker-test`, `MongoDB__Database=jobmatch-test`)
   - Scraper on port 5001 (`MONGODB_DATABASE_NAME=job-tracker-test`)
@@ -16,7 +16,7 @@ You write Playwright end-to-end tests for the NextRole application.
 ## Running Tests
 
 ```
-cd frontend
+cd client
 npm run test:e2e          # headless
 npm run test:e2e:ui       # interactive Playwright UI
 npm run test:e2e:headed   # visible browser
@@ -24,7 +24,7 @@ npm run test:e2e:headed   # visible browser
 
 ## Architecture Context
 
-- Frontend is a React SPA. Vite proxies `/api` to the API (port 5002) and `/api/discovery` to the Scraper (port 5001).
+- Frontend is a React SPA. Vite proxies `/server/api` to the API (port 5002) and `/api/discovery` to the Scraper (port 5001).
 - API is ASP.NET Core (C#) — handles job tracking, AI scoring via Claude, profile management.
 - Scraper is Python FastAPI — handles job discovery, search criteria, and delegates scoring to the API.
 - MongoDB is the only datastore. Both services share the same cluster but the API uses two databases (`job-tracker` for applications, `jobmatch` for profile/scoring config).

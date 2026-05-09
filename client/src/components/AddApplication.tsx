@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { api } from '../utils/api';
+﻿import { useState } from 'react';
+import { api } from '../lib/api';
 import { STATUS_LABELS } from '../constants/tracker';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';

@@ -1,4 +1,4 @@
-import { barColor } from '../utils/format';
+﻿import { barColor } from '../lib/format';
 
 const BAR_COLORS: Record<string, string> = {
   green: 'bg-emerald-600',

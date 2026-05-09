@@ -34,7 +34,7 @@ export default defineConfig({
 
   webServer: [
     {
-      command: 'dotnet run --project ../API/src/Api/ApplicationTracker.Api.csproj',
+      command: 'dotnet run --project ../server/api/src/Api/ApplicationTracker.Api.csproj',
       port: API_PORT,
       reuseExistingServer: !process.env.CI,
       env: {
@@ -45,7 +45,7 @@ export default defineConfig({
     },
     {
       command: 'python -m uvicorn app.main:app --host 0.0.0.0 --port 5001',
-      cwd: '../Scraper',
+      cwd: '../server/scraper',
       port: SCRAPER_PORT,
       reuseExistingServer: !process.env.CI,
       env: {

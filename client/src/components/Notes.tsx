@@ -1,7 +1,7 @@
-import { useState } from 'react';
-import { formatDateTime } from '../utils/format';
+﻿import { useState } from 'react';
+import { formatDateTime } from '../lib/format';
 import { NOTE_CATEGORIES, NOTE_CATEGORY_LABELS } from '../constants/tracker';
-import { api } from '../utils/api';
+import { api } from '../lib/api';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';

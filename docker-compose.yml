@@ -2,7 +2,7 @@ services:
   api:
     build:
       context: .
-      dockerfile: API/Dockerfile
+      dockerfile: server/api/Dockerfile
     ports:
       - "5002:8080"
     environment:
@@ -13,7 +13,7 @@ services:
   scraper:
     build:
       context: .
-      dockerfile: Scraper/Dockerfile
+      dockerfile: server/scraper/Dockerfile
     ports:
       - "5137:8080"
     environment:
@@ -23,14 +23,14 @@ services:
   mailbot:
     build:
       context: .
-      dockerfile: Mailbot/Dockerfile
+      dockerfile: server/mailbot/Dockerfile
     environment:
       - Tracker__BaseUrl=http://api:8080
       - Anthropic__ApiKey=${ANTHROPIC_API_KEY}
 
-  frontend:
+  client:
     build:
       context: .
-      dockerfile: frontend/Dockerfile
+      dockerfile: client/Dockerfile
     ports:
       - "3000:80"

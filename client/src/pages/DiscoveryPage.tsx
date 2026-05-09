@@ -1,5 +1,5 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
-import { discoveryApi } from '../utils/api';
+﻿import { useState, useEffect, useMemo, useRef } from 'react';
+import { discoveryApi } from '../lib/api';
 import { CriteriaForm, CriteriaSection } from '../components/CriteriaPanel';
 import DiscoveryLoadingSkeleton from '../components/DiscoveryLoadingSkeleton';
 import PageHeader from '../components/PageHeader';

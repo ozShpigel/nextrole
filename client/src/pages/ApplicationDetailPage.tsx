@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback } from 'react';
+﻿import { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { api, matchApi } from '../utils/api';
-import { scoreColor } from '../utils/format';
+import { api, matchApi } from '../lib/api';
+import { scoreColor } from '../lib/format';
 import { StatusBadge, StatusModal } from '../components/Status';
 import CollapsibleSection from '../components/CollapsibleSection';
 import { SnapshotsCard } from '../components/Snapshots';

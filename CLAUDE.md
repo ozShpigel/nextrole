@@ -19,10 +19,10 @@ through interviews to final status — in one place. See `docs/project-scope.md`
 ## Project Structure
 
 ```
-/API      - ASP.NET Core (C#)
-/Scraper  - Python FastAPI
-/Mailbot  - .NET Console App (C#)
-/frontend - React + Vite
+/client          - React + Vite
+/server/api      - ASP.NET Core (C#)
+/server/scraper  - Python FastAPI
+/server/mailbot  - .NET Console App (C#)
 ```
 
 ## Key Conventions

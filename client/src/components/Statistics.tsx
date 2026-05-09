@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { api } from '../utils/api';
+﻿import { useState, useEffect } from 'react';
+import { api } from '../lib/api';
 import { STATUS_LABELS } from '../constants/tracker';
 import { StatCard } from './Stats';
 import { Card } from '@/components/ui/card';

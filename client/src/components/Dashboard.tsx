@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api } from '../utils/api';
-import { formatDate, formatDateTime } from '../utils/format';
+import { api } from '../lib/api';
+import { formatDate, formatDateTime } from '../lib/format';
 import { StatusBadge } from './Status';
 import { StatCard } from './Stats';
 import { Card } from '@/components/ui/card';

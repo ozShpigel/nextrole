@@ -1,6 +1,6 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { VERDICT_LABELS } from '../constants/scoring';
-import { scoreColor } from '../utils/format';
+import { scoreColor } from '../lib/format';
 import { Card } from '@/components/ui/card';
 
 interface ScoreRingProps {

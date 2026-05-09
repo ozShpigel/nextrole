@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
     paths:
-      - 'frontend/**'
+      - 'client/**'
       - '.github/workflows/frontend.yml'
 
 env:
@@ -28,7 +28,7 @@ jobs:
       - uses: docker/build-push-action@v6
         with:
           context: .
-          file: frontend/Dockerfile
+          file: client/Dockerfile
           push: true
           tags: ghcr.io/${{ env.OWNER }}/${{ env.IMAGE_NAME }}:latest
           build-args: |

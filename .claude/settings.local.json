@@ -3,7 +3,8 @@
     "allow": [
       "Bash(python -c ':*)",
       "Bash(npm run:*)",
-      "Bash(npx playwright *)"
+      "Bash(npx playwright *)",
+      "Bash(grep -E '\\\\.\\(json|ts|js\\)$')"
     ]
   }
 }

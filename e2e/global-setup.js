@@ -3,7 +3,7 @@ import { readFileSync } from 'fs';
 import { resolve } from 'path';
 
 function loadConnectionString() {
-  const envPath = resolve(import.meta.dirname, '../../API/src/Api/.env');
+  const envPath = resolve(import.meta.dirname, '../server/api/src/Api/.env');
   try {
     const text = readFileSync(envPath, 'utf-8');
     const match = text.match(/MongoDB__ConnectionString=(.+)/);

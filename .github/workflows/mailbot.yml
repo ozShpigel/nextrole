@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
     paths:
-      - 'Mailbot/**'
+      - 'server/mailbot/**'
       - '.github/workflows/mailbot.yml'
   workflow_dispatch:
 
@@ -29,7 +29,7 @@ jobs:
       - uses: docker/build-push-action@v6
         with:
           context: .
-          file: Mailbot/Dockerfile
+          file: server/mailbot/Dockerfile
           push: true
           tags: ghcr.io/${{ env.OWNER }}/${{ env.IMAGE_NAME }}:latest
       # No Render deploy hook: Render Cron Jobs pull the latest image on their

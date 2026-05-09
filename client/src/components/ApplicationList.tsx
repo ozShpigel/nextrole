@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api } from '../utils/api';
-import { formatDate, scoreColor } from '../utils/format';
+import { api } from '../lib/api';
+import { formatDate, scoreColor } from '../lib/format';
 import { StatusBadge } from './Status';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';

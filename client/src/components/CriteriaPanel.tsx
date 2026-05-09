@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { discoveryApi } from '../utils/api';
+﻿import { useState } from 'react';
+import { discoveryApi } from '../lib/api';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';

@@ -1,5 +1,5 @@
-import { Card } from '@/components/ui/card';
-import { relativeTime } from '../utils/format';
+﻿import { Card } from '@/components/ui/card';
+import { relativeTime } from '../lib/format';
 
 interface StatCardProps {
   value: string | number;

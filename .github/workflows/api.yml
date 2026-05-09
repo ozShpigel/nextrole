@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
     paths:
-      - 'API/**'
+      - 'server/api/**'
       - '.github/workflows/api.yml'
 
 env:
@@ -28,7 +28,7 @@ jobs:
       - uses: docker/build-push-action@v6
         with:
           context: .
-          file: API/Dockerfile
+          file: server/api/Dockerfile
           push: true
           tags: ghcr.io/${{ env.OWNER }}/${{ env.IMAGE_NAME }}:latest
       - name: Deploy to Render

@@ -1,14 +1,12 @@
 import { test, expect } from '@playwright/test';
-import { clearAll, insertRun, insertJob, closeDb } from './helpers/db.js';
+import { clearAll, insertRun, insertJob, type RunDoc, type JobDoc } from '../fixtures/helpers';
 
-test.afterAll(async () => {
-  await closeDb();
-});
-
-// Helper to seed a run + jobs for the RunDetail page.
-async function seedRunWithJobs(runOverrides = {}, jobOverridesList = []) {
+async function seedRunWithJobs(
+  runOverrides: Partial<RunDoc> = {},
+  jobOverridesList: Partial<JobDoc>[] = [],
+): Promise<{ run: RunDoc; jobs: JobDoc[] }> {
   const run = await insertRun({ status: 'completed', ...runOverrides });
-  const jobs = [];
+  const jobs: JobDoc[] = [];
   for (const overrides of jobOverridesList) {
     const job = await insertJob({ run_id: run.id, criteria_id: run.criteria_id, ...overrides });
     jobs.push(job);
@@ -171,7 +169,6 @@ test.describe('Discovered Jobs - MATCH_FAILED and INSUFFICIENT_DATA', () => {
     await page.goto(`/discovery/${run.id}`);
 
     await expect(page.getByText('Unscored Job')).toBeVisible();
-    // With null verdict the UI shows "-"
     await expect(page.getByText('-', { exact: true })).toBeVisible();
   });
 });
@@ -199,11 +196,8 @@ test.describe('Discovered Jobs - Glassdoor Data', () => {
 
     await page.goto(`/discovery/${run.id}`);
 
-    // Rating text (green for >= 4.0)
     await expect(page.getByText('4.3 / 5')).toBeVisible();
-    // Review count
     await expect(page.getByText('(1,250 reviews)')).toBeVisible();
-    // Glassdoor link
     await expect(page.getByRole('link', { name: 'Glassdoor' })).toBeVisible();
   });
 
@@ -292,17 +286,13 @@ test.describe('Discovered Jobs - Company News', () => {
 
     await page.goto(`/discovery/${run.id}`);
 
-    // Summary should show count
     const summary = page.getByText('Company News (2)');
     await expect(summary).toBeVisible();
 
-    // Items should be hidden initially (inside collapsed <details>)
     await expect(page.getByText('BigNews raises $50M Series C')).toBeHidden();
 
-    // Click to expand
     await summary.click();
 
-    // Items should be visible
     await expect(page.getByText('BigNews raises $50M Series C')).toBeVisible();
     await expect(page.getByText('TechCrunch')).toBeVisible();
     await expect(page.getByText('BigNews expands to Europe')).toBeVisible();
@@ -349,8 +339,6 @@ test.describe('Discovered Jobs - Honest Assessment', () => {
 
     const assessment = page.getByText('This is a strong match with good growth opportunities.');
     await expect(assessment).toBeVisible();
-
-    // Verify RTL attribute
     await expect(assessment).toHaveAttribute('dir', 'rtl');
   });
 
@@ -369,7 +357,6 @@ test.describe('Discovered Jobs - Honest Assessment', () => {
     await page.goto(`/discovery/${run.id}`);
 
     await expect(page.getByText('No Assessment Job')).toBeVisible();
-    // No RTL assessment block should exist
     await expect(page.locator('[dir="rtl"]')).toBeHidden();
   });
 });
@@ -452,7 +439,6 @@ test.describe('Discovered Jobs - Key Strengths and Concerns', () => {
     await page.goto(`/discovery/${run.id}`);
 
     await expect(page.getByText('Plain Job')).toBeVisible();
-    // No green or red badge containers
   });
 });
 
@@ -605,14 +591,10 @@ test.describe('Discovered Jobs - Dismiss', () => {
     await expect(page.getByText('Dismiss This Job')).toBeVisible();
     await expect(page.getByText('Keep This Job')).toBeVisible();
 
-    // Click dismiss on the second job card
     const dismissButtons = page.getByRole('button', { name: 'Dismiss' });
-    // The jobs are sorted by score desc, so "Keep This Job" (80) is first, "Dismiss This Job" (30) is second
     await dismissButtons.nth(1).click();
 
-    // Dismissed job should disappear
     await expect(page.getByText('Dismiss This Job')).toBeHidden();
-    // Other job remains
     await expect(page.getByText('Keep This Job')).toBeVisible();
   });
 });
@@ -740,12 +722,10 @@ test.describe('Discovered Jobs - Multiple Jobs Ordering', () => {
 
     await page.goto(`/discovery/${run.id}`);
 
-    // All three should be visible
     await expect(page.getByText('Low Score Job')).toBeVisible();
     await expect(page.getByText('High Score Job')).toBeVisible();
     await expect(page.getByText('Mid Score Job')).toBeVisible();
 
-    // The API sorts by score desc, so High Score Job should appear first in the DOM
     const jobCards = page.locator('.bg-card.border.border-border.rounded-lg.p-6');
     const firstCardText = await jobCards.first().textContent();
     expect(firstCardText).toContain('High Score Job');
@@ -783,7 +763,6 @@ test.describe('Discovered Jobs - Failed Scoring Banner', () => {
 
     await page.goto(`/discovery/${run.id}`);
 
-    // Banner should mention failed count
     await expect(page.getByText(/2 jobs failed scoring/)).toBeVisible();
     await expect(page.getByRole('button', { name: 'Rescore All Failed' })).toBeVisible();
   });
@@ -817,7 +796,6 @@ test.describe('Discovered Jobs - Failed Scoring Banner', () => {
 
     await page.goto(`/discovery/${run.id}`);
 
-    // Banner is only shown for non-active runs
     await expect(page.getByRole('button', { name: 'Rescore All Failed' })).toBeHidden();
   });
 });
@@ -836,7 +814,6 @@ test.describe('Discovered Jobs - Evaluator Prompt Panel', () => {
     await page.goto(`/discovery/${run.id}`);
 
     await expect(page.getByText('Evaluator Prompt')).toBeVisible();
-    // Default badge should show
     await expect(page.getByText('Default')).toBeVisible();
   });
 });
@@ -862,10 +839,8 @@ test.describe('Discovered Jobs - Save to Tracker', () => {
 
     await expect(page.getByRole('button', { name: 'Save to Tracker' })).toBeVisible();
 
-    // Click save
     await page.getByRole('button', { name: 'Save to Tracker' }).click();
 
-    // After saving, the Saved badge should appear and save button should disappear
     await expect(page.getByText('Saved', { exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Save to Tracker' })).toBeHidden();
   });

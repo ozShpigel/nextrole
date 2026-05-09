@@ -1,9 +1,12 @@
 import { MongoClient } from 'mongodb';
 import { readFileSync } from 'fs';
-import { resolve } from 'path';
+import { resolve, dirname } from 'path';
+import { fileURLToPath } from 'url';
 
-function loadConnectionString() {
-  const envPath = resolve(import.meta.dirname, '../server/api/src/Api/.env');
+const __dirname = dirname(fileURLToPath(import.meta.url));
+
+function loadConnectionString(): string | undefined {
+  const envPath = resolve(__dirname, '../server/api/src/Api/.env');
   try {
     const text = readFileSync(envPath, 'utf-8');
     const match = text.match(/MongoDB__ConnectionString=(.+)/);
@@ -15,7 +18,7 @@ function loadConnectionString() {
 
 const TEST_DBS = ['job-tracker-test', 'jobmatch-test'];
 
-export default async function globalSetup() {
+export default async function globalSetup(): Promise<void> {
   const uri = loadConnectionString();
   if (!uri) {
     console.warn('[global-setup] No MongoDB connection string found — skipping DB cleanup');

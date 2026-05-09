@@ -1,9 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { clearAll, insertCriteria, insertRun, closeDb } from './helpers/db.js';
-
-test.afterAll(async () => {
-  await closeDb();
-});
+import { clearAll, insertRun } from '../fixtures/helpers';
 
 test.describe('Discovery Runs - Empty State', () => {
   test.beforeEach(async () => {
@@ -16,7 +12,6 @@ test.describe('Discovery Runs - Empty State', () => {
     await expect(page.getByText('No searches yet')).toBeVisible();
     await expect(page.getByText('Run your first criteria to start collecting jobs.')).toBeVisible();
 
-    // Stat strip should show 0 search history
     const statStrip = page.locator('.grid.grid-cols-3');
     await expect(statStrip.getByText('Search History')).toBeVisible();
     await expect(statStrip.locator(':text("0")').first()).toBeVisible();

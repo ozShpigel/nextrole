@@ -1,5 +1,5 @@
-﻿import { useState } from 'react';
-import { api } from '../lib/api';
+import { useState } from 'react';
+import { useAddApplication } from '../lib/mutations';
 import { STATUS_LABELS } from '../lib/tracker';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -25,31 +25,26 @@ export default function AddApplication({ onSaved }: AddApplicationProps) {
   const [form, setForm] = useState<FormState>({
     jobTitle: '', company: '', status: 'Analyzing', matchScore: '', matchVerdict: '', jobDescription: '',
   });
-  const [saving, setSaving] = useState(false);
+  const addMutation = useAddApplication();
 
   function update(field: keyof FormState, value: string) {
     setForm((f) => ({ ...f, [field]: value }));
   }
 
-  async function handleSubmit(e: React.FormEvent) {
+  function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setSaving(true);
-    try {
-      await api('/applications', {
-        method: 'POST',
-        body: JSON.stringify({
-          ...form,
-          matchScore: form.matchScore ? parseInt(form.matchScore) : null,
-          matchVerdict: form.matchVerdict || null,
-          jobDescription: form.jobDescription || null,
-        }),
-      });
-      onSaved();
-    } catch (err: unknown) {
-      alert('Error saving: ' + (err as Error).message);
-    } finally {
-      setSaving(false);
-    }
+    addMutation.mutate(
+      {
+        ...form,
+        matchScore: form.matchScore ? parseInt(form.matchScore) : null,
+        matchVerdict: form.matchVerdict || null,
+        jobDescription: form.jobDescription || null,
+      },
+      {
+        onSuccess: () => onSaved(),
+        onError: (err: Error) => alert('Error saving: ' + err.message),
+      },
+    );
   }
 
   return (
@@ -89,7 +84,7 @@ export default function AddApplication({ onSaved }: AddApplicationProps) {
           <Label>Job Description</Label>
           <Textarea placeholder="Paste the job description here..." value={form.jobDescription} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => update('jobDescription', e.target.value)} dir="auto" />
         </div>
-        <Button type="submit" disabled={saving}>{saving ? 'Saving...' : 'Add Application'}</Button>
+        <Button type="submit" disabled={addMutation.isPending}>{addMutation.isPending ? 'Saving...' : 'Add Application'}</Button>
       </form>
     </Card>
   );

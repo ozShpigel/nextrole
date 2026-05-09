@@ -40,23 +40,20 @@ describe('SettingsPage', () => {
   });
 
   it('renders page content after successful data load', async () => {
-    vi.mocked(matchApi).mockResolvedValueOnce(mockProfileResponse);
+    vi.mocked(matchApi).mockResolvedValue(mockProfileResponse);
 
     renderWithRouter(<SettingsPage />);
 
     await waitFor(() => {
-      expect(screen.getByText('Settings')).toBeInTheDocument();
+      expect(screen.getByText('Professional Profile')).toBeInTheDocument();
     });
 
-    // Check that the main heading rendered (not the skeleton one)
-    expect(screen.getByText('Professional Profile')).toBeInTheDocument();
     expect(screen.getByText('Analyst Prompt')).toBeInTheDocument();
     expect(screen.getByText('Evaluator Prompt')).toBeInTheDocument();
     expect(screen.getByText('Analysis Config')).toBeInTheDocument();
     expect(screen.getByText('Scoring Structure')).toBeInTheDocument();
     expect(screen.getByText('Introductions')).toBeInTheDocument();
 
-    // Check loading skeleton is gone
     expect(screen.queryByRole('status', { name: /loading settings/i })).not.toBeInTheDocument();
   });
 

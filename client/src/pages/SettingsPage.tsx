@@ -1,5 +1,6 @@
 ﻿import { useState, useEffect, useRef, useMemo } from 'react';
-import { matchApi } from '../lib/api';
+import { useProfile } from '../lib/queries';
+import { useSaveProfile } from '../lib/mutations';
 import type { ProfileResponse, ConfigValue } from '../lib/types';
 import { EVALUATOR_PLACEHOLDERS } from '../lib/scoring';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
@@ -155,8 +156,6 @@ export default function SettingsPage() {
   const [extendedIntro, setExtendedIntro] = useState<string>('');
   const [originalExtendedIntro, setOriginalExtendedIntro] = useState<string>('');
 
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
   const [activeSection, setActiveSection] = useState<string>(SECTIONS[0].id);
 
@@ -175,29 +174,13 @@ export default function SettingsPage() {
   const [confirmReset, setConfirmReset] = useState<'analyst' | 'evaluator' | null>(null);
   const [confirmUnsafeSave, setConfirmUnsafeSave] = useState<boolean>(false);
 
-  useEffect(() => { load(); }, []);
+  const profileQuery = useProfile();
+  const saveProfileMutation = useSaveProfile();
+  const [initialized, setInitialized] = useState(false);
 
   useEffect(() => {
-    if (typeof IntersectionObserver === 'undefined') return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const visible = entries
-          .filter((e) => e.isIntersecting)
-          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
-        if (visible[0]) setActiveSection(visible[0].target.id);
-      },
-      { rootMargin: '-18% 0px -70% 0px', threshold: 0 },
-    );
-    SECTIONS.forEach((s) => {
-      const el = document.getElementById(s.id);
-      if (el) observer.observe(el);
-    });
-    return () => observer.disconnect();
-  }, [loading]);
-
-  async function load(): Promise<void> {
-    try {
-      const data = await matchApi('/profile') as ProfileResponse;
+    if (profileQuery.data && !initialized) {
+      const data = profileQuery.data as ProfileResponse;
       const content = data?.content || '';
       setProfile(content);
       setOriginalProfile(content);
@@ -222,18 +205,36 @@ export default function SettingsPage() {
       setExtendedIntro(ei);
       setOriginalExtendedIntro(ei);
 
-      setLastUpdated(data?.updated_at);
+      setLastUpdated(data?.updated_at ?? null);
       if (data?.scoring_config) {
         const merged = mergeScoringConfig(data.scoring_config);
         setConfig(merged);
         setOriginalConfig(merged);
       }
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setLoading(false);
+      setInitialized(true);
     }
-  }
+  }, [profileQuery.data, initialized]);
+
+  const loading = profileQuery.isLoading;
+  const error = profileQuery.error?.message ?? null;
+
+  useEffect(() => {
+    if (typeof IntersectionObserver === 'undefined') return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((e) => e.isIntersecting)
+          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+        if (visible[0]) setActiveSection(visible[0].target.id);
+      },
+      { rootMargin: '-18% 0px -70% 0px', threshold: 0 },
+    );
+    SECTIONS.forEach((s) => {
+      const el = document.getElementById(s.id);
+      if (el) observer.observe(el);
+    });
+    return () => observer.disconnect();
+  }, [loading]);
 
   const isProfileDirty = profile !== originalProfile;
   const isAnalystDirty = analystPrompt !== originalAnalystPrompt;
@@ -253,11 +254,8 @@ export default function SettingsPage() {
     setSaving(true);
     setResult(null);
     try {
-      const data = await matchApi('/profile', {
-        method: 'PUT',
-        body: JSON.stringify(body),
-      }) as ProfileResponse;
-      setLastUpdated(data?.updated_at);
+      const data = await saveProfileMutation.mutateAsync(body) as ProfileResponse;
+      setLastUpdated(data?.updated_at ?? null);
       if (data?.analyst_prompt_is_override !== undefined) setAnalystIsOverride(!!data.analyst_prompt_is_override);
       if (data?.evaluator_prompt_is_override !== undefined) setEvaluatorIsOverride(!!data.evaluator_prompt_is_override);
       onSuccess(data);

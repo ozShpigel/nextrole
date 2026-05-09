@@ -1,6 +1,7 @@
-﻿import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { discoveryApi, matchApi } from '../lib/api';
+import { useRunDetail, useRunJobs, useProfile } from '../lib/queries';
+import { useSaveJob, useDismissJob, useRescoreJob, useSaveProfile } from '../lib/mutations';
 import type { ProfileResponse } from '../lib/types';
 import { VERDICT_LABELS, EVALUATOR_PLACEHOLDERS } from '../lib/scoring';
 import { SnapshotsModal } from '../components/Snapshots';
@@ -69,10 +70,24 @@ function verdictColor(verdict: string | null): string {
 
 export default function RunDetail() {
   const { runId } = useParams<{ runId: string }>();
-  const [run, setRun] = useState<Run | null>(null);
-  const [jobs, setJobs] = useState<DiscoveredJob[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
+
+  // --- React Query hooks ---
+  const runQuery = useRunDetail(runId!);
+  const run = runQuery.data as Run | undefined;
+  const isActive = run?.status === 'pending' || run?.status === 'scraping' || run?.status === 'scoring';
+
+  const jobsQuery = useRunJobs(runId!, isActive ?? false);
+  const jobs = (jobsQuery.data as DiscoveredJob[] | undefined) ?? [];
+
+  const profileQuery = useProfile();
+
+  // --- Mutation hooks ---
+  const saveJobMutation = useSaveJob();
+  const dismissJobMutation = useDismissJob();
+  const rescoreJobMutation = useRescoreJob();
+  const saveProfileMutation = useSaveProfile();
+
+  // --- UI state ---
   const [rescoringIds, setRescoringIds] = useState<Set<string>>(() => new Set());
   const [bulkRescoring, setBulkRescoring] = useState<boolean>(false);
   const [snapshotsJob, setSnapshotsJob] = useState<DiscoveredJob | null>(null);
@@ -82,50 +97,35 @@ export default function RunDetail() {
   // override the Settings page uses, so the next rescore picks it up with no
   // navigation.
   const [promptOpen, setPromptOpen] = useState<boolean>(false);
-  const [promptLoading, setPromptLoading] = useState<boolean>(false);
   const [evaluatorPrompt, setEvaluatorPrompt] = useState<string>('');
   const [originalPrompt, setOriginalPrompt] = useState<string>('');
   const [promptIsOverride, setPromptIsOverride] = useState<boolean>(false);
   const [promptLastSaved, setPromptLastSaved] = useState<string | null>(null);
-  const [savingPrompt, setSavingPrompt] = useState<boolean>(false);
   const [promptResult, setPromptResult] = useState<PromptResult | null>(null);
   const [promptLoaded, setPromptLoaded] = useState<boolean>(false);
 
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  async function load(): Promise<string> {
-    try {
-      const r = await discoveryApi(`/runs/${runId}`);
-      setRun(r);
-      const j = await discoveryApi(`/runs/${runId}/jobs`);
-      setJobs(j);
-      setLoading(false);
-      return r.status;
-    } catch (e) {
-      setError((e as Error).message);
-      setLoading(false);
-      return 'error';
-    }
-  }
-
+  // Initialize local prompt state from profile data when panel first opens
   useEffect(() => {
-    load().then((status) => {
-      if (status === 'pending' || status === 'scraping' || status === 'scoring') {
-        pollRef.current = setInterval(async () => {
-          const s = await load();
-          if (s === 'completed' || s === 'failed' || s === 'error') {
-            clearInterval(pollRef.current!);
-          }
-        }, 5000);
-      }
-    });
-    return () => { if (pollRef.current) clearInterval(pollRef.current); };
-  }, [runId]);
+    if (promptOpen && !promptLoaded && profileQuery.data) {
+      const data = profileQuery.data;
+      const p = data?.evaluator_prompt || '';
+      setEvaluatorPrompt(p);
+      setOriginalPrompt(p);
+      setPromptIsOverride(!!data?.evaluator_prompt_is_override);
+      setPromptLastSaved(data?.updated_at ?? null);
+      setPromptLoaded(true);
+    }
+  }, [promptOpen, promptLoaded, profileQuery.data]);
+
+  // --- Derived state ---
+  const loading = runQuery.isLoading || jobsQuery.isLoading;
+  const error = runQuery.error?.message ?? jobsQuery.error?.message ?? null;
+
+  // --- Actions ---
 
   async function saveJob(jobId: string): Promise<void> {
     try {
-      await discoveryApi(`/jobs/${jobId}/save`, { method: 'POST' });
-      load();
+      await saveJobMutation.mutateAsync(jobId);
     } catch (e) {
       alert('Save failed: ' + (e as Error).message);
     }
@@ -133,8 +133,7 @@ export default function RunDetail() {
 
   async function dismissJob(jobId: string): Promise<void> {
     try {
-      await discoveryApi(`/jobs/${jobId}/dismiss`, { method: 'POST' });
-      load();
+      await dismissJobMutation.mutateAsync(jobId);
     } catch (e) {
       alert('Error: ' + (e as Error).message);
     }
@@ -144,8 +143,7 @@ export default function RunDetail() {
     if (job.score != null && !confirm('Rescore? The current score will be replaced.')) return;
     setRescoringIds((prev) => new Set(prev).add(job.id));
     try {
-      await discoveryApi(`/jobs/${job.id}/rescore`, { method: 'POST' });
-      await load();
+      await rescoreJobMutation.mutateAsync(job.id);
     } catch (e) {
       alert('Rescoring failed: ' + (e as Error).message);
     } finally {
@@ -164,68 +162,53 @@ export default function RunDetail() {
     setBulkRescoring(true);
     for (const j of failed) {
       try {
-        await discoveryApi(`/jobs/${j.id}/rescore`, { method: 'POST' });
+        await rescoreJobMutation.mutateAsync(j.id);
       } catch (e) {
         alert(`Rescoring stopped: ${(e as Error).message}`);
         break;
       }
     }
     setBulkRescoring(false);
-    load();
   }
 
-  async function togglePromptPanel(): Promise<void> {
-    const next = !promptOpen;
-    setPromptOpen(next);
-    if (!next || promptLoaded) return;
-    setPromptLoading(true);
-    try {
-      const data = await matchApi('/profile') as ProfileResponse;
-      const p = data?.evaluator_prompt || '';
-      setEvaluatorPrompt(p);
-      setOriginalPrompt(p);
-      setPromptIsOverride(!!data?.evaluator_prompt_is_override);
-      setPromptLastSaved(data?.updated_at);
-      setPromptLoaded(true);
-    } catch (e) {
-      setPromptResult({ type: 'error', message: 'Failed to load prompt: ' + (e as Error).message });
-    } finally {
-      setPromptLoading(false);
-    }
+  function togglePromptPanel(): void {
+    setPromptOpen((prev) => !prev);
   }
 
-  async function persistPrompt(body: Record<string, any>, successMsg: string): Promise<void> {
-    setSavingPrompt(true);
+  function persistPrompt(body: Record<string, unknown>, successMsg: string): void {
     setPromptResult(null);
-    try {
-      const data = await matchApi('/profile', { method: 'PUT', body: JSON.stringify(body) }) as ProfileResponse;
-      const p = data?.evaluator_prompt || '';
-      setEvaluatorPrompt(p);
-      setOriginalPrompt(p);
-      setPromptIsOverride(!!data?.evaluator_prompt_is_override);
-      setPromptLastSaved(data?.updated_at);
-      setPromptResult({ type: 'success', message: successMsg });
-    } catch (e) {
-      setPromptResult({ type: 'error', message: 'Save failed: ' + (e as Error).message });
-    } finally {
-      setSavingPrompt(false);
-    }
+    saveProfileMutation.mutate(body, {
+      onSuccess: (data) => {
+        const profile = data as ProfileResponse;
+        const p = profile?.evaluator_prompt || '';
+        setEvaluatorPrompt(p);
+        setOriginalPrompt(p);
+        setPromptIsOverride(!!profile?.evaluator_prompt_is_override);
+        setPromptLastSaved(profile?.updated_at ?? null);
+        setPromptResult({ type: 'success', message: successMsg });
+      },
+      onError: (e) => {
+        setPromptResult({ type: 'error', message: 'Save failed: ' + (e as Error).message });
+      },
+    });
   }
 
+  const savingPrompt = saveProfileMutation.isPending;
+  const promptLoading = promptOpen && !promptLoaded && profileQuery.isLoading;
   const missingPlaceholders = EVALUATOR_PLACEHOLDERS.filter((p: string) => !evaluatorPrompt.includes(p));
   const isPromptDirty = evaluatorPrompt !== originalPrompt;
 
-  async function savePrompt(): Promise<void> {
+  function savePrompt(): void {
     if (missingPlaceholders.length > 0) {
       const msg = `Missing placeholders: ${missingPlaceholders.join(', ')}. Without them, scoring will break. Save anyway?`;
       if (!confirm(msg)) return;
     }
-    await persistPrompt({ evaluator_prompt: evaluatorPrompt }, 'Prompt saved. Run a rescore to see the effect.');
+    persistPrompt({ evaluator_prompt: evaluatorPrompt }, 'Prompt saved. Run a rescore to see the effect.');
   }
 
-  async function resetPrompt(): Promise<void> {
+  function resetPrompt(): void {
     if (!confirm('Reset the prompt to the service default? Your customization will be removed.')) return;
-    await persistPrompt({ evaluator_prompt: '' }, 'Prompt reset to default.');
+    persistPrompt({ evaluator_prompt: '' }, 'Prompt reset to default.');
   }
 
   if (loading) return (
@@ -246,7 +229,6 @@ export default function RunDetail() {
   if (!run) return null;
 
   const statusMap: Record<string, string> = { pending: 'Pending', scraping: 'Scraping jobs...', scoring: 'AI scoring...', completed: 'Completed', failed: 'Failed' };
-  const isActive = run.status === 'pending' || run.status === 'scraping' || run.status === 'scoring';
   const visibleJobs = jobs.filter((j) => !j.dismissed && !j.is_duplicate);
   const isRescorable = (j: DiscoveredJob): boolean => (j.description?.length || 0) >= 50;
   const isFailed = (j: DiscoveredJob): boolean =>

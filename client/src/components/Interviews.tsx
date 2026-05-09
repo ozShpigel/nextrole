@@ -1,6 +1,6 @@
 ﻿import { useState } from 'react';
 import { formatDateTime } from '../lib/format';
-import { api } from '../lib/api';
+import { useDeleteInterview, useAddInterview, useUpdateInterview } from '../lib/mutations';
 import { INTERVIEW_TYPES } from '../lib/tracker';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
@@ -27,14 +27,14 @@ interface InterviewListProps {
 }
 
 export function InterviewList({ interviews, onEdit, onRefresh }: InterviewListProps) {
-  async function deleteInterview(intId: string) {
+  const deleteInterviewMutation = useDeleteInterview();
+
+  function deleteInterview(intId: string) {
     if (!confirm('Delete this interview?')) return;
-    try {
-      await api(`/interviews/${intId}`, { method: 'DELETE' });
-      onRefresh();
-    } catch (e: unknown) {
-      alert('Failed to delete interview: ' + (e as Error).message);
-    }
+    deleteInterviewMutation.mutate(intId, {
+      onSuccess: () => onRefresh(),
+      onError: (e) => alert('Failed to delete interview: ' + e.message),
+    });
   }
 
   if (interviews.length === 0) return <p className="text-muted-foreground text-[0.84rem]">No interviews</p>;
@@ -84,31 +84,33 @@ export function InterviewModal({ appId, interview, onClose, onSaved }: Interview
     feedback: interview?.feedback || '',
     completed: interview?.completed || false,
   });
+  const addInterviewMutation = useAddInterview();
+  const updateInterviewMutation = useUpdateInterview();
 
   function update(field: keyof InterviewFormState, value: string | boolean) {
     setForm((f) => ({ ...f, [field]: value }));
   }
 
-  async function save() {
-    try {
-      const body = {
-        type: form.type,
-        scheduledAt: form.scheduledAt ? new Date(form.scheduledAt).toISOString() : null,
-        interviewer: form.interviewer || null,
-        topics: form.topics || null,
-        notes: form.notes || null,
-        feedback: form.feedback || null,
-        completed: form.completed,
-      };
+  function save() {
+    const body = {
+      type: form.type,
+      scheduledAt: form.scheduledAt ? new Date(form.scheduledAt).toISOString() : null,
+      interviewer: form.interviewer || null,
+      topics: form.topics || null,
+      notes: form.notes || null,
+      feedback: form.feedback || null,
+      completed: form.completed,
+    };
 
-      if (isEdit) {
-        await api(`/interviews/${interview!.id}`, { method: 'PUT', body: JSON.stringify(body) });
-      } else {
-        await api(`/applications/${appId}/interviews`, { method: 'POST', body: JSON.stringify(body) });
-      }
-      onSaved();
-    } catch (e: unknown) {
-      alert('Error: ' + (e as Error).message);
+    const callbacks = {
+      onSuccess: () => onSaved(),
+      onError: (e: Error) => alert('Error: ' + e.message),
+    };
+
+    if (isEdit) {
+      updateInterviewMutation.mutate({ interviewId: interview!.id, body }, callbacks);
+    } else {
+      addInterviewMutation.mutate({ appId, body }, callbacks);
     }
   }
 

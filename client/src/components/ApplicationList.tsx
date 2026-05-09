@@ -1,6 +1,6 @@
-﻿import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api } from '../lib/api';
+import { useApplications } from '../lib/queries';
+import { useDeleteApplication } from '../lib/mutations';
 import { formatDate, scoreColor } from '../lib/format';
 import { StatusBadge } from './Status';
 import { Card } from '@/components/ui/card';
@@ -17,33 +17,12 @@ interface Application {
 }
 
 export default function ApplicationList() {
-  const [apps, setApps] = useState<Application[]>([]);
-  const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
-
-  useEffect(() => { load(); }, []);
-
-  async function load() {
-    try {
-      setApps(await api('/applications'));
-      setError(null);
-    } catch (e: unknown) {
-      setError((e as Error).message);
-    }
-  }
-
-  async function deleteApp(id: string) {
-    if (!confirm('Delete this application? All interviews and notes will also be deleted.')) return;
-    try {
-      await api(`/applications/${id}`, { method: 'DELETE' });
-      load();
-    } catch (e: unknown) {
-      alert('Delete failed: ' + (e as Error).message);
-    }
-  }
+  const { data: apps = [], error } = useApplications();
+  const deleteAppMutation = useDeleteApplication();
 
   if (error) {
-    return <Card className="p-6 mb-4"><p className="text-center py-12 text-destructive text-[0.88rem]">Failed to load applications: {error}</p></Card>;
+    return <Card className="p-6 mb-4"><p className="text-center py-12 text-destructive text-[0.88rem]">Failed to load applications: {error.message}</p></Card>;
   }
 
   if (apps.length === 0) {
@@ -61,7 +40,7 @@ export default function ApplicationList() {
         <span>Date</span>
         <span></span>
       </div>
-      {apps.map((a) => {
+      {(apps as Application[]).map((a) => {
         const days = a.updatedAt ? Math.floor((Date.now() - new Date(a.updatedAt).getTime()) / 86400000) : null;
         const daysColor = days !== null && days >= 14 ? '#ef4444' : days !== null && days >= 7 ? '#d97706' : undefined;
         return (
@@ -76,7 +55,11 @@ export default function ApplicationList() {
               <Button
                 variant="destructive"
                 size="sm"
-                onClick={(e: React.MouseEvent) => { e.stopPropagation(); deleteApp(a.id); }}
+                onClick={(e: React.MouseEvent) => {
+                  e.stopPropagation();
+                  if (!confirm('Delete this application? All interviews and notes will also be deleted.')) return;
+                  deleteAppMutation.mutate(a.id);
+                }}
               >
                 Delete
               </Button>

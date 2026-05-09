@@ -1,5 +1,4 @@
-﻿import { useState, useEffect } from 'react';
-import { api } from '../lib/api';
+import { useStats } from '../lib/queries';
 import { STATUS_LABELS } from '../lib/tracker';
 import { StatCard } from './Stats';
 import { Card } from '@/components/ui/card';
@@ -18,22 +17,10 @@ const BAR_COLORS: Record<string, string> = {
   Withdrawn: '#9ca3af',
 };
 
-interface Stats {
-  total: number;
-  applied: number;
-  avgScore: number | null;
-  responseRate: number;
-  statusBreakdown?: Record<string, number>;
-}
-
 export default function Statistics() {
-  const [stats, setStats] = useState<Stats | null>(null);
+  const { data: stats, isLoading } = useStats();
 
-  useEffect(() => {
-    api('/stats').then(setStats).catch(console.error);
-  }, []);
-
-  if (!stats) return (
+  if (isLoading || !stats) return (
     <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] max-md:grid-cols-2 gap-3 mb-6">
       {[0, 1, 2, 3].map((i) => (
         <Card key={i} className="py-6 px-5 text-center">
@@ -44,7 +31,7 @@ export default function Statistics() {
     </div>
   );
 
-  const breakdown = stats.statusBreakdown || {};
+  const breakdown: Record<string, number> = stats.statusBreakdown || {};
   const max = Math.max(...Object.values(breakdown), 1);
 
   return (

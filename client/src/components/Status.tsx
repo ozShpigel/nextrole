@@ -1,5 +1,5 @@
 ﻿import { useState } from 'react';
-import { api } from '../lib/api';
+import { useUpdateAppStatus } from '../lib/mutations';
 import { STATUS_LABELS } from '../lib/tracker';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
@@ -44,17 +44,16 @@ interface StatusModalProps {
 export function StatusModal({ appId, currentStatus, onClose, onSaved }: StatusModalProps) {
   const [status, setStatus] = useState(currentStatus);
   const [note, setNote] = useState('');
+  const updateStatus = useUpdateAppStatus();
 
-  async function save() {
-    try {
-      await api(`/applications/${appId}/status`, {
-        method: 'PUT',
-        body: JSON.stringify({ newStatus: status, note: note || null }),
-      });
-      onSaved();
-    } catch (e: unknown) {
-      alert('Error: ' + (e as Error).message);
-    }
+  function save() {
+    updateStatus.mutate(
+      { appId, newStatus: status, note: note || undefined },
+      {
+        onSuccess: () => onSaved(),
+        onError: (e) => alert('Error: ' + e.message),
+      },
+    );
   }
 
   return (

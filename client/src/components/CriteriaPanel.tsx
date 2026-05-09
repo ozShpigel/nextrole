@@ -1,5 +1,5 @@
 ﻿import { useState } from 'react';
-import { discoveryApi } from '../lib/api';
+import { useSaveCriteria } from '../lib/mutations';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -208,7 +208,7 @@ export function CriteriaForm({ initial, onSave, onCancel }: CriteriaFormProps) {
   const [country, setCountry] = useState(initial?.country || 'Israel');
   const [isRemote, setIsRemote] = useState<boolean | null>(initial?.is_remote ?? null);
   const [minScore, setMinScore] = useState(initial?.min_score_to_save || 70);
-  const [saving, setSaving] = useState(false);
+  const saveCriteria = useSaveCriteria();
 
   function addLine(setter: React.Dispatch<React.SetStateAction<string>>, current: string, value: string) {
     const trimmed = current.trim();
@@ -221,11 +221,10 @@ export function CriteriaForm({ initial, onSave, onCancel }: CriteriaFormProps) {
     );
   }
 
-  async function submit(e: React.FormEvent) {
+  function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!name.trim() || !titlesText.trim()) return;
 
-    setSaving(true);
     const payload = {
       name: name.trim(),
       job_titles: titlesText.split('\n').map(s => s.trim()).filter(Boolean),
@@ -238,24 +237,13 @@ export function CriteriaForm({ initial, onSave, onCancel }: CriteriaFormProps) {
       min_score_to_save: minScore,
     };
 
-    try {
-      if (initial?.id) {
-        await discoveryApi(`/criteria/${initial.id}`, {
-          method: 'PUT',
-          body: JSON.stringify(payload),
-        });
-      } else {
-        await discoveryApi('/criteria', {
-          method: 'POST',
-          body: JSON.stringify(payload),
-        });
-      }
-      onSave();
-    } catch (e: unknown) {
-      alert('Error: ' + (e as Error).message);
-    } finally {
-      setSaving(false);
-    }
+    saveCriteria.mutate(
+      { id: initial?.id, payload },
+      {
+        onSuccess: () => onSave(),
+        onError: (e) => alert('Error: ' + e.message),
+      },
+    );
   }
 
   return (
@@ -357,8 +345,8 @@ export function CriteriaForm({ initial, onSave, onCancel }: CriteriaFormProps) {
       </div>
 
       <div className="flex gap-2 pt-2">
-        <Button type="submit" disabled={saving || !name.trim() || !titlesText.trim() || selectedSites.length === 0}>
-          {saving ? 'Saving...' : (initial ? 'Update' : 'Create')}
+        <Button type="submit" disabled={saveCriteria.isPending || !name.trim() || !titlesText.trim() || selectedSites.length === 0}>
+          {saveCriteria.isPending ? 'Saving...' : (initial ? 'Update' : 'Create')}
         </Button>
         <Button variant="outline" type="button" onClick={onCancel}>Cancel</Button>
       </div>

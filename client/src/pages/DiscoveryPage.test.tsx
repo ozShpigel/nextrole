@@ -54,7 +54,9 @@ describe('DiscoveryPage', () => {
   });
 
   it('shows error banner when API call fails', async () => {
-    vi.mocked(discoveryApi).mockRejectedValue(new Error('Service unavailable'));
+    vi.mocked(discoveryApi)
+      .mockResolvedValueOnce({}) // /health succeeds
+      .mockRejectedValue(new Error('Service unavailable')); // criteria/runs fail
 
     renderWithRouter(<DiscoveryPage />);
 

@@ -1,19 +1,11 @@
-﻿import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api } from '../lib/api';
+import { useApplications, useStats, useUpcomingInterviews } from '../lib/queries';
 import { formatDate, formatDateTime } from '../lib/format';
 import { StatusBadge } from './Status';
 import { StatCard } from './Stats';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-
-interface DashboardStats {
-  total: number;
-  inProgress: number;
-  avgScore: number | null;
-  responseRate: number;
-}
 
 interface UpcomingInterview {
   interview: {
@@ -34,34 +26,17 @@ interface RecentApp {
 }
 
 export default function Dashboard() {
-  const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [upcoming, setUpcoming] = useState<UpcomingInterview[]>([]);
-  const [recent, setRecent] = useState<RecentApp[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
+  const applicationsQuery = useApplications();
+  const statsQuery = useStats();
+  const upcomingQuery = useUpcomingInterviews();
 
-  useEffect(() => {
-    async function load() {
-      setLoading(true);
-      setError(null);
-      try {
-        const [apps, s, u] = await Promise.all([
-          api('/applications'),
-          api('/stats'),
-          api('/interviews/upcoming'),
-        ]);
-        setRecent(apps.slice(0, 5));
-        setStats(s);
-        setUpcoming(u);
-      } catch (e: unknown) {
-        setError((e as Error).message);
-      } finally {
-        setLoading(false);
-      }
-    }
-    load();
-  }, []);
+  const loading = applicationsQuery.isLoading || statsQuery.isLoading || upcomingQuery.isLoading;
+  const error = applicationsQuery.error?.message || statsQuery.error?.message || upcomingQuery.error?.message || null;
+
+  const stats = statsQuery.data ?? null;
+  const upcoming: UpcomingInterview[] = upcomingQuery.data ?? [];
+  const recent: RecentApp[] = applicationsQuery.data?.slice(0, 5) ?? [];
 
   if (loading) return <DashboardLoadingSkeleton />;
   if (error) return <Card className="p-6 mb-4"><p className="text-muted-foreground">Error loading data: {error}</p></Card>;

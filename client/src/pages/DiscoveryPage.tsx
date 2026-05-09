@@ -1,5 +1,6 @@
-﻿import { useState, useEffect, useMemo, useRef } from 'react';
-import { discoveryApi } from '../lib/api';
+import { useState, useEffect } from 'react';
+import { useDiscoveryHealth, useDiscoveryCriteria, useDiscoveryRuns } from '../lib/queries';
+import { useTriggerRun, useDeleteCriteria, useAbortRun } from '../lib/mutations';
 import { CriteriaForm, CriteriaSection } from '../components/CriteriaPanel';
 import DiscoveryLoadingSkeleton from '../components/DiscoveryLoadingSkeleton';
 import PageHeader from '../components/PageHeader';
@@ -21,129 +22,58 @@ interface Criteria {
   min_score_to_save: number;
 }
 
-interface Run {
-  id: string;
-  status: string;
-  criteria_name: string;
-  jobs_scraped: number;
-  jobs_scored: number;
-  jobs_saved: number;
-  jobs_skipped_duplicate: number;
-  started_at?: string;
-  error?: string;
-}
-
-interface RetryInfo {
-  attempt: number;
-}
-
 export default function DiscoveryPage() {
-  const [criteria, setCriteria] = useState<Criteria[]>([]);
-  const [runs, setRuns] = useState<Run[]>([]);
   const [showForm, setShowForm] = useState<boolean>(false);
   const [editItem, setEditItem] = useState<Criteria | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
-  const [wakingUp, setWakingUp] = useState<boolean>(false);
-  const [wakeAttempt, setWakeAttempt] = useState<number>(0);
-  const [wakeStartedAt, setWakeStartedAt] = useState<number | null>(null);
   const [wakeElapsed, setWakeElapsed] = useState<number>(0);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  useEffect(() => { load(); return () => { if (pollRef.current) clearInterval(pollRef.current); }; }, []);
+  const healthQuery = useDiscoveryHealth();
+  const criteriaQuery = useDiscoveryCriteria(healthQuery.isSuccess);
+  const runsQuery = useDiscoveryRuns(healthQuery.isSuccess);
+
+  const triggerRun = useTriggerRun();
+  const deleteCriteria = useDeleteCriteria();
+  const abortRun = useAbortRun();
+
+  const wakingUp = healthQuery.isLoading && healthQuery.failureCount > 0;
+  const wakeAttempt = healthQuery.failureCount;
 
   useEffect(() => {
-    if (!wakingUp || !wakeStartedAt) return;
+    if (!wakingUp) {
+      setWakeElapsed(0);
+      return;
+    }
+    const started = Date.now();
     const id = setInterval(() => {
-      setWakeElapsed(Math.floor((Date.now() - wakeStartedAt) / 1000));
+      setWakeElapsed(Math.floor((Date.now() - started) / 1000));
     }, 1000);
     return () => clearInterval(id);
-  }, [wakingUp, wakeStartedAt]);
+  }, [wakingUp]);
 
-  async function load(): Promise<void> {
-    setLoading(true);
-    setError(null);
-    setWakingUp(false);
-    setWakeAttempt(0);
-    setWakeStartedAt(null);
-    setWakeElapsed(0);
-    const onRetry = ({ attempt }: RetryInfo) => {
-      setWakingUp(true);
-      setWakeAttempt(attempt);
-      setWakeStartedAt((prev) => prev ?? Date.now());
-    };
-    try {
-      await discoveryApi('/health', {
-        onRetry,
-        retries: 5,
-        retryMinDelayMs: 20000,
-        retryMaxDelayMs: 25000,
-      });
-      setWakingUp(false);
-      const c = await discoveryApi('/criteria', { onRetry });
-      setCriteria(c);
-      const r = await discoveryApi('/runs', { onRetry });
-      setRuns(r);
-      startPollingIfNeeded(r);
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setLoading(false);
-      setWakingUp(false);
-    }
+  function handleTriggerRun(criteriaId: string): void {
+    triggerRun.mutate(criteriaId, {
+      onError: (e) => alert('Error starting search: ' + e.message),
+    });
   }
 
-  function startPollingIfNeeded(runsList: Run[]): void {
-    if (pollRef.current) clearInterval(pollRef.current);
-    const hasActive = runsList.some((r) => r.status === 'pending' || r.status === 'scraping' || r.status === 'scoring');
-    if (!hasActive) return;
-    pollRef.current = setInterval(async () => {
-      try {
-        const c = await discoveryApi('/criteria');
-        setCriteria(c);
-        const r = await discoveryApi('/runs');
-        setRuns(r);
-        if (!r.some((run: Run) => run.status === 'pending' || run.status === 'scraping' || run.status === 'scoring')) {
-          if (pollRef.current) clearInterval(pollRef.current);
-        }
-      } catch { /* keep polling */ }
-    }, 5000);
-  }
-
-  async function triggerRun(criteriaId: string): Promise<void> {
-    try {
-      await discoveryApi(`/run/${criteriaId}`, { method: 'POST' });
-      load();
-    } catch (e) {
-      alert('Error starting search: ' + (e as Error).message);
-    }
-  }
-
-  async function deleteCriteria(id: string): Promise<void> {
+  function handleDeleteCriteria(id: string): void {
     if (!confirm('Delete this search criteria?')) return;
-    try {
-      await discoveryApi(`/criteria/${id}`, { method: 'DELETE' });
-      load();
-    } catch (e) {
-      alert('Delete failed: ' + (e as Error).message);
-    }
+    deleteCriteria.mutate(id, {
+      onError: (e) => alert('Delete failed: ' + e.message),
+    });
   }
 
-  async function abortRun(runId: string, e: React.MouseEvent): Promise<void> {
+  function handleAbortRun(runId: string, e: React.MouseEvent): void {
     e.stopPropagation();
     if (!confirm('Abort this search?')) return;
-    try {
-      await discoveryApi(`/runs/${runId}/abort`, { method: 'POST' });
-      load();
-    } catch (err) {
-      alert('Abort failed: ' + (err as Error).message);
-    }
+    abortRun.mutate(runId, {
+      onError: (err) => alert('Abort failed: ' + err.message),
+    });
   }
 
   function onSaved(): void {
     setShowForm(false);
     setEditItem(null);
-    load();
   }
 
   function openForm(item: Criteria | null = null): void {
@@ -156,7 +86,11 @@ export default function DiscoveryPage() {
     setEditItem(null);
   }
 
-  const lastRun = useMemo(() => runs[0]?.started_at, [runs]);
+  const criteria = criteriaQuery.data ?? [];
+  const runs = runsQuery.data ?? [];
+  const lastRun = runs[0]?.started_at;
+  const loading = healthQuery.isLoading || (healthQuery.isSuccess && (criteriaQuery.isLoading || runsQuery.isLoading));
+  const error = healthQuery.error ?? criteriaQuery.error ?? runsQuery.error;
 
   if (loading) {
     return (
@@ -179,7 +113,7 @@ export default function DiscoveryPage() {
 
       <PageHeader onNewCriteria={() => openForm()} />
       <StatStrip criteriaCount={criteria.length} runsCount={runs.length} lastRun={lastRun} />
-      {error && <ErrorBanner error={error} onRetry={load} />}
+      {error && <ErrorBanner error={error.message} onRetry={() => healthQuery.refetch()} />}
 
       {showForm && (
         <CriteriaForm initial={editItem} onSave={onSaved} onCancel={closeForm} />
@@ -188,11 +122,11 @@ export default function DiscoveryPage() {
       <CriteriaSection
         criteria={criteria}
         onEdit={openForm}
-        onDelete={deleteCriteria}
-        onRun={triggerRun}
+        onDelete={handleDeleteCriteria}
+        onRun={handleTriggerRun}
         onNew={() => openForm()}
       />
-      <RunsTimeline runs={runs} onAbort={abortRun} />
+      <RunsTimeline runs={runs} onAbort={handleAbortRun} />
     </div>
   );
 }

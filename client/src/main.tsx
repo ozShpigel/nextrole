@@ -1,8 +1,10 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { QueryClientProvider } from '@tanstack/react-query';
 import './index.css';
 import App from './App';
+import { queryClient } from './lib/queryClient';
 import { ThemeProvider } from './lib/theme';
 import { ErrorBoundary } from './components/Error';
 import LandingPage from './pages/LandingPage';
@@ -15,6 +17,7 @@ import NotFoundPage from './pages/NotFoundPage';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
+    <QueryClientProvider client={queryClient}>
     <BrowserRouter>
       <ThemeProvider>
       <ErrorBoundary>
@@ -32,5 +35,6 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
       </ErrorBoundary>
       </ThemeProvider>
     </BrowserRouter>
+    </QueryClientProvider>
   </React.StrictMode>
 );

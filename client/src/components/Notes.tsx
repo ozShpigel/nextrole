@@ -1,7 +1,7 @@
 ﻿import { useState } from 'react';
 import { formatDateTime } from '../lib/format';
 import { NOTE_CATEGORIES, NOTE_CATEGORY_LABELS } from '../lib/tracker';
-import { api } from '../lib/api';
+import { useDeleteNote, useAddNote } from '../lib/mutations';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
@@ -21,14 +21,14 @@ interface NoteListProps {
 }
 
 export function NoteList({ notes, onRefresh }: NoteListProps) {
-  async function deleteNote(noteId: string) {
+  const deleteNoteMutation = useDeleteNote();
+
+  function deleteNote(noteId: string) {
     if (!confirm('Delete this note?')) return;
-    try {
-      await api(`/notes/${noteId}`, { method: 'DELETE' });
-      onRefresh();
-    } catch (e: unknown) {
-      alert('Failed to delete note: ' + (e as Error).message);
-    }
+    deleteNoteMutation.mutate(noteId, {
+      onSuccess: () => onRefresh(),
+      onError: (e) => alert('Failed to delete note: ' + e.message),
+    });
   }
 
   if (notes.length === 0) return <p className="text-muted-foreground text-[0.84rem]">No notes</p>;
@@ -54,18 +54,17 @@ interface NoteModalProps {
 export function NoteModal({ appId, onClose, onSaved }: NoteModalProps) {
   const [category, setCategory] = useState('Preparation');
   const [content, setContent] = useState('');
+  const addNoteMutation = useAddNote();
 
-  async function save() {
+  function save() {
     if (!content.trim()) return;
-    try {
-      await api(`/applications/${appId}/notes`, {
-        method: 'POST',
-        body: JSON.stringify({ content: content.trim(), category }),
-      });
-      onSaved();
-    } catch (e: unknown) {
-      alert('Error: ' + (e as Error).message);
-    }
+    addNoteMutation.mutate(
+      { appId, body: { content: content.trim(), category } },
+      {
+        onSuccess: () => onSaved(),
+        onError: (e) => alert('Error: ' + e.message),
+      },
+    );
   }
 
   return (

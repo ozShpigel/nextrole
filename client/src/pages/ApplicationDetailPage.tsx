@@ -1,6 +1,8 @@
-﻿import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { api, matchApi } from '../lib/api';
+import { useQueryClient } from '@tanstack/react-query';
+import { useApplicationDetail, useProfile } from '../lib/queries';
+import { useDeleteApplication, useUpdateSalary, useGenerateCompanySummary } from '../lib/mutations';
 import type { ProfileResponse } from '../lib/types';
 import { scoreColor } from '../lib/format';
 import { StatusBadge, StatusModal } from '../components/Status';
@@ -82,43 +84,47 @@ type ModalState =
 
 export default function ApplicationDetail() {
   const { id } = useParams<{ id: string }>();
-  const [data, setData] = useState<ApplicationDetailData | null>(null);
-  const [intros, setIntros] = useState<Intros | null>(null);
+  const queryClient = useQueryClient();
   const [modal, setModal] = useState<ModalState>(null);
 
-  const load = useCallback(async () => {
-    try {
-      setData(await api(`/applications/${id}`));
-    } catch (e) {
-      console.error('Detail error:', e);
-    }
-  }, [id]);
+  const detailQuery = useApplicationDetail(id!);
+  const profileQuery = useProfile();
+  const deleteApplicationMutation = useDeleteApplication();
 
-  useEffect(() => { load(); }, [load]);
-
-  useEffect(() => {
-    matchApi('/profile').then((p: ProfileResponse) => setIntros({
-      elevatorPitch: p?.elevator_pitch || '',
-      professionalIntro: p?.professional_intro || '',
-      extendedIntro: p?.extended_intro || '',
-    })).catch(() => {});
-  }, []);
+  const intros: Intros | null = profileQuery.data
+    ? {
+        elevatorPitch: (profileQuery.data as ProfileResponse)?.elevator_pitch || '',
+        professionalIntro: (profileQuery.data as ProfileResponse)?.professional_intro || '',
+        extendedIntro: (profileQuery.data as ProfileResponse)?.extended_intro || '',
+      }
+    : null;
 
   function closeAndReload(): void {
     setModal(null);
-    load();
+    queryClient.invalidateQueries({ queryKey: ['applications', id] });
   }
 
-  async function deleteApp(): Promise<void> {
+  function refetch(): void {
+    queryClient.invalidateQueries({ queryKey: ['applications', id] });
+  }
+
+  function deleteApp(): void {
     if (!confirm('Delete this application? All interviews and notes will also be deleted.')) return;
-    try {
-      await api(`/applications/${id}`, { method: 'DELETE' });
-      window.history.back();
-    } catch (e) {
-      alert('Delete failed: ' + (e as Error).message);
-    }
+    deleteApplicationMutation.mutate(id!, {
+      onSuccess: () => window.history.back(),
+      onError: (e) => alert('Delete failed: ' + (e as Error).message),
+    });
   }
 
+  if (detailQuery.isLoading) return (
+    <div className="min-h-[calc(100vh-56px)] bg-background animate-in fade-in slide-in-from-bottom-1 duration-300">
+      <div className="max-w-[1100px] mx-auto px-6 pb-8">
+        <ApplicationDetailLoadingSkeleton />
+      </div>
+    </div>
+  );
+
+  const data = detailQuery.data as ApplicationDetailData | undefined;
   if (!data) return (
     <div className="min-h-[calc(100vh-56px)] bg-background animate-in fade-in slide-in-from-bottom-1 duration-300">
       <div className="max-w-[1100px] mx-auto px-6 pb-8">
@@ -203,13 +209,13 @@ export default function ApplicationDetail() {
           <InterviewList
             interviews={interviews}
             onEdit={(i: Interview) => setModal({ type: 'editInterview', data: i })}
-            onRefresh={load}
+            onRefresh={refetch}
           />
         </CollapsibleSection>
 
         {/* Notes */}
         <CollapsibleSection title={`Notes (${notes.length})`}>
-          <NoteList notes={notes} onRefresh={load} />
+          <NoteList notes={notes} onRefresh={refetch} />
         </CollapsibleSection>
 
         {/* Job Description */}
@@ -279,19 +285,21 @@ function NextAction({ status, updatedAt, interviews }: { status: string; updated
 function SalaryField({ appId, initialValue }: { appId: string; initialValue: string | null }) {
   const [value, setValue] = useState<string>(initialValue || '');
   const [saved, setSaved] = useState<boolean>(false);
+  const updateSalaryMutation = useUpdateSalary();
 
-  async function save(): Promise<void> {
-    try {
-      await api(`/applications/${appId}/salary`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ salary: value || null }),
-      });
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
-    } catch (e) {
-      alert('Failed to save salary: ' + (e as Error).message);
-    }
+  function save(): void {
+    updateSalaryMutation.mutate(
+      { appId, salary: value || null },
+      {
+        onSuccess: () => {
+          setSaved(true);
+          setTimeout(() => setSaved(false), 2000);
+        },
+        onError: (e) => {
+          alert('Failed to save salary: ' + (e as Error).message);
+        },
+      },
+    );
   }
 
   return (
@@ -312,18 +320,18 @@ function SalaryField({ appId, initialValue }: { appId: string; initialValue: str
 
 function CompanySummaryBlock({ appId, initialSummary }: { appId: string; initialSummary: string | null }) {
   const [summary, setSummary] = useState<string>(initialSummary || '');
-  const [loading, setLoading] = useState<boolean>(false);
+  const generateMutation = useGenerateCompanySummary();
+  const loading = generateMutation.isPending;
 
-  async function generate(): Promise<void> {
-    setLoading(true);
-    try {
-      const res = await api(`/applications/${appId}/company-summary`, { method: 'POST' });
-      setSummary(res.company_summary);
-    } catch (e) {
-      alert('Failed to generate summary: ' + (e as Error).message);
-    } finally {
-      setLoading(false);
-    }
+  function generate(): void {
+    generateMutation.mutate(appId, {
+      onSuccess: (res: { company_summary: string }) => {
+        setSummary(res.company_summary);
+      },
+      onError: (e) => {
+        alert('Failed to generate summary: ' + (e as Error).message);
+      },
+    });
   }
 
   return (

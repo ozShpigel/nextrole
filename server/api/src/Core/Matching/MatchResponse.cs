@@ -18,12 +18,12 @@ public sealed record MatchResponse
 
 public sealed record Breakdown
 {
-    public TechnicalScore Technical { get; init; } = new();
-    public CulturalScore Cultural { get; init; } = new();
-    public RoleCharacteristicsScore RoleCharacteristics { get; init; } = new();
+    public TechnicalFitScore TechnicalFit { get; init; } = new();
+    public EngineeringExecutionFitScore EngineeringExecutionFit { get; init; } = new();
+    public SustainabilityPaceFitScore SustainabilityPaceFit { get; init; } = new();
 }
 
-public sealed record TechnicalScore
+public sealed record TechnicalFitScore
 {
     public int? Score { get; init; }
     public int? MaxScore { get; init; }
@@ -31,20 +31,20 @@ public sealed record TechnicalScore
     public string[] Gaps { get; init; } = [];
 }
 
-public sealed record CulturalScore
+public sealed record EngineeringExecutionFitScore
+{
+    public int? Score { get; init; }
+    public int? MaxScore { get; init; }
+    public string[] Strengths { get; init; } = [];
+    public string[] Concerns { get; init; } = [];
+}
+
+public sealed record SustainabilityPaceFitScore
 {
     public int? Score { get; init; }
     public int? MaxScore { get; init; }
     public string[] PositiveSignals { get; init; } = [];
     public string[] Concerns { get; init; } = [];
-}
-
-public sealed record RoleCharacteristicsScore
-{
-    public int? Score { get; init; }
-    public int? MaxScore { get; init; }
-    public string[] Opportunities { get; init; } = [];
-    public string[] Risks { get; init; } = [];
 }
 
 public sealed record CompanyNewsAnalysis

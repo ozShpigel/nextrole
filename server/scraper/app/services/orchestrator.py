@@ -13,7 +13,7 @@ from app.utils.match_utils import extract_flat
 logger = logging.getLogger(__name__)
 
 
-async def run_discovery(db: AsyncIOMotorDatabase, settings: Settings, criteria_id: str):
+async def run_discovery(db: AsyncIOMotorDatabase, settings: Settings, criteria_id: str, run_id: str | None = None):
     """Execute a full discovery run: scrape, score via JobMatchService, save."""
     criteria_doc = await db.search_criteria.find_one({"id": criteria_id})
     if not criteria_doc:
@@ -24,8 +24,14 @@ async def run_discovery(db: AsyncIOMotorDatabase, settings: Settings, criteria_i
     from app.models.discovery_run import DiscoveryRun
 
     criteria = SearchCriteria(**criteria_doc)
-    run = DiscoveryRun(criteria_id=criteria.id, criteria_name=criteria.name, status="scraping")
-    await db.discovery_runs.insert_one(run.model_dump())
+    if run_id:
+        run_doc = await db.discovery_runs.find_one({"id": run_id})
+        run = DiscoveryRun(**{k: v for k, v in run_doc.items() if k != "_id"}) if run_doc else DiscoveryRun(criteria_id=criteria.id, criteria_name=criteria.name)
+    else:
+        run = DiscoveryRun(criteria_id=criteria.id, criteria_name=criteria.name)
+        await db.discovery_runs.insert_one(run.model_dump())
+    run.status = "scraping"
+    await db.discovery_runs.update_one({"id": run.id}, {"$set": {"status": "scraping"}})
 
     try:
         logger.info("Run %s: scraping for criteria '%s'", run.id, criteria.name)
@@ -54,119 +60,119 @@ async def run_discovery(db: AsyncIOMotorDatabase, settings: Settings, criteria_i
             glassdoor_client.prefetch_glassdoor_ratings(all_companies),
         )
 
-        logger.info("Run %s: scoring %d jobs", run.id, len(jobs))
-        for i, job_data in enumerate(jobs):
-            try:
-                title = job_data["title"]
-                company = job_data["company"]
-                base_job = {
-                    "run_id": run.id,
-                    "criteria_id": criteria.id,
-                    "title": title,
-                    "company": company,
-                    "location": job_data.get("location"),
-                    "description": job_data.get("description"),
-                    "job_url": job_data.get("job_url"),
-                    "date_posted": job_data.get("date_posted"),
-                    "site": job_data.get("site", "linkedin"),
-                }
+        concurrency = 5
+        sem = asyncio.Semaphore(concurrency)
+        logger.info("Run %s: scoring %d jobs (%d concurrent)", run.id, len(jobs), concurrency)
 
-                is_dup = await tracker_client.check_duplicate(settings, company, title)
-                if is_dup:
-                    disc_job = DiscoveredJob(**base_job, is_duplicate=True)
-                    await db.discovered_jobs.insert_one(disc_job.model_dump())
-                    run.jobs_skipped_duplicate += 1
-                    continue
+        async def _score_one(i: int, job_data: dict):
+            async with sem:
+                try:
+                    title = job_data["title"]
+                    company = job_data["company"]
+                    base_job = {
+                        "run_id": run.id,
+                        "criteria_id": criteria.id,
+                        "title": title,
+                        "company": company,
+                        "location": job_data.get("location"),
+                        "description": job_data.get("description"),
+                        "job_url": job_data.get("job_url"),
+                        "date_posted": job_data.get("date_posted"),
+                        "site": job_data.get("site", "linkedin"),
+                    }
 
-                company_news = await news_client.fetch_company_news(company, news_cache) or None
-                glassdoor_data = await glassdoor_client.fetch_glassdoor_rating(company, glassdoor_cache)
+                    is_dup = await tracker_client.check_duplicate(settings, company, title)
+                    if is_dup:
+                        disc_job = DiscoveredJob(**base_job, is_duplicate=True)
+                        await db.discovered_jobs.insert_one(disc_job.model_dump())
+                        run.jobs_skipped_duplicate += 1
+                        return
 
-                match_result = await match_client.score_job(
-                    settings=settings,
-                    title=title,
-                    company=company,
-                    location=job_data.get("location"),
-                    description=job_data.get("description"),
-                    date_posted=job_data.get("date_posted"),
-                    site=job_data.get("site", "linkedin"),
-                    company_news=company_news,
-                    glassdoor_data=glassdoor_data,
-                )
+                    company_news = await news_client.fetch_company_news(company, news_cache) or None
+                    glassdoor_data = await glassdoor_client.fetch_glassdoor_rating(company, glassdoor_cache)
 
-                if match_result.status != "ok":
-                    verdict = "INSUFFICIENT_DATA" if match_result.status == "too_short" else "MATCH_FAILED"
-                    disc_job = DiscoveredJob(**base_job, verdict=verdict)
-                    await db.discovered_jobs.insert_one(disc_job.model_dump())
-                    if i < len(jobs) - 1:
-                        if match_result.status == "rate_limited":
-                            logger.warning("Rate-limited — pausing 60s before next job to let the window reset")
-                            await asyncio.sleep(60.0)
-                        elif match_result.status == "api_error":
-                            await asyncio.sleep(settings.scoring_delay_seconds)
-                    continue
-
-                match_response = match_result.data
-                score, verdict, should_apply = extract_flat(match_response)
-
-                disc_job = DiscoveredJob(
-                    **base_job,
-                    score=score,
-                    verdict=verdict,
-                    should_apply=should_apply,
-                    match_analysis=match_response,
-                    company_news=company_news,
-                    glassdoor_data=glassdoor_data,
-                    analyst_snapshot_input=match_response.get("analystSnapshotInput"),
-                    analyst_snapshot_output=match_response.get("analystSnapshotOutput"),
-                    evaluator_snapshot_input=match_response.get("evaluatorSnapshotInput"),
-                    evaluator_snapshot_output=match_response.get("evaluatorSnapshotOutput"),
-                )
-                await db.discovered_jobs.insert_one(disc_job.model_dump())
-                run.jobs_scored += 1
-
-                if (
-                    score is not None
-                    and score >= criteria.min_score_to_save
-                    and bool(should_apply)
-                ):
-                    analysis_json = json.dumps(match_response, ensure_ascii=False)
-                    saved = await tracker_client.save_to_tracker(
+                    match_result = await match_client.score_job(
                         settings=settings,
                         title=title,
                         company=company,
+                        location=job_data.get("location"),
                         description=job_data.get("description"),
-                        score=score,
-                        verdict=verdict,
-                        analysis_json=analysis_json,
-                        analyst_snapshot_input=disc_job.analyst_snapshot_input,
-                        analyst_snapshot_output=disc_job.analyst_snapshot_output,
-                        evaluator_snapshot_input=disc_job.evaluator_snapshot_input,
-                        evaluator_snapshot_output=disc_job.evaluator_snapshot_output,
+                        date_posted=job_data.get("date_posted"),
+                        site=job_data.get("site", "linkedin"),
                         company_news=company_news,
                         glassdoor_data=glassdoor_data,
                     )
-                    if saved:
-                        disc_job.saved_to_tracker = True
-                        await db.discovered_jobs.update_one(
-                            {"id": disc_job.id},
-                            {"$set": {"saved_to_tracker": True}},
+
+                    if match_result.status != "ok":
+                        verdict = "INSUFFICIENT_DATA" if match_result.status == "too_short" else "MATCH_FAILED"
+                        disc_job = DiscoveredJob(**base_job, verdict=verdict)
+                        await db.discovered_jobs.insert_one(disc_job.model_dump())
+                        if match_result.status == "rate_limited":
+                            logger.warning("Rate-limited — pausing 60s")
+                            await asyncio.sleep(60.0)
+                        return
+
+                    match_response = match_result.data
+                    score, verdict, should_apply = extract_flat(match_response)
+
+                    disc_job = DiscoveredJob(
+                        **base_job,
+                        score=score,
+                        verdict=verdict,
+                        should_apply=should_apply,
+                        match_analysis=match_response,
+                        company_news=company_news,
+                        glassdoor_data=glassdoor_data,
+                        analyst_snapshot_input=match_response.get("analystSnapshotInput"),
+                        analyst_snapshot_output=match_response.get("analystSnapshotOutput"),
+                        evaluator_snapshot_input=match_response.get("evaluatorSnapshotInput"),
+                        evaluator_snapshot_output=match_response.get("evaluatorSnapshotOutput"),
+                    )
+                    await db.discovered_jobs.insert_one(disc_job.model_dump())
+                    run.jobs_scored += 1
+
+                    if (
+                        score is not None
+                        and score >= criteria.min_score_to_save
+                        and bool(should_apply)
+                    ):
+                        analysis_json = json.dumps(match_response, ensure_ascii=False)
+                        saved = await tracker_client.save_to_tracker(
+                            settings=settings,
+                            title=title,
+                            company=company,
+                            description=job_data.get("description"),
+                            score=score,
+                            verdict=verdict,
+                            analysis_json=analysis_json,
+                            analyst_snapshot_input=disc_job.analyst_snapshot_input,
+                            analyst_snapshot_output=disc_job.analyst_snapshot_output,
+                            evaluator_snapshot_input=disc_job.evaluator_snapshot_input,
+                            evaluator_snapshot_output=disc_job.evaluator_snapshot_output,
+                            company_news=company_news,
+                            glassdoor_data=glassdoor_data,
                         )
-                        run.jobs_saved += 1
+                        if saved:
+                            disc_job.saved_to_tracker = True
+                            await db.discovered_jobs.update_one(
+                                {"id": disc_job.id},
+                                {"$set": {"saved_to_tracker": True}},
+                            )
+                            run.jobs_saved += 1
 
-                await db.discovery_runs.update_one(
-                    {"id": run.id},
-                    {"$set": {
-                        "jobs_scored": run.jobs_scored,
-                        "jobs_saved": run.jobs_saved,
-                        "jobs_skipped_duplicate": run.jobs_skipped_duplicate,
-                    }},
-                )
+                    await db.discovery_runs.update_one(
+                        {"id": run.id},
+                        {"$set": {
+                            "jobs_scored": run.jobs_scored,
+                            "jobs_saved": run.jobs_saved,
+                            "jobs_skipped_duplicate": run.jobs_skipped_duplicate,
+                        }},
+                    )
 
-                if i < len(jobs) - 1 and verdict != "INSUFFICIENT_DATA":
-                    await asyncio.sleep(settings.scoring_delay_seconds)
+                except Exception as e:
+                    logger.error("Error processing job %d '%s': %s", i, job_data.get("title"), e)
 
-            except Exception as e:
-                logger.error("Error processing job %d '%s': %s", i, job_data.get("title"), e)
+        await asyncio.gather(*[_score_one(i, jd) for i, jd in enumerate(jobs)])
 
         run.status = "completed"
         run.completed_at = datetime.now(timezone.utc)

@@ -136,7 +136,7 @@ const TITLE_SUGGESTIONS = [
 
 const LOCATION_SUGGESTIONS = [
   'Central Israel', 'Tel Aviv', 'Ramat Gan', 'Herzliya', 'Petah Tikva',
-  'North Israel', 'Haifa', 'South Israel', 'Beer Sheva',
+  'Hasharon', 'North Israel', 'Haifa', 'South Israel', 'Beer Sheva',
   'Jerusalem', 'Remote', 'New York', 'San Francisco', 'London',
 ];
 

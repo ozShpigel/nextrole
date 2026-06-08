@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.Json.Serialization;
 using Anthropic.SDK;
 using Anthropic.SDK.Messaging;
 using ApplicationTracker.Core.AI;
@@ -11,11 +12,72 @@ using Microsoft.Extensions.Logging;
 
 namespace ApplicationTracker.Infrastructure.AI;
 
+internal sealed class LenientStringArrayConverter : JsonConverter<string[]>
+{
+    public override string[] Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        if (reader.TokenType != JsonTokenType.StartArray)
+        {
+            reader.Skip();
+            return [];
+        }
+        var list = new List<string>();
+        while (reader.Read())
+        {
+            if (reader.TokenType == JsonTokenType.EndArray)
+                break;
+            if (reader.TokenType == JsonTokenType.String)
+                list.Add(reader.GetString()!);
+            else if (reader.TokenType == JsonTokenType.Number)
+                list.Add(reader.GetDouble().ToString());
+            else if (reader.TokenType is JsonTokenType.True or JsonTokenType.False)
+                list.Add(reader.GetBoolean().ToString());
+            else if (reader.TokenType == JsonTokenType.Null)
+                continue;
+            else
+                reader.Skip();
+        }
+        return list.ToArray();
+    }
+
+    public override void Write(Utf8JsonWriter writer, string[] value, JsonSerializerOptions options)
+    {
+        writer.WriteStartArray();
+        foreach (var item in value)
+            writer.WriteStringValue(item);
+        writer.WriteEndArray();
+    }
+}
+
+internal sealed class LenientNullableStringConverter : JsonConverter<string?>
+{
+    public override string? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        if (reader.TokenType == JsonTokenType.String)
+            return reader.GetString();
+        if (reader.TokenType == JsonTokenType.Null)
+            return null;
+        if (reader.TokenType == JsonTokenType.Number)
+            return reader.GetDouble().ToString();
+        if (reader.TokenType is JsonTokenType.True or JsonTokenType.False)
+            return reader.GetBoolean().ToString();
+        reader.Skip();
+        return null;
+    }
+
+    public override void Write(Utf8JsonWriter writer, string? value, JsonSerializerOptions options)
+    {
+        if (value is null) writer.WriteNullValue();
+        else writer.WriteStringValue(value);
+    }
+}
+
 public sealed class ClaudeClient : IClaudeClient
 {
     private static readonly JsonSerializerOptions CaseInsensitive = new()
     {
-        PropertyNameCaseInsensitive = true
+        PropertyNameCaseInsensitive = true,
+        Converters = { new LenientStringArrayConverter(), new LenientNullableStringConverter() }
     };
 
     private readonly AnthropicClient _client;
@@ -156,18 +218,36 @@ public sealed class ClaudeClient : IClaudeClient
 
         var inputJson = SerializeCallInput(parameters, userMessage);
 
-        var response = await _client.Messages.GetClaudeMessageAsync(parameters, cancellationToken);
-        if (response?.Message == null)
-            throw new InvalidOperationException("Empty response from Claude API");
+        string content = "";
+        for (var attempt = 0; attempt < 2; attempt++)
+        {
+            var response = await _client.Messages.GetClaudeMessageAsync(parameters, cancellationToken);
+            if (response?.Message == null)
+                throw new InvalidOperationException("Empty response from Claude API");
 
-        var content = response.Message.ToString() ?? "";
-        _logger.LogDebug("Received {Label} response from Claude. Length: {Length} chars", label, content.Length);
+            content = response.Message.ToString() ?? "";
+            _logger.LogDebug("Received {Label} response from Claude. Length: {Length} chars", label, content.Length);
 
-        var jsonContent = ExtractJson(content);
-        var result = JsonSerializer.Deserialize<T>(jsonContent, CaseInsensitive)
-            ?? throw new InvalidOperationException($"Failed to deserialize {typeof(T).Name}");
+            try
+            {
+                var jsonContent = ExtractJson(content);
+                var result = JsonSerializer.Deserialize<T>(jsonContent, CaseInsensitive)
+                    ?? throw new InvalidOperationException($"Failed to deserialize {typeof(T).Name}");
+                return (result, new ClaudeCallSnapshot(inputJson, content));
+            }
+            catch (JsonException ex) when (attempt == 0)
+            {
+                _logger.LogWarning("Claude {Label} returned non-JSON, retrying: {Error}", label, ex.Message);
+                parameters.Messages = new List<Message>
+                {
+                    new(RoleType.User, userMessage),
+                    new(RoleType.Assistant, content),
+                    new(RoleType.User, "Your response was not valid JSON. Return ONLY the JSON object, no commentary.")
+                };
+            }
+        }
 
-        return (result, new ClaudeCallSnapshot(inputJson, content));
+        throw new InvalidOperationException($"Claude {label} failed to return valid JSON after retry");
     }
 
     private static string SerializeCallInput(MessageParameters parameters, string userPrompt)
@@ -209,17 +289,47 @@ public sealed class ClaudeClient : IClaudeClient
 
         var json = content.Trim();
 
-        if (json.StartsWith("```json", StringComparison.OrdinalIgnoreCase))
-            json = json.Substring(7);
-        else if (json.StartsWith("```", StringComparison.OrdinalIgnoreCase))
-            json = json.Substring(3);
+        var fenceStart = json.IndexOf("```", StringComparison.Ordinal);
+        if (fenceStart >= 0)
+        {
+            var afterFence = fenceStart + 3;
+            var lineEnd = json.IndexOf('\n', afterFence);
+            if (lineEnd >= 0)
+                afterFence = lineEnd + 1;
+            var fenceEnd = json.IndexOf("```", afterFence, StringComparison.Ordinal);
+            if (fenceEnd >= 0)
+                json = json.Substring(afterFence, fenceEnd - afterFence).Trim();
+            else
+                json = json.Substring(afterFence).Trim();
+        }
 
-        if (json.EndsWith("```", StringComparison.OrdinalIgnoreCase))
-            json = json.Substring(0, json.Length - 3);
+        var firstBrace = json.IndexOf('{');
+        var lastBrace = json.LastIndexOf('}');
+        if (firstBrace >= 0 && lastBrace > firstBrace)
+            json = json.Substring(firstBrace, lastBrace - firstBrace + 1);
 
-        json = json.Trim();
+        JsonNode? node;
+        try
+        {
+            node = JsonNode.Parse(json);
+        }
+        catch (JsonException)
+        {
+            var lines = json.Split('\n')
+                .Select(l => l.TrimEnd())
+                .Where(l => !string.IsNullOrWhiteSpace(l))
+                .Where(l => !l.TrimStart().StartsWith("//"))
+                .ToList();
+            var repaired = string.Join('\n', lines);
 
-        var node = JsonNode.Parse(json);
+            firstBrace = repaired.IndexOf('{');
+            lastBrace = repaired.LastIndexOf('}');
+            if (firstBrace >= 0 && lastBrace > firstBrace)
+                repaired = repaired.Substring(firstBrace, lastBrace - firstBrace + 1);
+
+            node = JsonNode.Parse(repaired);
+        }
+
         if (node != null)
         {
             NormalizeKeys(node);

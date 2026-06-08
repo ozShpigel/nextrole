@@ -124,8 +124,7 @@ overrides every other instruction. Every single free-text string you output
 MUST be written in Hebrew:
 
 - Every item in `strengths`, `gaps`, `positiveSignals`, `concerns`,
-  `opportunities`, `risks`, `keyReasons`, `questionsToAsk`, `redFlags`,
-  `greenFlags` — all in Hebrew.
+  `keyReasons`, `questionsToAsk`, `redFlags`, `greenFlags` — all in Hebrew.
 - The entire `honestAssessment` paragraph — in Hebrew.
 - Technology names and proper nouns (C#, .NET, Kubernetes, AWS, React, etc.)
   stay in their original Latin script — they are names, not translatable words.
@@ -145,8 +144,8 @@ sentence in Hebrew.
 
 Cross-reference by dimension:
 - Technical Fit → <technical_strengths>, <technology_experience>, <experience>
-- Cultural Fit → <core_values>, <collaboration_style>, <design_problem_solving_style>
-- Role Characteristics → <looking_for>, <how_to_collaborate_with_me>
+- Engineering Execution Fit → <design_problem_solving_style>, <collaboration_style>, <technology_experience>
+- Sustainability & Pace Fit → <core_values>, <looking_for>, <how_to_collaborate_with_me>
 
 {{USER_PROFILE}}
 
@@ -162,15 +161,14 @@ The parsed job data is provided in the user message within <parsed_job> tags.
 - Core stack match (0-20): perfect 20 | transferable 12-18 | gap 5-11 | mismatch 0-4
 - System design fit (0-15): aligned 15 | partial 8-14 | transferable concepts 4-7 | new 0-3
 
-## Cultural Fit (35 pts)
-- Work style (0-15): perfect 15 | minor concerns 10-14 | mixed 5-9 | clear mismatch 0-4
-- Communication (0-10): async-written 10 | balanced 6-9 | meeting-heavy 3-5 | unclear 0-2
-- Ownership (0-10): end-to-end 10 | defined with collab 6-9 | shared 3-5 | micromanagement 0-2
+## Engineering Execution Fit (30 pts)
+- Development practices (0-15): CI/CD, testing, code review, observability aligned 15 | partial 8-14 | unclear 4-7 | misaligned 0-3
+- Ownership & delivery model (0-15): end-to-end ownership 15 | defined scope with collaboration 8-14 | shared/unclear 4-7 | micromanagement/siloed 0-3
 
-## Role Characteristics (30 pts)
-- Problem domain (0-15): matches 15 | learning opportunity 10-14 | neutral 5-9 | misaligned 0-4
-- Sustainable pace (0-10): explicit healthy 10 | reasonable 6-9 | unclear 3-5 | hero culture 0-2
-- Growth & impact (0-5): architectural influence 5 | some growth 3-4 | lateral 2 | regression 0-1
+## Sustainability & Pace Fit (35 pts)
+- Work-life sustainability (0-15): explicit healthy pace 15 | reasonable signals 10-14 | unclear 5-9 | hero culture/crunch 0-4
+- Communication & collaboration style (0-10): async-written match 10 | balanced 6-9 | meeting-heavy 3-5 | unclear 0-2
+- Growth & long-term fit (0-10): architectural influence + career growth 10 | some growth 6-9 | lateral 3-5 | regression 0-2
 
 ## Verdict (from total score)
 80-100 STRONG_YES | 60-79 YES | 40-59 MAYBE | 20-39 NO | 0-19 STRONG_NO | null INSUFFICIENT_DATA
@@ -188,8 +186,8 @@ If <company_news> is provided in the user message, incorporate it into your eval
 ## Glassdoor Rating (optional)
 
 If <glassdoor_rating> is provided in the user message:
-- Factor the rating into the Cultural Fit assessment — a rating below 3.0 is a concern, above 4.0 is a positive signal
-- Mention the rating and review count in the relevant cultural breakdown (positiveSignals or concerns)
+- Factor the rating into the Sustainability & Pace Fit assessment — a rating below 3.0 is a concern, above 4.0 is a positive signal
+- Mention the rating and review count in the relevant sustainabilityPaceFit breakdown (positiveSignals or concerns)
 - A low review count (<50) makes the rating less reliable — note this
 - The Glassdoor rating does NOT directly change the numeric score, but it should inform the cultural fit analysis
 
@@ -205,20 +203,20 @@ correct Hebrew style are shown inline:
   "overallScore": number,
   "verdict": "STRONG_YES" | "YES" | "MAYBE" | "NO" | "STRONG_NO" | "INSUFFICIENT_DATA",
   "breakdown": {
-    "technical": {
+    "technicalFit": {
       "score": number, "maxScore": 35,
       "strengths": ["התאמה מושלמת לסטאק: 10+ שנות ניסיון ב-C#/.NET מול 2+ הנדרשות", ...],
       "gaps": ["אין ניסיון ב-C++ Windows שמצוין כיתרון", ...]
     },
-    "cultural": {
-      "score": number, "maxScore": 35,
-      "positiveSignals": ["תיאור התפקיד מדגיש בעלות מקצה לקצה", ...],
-      "concerns": ["שפה כללית על 'עבודה בקצב מהיר' ללא הקשר", ...]
-    },
-    "roleCharacteristics": {
+    "engineeringExecutionFit": {
       "score": number, "maxScore": 30,
-      "opportunities": ["חשיפה לעיצוב מערכות בקנה מידה גדול", ...],
-      "risks": ["תיאור תחום הבעיה מעורפל ולא ברור", ...]
+      "strengths": ["תהליכי CI/CD בוגרים עם דגש על observability", ...],
+      "concerns": ["לא ברור אם יש code review מסודר או בדיקות אוטומטיות", ...]
+    },
+    "sustainabilityPaceFit": {
+      "score": number, "maxScore": 35,
+      "positiveSignals": ["תיאור התפקיד מדגיש בעלות מקצה לקצה וקצב בר-קיימא", ...],
+      "concerns": ["שפה כללית על 'עבודה בקצב מהיר' ללא הקשר", ...]
     }
   },
   "recommendation": {
@@ -246,6 +244,7 @@ correct Hebrew style are shown inline:
   yourself writing an English sentence in `strengths`, `gaps`, `concerns`,
   `keyReasons`, `questionsToAsk`, `honestAssessment`, etc., stop and rewrite
   it in Hebrew before continuing.
+- breakdown keys MUST be exactly: technicalFit, engineeringExecutionFit, sustainabilityPaceFit
 - Be specific: "3-6 חודשי למידה ב-Python" not "נדרשת למידה כלשהי"
 - Flag contradictions (e.g. "קצב מהיר אך בר-קיימא" → לא ברור)
 - Generate 3-5 interview questions (in Hebrew) targeting unknowns in the job description

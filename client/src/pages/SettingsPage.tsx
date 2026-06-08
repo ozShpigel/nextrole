@@ -634,7 +634,7 @@ export default function SettingsPage() {
           <div
             className="relative origin-right border-r border-[rgba(255,255,255,0.55)]"
             style={{
-              flex: 35,
+              flex: 30,
               background: 'linear-gradient(90deg, #5cbea9 0%, #3d9b85 100%)',
               boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.2)',
               animationDelay: '0.25s',
@@ -643,7 +643,7 @@ export default function SettingsPage() {
           <div
             className="relative origin-right border-r border-[rgba(255,255,255,0.55)]"
             style={{
-              flex: 30,
+              flex: 35,
               background: 'linear-gradient(90deg, #a88ed8 0%, #8b6fc0 100%)',
               boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.2)',
               animationDelay: '0.35s',
@@ -662,16 +662,16 @@ export default function SettingsPage() {
           <ScoringDimension
             color="#3d9b85"
             ringColor="rgba(61,155,133,0.12)"
-            name="Cultural Fit"
-            details="Work Style 0–15 · Communication 0–10 · Ownership 0–10"
-            points="35"
+            name="Engineering Execution Fit"
+            details="Dev Practices 0–15 · Ownership & Delivery 0–15"
+            points="30"
           />
           <ScoringDimension
             color="#8b6fc0"
             ringColor="rgba(139,111,192,0.12)"
-            name="Role Attributes"
-            details="Problem Domain 0–15 · Pace 0–10 · Growth 0–5"
-            points="30"
+            name="Sustainability & Pace Fit"
+            details="Work-Life 0–15 · Communication 0–10 · Growth 0–10"
+            points="35"
           />
         </div>
 

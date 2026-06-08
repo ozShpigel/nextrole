@@ -58,9 +58,9 @@ interface DimensionDef {
 }
 
 const DIMS: DimensionDef[] = [
-  { key: 'technical', label: 'Technical', posLabel: 'Strengths', negLabel: 'Gaps', posKey: 'strengths', negKey: 'gaps' },
-  { key: 'cultural', label: 'Cultural', posLabel: 'Positive Signals', negLabel: 'Concerns', posKey: 'positiveSignals', negKey: 'concerns' },
-  { key: 'roleCharacteristics', label: 'Role Fit', posLabel: 'Opportunities', negLabel: 'Risks', posKey: 'opportunities', negKey: 'risks' },
+  { key: 'technicalFit', label: 'Technical', posLabel: 'Strengths', negLabel: 'Gaps', posKey: 'strengths', negKey: 'gaps' },
+  { key: 'engineeringExecutionFit', label: 'Execution', posLabel: 'Strengths', negLabel: 'Concerns', posKey: 'strengths', negKey: 'concerns' },
+  { key: 'sustainabilityPaceFit', label: 'Sustainability', posLabel: 'Positive Signals', negLabel: 'Concerns', posKey: 'positiveSignals', negKey: 'concerns' },
 ];
 
 interface DimensionData {

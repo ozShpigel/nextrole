@@ -21,6 +21,14 @@ interface NewsItem {
   source?: string;
 }
 
+interface MatchAnalysis {
+  honestAssessment?: string;
+  recommendation?: {
+    greenFlags?: string[];
+    redFlags?: string[];
+  };
+}
+
 interface DiscoveredJob {
   id: string;
   title: string;
@@ -29,9 +37,7 @@ interface DiscoveredJob {
   description?: string;
   score: number | null;
   verdict: string | null;
-  key_strengths?: string[];
-  key_concerns?: string[];
-  honest_assessment?: string;
+  match_analysis?: MatchAnalysis;
   company_news?: NewsItem[];
   glassdoor_data?: GlassdoorData;
   job_url?: string;
@@ -396,14 +402,14 @@ export default function RunDetail() {
                 </div>
               </div>
 
-              {j.key_strengths && j.key_strengths.length > 0 && (
+              {j.match_analysis?.recommendation?.greenFlags && j.match_analysis.recommendation.greenFlags.length > 0 && (
                 <div className="flex flex-wrap gap-[0.4rem] mb-2">
-                  {j.key_strengths.map((s, i) => <Badge key={i} variant="outline" className="bg-emerald-50 text-emerald-600 border-emerald-600/18 text-[0.75rem]">{s}</Badge>)}
+                  {j.match_analysis.recommendation.greenFlags.map((s, i) => <Badge key={i} variant="outline" className="bg-emerald-50 text-emerald-600 border-emerald-600/18 text-[0.75rem]">{s}</Badge>)}
                 </div>
               )}
-              {j.key_concerns && j.key_concerns.length > 0 && (
+              {j.match_analysis?.recommendation?.redFlags && j.match_analysis.recommendation.redFlags.length > 0 && (
                 <div className="flex flex-wrap gap-[0.4rem] mb-2">
-                  {j.key_concerns.map((c, i) => <Badge key={i} variant="outline" className="bg-red-50 text-red-500 border-red-500/18 text-[0.75rem]">{c}</Badge>)}
+                  {j.match_analysis.recommendation.redFlags.map((c, i) => <Badge key={i} variant="outline" className="bg-red-50 text-red-500 border-red-500/18 text-[0.75rem]">{c}</Badge>)}
                 </div>
               )}
 
@@ -422,8 +428,8 @@ export default function RunDetail() {
                 </details>
               )}
 
-              {j.honest_assessment && (
-                <div dir="rtl" className="text-[0.85rem] text-muted-foreground leading-[1.7] my-3 p-[0.9rem_1.1rem] bg-muted/50 border border-dashed border-border rounded text-right">{j.honest_assessment}</div>
+              {j.match_analysis?.honestAssessment && (
+                <div dir="rtl" className="text-[0.85rem] text-muted-foreground leading-[1.7] my-3 p-[0.9rem_1.1rem] bg-muted/50 border border-dashed border-border rounded text-right">{j.match_analysis.honestAssessment}</div>
               )}
 
               <div className="flex gap-2 items-center mt-3">

@@ -17,6 +17,14 @@ from app.utils.match_utils import extract_flat
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
+def _tag_utc(doc: dict) -> dict:
+    """Ensure datetime fields carry UTC tzinfo so JSON serializes with +00:00."""
+    for key, val in doc.items():
+        if isinstance(val, datetime) and val.tzinfo is None:
+            doc[key] = val.replace(tzinfo=timezone.utc)
+    return doc
+
 settings = Settings()
 db_client: AsyncIOMotorClient | None = None
 db = None
@@ -132,8 +140,11 @@ async def trigger_run(criteria_id: str, background_tasks: BackgroundTasks):
     doc = await db.search_criteria.find_one({"id": criteria_id})
     if not doc:
         raise HTTPException(404, "Criteria not found")
-    background_tasks.add_task(orchestrator.run_discovery, db, settings, criteria_id)
-    return {"status": "started", "criteria_id": criteria_id}
+    from app.models.discovery_run import DiscoveryRun
+    run = DiscoveryRun(criteria_id=criteria_id, criteria_name=doc.get("name", ""))
+    await db.discovery_runs.insert_one(run.model_dump())
+    background_tasks.add_task(orchestrator.run_discovery, db, settings, criteria_id, run.id)
+    return {"status": "started", "criteria_id": criteria_id, "run_id": run.id}
 
 
 @app.get("/api/discovery/runs")
@@ -141,6 +152,7 @@ async def list_runs():
     docs = await db.discovery_runs.find().sort("started_at", -1).to_list(20)
     for d in docs:
         d.pop("_id", None)
+        _tag_utc(d)
     return docs
 
 
@@ -150,6 +162,7 @@ async def get_run(run_id: str):
     if not doc:
         raise HTTPException(404, "Run not found")
     doc.pop("_id", None)
+    _tag_utc(doc)
     return doc
 
 

@@ -37,9 +37,7 @@ function makeJob(overrides = {}) {
     description: 'A '.repeat(30) + 'long job description for testing purposes.',
     score: 75,
     verdict: 'YES',
-    key_strengths: [],
-    key_concerns: [],
-    honest_assessment: null,
+    match_analysis: null,
     company_news: null,
     glassdoor_data: null,
     job_url: 'https://example.com/job/1',
@@ -224,7 +222,7 @@ describe('RunDetailPage - Company News', () => {
 describe('RunDetailPage - Honest Assessment', () => {
   it('displays with RTL direction', async () => {
     renderWithJobs([makeJob({
-      honest_assessment: 'Strong match with growth opportunities.',
+      match_analysis: { honestAssessment: 'Strong match with growth opportunities.' },
     })]);
     await waitFor(() => {
       expect(screen.getByText('Strong match with growth opportunities.')).toBeInTheDocument();
@@ -233,7 +231,7 @@ describe('RunDetailPage - Honest Assessment', () => {
   });
 
   it('does not show assessment block when null', async () => {
-    renderWithJobs([makeJob({ title: 'No Assessment Job', honest_assessment: null })]);
+    renderWithJobs([makeJob({ title: 'No Assessment Job', match_analysis: null })]);
     await waitFor(() => {
       expect(screen.getByText('No Assessment Job')).toBeInTheDocument();
     });
@@ -244,7 +242,7 @@ describe('RunDetailPage - Honest Assessment', () => {
 describe('RunDetailPage - Key Strengths and Concerns', () => {
   it('renders strength badges', async () => {
     renderWithJobs([makeJob({
-      key_strengths: ['Excellent tech stack', 'Remote friendly', 'Competitive salary'],
+      match_analysis: { recommendation: { greenFlags: ['Excellent tech stack', 'Remote friendly', 'Competitive salary'] } },
     })]);
     await waitFor(() => {
       expect(screen.getByText('Excellent tech stack')).toBeInTheDocument();
@@ -255,7 +253,7 @@ describe('RunDetailPage - Key Strengths and Concerns', () => {
 
   it('renders concern badges', async () => {
     renderWithJobs([makeJob({
-      key_concerns: ['No remote option', 'Legacy tech stack'],
+      match_analysis: { recommendation: { redFlags: ['No remote option', 'Legacy tech stack'] } },
     })]);
     await waitFor(() => {
       expect(screen.getByText('No remote option')).toBeInTheDocument();
@@ -265,8 +263,7 @@ describe('RunDetailPage - Key Strengths and Concerns', () => {
 
   it('renders both strengths and concerns', async () => {
     renderWithJobs([makeJob({
-      key_strengths: ['Good benefits'],
-      key_concerns: ['Long commute'],
+      match_analysis: { recommendation: { greenFlags: ['Good benefits'], redFlags: ['Long commute'] } },
     })]);
     await waitFor(() => {
       expect(screen.getByText('Good benefits')).toBeInTheDocument();
@@ -274,8 +271,8 @@ describe('RunDetailPage - Key Strengths and Concerns', () => {
     expect(screen.getByText('Long commute')).toBeInTheDocument();
   });
 
-  it('renders neither when both are null', async () => {
-    renderWithJobs([makeJob({ title: 'Plain Job', key_strengths: null, key_concerns: null })]);
+  it('renders neither when match_analysis is null', async () => {
+    renderWithJobs([makeJob({ title: 'Plain Job', match_analysis: null })]);
     await waitFor(() => {
       expect(screen.getByText('Plain Job')).toBeInTheDocument();
     });

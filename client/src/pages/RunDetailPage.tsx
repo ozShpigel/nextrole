@@ -453,7 +453,7 @@ export default function RunDetail() {
                     Claude Calls
                   </Button>
                 )}
-                {!j.saved_to_tracker && j.score != null && (
+                {!j.saved_to_tracker && j.verdict && j.verdict !== 'MATCH_FAILED' && j.verdict !== 'INSUFFICIENT_DATA' && (
                   <Button size="sm" onClick={() => saveJob(j.id)}>Save to Tracker</Button>
                 )}
                 {j.saved_to_tracker && <span className="text-[0.72rem] text-emerald-600 font-medium py-1 px-[0.7rem] bg-emerald-50 border border-emerald-600/18 rounded-full tracking-[0.06em]">Saved</span>}

@@ -1,6 +1,6 @@
 FROM mcr.microsoft.com/dotnet/sdk:10.0-alpine AS build
 WORKDIR /src
-COPY Mailbot/ Mailbot/
+COPY server/mailbot/ Mailbot/
 RUN dotnet publish Mailbot/Mailbot.csproj -c Release -o /app
 
 FROM mcr.microsoft.com/dotnet/runtime:10.0-alpine

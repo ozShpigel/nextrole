@@ -1,6 +1,6 @@
 FROM mcr.microsoft.com/dotnet/sdk:10.0-alpine AS build
 WORKDIR /src
-COPY API/ API/
+COPY server/api/ API/
 RUN dotnet publish API/src/Api/ApplicationTracker.Api.csproj -c Release -o /app
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0-alpine

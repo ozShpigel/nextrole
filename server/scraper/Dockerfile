@@ -2,10 +2,10 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-COPY Scraper/requirements.txt .
+COPY server/scraper/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY Scraper/app/ ./app/
+COPY server/scraper/app/ ./app/
 
 EXPOSE 8080
 

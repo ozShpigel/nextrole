@@ -51,6 +51,7 @@ interface Application {
   matchVerdict: string | null;
   matchAnalysis: string | null;
   jobDescription: string | null;
+  jobUrl: string | null;
   updatedAt: string;
   salary: string | null;
   companySummary: string | null;
@@ -162,6 +163,11 @@ export default function ApplicationDetail() {
           <SalaryField appId={app.id} initialValue={app.salary} />
 
           <div className="flex gap-2 flex-wrap mt-4">
+            {app.jobUrl && (
+              <Button variant="outline" asChild>
+                <a href={app.jobUrl} target="_blank" rel="noopener noreferrer">View Job</a>
+              </Button>
+            )}
             <Button onClick={() => setModal({ type: 'status' })}>Update Status</Button>
             <Button variant="outline" onClick={() => setModal({ type: 'interview' })}>Add Interview</Button>
             <Button variant="outline" onClick={() => setModal({ type: 'note' })}>Add Note</Button>
@@ -365,8 +371,10 @@ interface NewsItem {
 }
 
 function CompanyEnrichment({ companyNewsJson, glassdoorDataJson }: { companyNewsJson: string | null; glassdoorDataJson: string | null }) {
-  const news: NewsItem[] | null = companyNewsJson ? JSON.parse(companyNewsJson) : null;
-  const glassdoor: GlassdoorData | null = glassdoorDataJson ? JSON.parse(glassdoorDataJson) : null;
+  let news: NewsItem[] | null = null;
+  let glassdoor: GlassdoorData | null = null;
+  try { if (companyNewsJson) news = JSON.parse(companyNewsJson); } catch { /* malformed */ }
+  try { if (glassdoorDataJson) glassdoor = JSON.parse(glassdoorDataJson); } catch { /* malformed */ }
 
   if (!news?.length && !glassdoor) return null;
 

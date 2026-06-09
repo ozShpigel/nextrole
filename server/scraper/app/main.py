@@ -275,6 +275,7 @@ async def save_job(job_id: str):
         score=doc.get("score"),
         verdict=doc.get("verdict"),
         analysis_json=analysis_json,
+        job_url=doc.get("job_url"),
         analyst_snapshot_input=doc.get("analyst_snapshot_input"),
         analyst_snapshot_output=doc.get("analyst_snapshot_output"),
         evaluator_snapshot_input=doc.get("evaluator_snapshot_input"),

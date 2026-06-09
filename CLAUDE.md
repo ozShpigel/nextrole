@@ -14,20 +14,20 @@ through interviews to final status — in one place. See `project-scope.md` and 
 |---|---|
 | Backend | ASP.NET Core (C#) · Python FastAPI |
 | Frontend | React + Vite + shadcn/ui + Tailwind CSS v4 |
-| Database | MongoDB |
+| Database | MongoDB Atlas |
 
 ## Project Structure
 
 ```
 /client          - React + Vite
-/server/api      - ASP.NET Core (C#)
+/server/api      - ASP.NET Core
 /server/scraper  - Python FastAPI
 /server/mailbot  - .NET Console App (C#)
 ```
 
 ## Key Conventions
 
-- Use TypeScript throughout
+- Use TypeScript throughout the frontend
 - Use Bun as the runtime and package manager (not npm/yarn)
 - Use shadcn/ui components for all UI (import from @/components/ui/*)
 - Use shadcn's semantic color tokens (e.g. bg-background, text-muted-foreground, text-destructive) instead of hardcoded Tailwind colors
@@ -40,6 +40,19 @@ through interviews to final status — in one place. See `project-scope.md` and 
 - AI prompts use system/user separation: trusted instructions in the API system prompt field, untrusted external data (job descriptions, emails) in the user message wrapped in XML tags
 - `scoring_config` keys are validated against an allowlist before persisting to MongoDB
 
+## Scoring Pipeline
+
+Each job scoring = 2 Claude API calls: Analyst (Haiku) + Evaluator (Sonnet with extended thinking).
+
+- **Scoring config** is stored in MongoDB `profile` collection (doc id: "default"), loaded with 30s cache — no API restart needed for config changes
+- **Custom evaluator prompt** stored in DB overrides the system prompt in `PromptSeeds.cs`
+- **Scoring dimensions**: Technical Fit (35pts), Engineering Execution Fit (30pts), Sustainability & Pace Fit (35pts)
+- **Verdicts**: STRONG_YES, YES, MAYBE, NO, STRONG_NO, INSUFFICIENT_DATA
+- **Auto-save to tracker**: jobs with YES/STRONG_YES verdict, OR score >= `min_score_to_save` with `shouldApply=true`
+- **Parallel scoring**: 5 concurrent jobs via `asyncio.Semaphore`
+- **JSON resilience**: `ClaudeClient.cs` has lenient deserializers, fence/brace extraction, comment stripping, and auto-retry with "return ONLY JSON" nudge
+
+
 ## Company Enrichment
 
 The Scraper enriches each discovered job with external data before scoring:
@@ -49,7 +62,6 @@ The Scraper enriches each discovered job with external data before scoring:
 - **Company Summary** — on-demand AI-generated Hebrew summary (3-4 lines) of what the company does, including approximate employee count. Generated via `POST /api/applications/{id}/company-summary` using Claude's knowledge base (no external data). Persisted on the `Application` document.
 
 Both news and Glassdoor are prefetched in parallel after scraping, cached per company within a discovery run, and stored on the `DiscoveredJob` document. If either fetch fails, scoring proceeds normally without it.
-
 ## Testing
 
 E2E tests use Playwright. Use the `e2e-test-writer` agent to write tests — it has the full setup details, database config, and conventions.

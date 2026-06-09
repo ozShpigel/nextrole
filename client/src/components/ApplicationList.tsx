@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { useApplications } from '../lib/queries';
 import { useDeleteApplication } from '../lib/mutations';
-import { formatDate, scoreColor } from '../lib/format';
+import { formatDate, verdictColor, verdictLabel } from '../lib/format';
 import { StatusBadge } from './Status';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -12,6 +12,7 @@ interface Application {
   company: string;
   status: string;
   matchScore: number | null;
+  matchVerdict: string | null;
   createdAt: string;
   updatedAt?: string;
 }
@@ -36,7 +37,7 @@ export default function ApplicationList() {
         <span>Company</span>
         <span>Status</span>
         <span>Days</span>
-        <span>Score</span>
+        <span>Verdict</span>
         <span>Date</span>
         <span></span>
       </div>
@@ -49,7 +50,7 @@ export default function ApplicationList() {
             <div className="text-muted-foreground text-[0.84rem]">{a.company}</div>
             <div><StatusBadge status={a.status} /></div>
             <div className="text-[0.78rem] font-medium" style={{ color: daysColor }}>{days !== null ? `${days}d` : '-'}</div>
-            <div className="font-semibold text-[0.88rem]" style={{ color: scoreColor(a.matchScore) }}>{a.matchScore ?? '-'}</div>
+            <div className="font-semibold text-[0.82rem]" style={{ color: verdictColor(a.matchVerdict) }}>{verdictLabel(a.matchVerdict)}{a.matchScore != null ? <span className="text-muted-foreground font-normal text-[0.72rem] ml-1">({a.matchScore})</span> : ''}</div>
             <div className="text-muted-foreground text-[0.78rem]">{formatDate(a.createdAt)}</div>
             <div style={{ justifySelf: 'end' }}>
               <Button

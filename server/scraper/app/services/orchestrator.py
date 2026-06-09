@@ -131,11 +131,13 @@ async def run_discovery(db: AsyncIOMotorDatabase, settings: Settings, criteria_i
                     await db.discovered_jobs.insert_one(disc_job.model_dump())
                     run.jobs_scored += 1
 
-                    if (
+                    qualifies_by_score = (
                         score is not None
                         and score >= criteria.min_score_to_save
                         and bool(should_apply)
-                    ):
+                    )
+                    qualifies_by_verdict = verdict in ("STRONG_YES", "YES")
+                    if qualifies_by_score or qualifies_by_verdict:
                         analysis_json = json.dumps(match_response, ensure_ascii=False)
                         saved = await tracker_client.save_to_tracker(
                             settings=settings,
@@ -145,6 +147,7 @@ async def run_discovery(db: AsyncIOMotorDatabase, settings: Settings, criteria_i
                             score=score,
                             verdict=verdict,
                             analysis_json=analysis_json,
+                            job_url=job_data.get("job_url"),
                             analyst_snapshot_input=disc_job.analyst_snapshot_input,
                             analyst_snapshot_output=disc_job.analyst_snapshot_output,
                             evaluator_snapshot_input=disc_job.evaluator_snapshot_input,

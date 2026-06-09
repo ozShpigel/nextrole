@@ -20,6 +20,29 @@ export function scoreColor(score: number | null | undefined, max?: number | null
   return '#ef4444';
 }
 
+export function verdictColor(verdict: string | null | undefined): string {
+  switch (verdict) {
+    case 'STRONG_YES': return '#059669';
+    case 'YES': return '#10b981';
+    case 'MAYBE': return '#d97706';
+    case 'NO': return '#ef4444';
+    case 'STRONG_NO': return '#dc2626';
+    default: return 'var(--muted-foreground)';
+  }
+}
+
+export function verdictLabel(verdict: string | null | undefined): string {
+  switch (verdict) {
+    case 'STRONG_YES': return 'Strong Yes';
+    case 'YES': return 'Yes';
+    case 'MAYBE': return 'Maybe';
+    case 'NO': return 'No';
+    case 'STRONG_NO': return 'Strong No';
+    case 'INSUFFICIENT_DATA': return 'N/A';
+    default: return '-';
+  }
+}
+
 export function barColor(score: number | null | undefined, max: number | null | undefined): string {
   if (score == null || max == null || max === 0) return 'red';
   const pct = score / max;

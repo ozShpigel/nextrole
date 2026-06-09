@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import ConfirmDialog from '../components/ConfirmDialog';
 import { useQueryClient } from '@tanstack/react-query';
 import { useApplicationDetail, useProfile } from '../lib/queries';
 import { useDeleteApplication, useUpdateSalary, useGenerateCompanySummary } from '../lib/mutations';
@@ -87,6 +88,7 @@ export default function ApplicationDetail() {
   const { id } = useParams<{ id: string }>();
   const queryClient = useQueryClient();
   const [modal, setModal] = useState<ModalState>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const detailQuery = useApplicationDetail(id!);
   const profileQuery = useProfile();
@@ -110,7 +112,11 @@ export default function ApplicationDetail() {
   }
 
   function deleteApp(): void {
-    if (!confirm('Delete this application? All interviews and notes will also be deleted.')) return;
+    setShowDeleteConfirm(true);
+  }
+
+  function confirmDeleteApp(): void {
+    setShowDeleteConfirm(false);
     deleteApplicationMutation.mutate(id!, {
       onSuccess: () => window.history.back(),
       onError: (e) => alert('Delete failed: ' + (e as Error).message),
@@ -244,6 +250,13 @@ export default function ApplicationDetail() {
         {modal?.type === 'note' && (
           <NoteModal appId={app.id} onClose={() => setModal(null)} onSaved={closeAndReload} />
         )}
+
+        <ConfirmDialog
+          open={showDeleteConfirm}
+          description="Delete this application? All interviews and notes will also be deleted."
+          onConfirm={confirmDeleteApp}
+          onCancel={() => setShowDeleteConfirm(false)}
+        />
       </div>
     </div>
   );

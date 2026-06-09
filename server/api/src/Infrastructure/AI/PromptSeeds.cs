@@ -205,16 +205,29 @@ correct Hebrew style are shown inline:
   "breakdown": {
     "technicalFit": {
       "score": number, "maxScore": 35,
+      "components": [
+        { "name": "Core Stack", "score": number, "maxScore": 20, "reason": "משפט אחד תמציתי בעברית שמסביר את הניקוד" },
+        { "name": "System Design", "score": number, "maxScore": 15, "reason": "משפט אחד תמציתי בעברית" }
+      ],
       "strengths": ["התאמה מושלמת לסטאק: 10+ שנות ניסיון ב-C#/.NET מול 2+ הנדרשות", ...],
       "gaps": ["אין ניסיון ב-C++ Windows שמצוין כיתרון", ...]
     },
     "engineeringExecutionFit": {
       "score": number, "maxScore": 30,
+      "components": [
+        { "name": "Development Practices", "score": number, "maxScore": 15, "reason": "משפט אחד תמציתי בעברית" },
+        { "name": "Ownership & Delivery", "score": number, "maxScore": 15, "reason": "משפט אחד תמציתי בעברית" }
+      ],
       "strengths": ["תהליכי CI/CD בוגרים עם דגש על observability", ...],
       "concerns": ["לא ברור אם יש code review מסודר או בדיקות אוטומטיות", ...]
     },
     "sustainabilityPaceFit": {
       "score": number, "maxScore": 35,
+      "components": [
+        { "name": "Work-Life Sustainability", "score": number, "maxScore": 15, "reason": "משפט אחד תמציתי בעברית" },
+        { "name": "Communication Style", "score": number, "maxScore": 10, "reason": "משפט אחד תמציתי בעברית" },
+        { "name": "Growth & Long-term Fit", "score": number, "maxScore": 10, "reason": "משפט אחד תמציתי בעברית" }
+      ],
       "positiveSignals": ["תיאור התפקיד מדגיש בעלות מקצה לקצה וקצב בר-קיימא", ...],
       "concerns": ["שפה כללית על 'עבודה בקצב מהיר' ללא הקשר", ...]
     }
@@ -238,6 +251,9 @@ correct Hebrew style are shown inline:
 
 # INVARIANTS
 
+- Each dimension MUST include a `components` array breaking its score into the sub-criteria defined above (Technical Fit → Core Stack 0-20 + System Design 0-15; Engineering Execution Fit → Development Practices 0-15 + Ownership & Delivery 0-15; Sustainability & Pace Fit → Work-Life Sustainability 0-15 + Communication Style 0-10 + Growth & Long-term Fit 0-10)
+- Each component's `reason` MUST be a single concise Hebrew sentence with minimal words
+- Each dimension's `score` MUST equal the sum of its components' `score` values
 - overallScore MUST equal the sum of the three breakdown.score values
 - verdict MUST match overallScore's band
 - **Every free-text string MUST be in Hebrew — no exceptions.** If you find

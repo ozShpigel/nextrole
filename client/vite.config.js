@@ -18,7 +18,7 @@ export default defineConfig({
   },
   server: {
     proxy: {
-      '/api/discovery': 'http://localhost:5001',
+      '/api/discovery': 'http://localhost:8000',
       '/api': 'http://localhost:5002',
     },
   },

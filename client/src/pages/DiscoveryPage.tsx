@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import ConfirmDialog from '../components/ConfirmDialog';
 import { useDiscoveryHealth, useDiscoveryCriteria, useDiscoveryRuns } from '../lib/queries';
 import { useTriggerRun, useDeleteCriteria, useAbortRun } from '../lib/mutations';
 import { CriteriaForm, CriteriaSection } from '../components/CriteriaPanel';
@@ -26,6 +27,7 @@ export default function DiscoveryPage() {
   const [showForm, setShowForm] = useState<boolean>(false);
   const [editItem, setEditItem] = useState<Criteria | null>(null);
   const [wakeElapsed, setWakeElapsed] = useState<number>(0);
+  const [confirmState, setConfirmState] = useState<{ message: string; onConfirm: () => void } | null>(null);
 
   const healthQuery = useDiscoveryHealth();
   const criteriaQuery = useDiscoveryCriteria(healthQuery.isSuccess);
@@ -57,17 +59,27 @@ export default function DiscoveryPage() {
   }
 
   function handleDeleteCriteria(id: string): void {
-    if (!confirm('Delete this search criteria?')) return;
-    deleteCriteria.mutate(id, {
-      onError: (e) => alert('Delete failed: ' + e.message),
+    setConfirmState({
+      message: 'Delete this search criteria?',
+      onConfirm: () => {
+        setConfirmState(null);
+        deleteCriteria.mutate(id, {
+          onError: (e) => alert('Delete failed: ' + e.message),
+        });
+      },
     });
   }
 
   function handleAbortRun(runId: string, e: React.MouseEvent): void {
     e.stopPropagation();
-    if (!confirm('Abort this search?')) return;
-    abortRun.mutate(runId, {
-      onError: (err) => alert('Abort failed: ' + err.message),
+    setConfirmState({
+      message: 'Abort this search?',
+      onConfirm: () => {
+        setConfirmState(null);
+        abortRun.mutate(runId, {
+          onError: (err) => alert('Abort failed: ' + err.message),
+        });
+      },
     });
   }
 
@@ -127,6 +139,14 @@ export default function DiscoveryPage() {
         onNew={() => openForm()}
       />
       <RunsTimeline runs={runs} onAbort={handleAbortRun} />
+
+      <ConfirmDialog
+        open={!!confirmState}
+        description={confirmState?.message ?? ''}
+        confirmLabel={confirmState?.message.startsWith('Abort') ? 'Abort' : 'Delete'}
+        onConfirm={() => confirmState?.onConfirm()}
+        onCancel={() => setConfirmState(null)}
+      />
     </div>
   );
 }

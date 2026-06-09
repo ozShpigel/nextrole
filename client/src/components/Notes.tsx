@@ -2,6 +2,7 @@
 import { formatDateTime } from '../lib/format';
 import { NOTE_CATEGORIES, NOTE_CATEGORY_LABELS } from '../lib/tracker';
 import { useDeleteNote, useAddNote } from '../lib/mutations';
+import ConfirmDialog from './ConfirmDialog';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
@@ -22,27 +23,43 @@ interface NoteListProps {
 
 export function NoteList({ notes, onRefresh }: NoteListProps) {
   const deleteNoteMutation = useDeleteNote();
+  const [deleteId, setDeleteId] = useState<string | null>(null);
 
   function deleteNote(noteId: string) {
-    if (!confirm('Delete this note?')) return;
-    deleteNoteMutation.mutate(noteId, {
+    setDeleteId(noteId);
+  }
+
+  function confirmDelete() {
+    if (!deleteId) return;
+    deleteNoteMutation.mutate(deleteId, {
       onSuccess: () => onRefresh(),
       onError: (e) => alert('Failed to delete note: ' + e.message),
     });
+    setDeleteId(null);
   }
 
   if (notes.length === 0) return <p className="text-muted-foreground text-[0.84rem]">No notes</p>;
 
-  return notes.map((n) => (
-    <div key={n.id} className="bg-muted border border-border rounded p-[1rem_1.25rem] mb-3 transition-all hover:border-border hover:shadow-sm">
-      <div className="flex justify-between items-center mb-2">
-        <span className="font-semibold text-foreground text-[0.88rem]">{n.category ? (NOTE_CATEGORY_LABELS[n.category] || n.category) : 'Note'}</span>
-        <Button variant="destructive" size="sm" onClick={() => deleteNote(n.id)}>Delete</Button>
-      </div>
-      <div className="text-[0.78rem] text-muted-foreground">{formatDateTime(n.createdAt)}</div>
-      <div className="text-[0.84rem] text-foreground leading-[1.6] mt-4 whitespace-pre-wrap">{n.content}</div>
-    </div>
-  ));
+  return (
+    <>
+      {notes.map((n) => (
+        <div key={n.id} className="bg-muted border border-border rounded p-[1rem_1.25rem] mb-3 transition-all hover:border-border hover:shadow-sm">
+          <div className="flex justify-between items-center mb-2">
+            <span className="font-semibold text-foreground text-[0.88rem]">{n.category ? (NOTE_CATEGORY_LABELS[n.category] || n.category) : 'Note'}</span>
+            <Button variant="destructive" size="sm" onClick={() => deleteNote(n.id)}>Delete</Button>
+          </div>
+          <div className="text-[0.78rem] text-muted-foreground">{formatDateTime(n.createdAt)}</div>
+          <div className="text-[0.84rem] text-foreground leading-[1.6] mt-4 whitespace-pre-wrap">{n.content}</div>
+        </div>
+      ))}
+      <ConfirmDialog
+        open={!!deleteId}
+        description="Delete this note?"
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteId(null)}
+      />
+    </>
+  );
 }
 
 interface NoteModalProps {

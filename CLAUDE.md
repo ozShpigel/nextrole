@@ -25,6 +25,18 @@ through interviews to final status — in one place. See `project-scope.md` and 
 /server/mailbot  - .NET Console App (C#)
 ```
 
+## Running Locally
+
+```bash
+cd client && bun run dev # Vite on :5173
+cd server/api/src/Api && dotnet run # ASP.NET Core on :5002
+```
+
+```powershell
+# Scraper — Python FastAPI on :8000 (PowerShell for venv activation)
+cd server/scraper; .\.venv\Scripts\python.exe -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+```
+
 ## Key Conventions
 
 - Use TypeScript throughout the frontend
@@ -47,6 +59,7 @@ Each job scoring = 2 Claude API calls: Analyst (Haiku) + Evaluator (Sonnet with 
 - **Scoring config** is stored in MongoDB `profile` collection (doc id: "default"), loaded with 30s cache — no API restart needed for config changes
 - **Custom evaluator prompt** stored in DB overrides the system prompt in `PromptSeeds.cs`
 - **Scoring dimensions**: Technical Fit (35pts), Engineering Execution Fit (30pts), Sustainability & Pace Fit (35pts)
+- **Sub-component breakdown**: each dimension's `breakdown.<dim>.components[]` array (modeled by `ScoreComponent` in `MatchResponse.cs`) splits its score into sub-criteria, each with `name`, `score`, `maxScore`, and a one-sentence `reason` — Technical Fit → Core Stack (0-20) + System Design (0-15); Engineering Execution → Development Practices/Role Clarity & Ownership + Engineering Maturity; Sustainability & Pace → Work-Life + Communication/Pace + Growth/Long-term Risk. Dimension score = sum of its components; surfaced in the discovery UI via the "Score Breakdown" button on each job card, alongside a "Signals" summary (recommendation green/red flags)
 - **Verdicts**: STRONG_YES, YES, MAYBE, NO, STRONG_NO, INSUFFICIENT_DATA
 - **Auto-save to tracker**: jobs with YES/STRONG_YES verdict, OR score >= `min_score_to_save` with `shouldApply=true`
 - **Parallel scoring**: 5 concurrent jobs via `asyncio.Semaphore`

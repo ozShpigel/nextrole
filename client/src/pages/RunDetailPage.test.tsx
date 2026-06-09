@@ -239,35 +239,46 @@ describe('RunDetailPage - Honest Assessment', () => {
   });
 });
 
-describe('RunDetailPage - Key Strengths and Concerns', () => {
-  it('renders strength badges', async () => {
+describe('RunDetailPage - Signals (green/red flags) in breakdown panel', () => {
+  it('hides flags on the card until the Score Breakdown panel is opened', async () => {
+    const user = userEvent.setup();
     renderWithJobs([makeJob({
-      match_analysis: { recommendation: { greenFlags: ['Excellent tech stack', 'Remote friendly', 'Competitive salary'] } },
+      match_analysis: { breakdown: {}, recommendation: { greenFlags: ['Excellent tech stack', 'Remote friendly', 'Competitive salary'] } },
     })]);
     await waitFor(() => {
-      expect(screen.getByText('Excellent tech stack')).toBeInTheDocument();
+      expect(screen.getByText('Score Breakdown')).toBeInTheDocument();
     });
+    // Not on the card before opening
+    expect(screen.queryByText('Excellent tech stack')).not.toBeInTheDocument();
+    await user.click(screen.getByText('Score Breakdown'));
+    expect(screen.getByText('Excellent tech stack')).toBeInTheDocument();
     expect(screen.getByText('Remote friendly')).toBeInTheDocument();
     expect(screen.getByText('Competitive salary')).toBeInTheDocument();
   });
 
-  it('renders concern badges', async () => {
+  it('shows red flags in the Signals section once opened', async () => {
+    const user = userEvent.setup();
     renderWithJobs([makeJob({
-      match_analysis: { recommendation: { redFlags: ['No remote option', 'Legacy tech stack'] } },
+      match_analysis: { breakdown: {}, recommendation: { redFlags: ['No remote option', 'Legacy tech stack'] } },
     })]);
     await waitFor(() => {
-      expect(screen.getByText('No remote option')).toBeInTheDocument();
+      expect(screen.getByText('Score Breakdown')).toBeInTheDocument();
     });
+    await user.click(screen.getByText('Score Breakdown'));
+    expect(screen.getByText('No remote option')).toBeInTheDocument();
     expect(screen.getByText('Legacy tech stack')).toBeInTheDocument();
   });
 
-  it('renders both strengths and concerns', async () => {
+  it('shows both green and red flags in the Signals section once opened', async () => {
+    const user = userEvent.setup();
     renderWithJobs([makeJob({
-      match_analysis: { recommendation: { greenFlags: ['Good benefits'], redFlags: ['Long commute'] } },
+      match_analysis: { breakdown: {}, recommendation: { greenFlags: ['Good benefits'], redFlags: ['Long commute'] } },
     })]);
     await waitFor(() => {
-      expect(screen.getByText('Good benefits')).toBeInTheDocument();
+      expect(screen.getByText('Score Breakdown')).toBeInTheDocument();
     });
+    await user.click(screen.getByText('Score Breakdown'));
+    expect(screen.getByText('Good benefits')).toBeInTheDocument();
     expect(screen.getByText('Long commute')).toBeInTheDocument();
   });
 

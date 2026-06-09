@@ -1,8 +1,10 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApplications } from '../lib/queries';
 import { useDeleteApplication } from '../lib/mutations';
 import { formatDate, verdictColor, verdictLabel } from '../lib/format';
 import { StatusBadge } from './Status';
+import ConfirmDialog from './ConfirmDialog';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 
@@ -21,6 +23,7 @@ export default function ApplicationList() {
   const navigate = useNavigate();
   const { data: apps = [], error } = useApplications();
   const deleteAppMutation = useDeleteApplication();
+  const [deleteId, setDeleteId] = useState<string | null>(null);
 
   if (error) {
     return <Card className="p-6 mb-4"><p className="text-center py-12 text-destructive text-[0.88rem]">Failed to load applications: {error.message}</p></Card>;
@@ -31,6 +34,7 @@ export default function ApplicationList() {
   }
 
   return (
+    <>
     <Card className="p-6 mb-4 transition-all hover:border-border hover:shadow-md">
       <div className="hidden md:grid grid-cols-[2fr_1.5fr_1fr_0.5fr_0.8fr_0.5fr_minmax(3.5rem,auto)] gap-4 py-[0.6rem] px-5 text-[0.72rem] text-muted-foreground border-b border-border uppercase tracking-[0.07em] font-medium">
         <span>Position</span>
@@ -58,8 +62,7 @@ export default function ApplicationList() {
                 size="sm"
                 onClick={(e: React.MouseEvent) => {
                   e.stopPropagation();
-                  if (!confirm('Delete this application? All interviews and notes will also be deleted.')) return;
-                  deleteAppMutation.mutate(a.id);
+                  setDeleteId(a.id);
                 }}
               >
                 Delete
@@ -69,5 +72,16 @@ export default function ApplicationList() {
         );
       })}
     </Card>
+
+    <ConfirmDialog
+      open={!!deleteId}
+      description="Delete this application? All interviews and notes will also be deleted."
+      onConfirm={() => {
+        if (deleteId) deleteAppMutation.mutate(deleteId);
+        setDeleteId(null);
+      }}
+      onCancel={() => setDeleteId(null)}
+    />
+    </>
   );
 }

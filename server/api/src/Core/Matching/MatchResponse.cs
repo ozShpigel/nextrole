@@ -23,10 +23,19 @@ public sealed record Breakdown
     public SustainabilityPaceFitScore SustainabilityPaceFit { get; init; } = new();
 }
 
+public sealed record ScoreComponent
+{
+    public string Name { get; init; } = "";
+    public int? Score { get; init; }
+    public int? MaxScore { get; init; }
+    public string Reason { get; init; } = "";
+}
+
 public sealed record TechnicalFitScore
 {
     public int? Score { get; init; }
     public int? MaxScore { get; init; }
+    public ScoreComponent[] Components { get; init; } = [];
     public string[] Strengths { get; init; } = [];
     public string[] Gaps { get; init; } = [];
 }
@@ -35,6 +44,7 @@ public sealed record EngineeringExecutionFitScore
 {
     public int? Score { get; init; }
     public int? MaxScore { get; init; }
+    public ScoreComponent[] Components { get; init; } = [];
     public string[] Strengths { get; init; } = [];
     public string[] Concerns { get; init; } = [];
 }
@@ -43,6 +53,7 @@ public sealed record SustainabilityPaceFitScore
 {
     public int? Score { get; init; }
     public int? MaxScore { get; init; }
+    public ScoreComponent[] Components { get; init; } = [];
     public string[] PositiveSignals { get; init; } = [];
     public string[] Concerns { get; init; } = [];
 }

@@ -4,6 +4,7 @@ import { useRunDetail, useRunJobs, useProfile } from '../lib/queries';
 import { useSaveJob, useDismissJob, useRescoreJob, useSaveProfile } from '../lib/mutations';
 import type { ProfileResponse } from '../lib/types';
 import { VERDICT_LABELS, EVALUATOR_PLACEHOLDERS } from '../lib/scoring';
+import { scoreColor } from '../lib/format';
 import { SnapshotsModal } from '../components/Snapshots';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -21,13 +22,41 @@ interface NewsItem {
   source?: string;
 }
 
+interface ScoreComponent {
+  name: string;
+  score: number | null;
+  maxScore: number;
+  reason?: string;
+}
+
+interface DimensionData {
+  score: number;
+  maxScore: number;
+  components?: ScoreComponent[];
+  [key: string]: unknown;
+}
+
 interface MatchAnalysis {
   honestAssessment?: string;
   recommendation?: {
     greenFlags?: string[];
     redFlags?: string[];
   };
+  breakdown?: Record<string, DimensionData>;
 }
+
+interface BreakdownDim {
+  key: string;
+  label: string;
+  posKey: string;
+  negKey: string;
+}
+
+const BREAKDOWN_DIMS: BreakdownDim[] = [
+  { key: 'technicalFit', label: 'Technical Fit', posKey: 'strengths', negKey: 'gaps' },
+  { key: 'engineeringExecutionFit', label: 'Engineering Execution Fit', posKey: 'strengths', negKey: 'concerns' },
+  { key: 'sustainabilityPaceFit', label: 'Sustainability & Pace Fit', posKey: 'positiveSignals', negKey: 'concerns' },
+];
 
 interface DiscoveredJob {
   id: string;
@@ -97,6 +126,16 @@ export default function RunDetail() {
   const [rescoringIds, setRescoringIds] = useState<Set<string>>(() => new Set());
   const [bulkRescoring, setBulkRescoring] = useState<boolean>(false);
   const [snapshotsJob, setSnapshotsJob] = useState<DiscoveredJob | null>(null);
+  const [openBreakdownIds, setOpenBreakdownIds] = useState<Set<string>>(() => new Set());
+
+  function toggleBreakdown(id: string): void {
+    setOpenBreakdownIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
 
   // Inline Evaluator-prompt editor state — lazy-loaded from /api/match/profile
   // the first time the panel opens. Saving writes through to the same Mongo
@@ -402,17 +441,6 @@ export default function RunDetail() {
                 </div>
               </div>
 
-              {j.match_analysis?.recommendation?.greenFlags && j.match_analysis.recommendation.greenFlags.length > 0 && (
-                <div className="flex flex-wrap gap-[0.4rem] mb-2">
-                  {j.match_analysis.recommendation.greenFlags.map((s, i) => <Badge key={i} variant="outline" className="bg-emerald-50 text-emerald-600 border-emerald-600/18 text-[0.75rem]">{s}</Badge>)}
-                </div>
-              )}
-              {j.match_analysis?.recommendation?.redFlags && j.match_analysis.recommendation.redFlags.length > 0 && (
-                <div className="flex flex-wrap gap-[0.4rem] mb-2">
-                  {j.match_analysis.recommendation.redFlags.map((c, i) => <Badge key={i} variant="outline" className="bg-red-50 text-red-500 border-red-500/18 text-[0.75rem]">{c}</Badge>)}
-                </div>
-              )}
-
               {j.company_news && j.company_news.length > 0 && (
                 <details className="my-2">
                   <summary className="text-[0.78rem] font-medium text-muted-foreground cursor-pointer hover:text-foreground transition-colors">
@@ -444,6 +472,15 @@ export default function RunDetail() {
                     {rescoringIds.has(j.id) ? 'Scoring...' : 'Rescore'}
                   </Button>
                 )}
+                {j.match_analysis?.breakdown && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => toggleBreakdown(j.id)}
+                  >
+                    {openBreakdownIds.has(j.id) ? 'Hide Breakdown' : 'Score Breakdown'}
+                  </Button>
+                )}
                 {(j.evaluator_snapshot_input || j.analyst_snapshot_input) && (
                   <Button
                     variant="outline"
@@ -459,6 +496,76 @@ export default function RunDetail() {
                 {j.saved_to_tracker && <span className="text-[0.72rem] text-emerald-600 font-medium py-1 px-[0.7rem] bg-emerald-50 border border-emerald-600/18 rounded-full tracking-[0.06em]">Saved</span>}
                 <Button variant="destructive" size="sm" onClick={() => dismissJob(j.id)}>Dismiss</Button>
               </div>
+
+              {openBreakdownIds.has(j.id) && j.match_analysis?.breakdown && (
+                <div className="mt-3 p-[1.1rem_1.25rem] bg-muted/50 border border-dashed border-border rounded animate-in fade-in slide-in-from-top-1 duration-200 flex flex-col gap-[1.1rem]">
+                  {(() => {
+                    const green = j.match_analysis?.recommendation?.greenFlags ?? [];
+                    const red = j.match_analysis?.recommendation?.redFlags ?? [];
+                    if (green.length === 0 && red.length === 0) return null;
+                    return (
+                      <div className="pb-[0.6rem] border-b border-border/60">
+                        <span className="block text-[0.7rem] uppercase tracking-[0.08em] text-muted-foreground font-medium mb-[0.55rem]">Signals</span>
+                        <div className="flex flex-col gap-[0.4rem]">
+                          {green.map((s, i) => (
+                            <div key={`g${i}`} className="flex items-start gap-[0.55rem]">
+                              <span className="mt-[0.45rem] w-[6px] h-[6px] rounded-full bg-emerald-500 shrink-0" />
+                              <span className="text-[0.78rem] text-foreground leading-[1.5]" dir="auto">{s}</span>
+                            </div>
+                          ))}
+                          {red.map((s, i) => (
+                            <div key={`r${i}`} className="flex items-start gap-[0.55rem]">
+                              <span className="mt-[0.45rem] w-[6px] h-[6px] rounded-full bg-red-500 shrink-0" />
+                              <span className="text-[0.78rem] text-foreground leading-[1.5]" dir="auto">{s}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
+                  {BREAKDOWN_DIMS.map((dim) => {
+                    const d = j.match_analysis!.breakdown![dim.key];
+                    if (!d) return null;
+                    const components = d.components ?? [];
+                    const pos = (d[dim.posKey] as string[] | undefined) ?? [];
+                    const neg = (d[dim.negKey] as string[] | undefined) ?? [];
+                    return (
+                      <div key={dim.key}>
+                        <div className="flex items-baseline justify-between gap-3 mb-[0.5rem] pb-[0.4rem] border-b border-border/60">
+                          <span className="text-[0.88rem] font-semibold text-foreground">{dim.label}</span>
+                          <span className="font-serif text-[0.95rem] font-bold shrink-0" style={{ color: scoreColor(d.score, d.maxScore) }}>
+                            {d.score} <span className="text-muted-foreground font-normal text-[0.78rem]">/ {d.maxScore}</span>
+                          </span>
+                        </div>
+                        {components.length > 0 ? (
+                          <div className="flex flex-col gap-[0.55rem]">
+                            {components.map((c, i) => (
+                              <div key={i} className="flex flex-col gap-[0.12rem]">
+                                <div className="flex items-baseline justify-between gap-3">
+                                  <span className="text-[0.8rem] font-medium text-foreground">{c.name}</span>
+                                  <span className="shrink-0 font-mono text-[0.76rem] font-semibold tabular-nums" style={{ color: scoreColor(c.score, c.maxScore) }}>{c.score}/{c.maxScore}</span>
+                                </div>
+                                {c.reason && <span className="text-[0.76rem] text-muted-foreground leading-[1.5]" dir="auto">{c.reason}</span>}
+                              </div>
+                            ))}
+                          </div>
+                        ) : (pos.length > 0 || neg.length > 0) ? (
+                          <div className="flex flex-wrap gap-[0.35rem]">
+                            {pos.map((s, i) => (
+                              <span key={`p${i}`} className="text-[0.74rem] py-[0.15rem] px-[0.5rem] rounded bg-emerald-50 text-emerald-600 border border-emerald-600/15">{s}</span>
+                            ))}
+                            {neg.map((s, i) => (
+                              <span key={`n${i}`} className="text-[0.74rem] py-[0.15rem] px-[0.5rem] rounded bg-red-50 text-red-500 border border-red-500/15">{s}</span>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-[0.76rem] text-muted-foreground italic">No detailed reasons provided</span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           ))}
         </div>

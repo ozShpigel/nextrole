@@ -12,3 +12,45 @@ export interface ProfileResponse {
 }
 
 export type ConfigValue = string | number | boolean;
+
+// Dry-run "Test prompt" — request fields are snake_case (match the C# DTO's
+// JsonPropertyName); result fields are camelCase (default serialization).
+export interface TestPromptRequest {
+  target: 'analyst' | 'evaluator';
+  job_description: string;
+  analyst_prompt?: string;
+  evaluator_prompt?: string;
+  profile?: string;
+  scoring_config?: Record<string, unknown>;
+}
+
+export interface TestPromptStageResult {
+  stage: 'parse' | 'evaluate';
+  deserializedCleanly: boolean;
+  rawOutput?: string;
+  input?: string;
+  error?: string;
+}
+
+export interface TestPromptResult {
+  success: boolean;
+  stages: TestPromptStageResult[];
+  parsed?: Record<string, unknown> | null;
+  evaluation?: Record<string, unknown> | null;
+  overallScore?: number | null;
+  verdict?: string | null;
+}
+
+// Version history. Field is one of: content | analyst_prompt | evaluator_prompt | scoring_config
+export type HistoryField = 'content' | 'analyst_prompt' | 'evaluator_prompt' | 'scoring_config';
+
+export interface ProfileHistoryEntry {
+  index: number;
+  savedAt?: string | null;
+  preview: string;
+  length: number;
+}
+
+export interface ProfileHistoryResponse {
+  entries: ProfileHistoryEntry[];
+}

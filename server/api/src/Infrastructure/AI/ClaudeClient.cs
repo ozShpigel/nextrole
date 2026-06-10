@@ -107,26 +107,36 @@ public sealed class ClaudeClient : IClaudeClient
 
     public async Task<(ParsedJob Parsed, ClaudeCallSnapshot Snapshot)> ParseJobDescriptionAsync(string jobDescription, CancellationToken cancellationToken = default)
     {
+        var analystPrompt = await _profileProvider.GetAnalystPromptAsync(cancellationToken);
+        var cfg = (await _profileProvider.GetScoringConfigAsync(cancellationToken)).Analyst;
+        return await ParseJobDescriptionAsync(jobDescription, analystPrompt, cfg, cancellationToken);
+    }
+
+    public async Task<(ParsedJob Parsed, ClaudeCallSnapshot Snapshot)> ParseJobDescriptionAsync(string jobDescription, string analystPrompt, RoleScoringConfig analystConfig, CancellationToken cancellationToken = default)
+    {
         _logger.LogInformation("Parsing job description ({Length} chars)", jobDescription.Length);
 
-        var analystPrompt = await _profileProvider.GetAnalystPromptAsync(cancellationToken);
         var (systemPrompt, userMessage) = _promptBuilder.BuildAnalysisPrompt(jobDescription, analystPrompt);
-        var cfg = (await _profileProvider.GetScoringConfigAsync(cancellationToken)).Analyst;
 
-        var (result, snapshot) = await CallClaudeAsync<ParsedJob>(systemPrompt, userMessage, cfg, "parse", cancellationToken);
+        var (result, snapshot) = await CallClaudeAsync<ParsedJob>(systemPrompt, userMessage, analystConfig, "parse", cancellationToken);
         _logger.LogInformation("Job parsed. Title: {Title}", result.JobTitle);
         return (result, snapshot);
     }
 
     public async Task<(MatchResponse Response, ClaudeCallSnapshot Snapshot)> EvaluateMatchAsync(string profile, ParsedJob parsedJob, List<CompanyNewsItem>? companyNews = null, GlassdoorData? glassdoorData = null, CancellationToken cancellationToken = default)
     {
+        var evaluatorPrompt = await _profileProvider.GetEvaluatorPromptAsync(cancellationToken);
+        var cfg = (await _profileProvider.GetScoringConfigAsync(cancellationToken)).Evaluator;
+        return await EvaluateMatchAsync(profile, parsedJob, evaluatorPrompt, cfg, companyNews, glassdoorData, cancellationToken);
+    }
+
+    public async Task<(MatchResponse Response, ClaudeCallSnapshot Snapshot)> EvaluateMatchAsync(string profile, ParsedJob parsedJob, string evaluatorPrompt, RoleScoringConfig evaluatorConfig, List<CompanyNewsItem>? companyNews = null, GlassdoorData? glassdoorData = null, CancellationToken cancellationToken = default)
+    {
         _logger.LogInformation("Evaluating job match: {Title} at {Company}", parsedJob.JobTitle, parsedJob.Company);
 
-        var evaluatorPrompt = await _profileProvider.GetEvaluatorPromptAsync(cancellationToken);
         var (systemPrompt, userMessage) = _promptBuilder.BuildEvaluationPrompt(profile, parsedJob, evaluatorPrompt, companyNews, glassdoorData);
-        var cfg = (await _profileProvider.GetScoringConfigAsync(cancellationToken)).Evaluator;
 
-        var (result, snapshot) = await CallClaudeAsync<MatchResponse>(systemPrompt, userMessage, cfg, "evaluate", cancellationToken);
+        var (result, snapshot) = await CallClaudeAsync<MatchResponse>(systemPrompt, userMessage, evaluatorConfig, "evaluate", cancellationToken);
         _logger.LogInformation("Match evaluation completed. Verdict: {Verdict}, Score: {Score}",
             result.Verdict, result.OverallScore);
         return (result, snapshot);
@@ -247,7 +257,8 @@ public sealed class ClaudeClient : IClaudeClient
             }
         }
 
-        throw new InvalidOperationException($"Claude {label} failed to return valid JSON after retry");
+        throw new ClaudeJsonException(
+            $"Claude {label} failed to return valid JSON after retry", content, inputJson);
     }
 
     private static string SerializeCallInput(MessageParameters parameters, string userPrompt)

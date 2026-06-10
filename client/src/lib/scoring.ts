@@ -1,4 +1,4 @@
-export const EVALUATOR_PLACEHOLDERS = ['{{USER_PROFILE}}', '{{PARSED_JOB}}'] as const;
+export const EVALUATOR_PLACEHOLDERS = ['{{USER_PROFILE}}'] as const;
 
 export const VERDICT_LABELS: Record<string, string> = {
   STRONG_YES: 'Strong Yes',

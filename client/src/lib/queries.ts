@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { api, matchApi, discoveryApi } from './api';
-import type { ProfileResponse } from './types';
+import type { ProfileResponse, ProfileHistoryResponse, HistoryField } from './types';
 
 export function useDiscoveryHealth() {
   return useQuery({
@@ -61,6 +61,14 @@ export function useProfile() {
   return useQuery<ProfileResponse>({
     queryKey: ['match', 'profile'],
     queryFn: () => matchApi('/profile'),
+  });
+}
+
+export function useProfileHistory(field: HistoryField, enabled: boolean) {
+  return useQuery<ProfileHistoryResponse>({
+    queryKey: ['match', 'profile', 'history', field],
+    queryFn: () => matchApi(`/profile/history/${field}`),
+    enabled,
   });
 }
 

@@ -14,8 +14,22 @@ public interface IProfileProvider
         string? extendedIntro = null,
         CancellationToken cancellationToken = default);
     Task<ScoringConfig> GetScoringConfigAsync(CancellationToken cancellationToken = default);
+    ScoringConfig ResolveScoringConfig(Dictionary<string, object?>? scoringConfig);
     Task<string> GetAnalystPromptAsync(CancellationToken cancellationToken = default);
     Task<string> GetEvaluatorPromptAsync(CancellationToken cancellationToken = default);
+
+    // Version history: snapshots of prior values for a tracked field
+    // (content | analyst_prompt | evaluator_prompt | scoring_config), newest-first.
+    Task<IReadOnlyList<ProfileHistoryEntry>> GetHistoryAsync(string field, CancellationToken cancellationToken = default);
+    Task RestoreHistoryAsync(string field, int index, CancellationToken cancellationToken = default);
+}
+
+public sealed record ProfileHistoryEntry
+{
+    public int Index { get; init; }
+    public DateTime? SavedAt { get; init; }
+    public string Preview { get; init; } = "";
+    public int Length { get; init; }
 }
 
 public sealed record ProfileDocument
@@ -41,6 +55,17 @@ public sealed record RoleScoringConfig
     public int ThinkingBudget { get; init; } = 2048;
 }
 
+// Score thresholds (inclusive lower bounds) that map an overallScore to a
+// verdict. Configurable from Settings so the user can retune bands without a
+// code change. Below `No` => STRONG_NO; a null score => INSUFFICIENT_DATA.
+public sealed record VerdictBands
+{
+    public int StrongYes { get; init; } = 80;
+    public int Yes { get; init; } = 60;
+    public int Maybe { get; init; } = 40;
+    public int No { get; init; } = 20;
+}
+
 public sealed record ScoringConfig
 {
     public RoleScoringConfig Analyst { get; init; } = new()
@@ -53,4 +78,6 @@ public sealed record ScoringConfig
     public RoleScoringConfig Evaluator { get; init; } = new();
 
     public int MinScoreToSave { get; init; } = 70;
+
+    public VerdictBands VerdictBands { get; init; } = new();
 }

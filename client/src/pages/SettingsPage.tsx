@@ -1,8 +1,8 @@
 ﻿import { useState, useEffect, useRef, useMemo } from 'react';
-import { useProfile } from '../lib/queries';
-import { useSaveProfile } from '../lib/mutations';
-import type { ProfileResponse, ConfigValue } from '../lib/types';
-import { EVALUATOR_PLACEHOLDERS } from '../lib/scoring';
+import { useProfile, useProfileHistory } from '../lib/queries';
+import { useSaveProfile, useTestPrompt, useRestoreHistory } from '../lib/mutations';
+import type { ProfileResponse, ConfigValue, TestPromptResult, HistoryField, ProfileHistoryEntry } from '../lib/types';
+import { EVALUATOR_PLACEHOLDERS, VERDICT_LABELS } from '../lib/scoring';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
@@ -24,11 +24,26 @@ interface RoleConfig {
   thinking_budget: number;
 }
 
+interface VerdictBands {
+  strong_yes: number;
+  yes: number;
+  maybe: number;
+  no: number;
+}
+
 interface ScoringConfig {
   analyst: RoleConfig;
   evaluator: RoleConfig;
   min_score_to_save: number;
+  verdict_bands: VerdictBands;
 }
+
+const DEFAULT_VERDICT_BANDS: VerdictBands = {
+  strong_yes: 80,
+  yes: 60,
+  maybe: 40,
+  no: 20,
+};
 
 const DEFAULT_ROLE_CONFIG: RoleConfig = {
   model: 'claude-sonnet-4-6',
@@ -47,12 +62,14 @@ const DEFAULT_CONFIG: ScoringConfig = {
   },
   evaluator: { ...DEFAULT_ROLE_CONFIG },
   min_score_to_save: 70,
+  verdict_bands: { ...DEFAULT_VERDICT_BANDS },
 };
 
 interface IncomingScoringConfig {
   analyst?: Partial<RoleConfig>;
   evaluator?: Partial<RoleConfig>;
   min_score_to_save?: number;
+  verdict_bands?: Partial<VerdictBands>;
 }
 
 function mergeScoringConfig(incoming: Record<string, unknown>): ScoringConfig {
@@ -63,6 +80,7 @@ function mergeScoringConfig(incoming: Record<string, unknown>): ScoringConfig {
     analyst: { ...DEFAULT_CONFIG.analyst, ...(sc.analyst || {}) },
     evaluator: { ...DEFAULT_CONFIG.evaluator, ...evaluatorSource },
     min_score_to_save: sc.min_score_to_save ?? DEFAULT_CONFIG.min_score_to_save,
+    verdict_bands: { ...DEFAULT_VERDICT_BANDS, ...(sc.verdict_bands || {}) },
   };
 }
 
@@ -178,41 +196,47 @@ export default function SettingsPage() {
   const saveProfileMutation = useSaveProfile();
   const [initialized, setInitialized] = useState(false);
 
+  // Reset all editor state (and its "original" baseline) from a profile
+  // response. Used on first load and after a history restore.
+  function applyProfileData(data: ProfileResponse): void {
+    const content = data?.content || '';
+    setProfile(content);
+    setOriginalProfile(content);
+
+    const analyst = data?.analyst_prompt || '';
+    setAnalystPrompt(analyst);
+    setOriginalAnalystPrompt(analyst);
+    setAnalystIsOverride(!!data?.analyst_prompt_is_override);
+
+    const evaluator = data?.evaluator_prompt || '';
+    setEvaluatorPrompt(evaluator);
+    setOriginalEvaluatorPrompt(evaluator);
+    setEvaluatorIsOverride(!!data?.evaluator_prompt_is_override);
+
+    const ep = data?.elevator_pitch || '';
+    setElevatorPitch(ep);
+    setOriginalElevatorPitch(ep);
+    const pi = data?.professional_intro || '';
+    setProfessionalIntro(pi);
+    setOriginalProfessionalIntro(pi);
+    const ei = data?.extended_intro || '';
+    setExtendedIntro(ei);
+    setOriginalExtendedIntro(ei);
+
+    setLastUpdated(data?.updated_at ?? null);
+    if (data?.scoring_config) {
+      const merged = mergeScoringConfig(data.scoring_config);
+      setConfig(merged);
+      setOriginalConfig(merged);
+    }
+  }
+
   useEffect(() => {
     if (profileQuery.data && !initialized) {
-      const data = profileQuery.data as ProfileResponse;
-      const content = data?.content || '';
-      setProfile(content);
-      setOriginalProfile(content);
-
-      const analyst = data?.analyst_prompt || '';
-      setAnalystPrompt(analyst);
-      setOriginalAnalystPrompt(analyst);
-      setAnalystIsOverride(!!data?.analyst_prompt_is_override);
-
-      const evaluator = data?.evaluator_prompt || '';
-      setEvaluatorPrompt(evaluator);
-      setOriginalEvaluatorPrompt(evaluator);
-      setEvaluatorIsOverride(!!data?.evaluator_prompt_is_override);
-
-      const ep = data?.elevator_pitch || '';
-      setElevatorPitch(ep);
-      setOriginalElevatorPitch(ep);
-      const pi = data?.professional_intro || '';
-      setProfessionalIntro(pi);
-      setOriginalProfessionalIntro(pi);
-      const ei = data?.extended_intro || '';
-      setExtendedIntro(ei);
-      setOriginalExtendedIntro(ei);
-
-      setLastUpdated(data?.updated_at ?? null);
-      if (data?.scoring_config) {
-        const merged = mergeScoringConfig(data.scoring_config);
-        setConfig(merged);
-        setOriginalConfig(merged);
-      }
+      applyProfileData(profileQuery.data as ProfileResponse);
       setInitialized(true);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profileQuery.data, initialized]);
 
   const loading = profileQuery.isLoading;
@@ -351,14 +375,14 @@ export default function SettingsPage() {
   function updateConfig(path: string, value: ConfigValue): void {
     setConfig(prev => {
       if (!path.includes('.')) return { ...prev, [path]: value };
-      const [role, key] = path.split('.');
-      return { ...prev, [role as 'analyst' | 'evaluator']: { ...(prev[role as 'analyst' | 'evaluator']), [key]: value } };
+      const [group, key] = path.split('.') as ['analyst' | 'evaluator' | 'verdict_bands', string];
+      return { ...prev, [group]: { ...(prev[group] as unknown as Record<string, ConfigValue>), [key]: value } };
     });
     setConfigResult(null);
   }
 
   const evaluatorPlaceholderStates = useMemo(
-    () => placeholderStatus(evaluatorPrompt, EVALUATOR_PLACEHOLDERS),
+    () => placeholderStatus(evaluatorPrompt, [...EVALUATOR_PLACEHOLDERS]),
     [evaluatorPrompt],
   );
   const evaluatorMissingPlaceholder = evaluatorPlaceholderStates.some((p) => !p.present);
@@ -447,6 +471,7 @@ export default function SettingsPage() {
             <span className="ml-2 text-muted-foreground text-[0.72rem] tracking-[0.04em] font-normal pl-[0.6rem] border-l border-border">· ≈{estimateTokens(profile).toLocaleString()} tokens</span>
           </span>
           <div className="flex gap-[0.55rem] max-sm:justify-end max-sm:flex-wrap">
+            <HistoryButton field="content" onRestored={applyProfileData} />
             {isProfileDirty && (
               <Button variant="outline" size="sm" onClick={() => setProfile(originalProfile)} disabled={savingProfile}>
                 Discard changes
@@ -486,6 +511,8 @@ export default function SettingsPage() {
         result={analystResult}
         editorMinHeight={400}
         sectionIndex={1}
+        candidateConfig={config as unknown as Record<string, unknown>}
+        historySlot={<HistoryButton field="analyst_prompt" onRestored={applyProfileData} />}
       />
 
       {/* 03 — Evaluator Prompt */}
@@ -496,7 +523,7 @@ export default function SettingsPage() {
         desc={
           <>
             The instruction for Claude during the evaluation stage — scores fit on a 100-point scale across technology, culture, and role attributes.
-            The two placeholders <code className="font-code text-[0.82em] py-[0.08em] px-[0.4em] bg-muted/50 border border-border rounded-[4px] text-muted-foreground isolate">{'{{USER_PROFILE}}'}</code> and <code className="font-code text-[0.82em] py-[0.08em] px-[0.4em] bg-muted/50 border border-border rounded-[4px] text-muted-foreground isolate">{'{{PARSED_JOB}}'}</code> are replaced at runtime and must not be removed.
+            The placeholder <code className="font-code text-[0.82em] py-[0.08em] px-[0.4em] bg-muted/50 border border-border rounded-[4px] text-muted-foreground isolate">{'{{USER_PROFILE}}'}</code> is replaced with your profile at runtime and must not be removed. The parsed job is supplied separately inside <code className="font-code text-[0.82em] py-[0.08em] px-[0.4em] bg-muted/50 border border-border rounded-[4px] text-muted-foreground isolate">{'<parsed_job>'}</code> tags in the user message.
           </>
         }
         activeStage="evaluate"
@@ -523,6 +550,9 @@ export default function SettingsPage() {
         onConfirmUnsafeAccept={saveEvaluator}
         onConfirmUnsafeCancel={() => setConfirmUnsafeSave(false)}
         sectionIndex={2}
+        candidateProfile={profile}
+        candidateConfig={config as unknown as Record<string, unknown>}
+        historySlot={<HistoryButton field="evaluator_prompt" onRestored={applyProfileData} />}
       />
 
       {/* 04 — Scoring Config */}
@@ -577,12 +607,43 @@ export default function SettingsPage() {
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateConfig('min_score_to_save', parseInt(e.target.value) || 70)}
               min="0" max="100" step="5"
             />
-            <span className="text-[0.72rem] text-muted-foreground opacity-85 mt-[0.3rem]">A single threshold for the entire pipeline — applies to evaluation results</span>
+            <span className="text-[0.72rem] text-muted-foreground opacity-85 mt-[0.3rem]">Sets the API <code className="font-code">shouldApply</code> flag (score ≥ threshold). Note: what the scraper saves to the tracker is also gated by its own per-search threshold and verdict rule.</span>
+          </div>
+        </div>
+
+        <div className="mt-5 pt-4 border-t border-dashed border-border">
+          <div className="flex flex-col gap-[0.55rem]">
+            <label className="text-[0.7rem] text-muted-foreground tracking-[0.14em] uppercase font-semibold flex items-center gap-[0.4rem]">
+              <span className="w-[3px] h-[3px] rounded-full bg-muted-foreground opacity-45 shrink-0" />
+              Verdict bands
+            </label>
+            <span className="text-[0.72rem] text-muted-foreground opacity-85">Inclusive lower bound (0–100) for each verdict. Below the “No” bound scores as STRONG_NO; a null score is INSUFFICIENT_DATA.</span>
+            <div className="grid grid-cols-4 gap-[0.6rem] mt-[0.4rem] max-[560px]:grid-cols-2">
+              {([
+                ['strong_yes', 'Strong Yes'],
+                ['yes', 'Yes'],
+                ['maybe', 'Maybe'],
+                ['no', 'No'],
+              ] as const).map(([key, label]) => (
+                <div key={key} className="flex flex-col gap-[0.3rem]">
+                  <label className="text-[0.68rem] text-muted-foreground font-medium" htmlFor={`cfg-band-${key}`}>{label}</label>
+                  <input
+                    id={`cfg-band-${key}`}
+                    type="number"
+                    className="py-[0.5rem] px-[0.7rem] bg-transparent border border-input rounded-[7px] text-foreground text-[0.85rem] font-mono tabular-nums text-left transition-all w-full hover:border-muted-foreground/30 focus:border-ring focus:bg-white focus:ring-[3px] focus:ring-ring/20 focus:outline-none"
+                    value={config.verdict_bands[key]}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateConfig(`verdict_bands.${key}`, parseInt(e.target.value) || 0)}
+                    min="0" max="100" step="5"
+                  />
+                </div>
+              ))}
+            </div>
           </div>
         </div>
 
         <div className="flex justify-end items-center gap-[0.6rem] mt-6 pt-[1.1rem] border-t border-dashed border-border relative">
           <span className="absolute top-[-1px] right-0 w-9 h-px bg-muted-foreground opacity-50" />
+          <HistoryButton field="scoring_config" onRestored={applyProfileData} />
           {isConfigDirty && (
             <Button variant="outline" size="sm" onClick={() => setConfig(originalConfig)} disabled={savingConfig}>
               Discard changes
@@ -865,6 +926,11 @@ interface PromptSectionProps {
   onConfirmUnsafeAccept?: () => void;
   onConfirmUnsafeCancel?: () => void;
   sectionIndex: number;
+  // Candidate (current edited) profile + scoring config, used by the dry-run
+  // test so it reflects unsaved edits. Profile only matters for the evaluator.
+  candidateProfile?: string;
+  candidateConfig?: Record<string, unknown>;
+  historySlot?: React.ReactNode;
 }
 
 function PromptSection({
@@ -876,9 +942,27 @@ function PromptSection({
   placeholders, saveWarning, confirmUnsafeSave,
   onConfirmUnsafeAccept, onConfirmUnsafeCancel,
   sectionIndex,
+  candidateProfile, candidateConfig, historySlot,
 }: PromptSectionProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const headings = useMemo(() => detectHeadings(value), [value]);
+
+  const [showTest, setShowTest] = useState(false);
+  const [sampleJob, setSampleJob] = useState('');
+  const testMutation = useTestPrompt();
+  const testResult = testMutation.data as TestPromptResult | undefined;
+
+  function runTest(): void {
+    const target = activeStage === 'parse' ? 'analyst' : 'evaluator';
+    testMutation.mutate({
+      target,
+      job_description: sampleJob,
+      ...(target === 'analyst'
+        ? { analyst_prompt: value }
+        : { evaluator_prompt: value, profile: candidateProfile }),
+      ...(candidateConfig ? { scoring_config: candidateConfig } : {}),
+    });
+  }
 
   const sectionDelays: Record<number, string> = { 1: '0.04s', 2: '0.08s', 3: '0.12s', 4: '0.16s', 5: '0.2s' };
 
@@ -1026,7 +1110,7 @@ function PromptSection({
           <div className="flex flex-col gap-1 flex-[1_1_260px] min-w-0">
             <strong className="font-serif text-[0.95rem] font-bold tracking-[-0.005em] text-destructive">Missing placeholder in prompt</strong>
             <span className="text-[0.8rem] leading-[1.6] text-muted-foreground max-w-[520px]">
-              Without the placeholders Claude will not receive the profile or job details. You can save anyway, but analysis will be broken.
+              Without the {'{{USER_PROFILE}}'} placeholder Claude will not receive your profile. You can save anyway, but analysis will be broken.
             </span>
           </div>
           <div className="flex gap-2 shrink-0 max-sm:justify-end">
@@ -1052,6 +1136,15 @@ function PromptSection({
           <span className="ml-2 text-muted-foreground text-[0.72rem] tracking-[0.04em] font-normal pl-[0.6rem] border-l border-border">· ≈{estimateTokens(value).toLocaleString()} tokens</span>
         </span>
         <div className="flex gap-[0.55rem] max-sm:justify-end max-sm:flex-wrap">
+          {historySlot}
+          <Button
+            variant={showTest ? 'secondary' : 'outline'}
+            size="sm"
+            onClick={() => setShowTest(v => !v)}
+            title="Dry-run this prompt against a sample job without saving"
+          >
+            {showTest ? 'Hide test' : 'Test prompt'}
+          </Button>
           <Button
             variant="outline"
             size="sm"
@@ -1080,7 +1173,163 @@ function PromptSection({
       {result && (
         <SaveResult result={result} />
       )}
+
+      {showTest && (
+        <div className="mt-5 p-[1.1rem_1.25rem] border border-dashed border-border rounded-lg bg-muted/20 animate-in fade-in slide-in-from-top-1 duration-200">
+          <div className="flex items-baseline justify-between gap-3 mb-[0.6rem] flex-wrap">
+            <strong className="font-serif text-[0.95rem] font-bold tracking-[-0.005em] text-foreground">Dry-run test</strong>
+            <span className="text-[0.72rem] text-muted-foreground">
+              Runs the {activeStage === 'parse' ? 'parse' : 'parse (saved analyst) → evaluate'} stage with your unsaved edits. Nothing is saved.
+            </span>
+          </div>
+          <textarea
+            className="w-full p-[0.9rem_1rem] border border-input rounded-lg text-foreground font-code text-[0.8rem] resize-y outline-none leading-[1.65] text-left whitespace-pre-wrap transition-all hover:border-muted-foreground/30 focus:border-ring focus:bg-white"
+            value={sampleJob}
+            onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setSampleJob(e.target.value)}
+            placeholder="Paste a sample job description to score…"
+            dir="auto"
+            spellCheck={false}
+            style={{ minHeight: '120px', background: 'var(--card)' }}
+          />
+          <div className="flex items-center gap-[0.6rem] mt-[0.7rem]">
+            <Button
+              size="sm"
+              onClick={runTest}
+              disabled={testMutation.isPending || !sampleJob.trim()}
+            >
+              {testMutation.isPending ? 'Running…' : 'Run test'}
+            </Button>
+            <span className="text-[0.72rem] text-muted-foreground tabular-nums">{sampleJob.length.toLocaleString()} chars</span>
+          </div>
+
+          {testMutation.isError && (
+            <div className="mt-[0.8rem] p-[0.7rem_0.9rem] rounded-lg bg-destructive/5 border border-destructive/20 text-[0.8rem] text-destructive">
+              {(testMutation.error as Error)?.message || 'Test request failed'}
+            </div>
+          )}
+
+          {testResult && <TestResultPanel result={testResult} />}
+        </div>
+      )}
     </section>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Test Result Panel                                                  */
+/* ------------------------------------------------------------------ */
+function TestResultPanel({ result }: { result: TestPromptResult }) {
+  return (
+    <div className="mt-[0.9rem] flex flex-col gap-[0.7rem]" role="status" aria-live="polite">
+      <div className="flex flex-wrap items-center gap-[0.6rem]">
+        {result.stages.map((s) => (
+          <span
+            key={s.stage}
+            className={`inline-flex items-center gap-[0.4rem] py-[0.22rem] pr-[0.7rem] pl-[0.6rem] rounded-full font-mono text-[0.74rem] tracking-[0.02em] ${
+              s.deserializedCleanly
+                ? 'border border-emerald-600/[0.22] bg-emerald-600/[0.04] text-emerald-600'
+                : 'border border-red-500/[0.35] bg-red-500/5 text-red-500'
+            }`}
+          >
+            <span className="font-serif text-[0.9rem] leading-none" aria-hidden="true">{s.deserializedCleanly ? '✓' : '✗'}</span>
+            <span className="capitalize">{s.stage}</span>
+            <span className="opacity-70">{s.deserializedCleanly ? 'parsed' : 'failed'}</span>
+          </span>
+        ))}
+        {typeof result.overallScore === 'number' && (
+          <span className="inline-flex items-center gap-[0.4rem] py-[0.22rem] px-[0.75rem] rounded-full font-mono text-[0.74rem] tabular-nums border border-border bg-muted/40 text-foreground">
+            Score {result.overallScore}
+            {result.verdict && <span className="text-muted-foreground">· {VERDICT_LABELS[result.verdict] || result.verdict}</span>}
+          </span>
+        )}
+      </div>
+
+      {result.stages.filter((s) => s.error).map((s) => (
+        <div key={`${s.stage}-err`} className="p-[0.7rem_0.9rem] rounded-lg bg-destructive/5 border border-destructive/20 text-[0.78rem] text-destructive leading-[1.55]">
+          <strong className="font-semibold capitalize">{s.stage} failed:</strong> {s.error}
+        </div>
+      ))}
+
+      {result.stages.filter((s) => s.rawOutput).map((s) => (
+        <details key={`${s.stage}-raw`} className="group">
+          <summary className="cursor-pointer text-[0.74rem] text-muted-foreground hover:text-foreground tracking-[0.02em] select-none">
+            Raw {s.stage} output
+          </summary>
+          <pre className="mt-[0.5rem] p-[0.8rem_1rem] rounded-lg bg-card border border-border text-[0.74rem] leading-[1.55] overflow-auto max-h-[320px] whitespace-pre-wrap break-words text-muted-foreground" dir="ltr">
+            {s.rawOutput}
+          </pre>
+        </details>
+      ))}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* History Button + dropdown                                          */
+/* ------------------------------------------------------------------ */
+function formatHistoryDate(iso?: string | null): string {
+  if (!iso) return 'unknown date';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return 'unknown date';
+  return d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+}
+
+function HistoryButton({ field, onRestored }: { field: HistoryField; onRestored: (data: ProfileResponse) => void }) {
+  const [open, setOpen] = useState(false);
+  const [confirmIdx, setConfirmIdx] = useState<number | null>(null);
+  const { data, isLoading } = useProfileHistory(field, open);
+  const restore = useRestoreHistory();
+  const entries: ProfileHistoryEntry[] = data?.entries ?? [];
+
+  async function doRestore(index: number): Promise<void> {
+    const updated = await restore.mutateAsync({ field, index }) as ProfileResponse;
+    onRestored(updated);
+    setConfirmIdx(null);
+    setOpen(false);
+  }
+
+  return (
+    <div className="relative inline-block">
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => { setOpen(v => !v); setConfirmIdx(null); }}
+        title="View and restore previous versions"
+      >
+        History
+      </Button>
+      {open && (
+        <div className="absolute right-0 z-20 mt-2 w-[min(28rem,90vw)] max-h-[26rem] overflow-auto p-2 rounded-lg border border-border bg-popover shadow-lg animate-in fade-in slide-in-from-top-1 duration-150">
+          {isLoading ? (
+            <div className="p-3 text-[0.8rem] text-muted-foreground">Loading…</div>
+          ) : entries.length === 0 ? (
+            <div className="p-3 text-[0.8rem] text-muted-foreground">No previous versions yet. Saving a change here will start the history.</div>
+          ) : (
+            entries.map((e) => (
+              <div key={e.index} className="flex flex-col gap-[0.4rem] p-[0.6rem_0.7rem] rounded-md hover:bg-accent/50 border-b border-border last:border-b-0">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-[0.74rem] font-medium text-foreground tabular-nums">{formatHistoryDate(e.savedAt)}</span>
+                  <span className="text-[0.68rem] text-muted-foreground tabular-nums">{e.length.toLocaleString()} chars</span>
+                </div>
+                <pre className="text-[0.72rem] leading-[1.5] text-muted-foreground whitespace-pre-wrap break-words max-h-[4.5rem] overflow-hidden m-0" dir="auto">{e.preview}</pre>
+                <div className="flex justify-end gap-2">
+                  {confirmIdx === e.index ? (
+                    <>
+                      <Button variant="outline" size="sm" onClick={() => setConfirmIdx(null)} disabled={restore.isPending}>Cancel</Button>
+                      <Button size="sm" onClick={() => doRestore(e.index)} disabled={restore.isPending}>
+                        {restore.isPending ? 'Restoring…' : 'Confirm restore'}
+                      </Button>
+                    </>
+                  ) : (
+                    <Button variant="outline" size="sm" onClick={() => setConfirmIdx(e.index)}>Restore this version</Button>
+                  )}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 

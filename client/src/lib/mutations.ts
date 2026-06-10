@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, matchApi, discoveryApi } from './api';
+import type { TestPromptRequest, TestPromptResult, HistoryField } from './types';
 
 export function useTriggerRun() {
   const queryClient = useQueryClient();
@@ -99,6 +100,31 @@ export function useSaveProfile() {
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['match', 'profile'] });
+    },
+  });
+}
+
+export function useTestPrompt() {
+  return useMutation({
+    mutationFn: (body: TestPromptRequest) =>
+      matchApi('/test-prompt', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }) as Promise<TestPromptResult>,
+  });
+}
+
+export function useRestoreHistory() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ field, index }: { field: HistoryField; index: number }) =>
+      matchApi(`/profile/history/${field}/restore`, {
+        method: 'POST',
+        body: JSON.stringify({ index }),
+      }),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['match', 'profile'] });
+      queryClient.invalidateQueries({ queryKey: ['match', 'profile', 'history', variables.field] });
     },
   });
 }

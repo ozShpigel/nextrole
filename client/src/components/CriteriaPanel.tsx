@@ -143,9 +143,6 @@ const LOCATION_SUGGESTIONS = [
 const AVAILABLE_SITES = [
   { value: 'linkedin', label: 'LinkedIn' },
   { value: 'indeed', label: 'Indeed' },
-  { value: 'glassdoor', label: 'Glassdoor' },
-  { value: 'zip_recruiter', label: 'ZipRecruiter' },
-  { value: 'google', label: 'Google' },
 ];
 
 const HOURS_OLD_OPTIONS = [

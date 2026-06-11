@@ -46,7 +46,7 @@ public static class ApplicationEndpoints
             IApplicationRepository repo,
             CancellationToken ct) =>
         {
-            var apps = await repo.GetAllAsync(ct);
+            var apps = await repo.GetAllListItemsAsync(ct);
             return Results.Ok(apps);
         })
         .WithName("GetAllApplications")
@@ -100,15 +100,16 @@ public static class ApplicationEndpoints
                     AppliedAt = request.NewStatus == ApplicationStatus.Applied ? DateTime.UtcNow : existing.AppliedAt
                 };
 
-                await repo.UpdateAsync(updated, ct);
-
-                await statusRepo.CreateAsync(new StatusUpdate
+                // Independent writes — run concurrently to save a round-trip.
+                var updateTask = repo.UpdateAsync(updated, ct);
+                var statusTask = statusRepo.CreateAsync(new StatusUpdate
                 {
                     ApplicationId = id,
                     FromStatus = oldStatus,
                     ToStatus = request.NewStatus,
                     Note = request.Note
                 }, ct);
+                await Task.WhenAll(updateTask, statusTask);
 
                 logger.LogInformation("Application {Id} status changed: {From} -> {To}", id, oldStatus, request.NewStatus);
                 return Results.Ok(updated);

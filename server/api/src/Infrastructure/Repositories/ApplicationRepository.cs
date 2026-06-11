@@ -46,6 +46,24 @@ public sealed class ApplicationRepository : IApplicationRepository
             .ToListAsync(ct);
     }
 
+    public async Task<List<ApplicationListItem>> GetAllListItemsAsync(CancellationToken ct = default)
+    {
+        var projection = Builders<Application>.Projection
+            .Include(a => a.Id)
+            .Include(a => a.JobTitle)
+            .Include(a => a.Company)
+            .Include(a => a.Status)
+            .Include(a => a.MatchScore)
+            .Include(a => a.MatchVerdict)
+            .Include(a => a.CreatedAt)
+            .Include(a => a.UpdatedAt);
+
+        return await _applications.Find(FilterDefinition<Application>.Empty)
+            .SortByDescending(a => a.CreatedAt)
+            .Project<ApplicationListItem>(projection)
+            .ToListAsync(ct);
+    }
+
     public async Task<List<Application>> GetByIdsAsync(IEnumerable<Guid> ids, CancellationToken ct = default)
     {
         var filter = Builders<Application>.Filter.In(a => a.Id, ids);

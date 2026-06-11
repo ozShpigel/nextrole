@@ -166,9 +166,22 @@ export function useUpdateAppStatus() {
         method: 'PUT',
         body: JSON.stringify({ newStatus, note }),
       }),
-    onSuccess: (_data, variables) => {
+    onSuccess: (data, variables) => {
+      // Patch the (large) list cache in place from the PUT response instead of
+      // re-downloading it — keeps status changes instant on the tracker/board.
+      const updatedAt = (data as { updatedAt?: string } | undefined)?.updatedAt;
+      queryClient.setQueryData(['applications'], (old: unknown) =>
+        Array.isArray(old)
+          ? old.map((a) =>
+              (a as { id: string }).id === variables.appId
+                ? { ...a, status: variables.newStatus, updatedAt: updatedAt ?? (a as { updatedAt?: string }).updatedAt }
+                : a,
+            )
+          : old,
+      );
+      // The detail view's timeline gains a row, so refetch just that one app
+      // (small) — not the whole list.
       queryClient.invalidateQueries({ queryKey: ['applications', variables.appId] });
-      queryClient.invalidateQueries({ queryKey: ['applications'] });
     },
   });
 }

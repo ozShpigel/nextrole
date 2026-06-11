@@ -9,9 +9,6 @@ public interface IProfileProvider
         Dictionary<string, object?>? scoringConfig,
         string? analystPrompt,
         string? evaluatorPrompt,
-        string? elevatorPitch = null,
-        string? professionalIntro = null,
-        string? extendedIntro = null,
         CancellationToken cancellationToken = default);
     Task<ScoringConfig> GetScoringConfigAsync(CancellationToken cancellationToken = default);
     ScoringConfig ResolveScoringConfig(Dictionary<string, object?>? scoringConfig);
@@ -70,9 +67,6 @@ public sealed record ProfileDocument
     public string EvaluatorPrompt { get; init; } = "";
     public bool AnalystIsOverride { get; init; }
     public bool EvaluatorIsOverride { get; init; }
-    public string? ElevatorPitch { get; init; }
-    public string? ProfessionalIntro { get; init; }
-    public string? ExtendedIntro { get; init; }
     public DateTime? UpdatedAt { get; init; }
 }
 

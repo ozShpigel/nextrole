@@ -13,9 +13,6 @@ const mockProfileResponse = {
   analyst_prompt_is_override: false,
   evaluator_prompt: 'test evaluator prompt with {{USER_PROFILE}} and {{PARSED_JOB}}',
   evaluator_prompt_is_override: false,
-  elevator_pitch: 'test pitch',
-  professional_intro: 'test professional intro',
-  extended_intro: 'test extended intro',
   updated_at: '2026-05-01T00:00:00Z',
   scoring_config: {
     analyst: { model: 'claude-sonnet-4-6', temperature: 0.3, max_tokens: 4096, thinking_enabled: true, thinking_budget: 2048 },
@@ -52,7 +49,6 @@ describe('SettingsPage', () => {
     expect(screen.getByText('Evaluator Prompt')).toBeInTheDocument();
     expect(screen.getByText('Analysis Config')).toBeInTheDocument();
     expect(screen.getByText('Scoring Structure')).toBeInTheDocument();
-    expect(screen.getByText('Introductions')).toBeInTheDocument();
 
     expect(screen.queryByRole('status', { name: /loading settings/i })).not.toBeInTheDocument();
   });

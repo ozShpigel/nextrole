@@ -26,9 +26,6 @@ vi.mock('../components/Snapshots', () => ({
 vi.mock('../components/AnalysisCard', () => ({
   default: () => <div data-testid="analysis-card" />,
 }));
-vi.mock('../components/IntroductionCard', () => ({
-  default: () => <div data-testid="intro-card" />,
-}));
 vi.mock('../components/Timeline', () => ({
   default: () => <div data-testid="timeline" />,
 }));
@@ -85,7 +82,7 @@ describe('ApplicationDetailPage', () => {
 
   it('renders application details after successful load', async () => {
     vi.mocked(api).mockResolvedValue(mockDetailData);
-    vi.mocked(matchApi).mockResolvedValue({ elevator_pitch: '', professional_intro: '', extended_intro: '' });
+    vi.mocked(matchApi).mockResolvedValue({});
 
     renderWithRouter(<ApplicationDetail />);
 

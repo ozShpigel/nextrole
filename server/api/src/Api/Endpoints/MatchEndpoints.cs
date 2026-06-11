@@ -101,9 +101,6 @@ public static class MatchEndpoints
                     evaluator_prompt = doc.EvaluatorPrompt,
                     analyst_prompt_is_override = doc.AnalystIsOverride,
                     evaluator_prompt_is_override = doc.EvaluatorIsOverride,
-                    elevator_pitch = doc.ElevatorPitch,
-                    professional_intro = doc.ProfessionalIntro,
-                    extended_intro = doc.ExtendedIntro,
                     updated_at = doc.UpdatedAt
                 });
             }
@@ -128,10 +125,7 @@ public static class MatchEndpoints
             if (request.Content is null
                 && request.ScoringConfig is null
                 && request.AnalystPrompt is null
-                && request.EvaluatorPrompt is null
-                && request.ElevatorPitch is null
-                && request.ProfessionalIntro is null
-                && request.ExtendedIntro is null)
+                && request.EvaluatorPrompt is null)
             {
                 return Results.BadRequest(new { error = "at least one field must be provided" });
             }
@@ -143,9 +137,6 @@ public static class MatchEndpoints
                     request.ScoringConfig,
                     request.AnalystPrompt,
                     request.EvaluatorPrompt,
-                    request.ElevatorPitch,
-                    request.ProfessionalIntro,
-                    request.ExtendedIntro,
                     ct);
                 var updated = await provider.GetProfileDocumentAsync(ct);
                 return Results.Ok(new
@@ -156,9 +147,6 @@ public static class MatchEndpoints
                     evaluator_prompt = updated.EvaluatorPrompt,
                     analyst_prompt_is_override = updated.AnalystIsOverride,
                     evaluator_prompt_is_override = updated.EvaluatorIsOverride,
-                    elevator_pitch = updated.ElevatorPitch,
-                    professional_intro = updated.ProfessionalIntro,
-                    extended_intro = updated.ExtendedIntro,
                     updated_at = updated.UpdatedAt
                 });
             }
@@ -214,9 +202,6 @@ public static class MatchEndpoints
                     evaluator_prompt = updated.EvaluatorPrompt,
                     analyst_prompt_is_override = updated.AnalystIsOverride,
                     evaluator_prompt_is_override = updated.EvaluatorIsOverride,
-                    elevator_pitch = updated.ElevatorPitch,
-                    professional_intro = updated.ProfessionalIntro,
-                    extended_intro = updated.ExtendedIntro,
                     updated_at = updated.UpdatedAt
                 });
             }

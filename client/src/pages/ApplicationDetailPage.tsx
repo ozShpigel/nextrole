@@ -2,15 +2,13 @@ import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import ConfirmDialog from '../components/ConfirmDialog';
 import { useQueryClient } from '@tanstack/react-query';
-import { useApplicationDetail, useProfile } from '../lib/queries';
+import { useApplicationDetail } from '../lib/queries';
 import { useDeleteApplication, useUpdateSalary, useGenerateCompanySummary, useGenerateWhyWorkHere } from '../lib/mutations';
-import type { ProfileResponse } from '../lib/types';
 import { scoreColor } from '../lib/format';
 import { StatusBadge, StatusModal } from '../components/Status';
 import CollapsibleSection from '../components/CollapsibleSection';
 import { SnapshotsCard } from '../components/Snapshots';
 import AnalysisCard from '../components/AnalysisCard';
-import IntroductionCard from '../components/IntroductionCard';
 import Timeline from '../components/Timeline';
 import { InterviewList, InterviewModal } from '../components/Interviews';
 import { NoteList, NoteModal } from '../components/Notes';
@@ -72,12 +70,6 @@ interface ApplicationDetailData {
   statusUpdates: StatusUpdate[];
 }
 
-interface Intros {
-  elevatorPitch: string;
-  professionalIntro: string;
-  extendedIntro: string;
-}
-
 type ModalState =
   | { type: 'status' }
   | { type: 'interview' }
@@ -92,16 +84,7 @@ export default function ApplicationDetail() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const detailQuery = useApplicationDetail(id!);
-  const profileQuery = useProfile();
   const deleteApplicationMutation = useDeleteApplication();
-
-  const intros: Intros | null = profileQuery.data
-    ? {
-        elevatorPitch: (profileQuery.data as ProfileResponse)?.elevator_pitch || '',
-        professionalIntro: (profileQuery.data as ProfileResponse)?.professional_intro || '',
-        extendedIntro: (profileQuery.data as ProfileResponse)?.extended_intro || '',
-      }
-    : null;
 
   function closeAndReload(): void {
     setModal(null);
@@ -184,16 +167,6 @@ export default function ApplicationDetail() {
 
         {/* AI Analysis */}
         <AnalysisCard matchAnalysisJson={app.matchAnalysis} />
-
-        {/* Self-introduction based on stage */}
-        {intros && (
-          <IntroductionCard
-            status={app.status}
-            elevatorPitch={intros.elevatorPitch}
-            professionalIntro={intros.professionalIntro}
-            extendedIntro={intros.extendedIntro}
-          />
-        )}
 
         {/* "Why work here?" interview answer */}
         <WhyWorkHereBlock appId={app.id} initialAnswer={app.whyWorkHere} />

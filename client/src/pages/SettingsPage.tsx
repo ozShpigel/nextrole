@@ -8,7 +8,7 @@ import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { Separator } from '../components/ui/separator';
 import { Skeleton } from '../components/ui/skeleton';
-import { SaveResult, IntroTextarea, HistoryDropdown, type SaveResultData } from '../components/settings-shared';
+import { SaveResult, HistoryDropdown, type SaveResultData } from '../components/settings-shared';
 
 const MODEL_OPTIONS: string[] = [
   'claude-sonnet-4-6',
@@ -137,7 +137,6 @@ const SECTIONS: SectionInfo[] = [
   { id: 'settings-section-03', num: '03', name: 'Evaluator Prompt', short: 'Evaluator' },
   { id: 'settings-section-04', num: '04', name: 'Analysis Config', short: 'Tuning' },
   { id: 'settings-section-05', num: '05', name: 'Scoring Structure', short: 'Scoring' },
-  { id: 'settings-section-06', num: '06', name: 'Introductions', short: 'Intros' },
 ];
 
 function scrollToSection(id: string): void {
@@ -164,13 +163,6 @@ export default function SettingsPage() {
   const [config, setConfig] = useState<ScoringConfig>(DEFAULT_CONFIG);
   const [originalConfig, setOriginalConfig] = useState<ScoringConfig>(DEFAULT_CONFIG);
 
-  const [elevatorPitch, setElevatorPitch] = useState<string>('');
-  const [originalElevatorPitch, setOriginalElevatorPitch] = useState<string>('');
-  const [professionalIntro, setProfessionalIntro] = useState<string>('');
-  const [originalProfessionalIntro, setOriginalProfessionalIntro] = useState<string>('');
-  const [extendedIntro, setExtendedIntro] = useState<string>('');
-  const [originalExtendedIntro, setOriginalExtendedIntro] = useState<string>('');
-
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
   const [activeSection, setActiveSection] = useState<string>(SECTIONS[0].id);
 
@@ -178,13 +170,11 @@ export default function SettingsPage() {
   const [savingAnalyst, setSavingAnalyst] = useState<boolean>(false);
   const [savingEvaluator, setSavingEvaluator] = useState<boolean>(false);
   const [savingConfig, setSavingConfig] = useState<boolean>(false);
-  const [savingIntros, setSavingIntros] = useState<boolean>(false);
 
   const [profileResult, setProfileResult] = useState<SaveResultData | null>(null);
   const [analystResult, setAnalystResult] = useState<SaveResultData | null>(null);
   const [evaluatorResult, setEvaluatorResult] = useState<SaveResultData | null>(null);
   const [configResult, setConfigResult] = useState<SaveResultData | null>(null);
-  const [introsResult, setIntrosResult] = useState<SaveResultData | null>(null);
 
   const [confirmReset, setConfirmReset] = useState<'analyst' | 'evaluator' | null>(null);
   const [confirmUnsafeSave, setConfirmUnsafeSave] = useState<boolean>(false);
@@ -209,16 +199,6 @@ export default function SettingsPage() {
     setEvaluatorPrompt(evaluator);
     setOriginalEvaluatorPrompt(evaluator);
     setEvaluatorIsOverride(!!data?.evaluator_prompt_is_override);
-
-    const ep = data?.elevator_pitch || '';
-    setElevatorPitch(ep);
-    setOriginalElevatorPitch(ep);
-    const pi = data?.professional_intro || '';
-    setProfessionalIntro(pi);
-    setOriginalProfessionalIntro(pi);
-    const ei = data?.extended_intro || '';
-    setExtendedIntro(ei);
-    setOriginalExtendedIntro(ei);
 
     setLastUpdated(data?.updated_at ?? null);
     if (data?.scoring_config) {
@@ -261,10 +241,6 @@ export default function SettingsPage() {
   const isAnalystDirty = analystPrompt !== originalAnalystPrompt;
   const isEvaluatorDirty = evaluatorPrompt !== originalEvaluatorPrompt;
   const isConfigDirty = JSON.stringify(config) !== JSON.stringify(originalConfig);
-  const isIntrosDirty = elevatorPitch !== originalElevatorPitch
-    || professionalIntro !== originalProfessionalIntro
-    || extendedIntro !== originalExtendedIntro;
-
   async function saveField(
     body: Record<string, unknown>,
     setSaving: React.Dispatch<React.SetStateAction<boolean>>,
@@ -331,17 +307,6 @@ export default function SettingsPage() {
     'Analysis config',
   );
 
-  const saveIntros = () => saveField(
-    { elevator_pitch: elevatorPitch, professional_intro: professionalIntro, extended_intro: extendedIntro },
-    setSavingIntros, setIntrosResult,
-    () => {
-      setOriginalElevatorPitch(elevatorPitch);
-      setOriginalProfessionalIntro(professionalIntro);
-      setOriginalExtendedIntro(extendedIntro);
-    },
-    'Introductions',
-  );
-
   function confirmResetAccept(): void {
     if (confirmReset === 'analyst') {
       saveField(
@@ -398,7 +363,6 @@ export default function SettingsPage() {
     '03': isEvaluatorDirty,
     '04': isConfigDirty,
     '05': false,
-    '06': isIntrosDirty,
   };
   const dirtyList = SECTIONS.filter((s) => dirtyMap[s.num]);
 
@@ -742,65 +706,6 @@ export default function SettingsPage() {
         </div>
       </section>
 
-      {/* 06 — Introductions */}
-      <section className="mb-16 relative animate-in fade-in slide-in-from-bottom-2 duration-300" id="settings-section-06" style={{ animationDelay: '0.2s' }}>
-        <div className="flex items-end gap-4 mb-[0.65rem] flex-wrap pb-[0.55rem] border-b border-border relative">
-          <span className="absolute bottom-[-1px] left-0 w-11 h-0.5 bg-gradient-to-r from-muted-foreground to-transparent rounded-sm" />
-          <span className="font-serif text-[2.4rem] font-bold text-muted-foreground tracking-[-0.03em] tabular-nums leading-[0.85] shrink-0 min-w-[2.6ch] relative">
-            <span className="absolute bottom-[0.35em] left-0 w-[0.55em] h-0.5 bg-muted-foreground opacity-25 origin-left transition-all" />
-            06
-          </span>
-          <span className="font-serif text-[1.55rem] font-bold text-foreground tracking-[-0.012em] leading-[1.15] pb-[0.1rem]">Introductions</span>
-        </div>
-        <p className="text-[0.92rem] text-muted-foreground leading-[1.75] mt-[0.85rem] mb-6 max-w-[640px]">
-          Self-introduction texts shown on the tracker detail page based on application stage.
-          Each stage displays the most relevant introduction type.
-        </p>
-
-        <IntroTextarea
-          label="Elevator Pitch"
-          hint="Shown at Decided to Apply and Applied stages — a 30-second self-introduction"
-          value={elevatorPitch}
-          onChange={(v: string) => { setElevatorPitch(v); setIntrosResult(null); }}
-          minHeight={140}
-        />
-
-        <IntroTextarea
-          label="Professional Introduction"
-          hint="Shown alongside the elevator pitch at Phone Screen stage — a 1-2 minute professional self-introduction"
-          value={professionalIntro}
-          onChange={(v: string) => { setProfessionalIntro(v); setIntrosResult(null); }}
-          minHeight={200}
-        />
-
-        <IntroTextarea
-          label="Extended Introduction"
-          hint="Shown at Technical Interview and Final Round stages — a 3-4 minute detailed introduction"
-          value={extendedIntro}
-          onChange={(v: string) => { setExtendedIntro(v); setIntrosResult(null); }}
-          minHeight={260}
-        />
-
-        <div className="flex justify-end items-center gap-[0.6rem] mt-6 pt-[1.1rem] border-t border-dashed border-border relative">
-          <span className="absolute top-[-1px] right-0 w-9 h-px bg-muted-foreground opacity-50" />
-          {isIntrosDirty && (
-            <Button variant="outline" size="sm" onClick={() => {
-              setElevatorPitch(originalElevatorPitch);
-              setProfessionalIntro(originalProfessionalIntro);
-              setExtendedIntro(originalExtendedIntro);
-            }} disabled={savingIntros}>
-              Discard changes
-            </Button>
-          )}
-          <Button
-            onClick={saveIntros}
-            disabled={savingIntros || !isIntrosDirty}
-          >
-            {savingIntros ? 'Saving...' : 'Save introductions'}
-          </Button>
-        </div>
-        {introsResult && <SaveResult result={introsResult} />}
-      </section>
     </div>
   );
 }

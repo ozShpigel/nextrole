@@ -35,16 +35,3 @@ export const NOTE_CATEGORY_LABELS: Record<string, string> = {
   FollowUp: 'Follow-up',
 };
 
-export const STATUS_INTRO_MAP: Record<string, string[]> = {
-  DecidedToApply: ['elevatorPitch'],
-  Applied: ['elevatorPitch'],
-  PhoneScreen: ['elevatorPitch', 'professionalIntro'],
-  TechnicalInterview: ['extendedIntro'],
-  FinalRound: ['extendedIntro'],
-};
-
-export const INTRO_LABELS: Record<string, string> = {
-  elevatorPitch: 'Elevator Pitch · 30s',
-  professionalIntro: 'Professional Introduction · 1-2min',
-  extendedIntro: 'Extended Introduction · 3-4min',
-};

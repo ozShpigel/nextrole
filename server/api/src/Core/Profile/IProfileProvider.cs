@@ -22,6 +22,36 @@ public interface IProfileProvider
     // (content | analyst_prompt | evaluator_prompt | scoring_config), newest-first.
     Task<IReadOnlyList<ProfileHistoryEntry>> GetHistoryAsync(string field, CancellationToken cancellationToken = default);
     Task RestoreHistoryAsync(string field, int index, CancellationToken cancellationToken = default);
+
+    // Interview prep — standalone authored content (self-presentation, Q&A rubric,
+    // project pitches). Stored under an `interview_prep` sub-object on the same
+    // singleton doc, with its own version history. Per-field carry-forward semantics.
+    Task<InterviewPrepDocument> GetInterviewPrepAsync(CancellationToken cancellationToken = default);
+    Task UpsertInterviewPrepAsync(
+        string? selfPresentationHr,
+        string? selfPresentationTechnical,
+        string? presentingWorkProject,
+        string? presentingPersonalProject,
+        IReadOnlyList<QaEntry>? qaRubric,
+        CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<ProfileHistoryEntry>> GetInterviewPrepHistoryAsync(string field, CancellationToken cancellationToken = default);
+    Task RestoreInterviewPrepHistoryAsync(string field, int index, CancellationToken cancellationToken = default);
+}
+
+public sealed record QaEntry
+{
+    public string Question { get; init; } = "";
+    public string Answer { get; init; } = "";
+}
+
+public sealed record InterviewPrepDocument
+{
+    public string SelfPresentationHr { get; init; } = "";
+    public string SelfPresentationTechnical { get; init; } = "";
+    public string PresentingWorkProject { get; init; } = "";
+    public string PresentingPersonalProject { get; init; } = "";
+    public IReadOnlyList<QaEntry> QaRubric { get; init; } = Array.Empty<QaEntry>();
+    public DateTime? UpdatedAt { get; init; }
 }
 
 public sealed record ProfileHistoryEntry

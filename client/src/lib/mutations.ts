@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, matchApi, discoveryApi } from './api';
-import type { TestPromptRequest, TestPromptResult, HistoryField } from './types';
+import type { TestPromptRequest, TestPromptResult, HistoryField, InterviewPrepHistoryField } from './types';
 
 export function useTriggerRun() {
   const queryClient = useQueryClient();
@@ -125,6 +125,35 @@ export function useRestoreHistory() {
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['match', 'profile'] });
       queryClient.invalidateQueries({ queryKey: ['match', 'profile', 'history', variables.field] });
+    },
+  });
+}
+
+export function useSaveInterviewPrep() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: Record<string, unknown>) =>
+      matchApi('/interview-prep', {
+        method: 'PUT',
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['match', 'interview-prep'] });
+    },
+  });
+}
+
+export function useRestoreInterviewPrepHistory() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ field, index }: { field: InterviewPrepHistoryField; index: number }) =>
+      matchApi(`/interview-prep/history/${field}/restore`, {
+        method: 'POST',
+        body: JSON.stringify({ index }),
+      }),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['match', 'interview-prep'] });
+      queryClient.invalidateQueries({ queryKey: ['match', 'interview-prep', 'history', variables.field] });
     },
   });
 }

@@ -54,3 +54,26 @@ export interface ProfileHistoryEntry {
 export interface ProfileHistoryResponse {
   entries: ProfileHistoryEntry[];
 }
+
+// Interview prep — standalone authored content (self-presentation, Q&A rubric,
+// project pitches). Stored alongside the profile but exposed via its own endpoints.
+export interface QaEntry {
+  question: string;
+  answer: string;
+}
+
+export interface InterviewPrepResponse {
+  self_presentation_hr?: string;
+  self_presentation_technical?: string;
+  presenting_work_project?: string;
+  presenting_personal_project?: string;
+  qa_rubric?: QaEntry[];
+  updated_at?: string;
+}
+
+export type InterviewPrepHistoryField =
+  | 'self_presentation_hr'
+  | 'self_presentation_technical'
+  | 'presenting_work_project'
+  | 'presenting_personal_project'
+  | 'qa_rubric';

@@ -16,6 +16,7 @@ export default function App() {
             <NavLink to="/" end className={navLinkClass}>Home</NavLink>
             <NavLink to="/discovery" className={navLinkClass}>Discovery</NavLink>
             <NavLink to="/tracker" className={navLinkClass}>Tracker</NavLink>
+            <NavLink to="/interview-prep" className={navLinkClass}>Interview Prep</NavLink>
             <NavLink to="/settings" className={navLinkClass}>Settings</NavLink>
             <button
               onClick={toggleTheme}

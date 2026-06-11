@@ -1,6 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
 import { api, matchApi, discoveryApi } from './api';
-import type { ProfileResponse, ProfileHistoryResponse, HistoryField } from './types';
+import type {
+  ProfileResponse,
+  ProfileHistoryResponse,
+  HistoryField,
+  InterviewPrepResponse,
+  InterviewPrepHistoryField,
+} from './types';
 
 export function useDiscoveryHealth() {
   return useQuery({
@@ -68,6 +74,21 @@ export function useProfileHistory(field: HistoryField, enabled: boolean) {
   return useQuery<ProfileHistoryResponse>({
     queryKey: ['match', 'profile', 'history', field],
     queryFn: () => matchApi(`/profile/history/${field}`),
+    enabled,
+  });
+}
+
+export function useInterviewPrep() {
+  return useQuery<InterviewPrepResponse>({
+    queryKey: ['match', 'interview-prep'],
+    queryFn: () => matchApi('/interview-prep'),
+  });
+}
+
+export function useInterviewPrepHistory(field: InterviewPrepHistoryField, enabled: boolean) {
+  return useQuery<ProfileHistoryResponse>({
+    queryKey: ['match', 'interview-prep', 'history', field],
+    queryFn: () => matchApi(`/interview-prep/history/${field}`),
     enabled,
   });
 }

@@ -13,6 +13,7 @@ import RunDetailPage from './pages/RunDetailPage';
 import TrackerPage from './pages/TrackerPage';
 import ApplicationDetailPage from './pages/ApplicationDetailPage';
 import SettingsPage from './pages/SettingsPage';
+import InterviewPrepPage from './pages/InterviewPrepPage';
 import NotFoundPage from './pages/NotFoundPage';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
@@ -28,6 +29,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
             <Route path="/discovery/:runId" element={<RunDetailPage />} />
             <Route path="/tracker" element={<TrackerPage />} />
             <Route path="/tracker/:id" element={<ApplicationDetailPage />} />
+            <Route path="/interview-prep" element={<InterviewPrepPage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="*" element={<NotFoundPage />} />
           </Route>

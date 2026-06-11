@@ -45,7 +45,12 @@ export default function ApplicationList() {
         <span>Date</span>
         <span></span>
       </div>
-      {(apps as Application[]).map((a) => {
+      {[...(apps as Application[])]
+        .sort((a, b) => {
+          const sink = (s: string) => (s === 'Applied' || s === 'DecidedToApply' ? 1 : 0);
+          return sink(a.status) - sink(b.status);
+        })
+        .map((a) => {
         const days = a.updatedAt ? Math.floor((Date.now() - new Date(a.updatedAt).getTime()) / 86400000) : null;
         const daysColor = days !== null && days >= 14 ? '#ef4444' : days !== null && days >= 7 ? '#d97706' : undefined;
         return (

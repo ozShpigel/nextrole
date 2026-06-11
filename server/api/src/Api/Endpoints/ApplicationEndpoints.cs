@@ -158,6 +158,25 @@ public static class ApplicationEndpoints
         .WithName("UpdateApplicationSalary")
         .WithSummary("Update application salary");
 
+        app.MapPut("/api/applications/{id:guid}/title", async (
+            Guid id,
+            [FromBody] TitleUpdateRequest request,
+            IApplicationRepository repo,
+            CancellationToken ct) =>
+        {
+            if (string.IsNullOrWhiteSpace(request?.JobTitle))
+                return Results.BadRequest(new { error = "jobTitle is required" });
+
+            var existing = await repo.GetByIdAsync(id, ct);
+            if (existing is null) return Results.NotFound();
+
+            var updated = existing with { JobTitle = request.JobTitle.Trim(), UpdatedAt = DateTime.UtcNow };
+            await repo.UpdateAsync(updated, ct);
+            return Results.Ok(updated);
+        })
+        .WithName("UpdateApplicationTitle")
+        .WithSummary("Update application job title");
+
         app.MapPost("/api/applications/{id:guid}/company-summary", async (
             Guid id,
             IApplicationRepository repo,

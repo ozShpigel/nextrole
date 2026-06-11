@@ -6,6 +6,10 @@ namespace ApplicationTracker.Api.Endpoints;
 
 public static class InterviewEndpoints
 {
+    // Marker the mailbot stamps on interviews it creates from parsed emails.
+    // Must match Mailbot's MailbotOrchestrator interview Notes value.
+    private const string AutoDetectedNote = "Auto-detected from email";
+
     public static WebApplication MapInterviewEndpoints(this WebApplication app)
     {
         app.MapPost("/api/applications/{id:guid}/interviews", async (
@@ -17,6 +21,30 @@ public static class InterviewEndpoints
         {
             var existing = await appRepo.GetByIdAsync(id, ct);
             if (existing is null) return Results.NotFound();
+
+            // Idempotency for mailbot-created interviews: multiple emails in one
+            // scheduling thread can each be classified as "InterviewScheduled",
+            // which would otherwise create a duplicate interview per email. When
+            // the incoming interview is auto-detected, update the existing
+            // auto-detected interview of the same type (refining its date/details)
+            // instead of inserting a duplicate. Manual interviews are never merged.
+            if (interview.Notes == AutoDetectedNote)
+            {
+                var current = await repo.GetByApplicationIdAsync(id, ct);
+                var duplicate = current.FirstOrDefault(i =>
+                    i.Type == interview.Type && i.Notes == AutoDetectedNote);
+                if (duplicate is not null)
+                {
+                    var merged = duplicate with
+                    {
+                        ScheduledAt = interview.ScheduledAt,
+                        Interviewer = interview.Interviewer ?? duplicate.Interviewer,
+                        Topics = interview.Topics ?? duplicate.Topics,
+                    };
+                    await repo.UpdateAsync(merged, ct);
+                    return Results.Ok(merged);
+                }
+            }
 
             var created = interview with { ApplicationId = id };
             await repo.CreateAsync(created, ct);

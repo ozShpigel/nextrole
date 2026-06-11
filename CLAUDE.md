@@ -51,6 +51,7 @@ cd server/scraper; .\.venv\Scripts\python.exe -m uvicorn app.main:app --host 0.0
 - Frontend is an English LTR SPA using shadcn/ui components with the default neutral theme
 - AI prompts use system/user separation: trusted instructions in the API system prompt field, untrusted external data (job descriptions, emails) in the user message wrapped in XML tags
 - `scoring_config` keys are validated against an allowlist before persisting to MongoDB
+- `GET /api/applications` returns a lightweight `ApplicationListItem` projection (only the fields the tracker/dashboard render) — the full `Application` document is fetched per-application via `GET /api/applications/{id}`. Status updates patch the React Query list cache optimistically (`setQueryData`) instead of refetching the list
 
 ## Scoring Pipeline
 
@@ -75,6 +76,28 @@ The Scraper enriches each discovered job with external data before scoring:
 - **Company Summary** — on-demand AI-generated Hebrew summary (3-4 lines) of what the company does, including approximate employee count. Generated via `POST /api/applications/{id}/company-summary` using Claude's knowledge base (no external data). Persisted on the `Application` document.
 
 Both news and Glassdoor are prefetched in parallel after scraping, cached per company within a discovery run, and stored on the `DiscoveredJob` document. If either fetch fails, scoring proceeds normally without it.
+
+## On-demand AI (application detail)
+
+Generated per-application from the tracker detail page and persisted on the `Application` document:
+
+- **Company Summary** — see above (`POST /api/applications/{id}/company-summary`).
+- **"Why work here?" answer** — a personalized single Hebrew paragraph answering the interview question. Combines the user's profile + interview-prep self-presentation (trusted, in the system prompt) with the job/company context — description, company summary, news, Glassdoor (untrusted, XML-wrapped in the user message). Generated via `POST /api/applications/{id}/why-work-here` (`ClaudeClient.GenerateWhyWorkHereAsync`, one-shot Sonnet), stored in the `WhyWorkHere` field.
+
+## Interview Prep
+
+Standalone interview-prep content the user authors on the dedicated `/interview-prep` page, separate from scoring config. Stored under an `interview_prep` sub-object on the same `profile`/`default` doc.
+
+- **Fields**: `self_presentation_hr`, `self_presentation_technical`, `presenting_work_project`, `presenting_personal_project` (free text), and `qa_rubric` (managed list of `{question, answer}`).
+- **Endpoints**: `GET/PUT /api/match/interview-prep` plus `GET /api/match/interview-prep/history/{field}` and `POST .../history/{field}/restore`, reusing the profile version-history machinery. Writes use a partial `$set`, so the scoring fields are never touched.
+- The self-presentations feed the "why work here?" generation as trusted context.
+
+## Mailbot (Email Sync)
+
+One-shot process: pulls active applications from the API, parses last-24h Gmail messages via `POST /api/emails/parse` (Claude, `PromptSeeds.EmailParser`), and applies status/interview updates.
+
+- **Matching** — an email is matched to an application by **company + job title**. The parser extracts a `jobTitle`; when several applications share a company, `MailbotOrchestrator.MatchApplication` disambiguates by title (exact → substring → token overlap), falling back to the first company match with a logged warning.
+- **Interview idempotency** — the create-interview endpoint updates the existing auto-detected interview of the same type instead of inserting a duplicate (multiple emails in one scheduling thread each parse as `InterviewScheduled`). Scoped to interviews with `Notes == "Auto-detected from email"`; manual interviews are never merged.
 ## Testing
 
 E2E tests use Playwright. Use the `e2e-test-writer` agent to write tests — it has the full setup details, database config, and conventions.

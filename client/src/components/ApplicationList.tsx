@@ -47,8 +47,10 @@ export default function ApplicationList() {
       </div>
       {[...(apps as Application[])]
         .sort((a, b) => {
-          const sink = (s: string) => (s === 'Applied' || s === 'DecidedToApply' ? 1 : 0);
-          return sink(a.status) - sink(b.status);
+          // Active first, then Applied/DecidedToApply, then Rejected at the very end.
+          const rank = (s: string) =>
+            s === 'Rejected' ? 2 : (s === 'Applied' || s === 'DecidedToApply' ? 1 : 0);
+          return rank(a.status) - rank(b.status);
         })
         .map((a) => {
         const days = a.updatedAt ? Math.floor((Date.now() - new Date(a.updatedAt).getTime()) / 86400000) : null;

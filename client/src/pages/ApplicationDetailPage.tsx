@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import ConfirmDialog from '../components/ConfirmDialog';
 import { useQueryClient } from '@tanstack/react-query';
 import { useApplicationDetail, useProfile } from '../lib/queries';
-import { useDeleteApplication, useUpdateSalary, useGenerateCompanySummary } from '../lib/mutations';
+import { useDeleteApplication, useUpdateSalary, useGenerateCompanySummary, useGenerateWhyWorkHere } from '../lib/mutations';
 import type { ProfileResponse } from '../lib/types';
 import { scoreColor } from '../lib/format';
 import { StatusBadge, StatusModal } from '../components/Status';
@@ -56,6 +56,7 @@ interface Application {
   updatedAt: string;
   salary: string | null;
   companySummary: string | null;
+  whyWorkHere: string | null;
   companyNews: string | null;
   glassdoorData: string | null;
   analystSnapshotInput: string | null;
@@ -193,6 +194,9 @@ export default function ApplicationDetail() {
             extendedIntro={intros.extendedIntro}
           />
         )}
+
+        {/* "Why work here?" interview answer */}
+        <WhyWorkHereBlock appId={app.id} initialAnswer={app.whyWorkHere} />
 
         {/* Company summary & enrichment data */}
         <CompanySummaryBlock appId={app.id} initialSummary={app.companySummary} />
@@ -367,6 +371,61 @@ function CompanySummaryBlock({ appId, initialSummary }: { appId: string; initial
         </p>
       ) : (
         <p className="text-[0.82rem] text-muted-foreground italic m-0">Click Generate to create an AI summary of this company.</p>
+      )}
+    </Card>
+  );
+}
+
+function WhyWorkHereBlock({ appId, initialAnswer }: { appId: string; initialAnswer: string | null }) {
+  const [answer, setAnswer] = useState<string>(initialAnswer || '');
+  const [copied, setCopied] = useState(false);
+  const generateMutation = useGenerateWhyWorkHere();
+  const loading = generateMutation.isPending;
+
+  function generate(): void {
+    generateMutation.mutate(appId, {
+      onSuccess: (res: { why_work_here: string }) => {
+        setAnswer(res.why_work_here);
+      },
+      onError: (e) => {
+        alert('Failed to generate answer: ' + (e as Error).message);
+      },
+    });
+  }
+
+  async function copyToClipboard(): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(answer);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch { /* ignore */ }
+  }
+
+  return (
+    <Card className="p-6 mb-4 transition-all hover:border-border hover:shadow-md">
+      <div className="flex items-center justify-between mb-3 pb-[0.6rem] border-b border-border">
+        <h3 className="text-[0.95rem] font-semibold text-foreground">למה לעבוד כאן?</h3>
+        <Button variant="outline" size="sm" onClick={generate} disabled={loading}>
+          {loading ? 'Generating...' : answer ? 'Regenerate' : 'Generate'}
+        </Button>
+      </div>
+      {answer ? (
+        <div className="relative">
+          <p dir="rtl" className="text-[0.88rem] leading-[1.75] text-foreground whitespace-pre-wrap text-right m-0 pl-16">
+            {answer}
+          </p>
+          <button
+            type="button"
+            onClick={copyToClipboard}
+            className="absolute top-0 left-0 py-[0.3rem] px-[0.6rem] rounded-md text-[0.72rem] font-medium border border-border bg-card text-muted-foreground cursor-pointer transition-all hover:border-foreground/30 hover:text-foreground"
+          >
+            {copied ? 'Copied' : 'Copy'}
+          </button>
+        </div>
+      ) : (
+        <p className="text-[0.82rem] text-muted-foreground italic m-0">
+          Generate a personalized answer to "Why do you want to work here?" based on this role and your profile.
+        </p>
       )}
     </Card>
   );

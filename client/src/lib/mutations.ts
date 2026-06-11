@@ -223,6 +223,17 @@ export function useGenerateCompanySummary() {
   });
 }
 
+export function useGenerateWhyWorkHere() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (appId: string) =>
+      api(`/applications/${appId}/why-work-here`, { method: 'POST' }),
+    onSuccess: (_data, appId) => {
+      queryClient.invalidateQueries({ queryKey: ['applications', appId] });
+    },
+  });
+}
+
 export function useAddInterview() {
   const queryClient = useQueryClient();
   return useMutation({

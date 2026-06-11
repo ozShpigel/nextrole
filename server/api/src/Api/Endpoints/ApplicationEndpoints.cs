@@ -1,6 +1,7 @@
 using ApplicationTracker.Api.DTOs;
 using ApplicationTracker.Core.AI;
 using ApplicationTracker.Core.Models;
+using ApplicationTracker.Core.Profile;
 using ApplicationTracker.Core.Repositories;
 using Microsoft.AspNetCore.Mvc;
 
@@ -175,6 +176,28 @@ public static class ApplicationEndpoints
         })
         .WithName("GenerateCompanySummary")
         .WithSummary("Generate AI company summary");
+
+        app.MapPost("/api/applications/{id:guid}/why-work-here", async (
+            Guid id,
+            IApplicationRepository repo,
+            IClaudeClient claude,
+            IProfileProvider profile,
+            ILogger<Program> logger,
+            CancellationToken ct) =>
+        {
+            var existing = await repo.GetByIdAsync(id, ct);
+            if (existing is null) return Results.NotFound();
+
+            var profileText = await profile.GetProfileAsync(ct);
+            var prep = await profile.GetInterviewPrepAsync(ct);
+            var answer = await claude.GenerateWhyWorkHereAsync(existing, profileText, prep, ct);
+            var updated = existing with { WhyWorkHere = answer, UpdatedAt = DateTime.UtcNow };
+            await repo.UpdateAsync(updated, ct);
+
+            return Results.Ok(new { why_work_here = answer });
+        })
+        .WithName("GenerateWhyWorkHere")
+        .WithSummary("Generate a personalized 'why work here' interview answer");
 
         app.MapGet("/api/applications/exists", async (
             [FromQuery] string company,

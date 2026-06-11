@@ -1,5 +1,6 @@
 using ApplicationTracker.Core.Email;
 using ApplicationTracker.Core.Matching;
+using ApplicationTracker.Core.Models;
 using ApplicationTracker.Core.Profile;
 
 namespace ApplicationTracker.Core.AI;
@@ -16,4 +17,9 @@ public interface IClaudeClient
     Task<(MatchResponse Response, ClaudeCallSnapshot Snapshot)> EvaluateMatchAsync(string profile, ParsedJob parsedJob, string evaluatorPrompt, RoleScoringConfig evaluatorConfig, List<CompanyNewsItem>? companyNews = null, GlassdoorData? glassdoorData = null, CancellationToken cancellationToken = default);
     Task<EmailParseResult?> ParseEmailAsync(string subject, string from, string body, List<string> knownCompanies, CancellationToken cancellationToken = default);
     Task<string> SummarizeCompanyAsync(string companyName, CancellationToken cancellationToken = default);
+
+    // Generates a personalized "why do you want to work here?" interview answer
+    // (one Hebrew paragraph) from the application's company/job context plus the
+    // user's profile and interview-prep self-presentation.
+    Task<string> GenerateWhyWorkHereAsync(Application app, string profile, InterviewPrepDocument prep, CancellationToken cancellationToken = default);
 }

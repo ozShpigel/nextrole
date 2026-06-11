@@ -6,6 +6,7 @@ using Anthropic.SDK.Messaging;
 using ApplicationTracker.Core.AI;
 using ApplicationTracker.Core.Email;
 using ApplicationTracker.Core.Matching;
+using ApplicationTracker.Core.Models;
 using ApplicationTracker.Core.Profile;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
@@ -196,6 +197,51 @@ public sealed class ClaudeClient : IClaudeClient
             ?? throw new InvalidOperationException("Empty response from Claude API");
 
         _logger.LogInformation("Company summary generated for: {Company}", companyName);
+        return content;
+    }
+
+    public async Task<string> GenerateWhyWorkHereAsync(Application app, string profile, InterviewPrepDocument prep, CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Generating 'why work here' answer for: {Company} / {Title}", app.Company, app.JobTitle);
+
+        // System prompt: trusted instructions + the user's own (trusted) profile
+        // and self-presentation. External company/job data goes in the user
+        // message wrapped in XML tags (treated as untrusted data).
+        var systemBuilder = new System.Text.StringBuilder(PromptSeeds.WhyWorkHere);
+        if (!string.IsNullOrWhiteSpace(profile))
+            systemBuilder.Append("\n\n# פרופיל המועמד\n").Append(profile.Trim());
+        if (!string.IsNullOrWhiteSpace(prep.SelfPresentationHr))
+            systemBuilder.Append("\n\n# הצגה עצמית (HR)\n").Append(prep.SelfPresentationHr.Trim());
+        if (!string.IsNullOrWhiteSpace(prep.SelfPresentationTechnical))
+            systemBuilder.Append("\n\n# הצגה עצמית (טכנית)\n").Append(prep.SelfPresentationTechnical.Trim());
+
+        var userBuilder = new System.Text.StringBuilder();
+        userBuilder.Append("<company>").Append(app.Company).Append("</company>\n");
+        userBuilder.Append("<job_title>").Append(app.JobTitle).Append("</job_title>\n");
+        if (!string.IsNullOrWhiteSpace(app.JobDescription))
+            userBuilder.Append("<job_description>").Append(app.JobDescription).Append("</job_description>\n");
+        if (!string.IsNullOrWhiteSpace(app.CompanySummary))
+            userBuilder.Append("<company_summary>").Append(app.CompanySummary).Append("</company_summary>\n");
+        if (!string.IsNullOrWhiteSpace(app.CompanyNews))
+            userBuilder.Append("<company_news>").Append(app.CompanyNews).Append("</company_news>\n");
+        if (!string.IsNullOrWhiteSpace(app.GlassdoorData))
+            userBuilder.Append("<glassdoor>").Append(app.GlassdoorData).Append("</glassdoor>\n");
+
+        var parameters = new MessageParameters
+        {
+            System = new List<SystemMessage> { new(systemBuilder.ToString()) },
+            Messages = new List<Message> { new(RoleType.User, userBuilder.ToString()) },
+            MaxTokens = 800,
+            Model = "claude-sonnet-4-20250514",
+            Temperature = 0.6m,
+            Stream = false
+        };
+
+        var response = await _client.Messages.GetClaudeMessageAsync(parameters, cancellationToken);
+        var content = response.Message?.ToString()?.Trim()
+            ?? throw new InvalidOperationException("Empty response from Claude API");
+
+        _logger.LogInformation("'Why work here' answer generated for: {Company} ({Length} chars)", app.Company, content.Length);
         return content;
     }
 

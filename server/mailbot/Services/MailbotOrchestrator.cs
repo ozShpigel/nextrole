@@ -88,9 +88,9 @@ public sealed class MailbotOrchestrator
 
                     parsed++;
 
-                    // Step 4: Find matching application
-                    var app = activeApps.FirstOrDefault(a =>
-                        a.Company.Equals(update.Company, StringComparison.OrdinalIgnoreCase));
+                    // Step 4: Find matching application (company + job title when
+                    // there are several apps at the same company)
+                    var app = MatchApplication(activeApps, update);
 
                     if (app == null)
                     {
@@ -131,6 +131,72 @@ public sealed class MailbotOrchestrator
 
         return result;
     }
+
+    /// <summary>
+    /// Picks the application an email update belongs to. Filters by company,
+    /// then — when the user has several applications at the same company —
+    /// disambiguates by job title (exact → substring → token overlap). Falls
+    /// back to the first company match (with a warning) when the title can't
+    /// disambiguate, rather than silently guessing.
+    /// </summary>
+    private TrackerApplication? MatchApplication(List<TrackerApplication> activeApps, EmailUpdate update)
+    {
+        var candidates = activeApps
+            .Where(a => a.Company.Equals(update.Company, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        if (candidates.Count == 0) return null;
+        if (candidates.Count == 1) return candidates[0];
+
+        if (!string.IsNullOrWhiteSpace(update.JobTitle))
+        {
+            var emailTitle = NormalizeTitle(update.JobTitle);
+
+            // 1) exact normalized title match
+            var exact = candidates.FirstOrDefault(a => NormalizeTitle(a.JobTitle) == emailTitle);
+            if (exact is not null) return exact;
+
+            // 2) substring either direction (e.g. "devops engineer" within a longer title)
+            var sub = candidates.FirstOrDefault(a =>
+            {
+                var t = NormalizeTitle(a.JobTitle);
+                return t.Length > 0 && (t.Contains(emailTitle) || emailTitle.Contains(t));
+            });
+            if (sub is not null) return sub;
+
+            // 3) best token overlap, if any
+            var emailTokens = TitleTokens(emailTitle);
+            var best = candidates
+                .Select(a => (app: a, score: TitleTokens(NormalizeTitle(a.JobTitle)).Count(emailTokens.Contains)))
+                .OrderByDescending(x => x.score)
+                .First();
+            if (best.score > 0)
+            {
+                _logger.LogInformation(
+                    "Matched email ({Company}, title '{Title}') to '{AppTitle}' by token overlap",
+                    update.Company, update.JobTitle, best.app.JobTitle);
+                return best.app;
+            }
+        }
+
+        _logger.LogWarning(
+            "Ambiguous match: {Count} '{Company}' applications and email title '{Title}' didn't disambiguate. " +
+            "Falling back to first ('{AppTitle}') — interview may attach to the wrong posting.",
+            candidates.Count, update.Company, update.JobTitle ?? "(none)", candidates[0].JobTitle);
+        return candidates[0];
+    }
+
+    private static string NormalizeTitle(string? title)
+    {
+        if (string.IsNullOrWhiteSpace(title)) return "";
+        var chars = title.ToLowerInvariant()
+            .Select(c => char.IsLetterOrDigit(c) || char.IsWhiteSpace(c) ? c : ' ');
+        return string.Join(' ', new string(chars.ToArray())
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries));
+    }
+
+    private static HashSet<string> TitleTokens(string normalizedTitle) =>
+        normalizedTitle.Split(' ', StringSplitOptions.RemoveEmptyEntries).ToHashSet();
 
     private async Task<bool> ApplyUpdateAsync(TrackerApplication app, EmailUpdate update, CancellationToken ct)
     {

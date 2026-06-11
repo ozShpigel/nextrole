@@ -3,6 +3,7 @@ namespace Mailbot.Models;
 public sealed record EmailUpdate
 {
     public required string Company { get; init; }
+    public string? JobTitle { get; init; }
     public required string UpdateType { get; init; }
     public DateTime? InterviewDate { get; init; }
     public string? InterviewTime { get; init; }

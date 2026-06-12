@@ -99,7 +99,11 @@ public sealed record ScoringConfig
         MaxTokens = 2048,
     };
 
-    public RoleScoringConfig Evaluator { get; init; } = new();
+    // 8192 (vs the 4096 base default): the evaluator emits a large verdict JSON
+    // plus up to ~1K thinking tokens; 4096 truncated long verdicts mid-JSON
+    // (stop_reason=max_tokens) → unparseable → MATCH_FAILED. Headroom is free —
+    // only generated tokens are billed.
+    public RoleScoringConfig Evaluator { get; init; } = new() { MaxTokens = 8192 };
 
     public int MinScoreToSave { get; init; } = 70;
 

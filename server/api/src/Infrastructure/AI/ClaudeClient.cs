@@ -259,8 +259,17 @@ public sealed class ClaudeClient : IClaudeClient
             Messages = new List<Message> { new(RoleType.User, userMessage) },
             MaxTokens = cfg.MaxTokens,
             Model = cfg.Model,
-            Stream = false,
-            Temperature = cfg.Temperature
+            // Stream so long, high-max_tokens evaluator generations keep the
+            // connection alive. A non-streaming call sits idle for minutes while
+            // the full response is generated, and the edge drops the socket
+            // (SocketException 10054) — see the connection-drop on big jobs.
+            Stream = true,
+            Temperature = cfg.Temperature,
+            // Cache the (static) system prompt — evaluator instructions + the
+            // injected profile are identical for every job in a run, so all but
+            // the first few concurrent calls read it at ~0.1x instead of full
+            // input price. Re-warms automatically when the profile/prompt changes.
+            PromptCaching = PromptCacheType.AutomaticToolsAndSystem,
         };
 
         if (cfg.ThinkingEnabled && cfg.ThinkingBudget > 0 && cfg.MaxTokens > cfg.ThinkingBudget)
@@ -277,11 +286,37 @@ public sealed class ClaudeClient : IClaudeClient
         string content = "";
         for (var attempt = 0; attempt < 2; attempt++)
         {
-            var response = await _client.Messages.GetClaudeMessageAsync(parameters, cancellationToken);
-            if (response?.Message == null)
+            // Consume the SSE stream: concatenate text deltas (thinking deltas
+            // are ignored — they aren't part of the JSON we parse) and capture
+            // usage/stop_reason from whichever chunks carry them.
+            var sb = new System.Text.StringBuilder();
+            int? inTok = null, outTok = null, cacheW = null, cacheR = null;
+            string? stopReason = null;
+            await foreach (var chunk in _client.Messages.StreamClaudeMessageAsync(parameters, cancellationToken))
+            {
+                if (chunk.Delta?.Text is { Length: > 0 } deltaText)
+                    sb.Append(deltaText);
+                var u = chunk.Usage;
+                if (u != null)
+                {
+                    if (u.InputTokens > 0) inTok = u.InputTokens;
+                    if (u.OutputTokens > 0) outTok = u.OutputTokens;
+                    if (u.CacheCreationInputTokens is > 0) cacheW = u.CacheCreationInputTokens;
+                    if (u.CacheReadInputTokens is > 0) cacheR = u.CacheReadInputTokens;
+                }
+                // In streaming, stop_reason rides on the final message-delta
+                // (chunk.Delta.StopReason), not the top-level chunk.
+                var chunkStop = chunk.StopReason ?? chunk.Delta?.StopReason;
+                if (!string.IsNullOrEmpty(chunkStop)) stopReason = chunkStop;
+            }
+
+            content = sb.ToString();
+            if (content.Length == 0)
                 throw new InvalidOperationException("Empty response from Claude API");
 
-            content = response.Message.ToString() ?? "";
+            _logger.LogInformation(
+                "Claude {Label} usage — input={Input} output={Output} cacheWrite={CacheWrite} cacheRead={CacheRead} stop={StopReason}",
+                label, inTok, outTok, cacheW, cacheR, stopReason);
             _logger.LogDebug("Received {Label} response from Claude. Length: {Length} chars", label, content.Length);
 
             try

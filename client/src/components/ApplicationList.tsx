@@ -7,6 +7,7 @@ import { StatusBadge } from './Status';
 import ConfirmDialog from './ConfirmDialog';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface Application {
   id: string;
@@ -21,12 +22,43 @@ interface Application {
 
 export default function ApplicationList() {
   const navigate = useNavigate();
-  const { data: apps = [], error } = useApplications();
+  const { data: apps = [], error, isLoading } = useApplications();
   const deleteAppMutation = useDeleteApplication();
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
   if (error) {
     return <Card className="p-6 mb-4"><p className="text-center py-12 text-destructive text-[0.88rem]">Failed to load applications: {error.message}</p></Card>;
+  }
+
+  // While the initial fetch is in flight (slow on a cold API), show skeleton
+  // rows instead of the empty state — otherwise "No applications yet" flashes
+  // even when applications exist.
+  if (isLoading) {
+    return (
+      <Card className="p-6 mb-4" aria-hidden="true">
+        <div className="hidden md:grid grid-cols-[2fr_1.5fr_1fr_0.5fr_0.8fr_0.5fr_minmax(3.5rem,auto)] gap-4 py-[0.6rem] px-5 text-[0.72rem] text-muted-foreground border-b border-border uppercase tracking-[0.07em] font-medium">
+          <span>Position</span>
+          <span>Company</span>
+          <span>Status</span>
+          <span>Days</span>
+          <span>Verdict</span>
+          <span>Date</span>
+          <span></span>
+        </div>
+        {[0, 1, 2, 3, 4].map((i) => (
+          <div key={i} className="grid grid-cols-[1fr_1fr] md:grid-cols-[2fr_1.5fr_1fr_0.5fr_0.8fr_0.5fr_minmax(3.5rem,auto)] items-center gap-4 py-[0.9rem] px-5 border-b border-border last:border-b-0">
+            <Skeleton className="h-[14px] w-[80%] rounded" />
+            <Skeleton className="h-[12px] w-[60%] rounded" />
+            <Skeleton className="h-[20px] w-[72px] rounded-full" />
+            <Skeleton className="h-[12px] w-[28px] rounded" />
+            <Skeleton className="h-[12px] w-[50%] rounded" />
+            <Skeleton className="h-[12px] w-[64px] rounded" />
+            <Skeleton className="h-[28px] w-[60px] rounded justify-self-end" />
+          </div>
+        ))}
+        <span className="sr-only">Loading applications</span>
+      </Card>
+    );
   }
 
   if (apps.length === 0) {

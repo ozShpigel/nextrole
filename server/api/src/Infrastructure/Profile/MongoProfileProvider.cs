@@ -115,22 +115,8 @@ public sealed class MongoProfileProvider : IProfileProvider
                 ? existing["content"].AsString
                 : "");
 
-        var update = new BsonDocument
-        {
-            ["id"] = DocId,
-            ["content"] = effectiveContent,
-            ["scoring_config"] = mergedConfig,
-            ["updated_at"] = DateTime.UtcNow
-        };
-
-        // Per-field semantics: null = carry forward existing (if any); non-null = overwrite
-        // (empty string clears the override → GET falls back to bundled seed)
-        CarryOrOverwrite(update, existing, "analyst_prompt", analystPrompt);
-        CarryOrOverwrite(update, existing, "evaluator_prompt", evaluatorPrompt);
-
         // Version history: snapshot the PREVIOUS value of each tracked field that
-        // is actually changing (newest-first, capped). Carries existing history
-        // forward since this is a full-document replace.
+        // is actually changing (newest-first, capped). Carries existing history forward.
         var history = existing != null && existing.Contains("history") && existing["history"].IsBsonDocument
             ? existing["history"].AsBsonDocument.DeepClone().AsBsonDocument
             : new BsonDocument();
@@ -154,13 +140,37 @@ public sealed class MongoProfileProvider : IProfileProvider
             && existing["scoring_config"].IsBsonDocument && !existing["scoring_config"].AsBsonDocument.Equals(mergedConfig))
             PushHistory(history, "scoring_config", existing["scoring_config"], prevSavedAt);
 
-        if (history.ElementCount > 0)
-            update["history"] = history;
+        // Partial $set so this write only ever touches the fields it owns — the
+        // interview_prep / history_interview_prep sub-objects (written by a
+        // separate $set path) are left intact instead of being dropped by a
+        // full-document replace.
+        var sets = new List<UpdateDefinition<BsonDocument>>
+        {
+            Builders<BsonDocument>.Update.SetOnInsert("id", DocId),
+            Builders<BsonDocument>.Update.Set("scoring_config", mergedConfig),
+            Builders<BsonDocument>.Update.Set("updated_at", DateTime.UtcNow),
+        };
 
-        await _collection.ReplaceOneAsync(
+        // content: overwrite only when provided; otherwise leave existing untouched
+        // (seed an empty string on first insert so the field always exists).
+        sets.Add(content is not null
+            ? Builders<BsonDocument>.Update.Set("content", content)
+            : Builders<BsonDocument>.Update.SetOnInsert("content", effectiveContent));
+
+        // prompts — null = carry forward existing (no-op); non-null = overwrite
+        // (empty string clears the override → GET falls back to bundled seed).
+        if (analystPrompt is not null)
+            sets.Add(Builders<BsonDocument>.Update.Set("analyst_prompt", analystPrompt));
+        if (evaluatorPrompt is not null)
+            sets.Add(Builders<BsonDocument>.Update.Set("evaluator_prompt", evaluatorPrompt));
+
+        if (history.ElementCount > 0)
+            sets.Add(Builders<BsonDocument>.Update.Set("history", history));
+
+        await _collection.UpdateOneAsync(
             filter,
-            update,
-            new ReplaceOptions { IsUpsert = true },
+            Builders<BsonDocument>.Update.Combine(sets),
+            new UpdateOptions { IsUpsert = true },
             cancellationToken);
 
         _cache.Remove(CacheKey);

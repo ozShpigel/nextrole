@@ -3,6 +3,9 @@ using Microsoft.AspNetCore.RateLimiting;
 using System.Text.Json.Serialization;
 using ApplicationTracker.Api.Endpoints;
 using ApplicationTracker.Api.Extensions;
+using ApplicationTracker.Core.Models;
+using ApplicationTracker.Infrastructure.Repositories;
+using MongoDB.Driver;
 using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -71,6 +74,23 @@ startupLogger.LogInformation("Environment: {Env}", app.Environment.EnvironmentNa
 startupLogger.LogInformation("MongoDB connected: {Connected}",
     builder.Configuration["MongoDB:ConnectionString"] is not null);
 startupLogger.LogInformation("URLs: {Urls}", builder.WebHost.GetSetting("urls") ?? "default");
+
+// Enforce the (Company, JobTitle) uniqueness invariant: clear any existing duplicate
+// rows, then build the unique index. Failure here must not brick startup, so it's
+// best-effort — the app still serves if Mongo is briefly unreachable at boot.
+try
+{
+    await ApplicationIndexInitializer.EnsureIndexesAsync(
+        app.Services.GetRequiredService<IMongoCollection<Application>>(),
+        app.Services.GetRequiredService<IMongoCollection<Interview>>(),
+        app.Services.GetRequiredService<IMongoCollection<Note>>(),
+        app.Services.GetRequiredService<IMongoCollection<StatusUpdate>>(),
+        startupLogger);
+}
+catch (Exception ex)
+{
+    startupLogger.LogError(ex, "Failed to ensure application indexes — continuing startup");
+}
 
 app.UseCors();
 app.UseRateLimiter();

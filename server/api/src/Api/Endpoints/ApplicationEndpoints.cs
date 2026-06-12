@@ -20,7 +20,13 @@ public static class ApplicationEndpoints
         {
             try
             {
-                var created = await repo.CreateAsync(application, ct);
+                var (created, isNew) = await repo.CreateAsync(application, ct);
+
+                if (!isNew)
+                {
+                    logger.LogInformation("Duplicate application suppressed: {Title} at {Company} (existing {Id})", created.JobTitle, created.Company, created.Id);
+                    return Results.Ok(created);
+                }
 
                 await statusRepo.CreateAsync(new StatusUpdate
                 {

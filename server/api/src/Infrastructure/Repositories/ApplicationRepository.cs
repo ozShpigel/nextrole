@@ -28,10 +28,26 @@ public sealed class ApplicationRepository : IApplicationRepository
         _statusUpdates = statusUpdates;
     }
 
-    public async Task<Application> CreateAsync(Application app, CancellationToken ct = default)
+    public async Task<(Application Application, bool Created)> CreateAsync(Application app, CancellationToken ct = default)
     {
-        await _applications.InsertOneAsync(app, cancellationToken: ct);
-        return app;
+        try
+        {
+            await _applications.InsertOneAsync(app, cancellationToken: ct);
+            return (app, true);
+        }
+        catch (MongoWriteException ex) when (ex.WriteError?.Category == ServerErrorCategory.DuplicateKey)
+        {
+            // A concurrent save already inserted this (Company, JobTitle) — the unique
+            // index rejected ours. Return the winner instead of bubbling an error so the
+            // caller stays idempotent.
+            var filter = Builders<Application>.Filter.And(
+                Builders<Application>.Filter.Eq(a => a.Company, app.Company),
+                Builders<Application>.Filter.Eq(a => a.JobTitle, app.JobTitle));
+            var existing = await _applications
+                .Find(filter, new FindOptions { Collation = CaseInsensitive })
+                .FirstOrDefaultAsync(ct);
+            return (existing ?? app, false);
+        }
     }
 
     public async Task<Application?> GetByIdAsync(Guid id, CancellationToken ct = default)

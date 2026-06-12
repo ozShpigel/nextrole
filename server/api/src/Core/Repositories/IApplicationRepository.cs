@@ -4,7 +4,13 @@ namespace ApplicationTracker.Core.Repositories;
 
 public interface IApplicationRepository
 {
-    Task<Application> CreateAsync(Application app, CancellationToken ct = default);
+    /// <summary>
+    /// Inserts the application. If a row with the same (Company, JobTitle) already
+    /// exists — enforced by a unique index — the insert is suppressed and the existing
+    /// row is returned with <c>Created = false</c>. This makes saves idempotent and
+    /// closes the scraper's check-then-act duplicate race.
+    /// </summary>
+    Task<(Application Application, bool Created)> CreateAsync(Application app, CancellationToken ct = default);
     Task<Application?> GetByIdAsync(Guid id, CancellationToken ct = default);
     Task<List<Application>> GetAllAsync(CancellationToken ct = default);
     Task<List<ApplicationListItem>> GetAllListItemsAsync(CancellationToken ct = default);

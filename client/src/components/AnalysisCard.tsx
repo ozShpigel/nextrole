@@ -190,7 +190,7 @@ export default function AnalysisCard({ matchAnalysisJson }: AnalysisCardProps) {
               {rec.keyReasons?.length ? (
                 <div className="mb-3">
                   <span className="block text-[0.75rem] text-muted-foreground uppercase tracking-[0.06em] font-medium mb-[0.3rem]">Key Reasons</span>
-                  <ul className="list-disc pl-5 m-0">
+                  <ul dir="rtl" className="list-disc pr-5 m-0 text-right">
                     {rec.keyReasons.map((item, i) => <li key={i} className="text-[0.84rem] mb-[0.3rem] text-foreground leading-[1.6]">{item}</li>)}
                   </ul>
                 </div>
@@ -198,13 +198,13 @@ export default function AnalysisCard({ matchAnalysisJson }: AnalysisCardProps) {
               {rec.questionsToAsk?.length ? (
                 <div className="mb-3">
                   <span className="block text-[0.75rem] text-muted-foreground uppercase tracking-[0.06em] font-medium mb-[0.3rem]">Questions to Ask</span>
-                  <ul className="list-disc pl-5 m-0">
+                  <ul dir="rtl" className="list-disc pr-5 m-0 text-right">
                     {rec.questionsToAsk.map((item, i) => <li key={i} className="text-[0.84rem] mb-[0.3rem] text-foreground leading-[1.6]">{item}</li>)}
                   </ul>
                 </div>
               ) : null}
               {(rec.greenFlags?.length || rec.redFlags?.length) ? (
-                <div className="flex gap-2 flex-wrap mt-2">
+                <div dir="rtl" className="flex gap-2 flex-wrap mt-2">
                   {(rec.greenFlags || []).map((f, i) => <span key={`g${i}`} className="py-1 px-[0.65rem] rounded-sm text-[0.78rem] font-medium border transition-transform hover:-translate-y-px bg-emerald-50 text-emerald-600 border-emerald-600/12">{f}</span>)}
                   {(rec.redFlags || []).map((f, i) => <span key={`r${i}`} className="py-1 px-[0.65rem] rounded-sm text-[0.78rem] font-medium border transition-transform hover:-translate-y-px bg-red-50 text-red-500 border-red-500/12">{f}</span>)}
                 </div>

@@ -177,10 +177,11 @@ This system is used for decision-making, so consistency, clarity, and conservati
 
 # OUTPUT LANGUAGE RULES
 
-- All free-text fields MUST be in English
+- Free-text fields MUST be in English EXCEPT where noted below
 - `honestAssessment` MUST be in Hebrew (single paragraph only)
+- The entire `recommendation` block — `keyReasons`, `questionsToAsk`, `redFlags`, `greenFlags` — MUST be in Hebrew
 - JSON keys and enum values MUST be in English
-- Technology names (C#, .NET, Kubernetes, AWS, etc.) remain in Latin script
+- Technology names (C#, .NET, Kubernetes, AWS, etc.) remain in Latin script even inside Hebrew text
 
 ---
 
@@ -330,10 +331,10 @@ Return exactly this JSON schema, nothing else (no markdown fences, no commentary
   },
   "recommendation": {
     "shouldApply": boolean,
-    "keyReasons": ["string"],
-    "questionsToAsk": ["string"],
-    "redFlags": ["string"],
-    "greenFlags": ["string"]
+    "keyReasons": ["string (Hebrew)"],
+    "questionsToAsk": ["string (Hebrew)"],
+    "redFlags": ["string (Hebrew)"],
+    "greenFlags": ["string (Hebrew)"]
   },
   "honestAssessment": "Single paragraph in Hebrew"
 }

@@ -8,7 +8,12 @@ class DiscoveryRun(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid4()))
     criteria_id: str
     criteria_name: str = ""
-    status: str = "pending"  # pending | scraping | scoring | completed | failed
+    # live:   pending | scraping | scoring | completed | failed
+    # batch:  pending | scraping | parsing | awaiting_batch | finalizing | completed | failed
+    status: str = "pending"
+    mode: str = "live"  # "live" (synchronous, UI) | "batch" (async, cron)
+    batch_id: str | None = None  # Anthropic batch id while status == awaiting_batch
+    batch_submitted_at: datetime | None = None
     started_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     completed_at: datetime | None = None
     jobs_scraped: int = 0

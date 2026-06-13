@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using Anthropic.SDK;
+using Anthropic.SDK.Batches;
 using Anthropic.SDK.Messaging;
 using ApplicationTracker.Core.AI;
 using ApplicationTracker.Core.Email;
@@ -245,6 +246,118 @@ public sealed class ClaudeClient : IClaudeClient
         return content;
     }
 
+    // Shared request builder for both the live (stream:true) and batch (stream:false)
+    // evaluator paths, so caching / thinking / max_tokens are constructed identically.
+    private static MessageParameters BuildParameters(string systemPrompt, string userMessage, RoleScoringConfig cfg, bool stream)
+    {
+        var p = new MessageParameters
+        {
+            System = new List<SystemMessage> { new(systemPrompt) },
+            Messages = new List<Message> { new(RoleType.User, userMessage) },
+            MaxTokens = cfg.MaxTokens,
+            Model = cfg.Model,
+            Stream = stream,
+            Temperature = cfg.Temperature,
+            // Static system prompt (evaluator instructions + injected profile) is
+            // identical across a run — cache it so reads cost ~0.1x of input.
+            PromptCaching = PromptCacheType.AutomaticToolsAndSystem,
+        };
+        if (cfg.ThinkingEnabled && cfg.ThinkingBudget > 0 && cfg.MaxTokens > cfg.ThinkingBudget)
+        {
+            p.Thinking = new ThinkingParameters { BudgetTokens = cfg.ThinkingBudget };
+            p.Temperature = 1m;
+        }
+        return p;
+    }
+
+    public async Task<string> SubmitEvaluationBatchAsync(IReadOnlyList<EvaluationBatchItem> items, CancellationToken cancellationToken = default)
+    {
+        var profile = await _profileProvider.GetProfileAsync(cancellationToken);
+        var evaluatorPrompt = await _profileProvider.GetEvaluatorPromptAsync(cancellationToken);
+        var cfg = (await _profileProvider.GetScoringConfigAsync(cancellationToken)).Evaluator;
+
+        var requests = new List<BatchRequest>(items.Count);
+        foreach (var item in items)
+        {
+            var (system, user) = _promptBuilder.BuildEvaluationPrompt(
+                profile, item.ParsedJob, evaluatorPrompt, item.CompanyNews, item.GlassdoorData);
+            // Batch results are not streamed — build with stream:false.
+            var parameters = BuildParameters(system, user, cfg, stream: false);
+            requests.Add(new BatchRequest { CustomId = item.CustomId, MessageParameters = parameters });
+        }
+
+        var resp = await _client.Batches.CreateBatchAsync(requests, cancellationToken);
+        _logger.LogInformation("Submitted evaluation batch {BatchId} ({Count} requests)", resp.Id, requests.Count);
+        return resp.Id;
+    }
+
+    public async Task<EvaluationBatchResult> GetEvaluationBatchAsync(string batchId, CancellationToken cancellationToken = default)
+    {
+        var status = await _client.Batches.RetrieveBatchStatusAsync(batchId, cancellationToken);
+        var processing = Convert.ToString(status.ProcessingStatus) ?? "";
+        if (!string.Equals(processing, "ended", StringComparison.OrdinalIgnoreCase))
+        {
+            _logger.LogInformation("Batch {BatchId} not ready — status={Status}", batchId, processing);
+            return new EvaluationBatchResult { Status = processing };
+        }
+
+        var lines = new List<EvaluationBatchLine>();
+        await foreach (var raw in _client.Batches.RetrieveBatchResultsJsonlAsync(batchId, cancellationToken))
+        {
+            if (string.IsNullOrWhiteSpace(raw)) continue;
+            lines.Add(ParseBatchLine(raw));
+        }
+        var ok = lines.Count(l => l.Response != null);
+        _logger.LogInformation("Batch {BatchId} ended: {Ok}/{Total} parsed ok", batchId, ok, lines.Count);
+        return new EvaluationBatchResult { Status = processing, Lines = lines };
+    }
+
+    // Parses one line of the documented batch-results JSONL:
+    //   {"custom_id":"...","result":{"type":"succeeded","message":{"content":[{"type":"text","text":"..."}]}}}
+    //   {"custom_id":"...","result":{"type":"errored"|"expired"|"canceled","error":{...}}}
+    private EvaluationBatchLine ParseBatchLine(string raw)
+    {
+        string customId = "";
+        try
+        {
+            using var doc = JsonDocument.Parse(raw);
+            var root = doc.RootElement;
+            customId = root.GetProperty("custom_id").GetString() ?? "";
+            var result = root.GetProperty("result");
+            var type = result.TryGetProperty("type", out var t) ? t.GetString() : null;
+
+            if (type == "succeeded" && result.TryGetProperty("message", out var msg)
+                && msg.TryGetProperty("content", out var content) && content.ValueKind == JsonValueKind.Array)
+            {
+                var sb = new System.Text.StringBuilder();
+                foreach (var block in content.EnumerateArray())
+                    if (block.TryGetProperty("type", out var bt) && bt.GetString() == "text"
+                        && block.TryGetProperty("text", out var txt))
+                        sb.Append(txt.GetString());
+                var rawText = sb.ToString();
+                try
+                {
+                    var json = ExtractJson(rawText);
+                    var mr = JsonSerializer.Deserialize<MatchResponse>(json, CaseInsensitive)
+                        ?? throw new InvalidOperationException("null MatchResponse");
+                    return new EvaluationBatchLine { CustomId = customId, Response = mr, RawOutput = rawText };
+                }
+                catch (Exception ex)
+                {
+                    return new EvaluationBatchLine { CustomId = customId, RawOutput = rawText, Error = "parse: " + ex.Message };
+                }
+            }
+
+            var err = type ?? "unknown";
+            if (result.TryGetProperty("error", out var e)) err = e.ToString();
+            return new EvaluationBatchLine { CustomId = customId, Error = err };
+        }
+        catch (Exception ex)
+        {
+            return new EvaluationBatchLine { CustomId = customId, Error = "line: " + ex.Message };
+        }
+    }
+
     private async Task<(T Result, ClaudeCallSnapshot Snapshot)> CallClaudeAsync<T>(
         string systemPrompt, string userMessage, RoleScoringConfig cfg, string label,
         CancellationToken cancellationToken) where T : class
@@ -253,33 +366,11 @@ public sealed class ClaudeClient : IClaudeClient
             label, cfg.Model, cfg.MaxTokens, cfg.Temperature, cfg.ThinkingEnabled);
         _logger.LogDebug("=== Full system prompt ===\n{Prompt}\n=== End system prompt ===", systemPrompt);
 
-        var parameters = new MessageParameters
-        {
-            System = new List<SystemMessage> { new(systemPrompt) },
-            Messages = new List<Message> { new(RoleType.User, userMessage) },
-            MaxTokens = cfg.MaxTokens,
-            Model = cfg.Model,
-            // Stream so long, high-max_tokens evaluator generations keep the
-            // connection alive. A non-streaming call sits idle for minutes while
-            // the full response is generated, and the edge drops the socket
-            // (SocketException 10054) — see the connection-drop on big jobs.
-            Stream = true,
-            Temperature = cfg.Temperature,
-            // Cache the (static) system prompt — evaluator instructions + the
-            // injected profile are identical for every job in a run, so all but
-            // the first few concurrent calls read it at ~0.1x instead of full
-            // input price. Re-warms automatically when the profile/prompt changes.
-            PromptCaching = PromptCacheType.AutomaticToolsAndSystem,
-        };
-
-        if (cfg.ThinkingEnabled && cfg.ThinkingBudget > 0 && cfg.MaxTokens > cfg.ThinkingBudget)
-        {
-            parameters.Thinking = new ThinkingParameters
-            {
-                BudgetTokens = cfg.ThinkingBudget
-            };
-            parameters.Temperature = 1m;
-        }
+        // Live path streams so long, high-max_tokens generations keep the
+        // connection alive (a non-streaming idle wait gets the socket dropped —
+        // SocketException 10054 on big jobs). Batch requests are built with
+        // stream:false via the same helper.
+        var parameters = BuildParameters(systemPrompt, userMessage, cfg, stream: true);
 
         var inputJson = SerializeCallInput(parameters, userMessage);
 

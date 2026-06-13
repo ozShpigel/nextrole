@@ -76,3 +76,61 @@ async def score_job(
         resp.status_code, title, company, resp.text,
     )
     return MatchResult("api_error", None)
+
+
+# ── Batch path (cron) ───────────────────────────────────────────────────────
+
+async def parse_job(
+    settings: Settings,
+    title: str,
+    company: str,
+    description: str | None,
+) -> dict | None:
+    """Stage 1: analyst-only parse (live Haiku). Returns the API response
+    {parsed, analystSnapshotInput, analystSnapshotOutput}, or None on failure."""
+    if not description or len(description) < 50:
+        return None
+    resp = await _request_with_retry(
+        "POST",
+        f"{settings.api_base_url}/api/match/parse",
+        timeout=120.0,
+        operation="parse",
+        retry_on_timeout=False,
+        json={"jobDescription": description, "title": title, "company": company},
+    )
+    if resp is not None and resp.status_code == 200:
+        return resp.json()
+    logger.warning("Parse failed for '%s' at '%s' (%s)", title, company,
+                   resp.status_code if resp is not None else "no response")
+    return None
+
+
+async def submit_evaluation_batch(settings: Settings, items: list[dict]) -> str | None:
+    """Stage 2: submit all parsed jobs as one evaluator batch. Returns batch id."""
+    resp = await _request_with_retry(
+        "POST",
+        f"{settings.api_base_url}/api/match/batch",
+        timeout=60.0,
+        operation="batch submit",
+        json=items,
+    )
+    if resp is not None and resp.status_code == 200:
+        return resp.json().get("batchId")
+    logger.error("Batch submit failed (%s)", resp.status_code if resp is not None else "no response")
+    return None
+
+
+async def get_evaluation_batch(settings: Settings, batch_id: str) -> dict | None:
+    """Stage 3: poll/collect. Returns {status, ended, lines:[...]}, or None on error."""
+    resp = await _request_with_retry(
+        "GET",
+        f"{settings.api_base_url}/api/match/batch/{batch_id}",
+        timeout=120.0,
+        operation="batch get",
+        retry_on_timeout=False,
+    )
+    if resp is not None and resp.status_code == 200:
+        return resp.json()
+    logger.warning("Batch get failed for %s (%s)", batch_id,
+                   resp.status_code if resp is not None else "no response")
+    return None

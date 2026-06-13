@@ -1,7 +1,7 @@
 import json
 import logging
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import certifi
 from fastapi import BackgroundTasks, FastAPI, HTTPException
@@ -40,11 +40,13 @@ async def lifespan(app: FastAPI):
 
     # Discovery runs live in FastAPI BackgroundTasks — they die with the
     # process. Render free-tier restarts (deploys, idle eviction, OOM) leave
-    # runs frozen in pending/scraping/scoring forever, which shows up in the
-    # UI as phantom "in-progress" rows. We're a single-instance service, so
-    # on startup any non-terminal run is guaranteed orphaned.
+    # in-process phases frozen forever, showing up as phantom "in-progress"
+    # rows. Single-instance service, so on startup any in-process phase is
+    # orphaned. NOTE: `awaiting_batch` is deliberately excluded — that run is
+    # parked on a server-side Anthropic batch (id persisted), legitimately
+    # spans restarts, and the next finalize cycle picks it up.
     reconciled = await db.discovery_runs.update_many(
-        {"status": {"$in": ["pending", "scraping", "scoring"]}},
+        {"status": {"$in": ["pending", "scraping", "parsing", "scoring", "finalizing"]}},
         {"$set": {
             "status": "failed",
             "error": "Run orphaned — scraper restarted before completion",
@@ -56,6 +58,21 @@ async def lifespan(app: FastAPI):
             "Reconciled %d orphaned discovery run(s) to failed on startup",
             reconciled.modified_count,
         )
+
+    # Safety net: an Anthropic batch expires at 24h. If a run is still
+    # awaiting_batch well past that, the batch is dead — fail it so it doesn't
+    # linger forever.
+    stale_cutoff = datetime.now(timezone.utc) - timedelta(hours=26)
+    stale = await db.discovery_runs.update_many(
+        {"status": "awaiting_batch", "batch_submitted_at": {"$lt": stale_cutoff}},
+        {"$set": {
+            "status": "failed",
+            "error": "Batch expired (>24h) before results were collected",
+            "completed_at": datetime.now(timezone.utc),
+        }},
+    )
+    if stale.modified_count:
+        logger.warning("Failed %d stale awaiting_batch run(s) past batch expiry", stale.modified_count)
 
     yield
     if db_client:
@@ -136,15 +153,45 @@ async def delete_criteria(criteria_id: str):
 # ---------------------------------------------------------------------------
 
 @app.post("/api/discovery/run/{criteria_id}", status_code=202)
-async def trigger_run(criteria_id: str, background_tasks: BackgroundTasks):
+async def trigger_run(criteria_id: str, background_tasks: BackgroundTasks, mode: str = "live"):
+    doc = await db.search_criteria.find_one({"id": criteria_id})
+    if not doc:
+        raise HTTPException(404, "Criteria not found")
+    if mode not in ("live", "batch"):
+        raise HTTPException(400, "mode must be 'live' or 'batch'")
+    from app.models.discovery_run import DiscoveryRun
+    run = DiscoveryRun(criteria_id=criteria_id, criteria_name=doc.get("name", ""), mode=mode)
+    await db.discovery_runs.insert_one(run.model_dump())
+    task = orchestrator.run_discovery_batch if mode == "batch" else orchestrator.run_discovery
+    background_tasks.add_task(task, db, settings, criteria_id, run.id)
+    return {"status": "started", "criteria_id": criteria_id, "run_id": run.id, "mode": mode}
+
+
+@app.post("/api/discovery/finalize-batches", status_code=202)
+async def finalize_batches_endpoint(background_tasks: BackgroundTasks):
+    """Collect-only: poll every awaiting_batch run and finalize the ready ones.
+    Idempotent — safe to call any time."""
+    background_tasks.add_task(orchestrator.finalize_batches, db, settings)
+    return {"status": "finalizing"}
+
+
+@app.post("/api/discovery/run-batch-cycle/{criteria_id}", status_code=202)
+async def run_batch_cycle(criteria_id: str, background_tasks: BackgroundTasks):
+    """One-cron entry point (collect-then-submit): finalize the previous run's
+    batch (long done by the next firing), then submit a fresh batch run."""
     doc = await db.search_criteria.find_one({"id": criteria_id})
     if not doc:
         raise HTTPException(404, "Criteria not found")
     from app.models.discovery_run import DiscoveryRun
-    run = DiscoveryRun(criteria_id=criteria_id, criteria_name=doc.get("name", ""))
+    run = DiscoveryRun(criteria_id=criteria_id, criteria_name=doc.get("name", ""), mode="batch")
     await db.discovery_runs.insert_one(run.model_dump())
-    background_tasks.add_task(orchestrator.run_discovery, db, settings, criteria_id, run.id)
-    return {"status": "started", "criteria_id": criteria_id, "run_id": run.id}
+
+    async def _cycle():
+        await orchestrator.finalize_batches(db, settings)
+        await orchestrator.run_discovery_batch(db, settings, criteria_id, run.id)
+
+    background_tasks.add_task(_cycle)
+    return {"status": "started", "criteria_id": criteria_id, "run_id": run.id, "mode": "batch"}
 
 
 @app.get("/api/discovery/runs")

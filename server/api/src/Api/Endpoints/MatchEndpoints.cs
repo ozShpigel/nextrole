@@ -48,6 +48,87 @@ public static class MatchEndpoints
         .WithName("AnalyzeJobMatch")
         .WithSummary("Analyze job match");
 
+        // ── Batch scoring path (cron-driven discovery) ──────────────────────────
+        // Internal, scraper-to-API endpoints — not rate-limited like /api/match,
+        // since the parse stage is called once per scraped job (well over 10/min).
+
+        // Stage 1: analyst-only parse. Scraper calls this live per job, then sends
+        // the parsed jobs to /api/match/batch.
+        app.MapPost("/api/match/parse", async (
+            [FromBody] MatchRequest request,
+            IJobMatchService jobMatchService,
+            ILogger<Program> logger,
+            CancellationToken ct) =>
+        {
+            if (string.IsNullOrWhiteSpace(request?.JobDescription))
+                return Results.BadRequest(new { error = "JobDescription is required" });
+            if (request.JobDescription.Length > 50_000)
+                return Results.BadRequest(new { error = "JobDescription exceeds maximum length of 50,000 characters" });
+            try
+            {
+                var (parsed, snap) = await jobMatchService.ParseAsync(request, ct);
+                return Results.Ok(new
+                {
+                    parsed,
+                    analystSnapshotInput = snap.Input,
+                    analystSnapshotOutput = snap.Output,
+                });
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Error parsing job (batch path)");
+                return Results.Problem(detail: "An error occurred while parsing the job", statusCode: 500);
+            }
+        })
+        .WithName("ParseJob")
+        .WithSummary("Analyst-only parse (batch path, stage 1)");
+
+        // Stage 2: submit all parsed jobs as one evaluator batch. Returns the
+        // Anthropic batch id to store on the discovery run.
+        app.MapPost("/api/match/batch", async (
+            [FromBody] List<EvaluationBatchItem> items,
+            IJobMatchService jobMatchService,
+            ILogger<Program> logger,
+            CancellationToken ct) =>
+        {
+            if (items is null || items.Count == 0)
+                return Results.BadRequest(new { error = "at least one item is required" });
+            try
+            {
+                var batchId = await jobMatchService.SubmitEvaluationBatchAsync(items, ct);
+                return Results.Ok(new { batchId });
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Error submitting evaluation batch");
+                return Results.Problem(detail: "An error occurred while submitting the batch", statusCode: 500);
+            }
+        })
+        .WithName("SubmitEvaluationBatch")
+        .WithSummary("Submit evaluator batch (batch path, stage 2)");
+
+        // Stage 3: poll + collect. Returns status; once ended, one corrected
+        // result line per CustomId (verdict-band/shouldApply already applied).
+        app.MapGet("/api/match/batch/{batchId}", async (
+            string batchId,
+            IJobMatchService jobMatchService,
+            ILogger<Program> logger,
+            CancellationToken ct) =>
+        {
+            try
+            {
+                var result = await jobMatchService.GetEvaluationBatchAsync(batchId, ct);
+                return Results.Ok(result);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Error retrieving evaluation batch {BatchId}", batchId);
+                return Results.Problem(detail: "An error occurred while retrieving the batch", statusCode: 500);
+            }
+        })
+        .WithName("GetEvaluationBatch")
+        .WithSummary("Poll/collect evaluator batch (batch path, stage 3)");
+
         app.MapPost("/api/match/test-prompt", async (
             [FromBody] TestPromptRequest request,
             IJobMatchService jobMatchService,

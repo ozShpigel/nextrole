@@ -65,6 +65,16 @@ Each job scoring = 2 Claude API calls: Analyst (Haiku) + Evaluator (Sonnet with 
 - **Auto-save to tracker**: jobs with YES/STRONG_YES verdict, OR score >= `min_score_to_save` with `shouldApply=true`
 - **Parallel scoring**: 5 concurrent jobs via `asyncio.Semaphore`
 - **JSON resilience**: `ClaudeClient.cs` has lenient deserializers, fence/brace extraction, comment stripping, and auto-retry with "return ONLY JSON" nudge
+- **Evaluator request**: streamed (keeps the connection alive on long generations), `max_tokens` 8192 (4096 truncated large verdict JSON → MATCH_FAILED), with prompt caching on the static system prompt (`PromptCacheType.AutomaticToolsAndSystem`)
+
+### Scoring modes: live vs batch
+
+A discovery run has a `mode` (`live` | `batch`). The live path (UI "Discover now") scores each job synchronously via `POST /api/match`. The **batch path** (cron) runs the Analyst live but defers the Evaluator to the Anthropic **Message Batches API** (50% cheaper, async, no quality change):
+
+- **API endpoints** (Claude calls stay in the API): `POST /api/match/parse` (analyst-only → `ParsedJob`), `POST /api/match/batch` (parsed jobs → submit evaluator batch → `batchId`), `GET /api/match/batch/{id}` (poll; once `ended`, per-`customId` verdict/score with the same verdict-band correction the live path applies). `ClaudeClient` wraps the SDK Batches API and parses the results JSONL; `JobMatchService` shares parse + correction between both paths.
+- **Scraper** (`orchestrator.py`): `run_discovery_batch` (phase 1: scrape → dedup → enrich → analyst live → submit batch → `awaiting_batch`) and `finalize_batches` (phase 2: poll ready batches → write scores back → auto-save qualifying → `completed`).
+- **One cron** drives it: `POST /api/discovery/run-batch-cycle/{criteria_id}` does **collect-then-submit** (finalize the previous batch, then submit a new run). Results land at the next firing (~next day). Also: `POST /api/discovery/run/{id}?mode=batch` (submit-only) and `POST /api/discovery/finalize-batches` (collect-only).
+- **Run statuses** (batch): `pending → scraping → parsing → awaiting_batch → finalizing → completed`. The startup orphan-reconciler in `main.py` skips `awaiting_batch` (it legitimately spans restarts; the batch id is persisted) but fails it past ~26h (Anthropic batches expire at 24h). Batch jobs don't carry `evaluator_snapshot_input` (the prompt is built server-side and not returned).
 
 
 ## Company Enrichment

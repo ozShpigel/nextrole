@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 
 import certifi
-from fastapi import BackgroundTasks, FastAPI, HTTPException
+from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 
@@ -28,6 +28,13 @@ def _tag_utc(doc: dict) -> dict:
 settings = Settings()
 db_client: AsyncIOMotorClient | None = None
 db = None
+
+
+def require_cron_secret(x_cron_key: str | None = Header(default=None)) -> None:
+    """Guard cron-triggered endpoints. No-op when `cron_secret` is unset
+    (dev/local); otherwise the X-Cron-Key header must match."""
+    if settings.cron_secret and x_cron_key != settings.cron_secret:
+        raise HTTPException(401, "Invalid or missing X-Cron-Key")
 
 
 @asynccontextmanager
@@ -168,7 +175,9 @@ async def trigger_run(criteria_id: str, background_tasks: BackgroundTasks, mode:
 
 
 @app.post("/api/discovery/finalize-batches", status_code=202)
-async def finalize_batches_endpoint(background_tasks: BackgroundTasks):
+async def finalize_batches_endpoint(
+    background_tasks: BackgroundTasks, _: None = Depends(require_cron_secret)
+):
     """Collect-only: poll every awaiting_batch run and finalize the ready ones.
     Idempotent — safe to call any time."""
     background_tasks.add_task(orchestrator.finalize_batches, db, settings)
@@ -176,7 +185,11 @@ async def finalize_batches_endpoint(background_tasks: BackgroundTasks):
 
 
 @app.post("/api/discovery/run-batch-cycle/{criteria_id}", status_code=202)
-async def run_batch_cycle(criteria_id: str, background_tasks: BackgroundTasks):
+async def run_batch_cycle(
+    criteria_id: str,
+    background_tasks: BackgroundTasks,
+    _: None = Depends(require_cron_secret),
+):
     """One-cron entry point (collect-then-submit): finalize the previous run's
     batch (long done by the next firing), then submit a fresh batch run."""
     doc = await db.search_criteria.find_one({"id": criteria_id})

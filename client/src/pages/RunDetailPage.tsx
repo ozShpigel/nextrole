@@ -506,7 +506,7 @@ export default function RunDetail() {
                     return (
                       <div className="pb-[0.6rem] border-b border-border/60">
                         <span className="block text-[0.7rem] uppercase tracking-[0.08em] text-muted-foreground font-medium mb-[0.55rem]">Signals</span>
-                        <div className="flex flex-col gap-[0.4rem]">
+                        <div className="flex flex-col gap-[0.4rem]" dir="rtl">
                           {green.map((s, i) => (
                             <div key={`g${i}`} className="flex items-start gap-[0.55rem]">
                               <span className="mt-[0.45rem] w-[6px] h-[6px] rounded-full bg-emerald-500 shrink-0" />

@@ -510,13 +510,13 @@ export default function RunDetail() {
                           {green.map((s, i) => (
                             <div key={`g${i}`} className="flex items-start gap-[0.55rem]">
                               <span className="mt-[0.45rem] w-[6px] h-[6px] rounded-full bg-emerald-500 shrink-0" />
-                              <span className="text-[0.78rem] text-foreground leading-[1.5]" dir="auto">{s}</span>
+                              <span className="text-[0.78rem] text-foreground leading-[1.5] text-right" dir="rtl">{s}</span>
                             </div>
                           ))}
                           {red.map((s, i) => (
                             <div key={`r${i}`} className="flex items-start gap-[0.55rem]">
                               <span className="mt-[0.45rem] w-[6px] h-[6px] rounded-full bg-red-500 shrink-0" />
-                              <span className="text-[0.78rem] text-foreground leading-[1.5]" dir="auto">{s}</span>
+                              <span className="text-[0.78rem] text-foreground leading-[1.5] text-right" dir="rtl">{s}</span>
                             </div>
                           ))}
                         </div>

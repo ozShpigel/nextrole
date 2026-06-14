@@ -179,6 +179,7 @@ This system is used for decision-making, so consistency, clarity, and conservati
 
 - Free-text fields MUST be in English EXCEPT where noted below
 - `honestAssessment` MUST be in Hebrew (single paragraph only)
+- PERSPECTIVE: all Hebrew free-text (honestAssessment + the entire recommendation block) MUST be written in SECOND PERSON, addressing the reader directly (אתה / שלך / לך / מתאים לך). This report is read by the candidate about himself. NEVER refer to him in third person — do not use "המועמד". Example: write "אתה מתאים לתפקיד" not "המועמד מתאים לתפקיד"; "החוזקות שלך" not "החוזקות של המועמד".
 - The entire `recommendation` block — `keyReasons`, `questionsToAsk`, `redFlags`, `greenFlags` — MUST be in Hebrew
 - JSON keys and enum values MUST be in English
 - Technology names (C#, .NET, Kubernetes, AWS, etc.) remain in Latin script even inside Hebrew text

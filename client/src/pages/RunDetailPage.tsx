@@ -545,12 +545,12 @@ export default function RunDetail() {
                                   <span className="text-[0.8rem] font-medium text-foreground">{c.name}</span>
                                   <span className="shrink-0 font-mono text-[0.76rem] font-semibold tabular-nums" style={{ color: scoreColor(c.score, c.maxScore) }}>{c.score}/{c.maxScore}</span>
                                 </div>
-                                {c.reason && <span className="text-[0.76rem] text-muted-foreground leading-[1.5]" dir="auto">{c.reason}</span>}
+                                {c.reason && <span className="text-[0.76rem] text-muted-foreground leading-[1.5] text-right" dir="rtl">{c.reason}</span>}
                               </div>
                             ))}
                           </div>
                         ) : (pos.length > 0 || neg.length > 0) ? (
-                          <div className="flex flex-wrap gap-[0.35rem]">
+                          <div className="flex flex-wrap gap-[0.35rem]" dir="rtl">
                             {pos.map((s, i) => (
                               <span key={`p${i}`} className="text-[0.74rem] py-[0.15rem] px-[0.5rem] rounded bg-emerald-50 text-emerald-600 border border-emerald-600/15">{s}</span>
                             ))}

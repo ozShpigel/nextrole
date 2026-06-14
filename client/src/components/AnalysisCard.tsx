@@ -165,7 +165,7 @@ export default function AnalysisCard({ matchAnalysisJson }: AnalysisCardProps) {
                   {(active.data[active.posKey] as string[] | undefined)?.length ? (
                     <div className="mb-3 last:mb-0">
                       <span className="block text-[0.75rem] text-muted-foreground uppercase tracking-[0.06em] font-medium mb-[0.3rem]">{active.posLabel}</span>
-                      <ul className="list-disc pl-5 m-0">
+                      <ul dir="rtl" className="list-disc pr-5 m-0 text-right">
                         {(active.data[active.posKey] as string[]).map((item: string, i: number) => <li key={i} className="text-[0.84rem] mb-[0.3rem] text-foreground leading-[1.6] marker:text-emerald-600">{item}</li>)}
                       </ul>
                     </div>
@@ -173,7 +173,7 @@ export default function AnalysisCard({ matchAnalysisJson }: AnalysisCardProps) {
                   {(active.data[active.negKey] as string[] | undefined)?.length ? (
                     <div className="mb-3 last:mb-0">
                       <span className="block text-[0.75rem] text-muted-foreground uppercase tracking-[0.06em] font-medium mb-[0.3rem]">{active.negLabel}</span>
-                      <ul className="list-disc pl-5 m-0">
+                      <ul dir="rtl" className="list-disc pr-5 m-0 text-right">
                         {(active.data[active.negKey] as string[]).map((item: string, i: number) => <li key={i} className="text-[0.84rem] mb-[0.3rem] text-foreground leading-[1.6] marker:text-red-500">{item}</li>)}
                       </ul>
                     </div>

@@ -181,6 +181,7 @@ This system is used for decision-making, so consistency, clarity, and conservati
 - `honestAssessment` MUST be in Hebrew (single paragraph only)
 - PERSPECTIVE: all Hebrew free-text (honestAssessment + the entire recommendation block) MUST be written in SECOND PERSON, addressing the reader directly (אתה / שלך / לך / מתאים לך). This report is read by the candidate about himself. NEVER refer to him in third person — do not use "המועמד". Example: write "אתה מתאים לתפקיד" not "המועמד מתאים לתפקיד"; "החוזקות שלך" not "החוזקות של המועמד".
 - The entire `recommendation` block — `keyReasons`, `questionsToAsk`, `redFlags`, `greenFlags` — MUST be in Hebrew
+- All breakdown content free-text — every component `reason`, and the `strengths` / `gaps` / `concerns` / `positiveSignals` arrays — MUST be in Hebrew, second person (אתה / שלך). Dimension and component `name` values stay in English.
 - JSON keys and enum values MUST be in English
 - Technology names (C#, .NET, Kubernetes, AWS, etc.) remain in Latin script even inside Hebrew text
 
@@ -237,7 +238,7 @@ If any filter is FAIL → final verdict MUST be `STRONG_NO`.
 
 Score each dimension by explicitly scoring its sub-components, then summing them.
 Each sub-component gets its own numeric score (within its range) and a single
-concise English sentence (minimal words) explaining that score.
+concise Hebrew sentence (minimal words) explaining that score.
 
 ---
 
@@ -346,7 +347,7 @@ Return exactly this JSON schema, nothing else (no markdown fences, no commentary
 
 - Each dimension's `score` MUST equal the sum of its components' `score` values
 - `overallScore` MUST equal the sum of the three breakdown `score` values
-- Each component `reason` MUST be a single concise English sentence with minimal words
+- Each component `reason` MUST be a single concise Hebrew sentence with minimal words
 - verdict MUST match overallScore's band
 
 ---

@@ -419,6 +419,10 @@ public sealed class MongoProfileProvider : IProfileProvider
     private static InterviewPrepDocument ToInterviewPrepDocument(BsonDocument sub)
     {
         string Str(string field) => sub.Contains(field) && sub[field].IsString ? sub[field].AsString : "";
+        List<string> Cues(string field) =>
+            sub.Contains(field) && sub[field].IsBsonArray
+                ? sub[field].AsBsonArray.Where(v => v.IsString).Select(v => v.AsString).ToList()
+                : new List<string>();
 
         var qa = sub.Contains("qa_rubric") ? ReadQaRubric(sub["qa_rubric"]) : new List<QaEntry>();
 
@@ -433,6 +437,8 @@ public sealed class MongoProfileProvider : IProfileProvider
             PresentingWorkProject = Str("presenting_work_project"),
             PresentingPersonalProject = Str("presenting_personal_project"),
             QaRubric = qa,
+            SelfPresentationHrCues = Cues("self_presentation_hr_cues"),
+            SelfPresentationTechnicalCues = Cues("self_presentation_technical_cues"),
             UpdatedAt = updatedAt,
         };
     }
@@ -470,6 +476,12 @@ public sealed class MongoProfileProvider : IProfileProvider
         CarryOrOverwrite(sub, existingSub, "self_presentation_technical", selfPresentationTechnical);
         CarryOrOverwrite(sub, existingSub, "presenting_work_project", presentingWorkProject);
         CarryOrOverwrite(sub, existingSub, "presenting_personal_project", presentingPersonalProject);
+
+        // Cached keyword cues are tied to the saved presentation text: carry them
+        // forward, but drop them when the underlying text actually changes (the
+        // rebuilt `sub` would otherwise just lose them on every save).
+        CarryCues(sub, existingSub, "self_presentation_hr", selfPresentationHr);
+        CarryCues(sub, existingSub, "self_presentation_technical", selfPresentationTechnical);
 
         var newRubric = qaRubric is not null
             ? BuildQaRubricBson(qaRubric)
@@ -520,6 +532,28 @@ public sealed class MongoProfileProvider : IProfileProvider
             FieldStateDescription(selfPresentationHr), FieldStateDescription(selfPresentationTechnical),
             FieldStateDescription(presentingWorkProject), FieldStateDescription(presentingPersonalProject),
             qaRubric is null ? "unchanged" : newRubric.Count.ToString());
+    }
+
+    public async Task SetPresentationCuesAsync(string field, IReadOnlyList<string> cues, CancellationToken cancellationToken = default)
+    {
+        if (field is not ("self_presentation_hr" or "self_presentation_technical"))
+            throw new ArgumentException($"Cues are not supported for field '{field}'");
+
+        var filter = Builders<BsonDocument>.Filter.Eq("id", DocId);
+        // Ensure the base/interview-prep doc exists before a targeted $set.
+        var existing = await _collection.Find(filter).FirstOrDefaultAsync(cancellationToken);
+        if (existing is null)
+            await GetProfileDocumentAsync(cancellationToken);
+
+        var arr = new BsonArray(cues.Select(c => (BsonValue)c));
+        // Dot-path $set touches only this one key — siblings (text, qa_rubric,
+        // the other field's cues, history) are left intact.
+        var update = Builders<BsonDocument>.Update.Set($"{InterviewPrepKey}.{field}_cues", arr);
+        await _collection.UpdateOneAsync(
+            filter, update, new UpdateOptions { IsUpsert = true }, cancellationToken);
+
+        _cache.Remove(InterviewPrepCacheKey);
+        _logger.LogInformation("Persisted {Count} keyword cues for {Field}", cues.Count, field);
     }
 
     public async Task<IReadOnlyList<ProfileHistoryEntry>> GetInterviewPrepHistoryAsync(string field, CancellationToken cancellationToken = default)
@@ -785,6 +819,19 @@ public sealed class MongoProfileProvider : IProfileProvider
         {
             update[field] = existing[field];
         }
+    }
+
+    // Carry a field's cached cues (`<field>_cues`) forward, unless the field's
+    // text is being overwritten with a different value — in which case the cues
+    // no longer match the text and are dropped (so the next view regenerates).
+    private static void CarryCues(BsonDocument update, BsonDocument existing, string textField, string? incomingText)
+    {
+        var cuesKey = textField + "_cues";
+        if (!existing.Contains(cuesKey) || !existing[cuesKey].IsBsonArray) return;
+        var existingText = existing.Contains(textField) && existing[textField].IsString ? existing[textField].AsString : "";
+        var resultingText = incomingText ?? existingText; // null incoming = carry text forward
+        if (resultingText == existingText)
+            update[cuesKey] = existing[cuesKey];
     }
 
     private static string FieldStateDescription(string? value) =>

@@ -307,6 +307,8 @@ public static class MatchEndpoints
             presenting_work_project = doc.PresentingWorkProject,
             presenting_personal_project = doc.PresentingPersonalProject,
             qa_rubric = doc.QaRubric.Select(e => new { question = e.Question, answer = e.Answer }),
+            self_presentation_hr_cues = doc.SelfPresentationHrCues,
+            self_presentation_technical_cues = doc.SelfPresentationTechnicalCues,
             updated_at = doc.UpdatedAt
         };
 
@@ -425,24 +427,35 @@ public static class MatchEndpoints
         .WithName("RestoreInterviewPrepHistory")
         .WithSummary("Restore an interview prep field to a prior version (current value is snapshotted, so restore is undoable)");
 
-        // Turn a self-presentation into short keyword cues (rehearsal aid). The
-        // text is sent from the editor (possibly unsaved), so it's taken from the
-        // request body rather than the stored doc.
+        // Turn a self-presentation into short keyword cues (rehearsal aid). Cues
+        // are cached per saved version: the text is read from the stored doc, and
+        // a cached set is returned without a Claude call unless `force` is set.
         app.MapPost("/api/match/interview-prep/cues", async (
             [FromBody] PresentationCuesRequest request,
             ApplicationTracker.Core.AI.IClaudeClient claude,
+            IProfileProvider provider,
             ILogger<Program> logger,
             CancellationToken ct) =>
         {
-            if (string.IsNullOrWhiteSpace(request?.Text))
-                return Results.BadRequest(new { error = "text is required" });
-            if (request.Text.Length > 20_000)
-                return Results.BadRequest(new { error = "text exceeds maximum length of 20,000 characters" });
+            var field = request?.Field;
+            if (field is not ("self_presentation_hr" or "self_presentation_technical"))
+                return Results.BadRequest(new { error = "field must be 'self_presentation_hr' or 'self_presentation_technical'" });
 
             try
             {
-                var cues = await claude.GeneratePresentationCuesAsync(request.Text, ct);
-                return Results.Ok(new { cues });
+                var prep = await provider.GetInterviewPrepAsync(ct);
+                var text = field == "self_presentation_hr" ? prep.SelfPresentationHr : prep.SelfPresentationTechnical;
+                var cached = field == "self_presentation_hr" ? prep.SelfPresentationHrCues : prep.SelfPresentationTechnicalCues;
+
+                if (string.IsNullOrWhiteSpace(text))
+                    return Results.BadRequest(new { error = "save some self-presentation text before generating cues" });
+
+                if (!request!.Force && cached.Count > 0)
+                    return Results.Ok(new { cues = cached, cached = true });
+
+                var cues = await claude.GeneratePresentationCuesAsync(text, ct);
+                await provider.SetPresentationCuesAsync(field, cues, ct);
+                return Results.Ok(new { cues, cached = false });
             }
             catch (InvalidOperationException ex) when (ex.Message.Contains("ApiKey"))
             {
@@ -459,7 +472,7 @@ public static class MatchEndpoints
         })
         .RequireRateLimiting("match")
         .WithName("GeneratePresentationCues")
-        .WithSummary("Turn a self-presentation into short keyword cues (rehearsal reminders)");
+        .WithSummary("Turn a self-presentation into short keyword cues, cached per saved version (rehearsal reminders)");
 
         return app;
     }

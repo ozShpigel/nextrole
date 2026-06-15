@@ -23,13 +23,16 @@ public sealed record InterviewPrepRequest
     public List<QaEntryDto>? QaRubric { get; init; }
 }
 
-// Body for POST /api/match/interview-prep/cues — the self-presentation text to
-// turn into keyword reminders. Sent from the editor (may be unsaved), so the
-// text is supplied directly rather than read from the stored doc.
+// Body for POST /api/match/interview-prep/cues — which self-presentation field
+// to summarize into keyword reminders. The text is read from the saved doc
+// server-side so cues are cached per saved version; `force` bypasses the cache.
 public sealed record PresentationCuesRequest
 {
-    [JsonPropertyName("text")]
-    public string Text { get; init; } = "";
+    [JsonPropertyName("field")]
+    public string Field { get; init; } = "";
+
+    [JsonPropertyName("force")]
+    public bool Force { get; init; }
 }
 
 public sealed record QaEntryDto

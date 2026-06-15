@@ -33,6 +33,11 @@ public interface IProfileProvider
         CancellationToken cancellationToken = default);
     Task<IReadOnlyList<ProfileHistoryEntry>> GetInterviewPrepHistoryAsync(string field, CancellationToken cancellationToken = default);
     Task RestoreInterviewPrepHistoryAsync(string field, int index, CancellationToken cancellationToken = default);
+
+    // Persist generated keyword cues for a self-presentation field
+    // (self_presentation_hr | self_presentation_technical). Stored alongside the
+    // text so they survive reloads; invalidated when the text changes on save.
+    Task SetPresentationCuesAsync(string field, IReadOnlyList<string> cues, CancellationToken cancellationToken = default);
 }
 
 public sealed record QaEntry
@@ -48,6 +53,10 @@ public sealed record InterviewPrepDocument
     public string PresentingWorkProject { get; init; } = "";
     public string PresentingPersonalProject { get; init; } = "";
     public IReadOnlyList<QaEntry> QaRubric { get; init; } = Array.Empty<QaEntry>();
+    // Cached keyword cues for each self-presentation, tied to the saved text.
+    // Dropped automatically when the underlying presentation text changes.
+    public IReadOnlyList<string> SelfPresentationHrCues { get; init; } = Array.Empty<string>();
+    public IReadOnlyList<string> SelfPresentationTechnicalCues { get; init; } = Array.Empty<string>();
     public DateTime? UpdatedAt { get; init; }
 }
 

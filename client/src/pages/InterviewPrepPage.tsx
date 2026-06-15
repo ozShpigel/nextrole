@@ -160,22 +160,32 @@ function CueLine({ text }: { text: string }) {
   );
 }
 
-function PresentationField({ label, hint, value, onChange, minHeight }: { label: string; hint: string; value: string; onChange: (v: string) => void; minHeight: number }) {
+function PresentationField({ field, label, hint, value, savedValue, cachedCues, onChange, minHeight }: { field: InterviewPrepHistoryField; label: string; hint: string; value: string; savedValue: string; cachedCues: string[]; onChange: (v: string) => void; minHeight: number }) {
   const [mode, setMode] = useState<'full' | 'cues'>('full');
-  const [cues, setCues] = useState<string[] | null>(null);
-  const [cuesFor, setCuesFor] = useState('');
+  const [localCues, setLocalCues] = useState<string[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const gen = useGeneratePresentationCues();
 
-  const hasText = value.trim().length > 0;
-  const stale = cues !== null && cuesFor !== value;
+  const dirty = value !== savedValue;          // unsaved edits in the editor
+  const hasSaved = savedValue.trim().length > 0;
+  // Freshly generated cues win; otherwise fall back to the cached set the doc
+  // loaded with. Cues always reflect the *saved* version of the text.
+  const cues = localCues ?? (cachedCues.length > 0 ? cachedCues : null);
 
-  async function generate(): Promise<void> {
+  // When the saved baseline changes (a save or a history restore), the server
+  // drops cues that no longer match the text — clear our local copy so we fall
+  // back to the (possibly empty) cached set and regenerate on demand.
+  useEffect(() => {
+    setLocalCues(null);
+    setError(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [savedValue]);
+
+  async function generate(force: boolean): Promise<void> {
     setError(null);
     try {
-      const res = await gen.mutateAsync(value);
-      setCues(res.cues ?? []);
-      setCuesFor(value);
+      const res = await gen.mutateAsync({ field, force });
+      setLocalCues(res.cues ?? []);
     } catch (e) {
       setError((e as Error).message);
     }
@@ -183,7 +193,9 @@ function PresentationField({ label, hint, value, onChange, minHeight }: { label:
 
   function showCues(): void {
     setMode('cues');
-    if (cues === null || cuesFor !== value) generate();
+    // Cached set absent → generate from the saved text (no call if we already
+    // have cues, or if the field was never saved).
+    if (hasSaved && cues === null && !gen.isPending) generate(false);
   }
 
   return (
@@ -205,9 +217,7 @@ function PresentationField({ label, hint, value, onChange, minHeight }: { label:
           <button
             type="button"
             onClick={showCues}
-            disabled={!hasText}
-            title={hasText ? 'Show short keyword reminders' : 'Add some text first'}
-            className={`flex items-center gap-[0.35rem] px-[0.6rem] py-[0.3rem] text-[0.72rem] font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${mode === 'cues' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+            className={`flex items-center gap-[0.35rem] px-[0.6rem] py-[0.3rem] text-[0.72rem] font-medium transition-colors ${mode === 'cues' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
           >
             <ListChecks size={13} /> Keywords
           </button>
@@ -236,8 +246,10 @@ function PresentationField({ label, hint, value, onChange, minHeight }: { label:
           ) : error ? (
             <div className="text-[0.82rem] text-destructive">
               Couldn't generate cues: {error}{' '}
-              <button type="button" onClick={generate} className="underline underline-offset-2 hover:text-foreground">Retry</button>
+              <button type="button" onClick={() => generate(false)} className="underline underline-offset-2 hover:text-foreground">Retry</button>
             </div>
+          ) : !hasSaved ? (
+            <div className="text-[0.82rem] text-muted-foreground italic">Save your self-presentation first to generate keyword reminders.</div>
           ) : cues && cues.length > 0 ? (
             <>
               <ol className="flex flex-col gap-[0.7rem] m-0 p-0 list-none">
@@ -251,14 +263,14 @@ function PresentationField({ label, hint, value, onChange, minHeight }: { label:
               <div className="flex items-center gap-3 mt-4 pt-3 border-t border-dashed border-border">
                 <button
                   type="button"
-                  onClick={generate}
+                  onClick={() => generate(true)}
                   disabled={gen.isPending}
                   className="inline-flex items-center gap-[0.35rem] text-[0.74rem] font-medium text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
                 >
                   <RefreshCw size={12} className={gen.isPending ? 'animate-spin' : ''} /> Regenerate
                 </button>
-                {stale && !gen.isPending && (
-                  <span className="text-[0.72rem] text-amber-600">Text changed since these were generated.</span>
+                {dirty && !gen.isPending && (
+                  <span className="text-[0.72rem] text-amber-600">Based on your saved version — save to refresh.</span>
                 )}
               </div>
             </>
@@ -372,6 +384,7 @@ export default function InterviewPrepPage() {
   if (query.isLoading) return <InterviewPrepLoadingSkeleton />;
 
   const error = query.error?.message ?? null;
+  const prepData = query.data as InterviewPrepResponse | undefined;
 
   return (
     <div className="relative max-w-[960px] mx-auto px-7 pt-16 pb-32 animate-in fade-in slide-in-from-bottom-1 duration-500 max-sm:px-4 max-sm:pt-10 max-sm:pb-14">
@@ -400,16 +413,22 @@ export default function InterviewPrepPage() {
           desc="How you introduce yourself, grounded in your values. Keep two versions: one tuned for an HR/recruiter conversation, one for a technical interviewer."
         />
         <PresentationField
+          field="self_presentation_hr"
           label="HR / Recruiter version"
           hint="Values-first, accessible framing for a non-technical audience — who you are, what drives you, what you're looking for. Switch to Keywords to rehearse from memory."
           value={hr}
+          savedValue={originalHr}
+          cachedCues={prepData?.self_presentation_hr_cues ?? []}
           onChange={(v) => { setHr(v); setPresentationResult(null); }}
           minHeight={220}
         />
         <PresentationField
+          field="self_presentation_technical"
           label="Technical version"
           hint="For a technical interviewer — your engineering values, depth, and how you work, still rooted in what matters to you. Switch to Keywords to rehearse from memory."
           value={tech}
+          savedValue={originalTech}
+          cachedCues={prepData?.self_presentation_technical_cues ?? []}
           onChange={(v) => { setTech(v); setPresentationResult(null); }}
           minHeight={220}
         />

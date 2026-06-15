@@ -65,6 +65,8 @@ export interface InterviewPrepResponse {
   presenting_work_project?: string;
   presenting_personal_project?: string;
   qa_rubric?: QaEntry[];
+  self_presentation_hr_cues?: string[];
+  self_presentation_technical_cues?: string[];
   updated_at?: string;
 }
 

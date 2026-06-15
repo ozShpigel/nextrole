@@ -158,16 +158,21 @@ export function useRestoreInterviewPrepHistory() {
   });
 }
 
-// Stateless: turns a self-presentation into short keyword cues. Derived purely
-// from the supplied text (which may be unsaved in the editor), so nothing to
-// cache or invalidate.
+// Generates keyword cues for a saved self-presentation field. Cues are cached
+// per saved version server-side, so the result is persisted on the interview-prep
+// doc — invalidate it so a fresh load carries the cues. `force` re-generates
+// even when a cached set already exists.
 export function useGeneratePresentationCues() {
+  const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (text: string) =>
+    mutationFn: ({ field, force }: { field: InterviewPrepHistoryField; force?: boolean }) =>
       matchApi('/interview-prep/cues', {
         method: 'POST',
-        body: JSON.stringify({ text }),
-      }) as Promise<{ cues: string[] }>,
+        body: JSON.stringify({ field, force: force ?? false }),
+      }) as Promise<{ cues: string[]; cached: boolean }>,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['match', 'interview-prep'] });
+    },
   });
 }
 

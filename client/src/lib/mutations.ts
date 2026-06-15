@@ -1,6 +1,15 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, matchApi, discoveryApi } from './api';
-import type { TestPromptRequest, TestPromptResult, HistoryField, InterviewPrepHistoryField } from './types';
+import type {
+  TestPromptRequest,
+  TestPromptResult,
+  HistoryField,
+  InterviewPrepHistoryField,
+  MockTurn,
+  MockTurnResponse,
+  MockDebrief,
+  MockSession,
+} from './types';
 
 export function useTriggerRun() {
   const queryClient = useQueryClient();
@@ -170,6 +179,76 @@ export function useGeneratePresentationCues() {
         method: 'POST',
         body: JSON.stringify({ field, force: force ?? false }),
       }) as Promise<{ cues: string[]; cached: boolean }>,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['match', 'interview-prep'] });
+    },
+  });
+}
+
+// ── Mock interview ──────────────────────────────────────────────────────────
+interface MockTurnRequest {
+  persona: string;
+  language: string;
+  questionTarget?: number;
+  applicationId?: string | null;
+  transcript: MockTurn[];
+}
+
+// Stateless turn engine — post the full transcript, get the interviewer's reply.
+export function useMockTurn() {
+  return useMutation({
+    mutationFn: (body: MockTurnRequest) =>
+      api('/mock-interview/turn', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }) as Promise<MockTurnResponse>,
+  });
+}
+
+export function useMockDebrief() {
+  return useMutation({
+    mutationFn: (body: MockTurnRequest) =>
+      api('/mock-interview/debrief', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }) as Promise<MockDebrief>,
+  });
+}
+
+export function useSaveMockSession() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: Record<string, unknown>) =>
+      api('/mock-interview/sessions', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }) as Promise<MockSession>,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['mock-interview', 'sessions'] });
+    },
+  });
+}
+
+export function useDeleteMockSession() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      api(`/mock-interview/sessions/${id}`, { method: 'DELETE' }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['mock-interview', 'sessions'] });
+    },
+  });
+}
+
+// Closed loop — append a debrief rewrite into the interview-prep Q&A rubric.
+export function useAdoptRubric() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ question, answer }: { question: string; answer: string }) =>
+      api('/mock-interview/adopt-rubric', {
+        method: 'POST',
+        body: JSON.stringify({ question, answer }),
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['match', 'interview-prep'] });
     },

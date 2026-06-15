@@ -76,3 +76,69 @@ export type InterviewPrepHistoryField =
   | 'presenting_work_project'
   | 'presenting_personal_project'
   | 'qa_rubric';
+
+// Mock interview — AI plays the interviewer (HR or technical), the client holds
+// the transcript and posts it each turn to a stateless endpoint.
+export type MockPersona = 'hr' | 'technical';
+export type MockLanguage = 'he' | 'en';
+export type MockMode = 'generic' | 'bound';
+
+export interface MockTurn {
+  role: 'interviewer' | 'candidate';
+  text: string;
+  nudge?: string | null;
+  isFollowUp?: boolean;
+}
+
+export interface MockTurnResponse {
+  nudge: string;
+  nextQuestion: string;
+  isFollowUp: boolean;
+  done: boolean;
+}
+
+export interface MockScores {
+  structure: number;
+  relevance: number;
+  specificity: number;
+  clarity: number;
+}
+
+export interface MockRewrite {
+  question: string;
+  suggestedAnswer: string;
+}
+
+export interface MockDebrief {
+  scores: MockScores;
+  highlights: string[];
+  improvements: string[];
+  rewrites: MockRewrite[];
+}
+
+export interface MockSessionListItem {
+  id: string;
+  persona: MockPersona;
+  mode: MockMode;
+  company?: string | null;
+  jobTitle?: string | null;
+  language: MockLanguage;
+  scores?: MockScores | null;
+  answerCount: number;
+  createdAt: string;
+  completedAt?: string | null;
+}
+
+export interface MockSession {
+  id: string;
+  persona: MockPersona;
+  mode: MockMode;
+  applicationId?: string | null;
+  company?: string | null;
+  jobTitle?: string | null;
+  language: MockLanguage;
+  turns: MockTurn[];
+  debrief?: MockDebrief | null;
+  createdAt: string;
+  completedAt?: string | null;
+}

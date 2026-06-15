@@ -6,6 +6,8 @@ import type {
   HistoryField,
   InterviewPrepResponse,
   InterviewPrepHistoryField,
+  MockSessionListItem,
+  MockSession,
 } from './types';
 
 export function useDiscoveryHealth() {
@@ -89,6 +91,21 @@ export function useInterviewPrepHistory(field: InterviewPrepHistoryField, enable
   return useQuery<ProfileHistoryResponse>({
     queryKey: ['match', 'interview-prep', 'history', field],
     queryFn: () => matchApi(`/interview-prep/history/${field}`),
+    enabled,
+  });
+}
+
+export function useMockSessions() {
+  return useQuery<MockSessionListItem[]>({
+    queryKey: ['mock-interview', 'sessions'],
+    queryFn: () => api('/mock-interview/sessions'),
+  });
+}
+
+export function useMockSession(id: string, enabled: boolean) {
+  return useQuery<MockSession>({
+    queryKey: ['mock-interview', 'sessions', id],
+    queryFn: () => api(`/mock-interview/sessions/${id}`),
     enabled,
   });
 }

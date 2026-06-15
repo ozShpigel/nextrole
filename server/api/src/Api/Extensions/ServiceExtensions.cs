@@ -33,6 +33,8 @@ public static class ServiceExtensions
             new NoteRepository(sp.GetRequiredService<IMongoCollection<Note>>()));
         services.AddScoped<IStatusUpdateRepository>(sp =>
             new StatusUpdateRepository(sp.GetRequiredService<IMongoCollection<StatusUpdate>>()));
+        services.AddScoped<IMockInterviewRepository>(sp =>
+            new MockInterviewRepository(sp.GetRequiredService<IMongoCollection<MockInterviewSession>>()));
 
         // Job matching: profile lookup + Claude client + orchestration service
         services.AddMemoryCache();

@@ -159,6 +159,11 @@ export default function ApplicationDetail() {
               </Button>
             )}
             <Button onClick={() => setModal({ type: 'status' })}>Update Status</Button>
+            <Button variant="outline" asChild>
+              <Link to={`/practice-interview?applicationId=${app.id}&company=${encodeURIComponent(app.company)}&jobTitle=${encodeURIComponent(app.jobTitle)}`}>
+                Practice Interview
+              </Link>
+            </Button>
             <Button variant="outline" onClick={() => setModal({ type: 'interview' })}>Add Interview</Button>
             <Button variant="outline" onClick={() => setModal({ type: 'note' })}>Add Note</Button>
             <Button variant="destructive" onClick={deleteApp}>Delete</Button>

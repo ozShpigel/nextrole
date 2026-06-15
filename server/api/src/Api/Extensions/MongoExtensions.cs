@@ -38,6 +38,11 @@ public static class MongoExtensions
             var database = sp.GetRequiredService<IMongoDatabase>();
             return database.GetCollection<StatusUpdate>("statusUpdates");
         });
+        services.AddSingleton(sp =>
+        {
+            var database = sp.GetRequiredService<IMongoDatabase>();
+            return database.GetCollection<MockInterviewSession>("mockInterviewSessions");
+        });
 
         return services;
     }

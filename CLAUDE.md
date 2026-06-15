@@ -103,6 +103,19 @@ Standalone interview-prep content the user authors on the dedicated `/interview-
 - The self-presentations feed the "why work here?" generation as trusted context.
 - **Keyword cues (rehearsal mode)**: each self-presentation field has a Full text ⇄ Keywords toggle. Keywords mode shows an ordered list of short cue lines (Claude distills the prose via `ClaudeClient.GeneratePresentationCuesAsync` / `PromptSeeds.PresentationCues`, JSON `{cues:[…]}`) so the user speaks from memory instead of reading verbatim. Cues are **cached per saved version**: stored on the `interview_prep` doc as `self_presentation_hr_cues` / `self_presentation_technical_cues`, generated on first view and served without a Claude call thereafter. `POST /api/match/interview-prep/cues` takes `{field, force}`, reads the *saved* text server-side, and short-circuits when a cached set exists (`force` regenerates). Saving changed text drops that field's cues (`CarryCues` in `UpsertInterviewPrepAsync` carries them forward only when the text is unchanged); the next view regenerates. The cue lines render `dir="rtl"` (RTL list items) for clean mixed Hebrew/English bidi.
 
+## Mock Interview
+
+Interactive, turn-by-turn AI interview practice on the dedicated `/mock-interview` page (linked from the nav, from `/interview-prep`, and — bound to a specific role — from the tracker application detail page via `?applicationId=&company=&jobTitle=`).
+
+- **Flow**: the user picks a persona (HR or technical), language (Hebrew default), and question count (4–10). Claude plays the interviewer, asking one question per turn, weaving live follow-ups around the user's answers, and giving a one-line `nudge` on each answer. "End & debrief" (or hitting the question target) produces a scored summary.
+- **Stateless turn engine**: the client holds the full transcript and posts it each turn to `POST /api/mock-interview/turn` → `{nudge, nextQuestion, isFollowUp, done}`. No server-side session state during the interview.
+- **Models**: per-turn questions use **Haiku** (fast/cheap, high-frequency); the end-of-session debrief uses **Sonnet**. Both live in `ClaudeClient` (`GenerateMockInterviewTurnAsync` / `GenerateMockInterviewDebriefAsync`, prompts `PromptSeeds.MockInterviewTurn` / `MockInterviewDebrief`).
+- **Trusted vs untrusted**: the system prompt carries trusted context (profile, the persona-matched self-presentation, project pitches, and the `qa_rubric` questions as a skeleton); the user message XML-wraps untrusted data (candidate answers in `<candidate>`, transcript in `<transcript>`, job/company context in `<job_context>` when bound) so injected instructions are ignored.
+- **Debrief**: `POST /api/mock-interview/debrief` scores the transcript on a fixed 1–5 rubric (Structure / Relevance / Specificity / Clarity) and returns `highlights`, `improvements`, and `rewrites` (`{question, suggestedAnswer}`).
+- **Persistence**: completed sessions are saved to the `mockInterviewSessions` collection (`IMockInterviewRepository`) and listed/reopened from the setup screen (`GET /api/mock-interview/sessions`, `GET .../sessions/{id}`).
+- **Closed loop**: a debrief rewrite can be adopted into the interview-prep Q&A rubric via `POST /api/mock-interview/adopt-rubric`, which appends through `UpsertInterviewPrepAsync` (history-snapshotted, undoable; scoring fields untouched).
+- **Rate limiting**: the `/turn` and `/debrief` endpoints use a dedicated `mock` fixed-window limiter (40 req/min — higher than `match`'s 10, since each session is many turns), with transcript caps (80 turns, 20K chars/turn).
+
 ## Mailbot (Email Sync)
 
 One-shot process: pulls active applications from the API, parses last-24h Gmail messages via `POST /api/emails/parse` (Claude, `PromptSeeds.EmailParser`), and applies status/interview updates.

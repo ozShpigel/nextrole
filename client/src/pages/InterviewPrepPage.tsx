@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Trash2, Plus, ArrowUp, ArrowDown, ListChecks, AlignLeft, RefreshCw } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Trash2, Plus, ArrowUp, ArrowDown, ListChecks, AlignLeft, RefreshCw, MessageSquare } from 'lucide-react';
 import { useInterviewPrep, useInterviewPrepHistory } from '../lib/queries';
 import { useSaveInterviewPrep, useRestoreInterviewPrepHistory, useGeneratePresentationCues } from '../lib/mutations';
 import type { InterviewPrepResponse, InterviewPrepHistoryField, QaEntry } from '../lib/types';
@@ -397,6 +398,11 @@ export default function InterviewPrepPage() {
         <p className="text-muted-foreground text-[0.98rem] max-w-[600px] leading-[1.65]">
           Your personal interview playbook — values-based self-presentations, prepared answers to common questions, and how to walk through your projects. Each section is versioned, so you can restore a prior draft anytime.
         </p>
+        <div className="mt-5">
+          <Button asChild className="gap-[0.45rem]">
+            <Link to="/practice-interview"><MessageSquare size={15} /> Start a practice interview</Link>
+          </Button>
+        </div>
       </header>
 
       {error && (

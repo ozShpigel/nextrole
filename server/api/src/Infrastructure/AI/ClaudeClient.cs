@@ -285,6 +285,157 @@ public sealed class ClaudeClient : IClaudeClient
         public string[]? Cues { get; init; }
     }
 
+    // ── Mock interview ──────────────────────────────────────────────────────
+
+    public async Task<MockTurnResult> GenerateMockInterviewTurnAsync(
+        MockInterviewContext context, IReadOnlyList<MockInterviewTurn> transcript, CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Mock interview turn — persona={Persona}, lang={Lang}, turns={Turns}, bound={Bound}",
+            context.Persona, context.Language, transcript.Count, context.Application != null);
+
+        var systemPrompt = await BuildMockSystemPromptAsync(PromptSeeds.MockInterviewTurn, context, cancellationToken);
+        var userMessage = BuildMockUserMessage(context, transcript);
+
+        var parameters = new MessageParameters
+        {
+            System = new List<SystemMessage> { new(systemPrompt) },
+            Messages = new List<Message> { new(RoleType.User, userMessage) },
+            MaxTokens = 1024,
+            // Per-turn questions are high-frequency, low-difficulty — Haiku keeps
+            // the back-and-forth fast and cheap; the debrief uses Sonnet.
+            Model = "claude-haiku-4-5-20251001",
+            Temperature = 0.5m,
+            Stream = false
+        };
+
+        var response = await _client.Messages.GetClaudeMessageAsync(parameters, cancellationToken);
+        var content = response.Message?.ToString()?.Trim()
+            ?? throw new InvalidOperationException("Empty response from Claude API");
+
+        var json = ExtractJson(content);
+        var result = JsonSerializer.Deserialize<MockTurnResult>(json, CaseInsensitive)
+            ?? throw new InvalidOperationException("Failed to deserialize MockTurnResult");
+        return result;
+    }
+
+    public async Task<MockInterviewDebrief> GenerateMockInterviewDebriefAsync(
+        MockInterviewContext context, IReadOnlyList<MockInterviewTurn> transcript, CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Mock interview debrief — persona={Persona}, turns={Turns}", context.Persona, transcript.Count);
+
+        var systemPrompt = await BuildMockSystemPromptAsync(PromptSeeds.MockInterviewDebrief, context, cancellationToken);
+        var userMessage = BuildMockUserMessage(context, transcript);
+
+        var parameters = new MessageParameters
+        {
+            System = new List<SystemMessage> { new(systemPrompt) },
+            Messages = new List<Message> { new(RoleType.User, userMessage) },
+            MaxTokens = 2048,
+            Model = "claude-sonnet-4-20250514",
+            Temperature = 0.4m,
+            Stream = false
+        };
+
+        var response = await _client.Messages.GetClaudeMessageAsync(parameters, cancellationToken);
+        var content = response.Message?.ToString()?.Trim()
+            ?? throw new InvalidOperationException("Empty response from Claude API");
+
+        var json = ExtractJson(content);
+        var result = JsonSerializer.Deserialize<MockInterviewDebrief>(json, CaseInsensitive)
+            ?? throw new InvalidOperationException("Failed to deserialize MockInterviewDebrief");
+        return result;
+    }
+
+    // Trusted context: base instruction + persona/language directives + the
+    // user's own profile, the persona-matched self-presentation, project
+    // pitches, and the prepared-question skeleton. All trusted (system prompt).
+    private async Task<string> BuildMockSystemPromptAsync(string seed, MockInterviewContext context, CancellationToken ct)
+    {
+        var profile = await _profileProvider.GetProfileAsync(ct);
+        var prep = await _profileProvider.GetInterviewPrepAsync(ct);
+
+        var sb = new System.Text.StringBuilder(seed);
+
+        var personaLine = context.Persona == "technical"
+            ? "אתה בתפקיד מראיין/ת טכני/ת. התמקד בעומק טכני, החלטות הנדסיות, פתרון בעיות, מערכות וניסיון מעשי."
+            : "אתה בתפקיד מראיין/ת HR / מגייס/ת. התמקד במוטיבציה, התאמה תרבותית, ערכים, ציפיות ותקשורת בין-אישית.";
+        sb.Append("\n\n# סוג המראיין\n").Append(personaLine);
+
+        if (context.Language == "en")
+            sb.Append("\n\n# שפת הראיון\nנהל את שיח הראיון — השאלות וה-nudge — באנגלית.");
+        else
+            sb.Append("\n\n# שפת הראיון\nנהל את שיח הראיון בעברית. מונחים טכניים נשארים באנגלית.");
+
+        if (seed == PromptSeeds.MockInterviewTurn)
+            sb.Append("\n\n# מספר שאלות מתוכנן\nכ-").Append(context.QuestionTarget)
+              .Append(" שאלות (כולל שאלות המשך). סיים סביב מספר זה.");
+
+        if (!string.IsNullOrWhiteSpace(profile))
+            sb.Append("\n\n# פרופיל המועמד\n").Append(profile.Trim());
+
+        var presentation = context.Persona == "technical" ? prep.SelfPresentationTechnical : prep.SelfPresentationHr;
+        if (!string.IsNullOrWhiteSpace(presentation))
+            sb.Append("\n\n# הצגה עצמית\n").Append(presentation.Trim());
+        if (!string.IsNullOrWhiteSpace(prep.PresentingWorkProject))
+            sb.Append("\n\n# הצגת פרויקט מהעבודה\n").Append(prep.PresentingWorkProject.Trim());
+        if (!string.IsNullOrWhiteSpace(prep.PresentingPersonalProject))
+            sb.Append("\n\n# הצגת פרויקט אישי\n").Append(prep.PresentingPersonalProject.Trim());
+
+        var questions = prep.QaRubric
+            .Select(q => q.Question?.Trim() ?? "")
+            .Where(q => q.Length > 0)
+            .ToList();
+        if (questions.Count > 0)
+            sb.Append("\n\n# שלד שאלות שהמשתמש הכין\n")
+              .Append(string.Join("\n", questions.Select(q => "- " + q)));
+
+        return sb.ToString();
+    }
+
+    // Untrusted data: the job/company context (when bound) followed by the
+    // transcript so far. Candidate answers and job text are XML-wrapped so the
+    // model treats them as data, not instructions.
+    private static string BuildMockUserMessage(MockInterviewContext context, IReadOnlyList<MockInterviewTurn> transcript)
+    {
+        var sb = new System.Text.StringBuilder();
+
+        var app = context.Application;
+        if (app != null)
+        {
+            sb.Append("<job_context>\n");
+            sb.Append("<company>").Append(app.Company).Append("</company>\n");
+            sb.Append("<job_title>").Append(app.JobTitle).Append("</job_title>\n");
+            if (!string.IsNullOrWhiteSpace(app.JobDescription))
+                sb.Append("<job_description>").Append(app.JobDescription).Append("</job_description>\n");
+            if (!string.IsNullOrWhiteSpace(app.CompanySummary))
+                sb.Append("<company_summary>").Append(app.CompanySummary).Append("</company_summary>\n");
+            if (!string.IsNullOrWhiteSpace(app.CompanyNews))
+                sb.Append("<company_news>").Append(app.CompanyNews).Append("</company_news>\n");
+            if (!string.IsNullOrWhiteSpace(app.GlassdoorData))
+                sb.Append("<glassdoor>").Append(app.GlassdoorData).Append("</glassdoor>\n");
+            sb.Append("</job_context>\n\n");
+        }
+
+        if (transcript.Count == 0)
+        {
+            sb.Append("<transcript></transcript>");
+        }
+        else
+        {
+            sb.Append("<transcript>\n");
+            foreach (var turn in transcript)
+            {
+                var tag = turn.Role == "candidate" ? "candidate" : "interviewer";
+                sb.Append('<').Append(tag).Append('>')
+                  .Append(turn.Text?.Trim() ?? "")
+                  .Append("</").Append(tag).Append(">\n");
+            }
+            sb.Append("</transcript>");
+        }
+
+        return sb.ToString();
+    }
+
     // Shared request builder for both the live (stream:true) and batch (stream:false)
     // evaluator paths, so caching / thinking / max_tokens are constructed identically.
     private static MessageParameters BuildParameters(string systemPrompt, string userMessage, RoleScoringConfig cfg, bool stream)

@@ -33,4 +33,14 @@ public interface IClaudeClient
     // cues (memory reminders), so the user can speak from memory rather than
     // read the text verbatim. Returns the cue lines in original order.
     Task<List<string>> GeneratePresentationCuesAsync(string presentationText, CancellationToken cancellationToken = default);
+
+    // Mock interview (stateless turn engine). The transcript so far is supplied
+    // by the caller; the interviewer's reply for the next turn is returned. Uses
+    // the user's profile + interview-prep (trusted) and, when bound to an
+    // application, the job/company context (untrusted, XML-wrapped).
+    Task<MockTurnResult> GenerateMockInterviewTurnAsync(MockInterviewContext context, IReadOnlyList<MockInterviewTurn> transcript, CancellationToken cancellationToken = default);
+
+    // End-of-session debrief: scores the whole transcript on the fixed 1–5
+    // rubric and returns highlights, improvements, and answer rewrites.
+    Task<MockInterviewDebrief> GenerateMockInterviewDebriefAsync(MockInterviewContext context, IReadOnlyList<MockInterviewTurn> transcript, CancellationToken cancellationToken = default);
 }

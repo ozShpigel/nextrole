@@ -63,6 +63,14 @@ builder.Services.AddRateLimiter(options =>
         cfg.Window = TimeSpan.FromMinutes(1);
         cfg.QueueLimit = 0;
     });
+    // Mock interview is conversational — one call per turn (5–8 per session)
+    // plus a debrief — so it needs more headroom than the scoring endpoint.
+    options.AddFixedWindowLimiter("mock", cfg =>
+    {
+        cfg.PermitLimit = 40;
+        cfg.Window = TimeSpan.FromMinutes(1);
+        cfg.QueueLimit = 0;
+    });
     options.RejectionStatusCode = 429;
 });
 
@@ -114,6 +122,7 @@ app.MapInterviewEndpoints();
 app.MapNoteEndpoints();
 app.MapStatsEndpoints();
 app.MapMatchEndpoints();
+app.MapMockInterviewEndpoints();
 app.MapEmailParseEndpoints();
 
 app.Run();

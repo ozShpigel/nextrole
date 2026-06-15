@@ -425,6 +425,42 @@ public static class MatchEndpoints
         .WithName("RestoreInterviewPrepHistory")
         .WithSummary("Restore an interview prep field to a prior version (current value is snapshotted, so restore is undoable)");
 
+        // Turn a self-presentation into short keyword cues (rehearsal aid). The
+        // text is sent from the editor (possibly unsaved), so it's taken from the
+        // request body rather than the stored doc.
+        app.MapPost("/api/match/interview-prep/cues", async (
+            [FromBody] PresentationCuesRequest request,
+            ApplicationTracker.Core.AI.IClaudeClient claude,
+            ILogger<Program> logger,
+            CancellationToken ct) =>
+        {
+            if (string.IsNullOrWhiteSpace(request?.Text))
+                return Results.BadRequest(new { error = "text is required" });
+            if (request.Text.Length > 20_000)
+                return Results.BadRequest(new { error = "text exceeds maximum length of 20,000 characters" });
+
+            try
+            {
+                var cues = await claude.GeneratePresentationCuesAsync(request.Text, ct);
+                return Results.Ok(new { cues });
+            }
+            catch (InvalidOperationException ex) when (ex.Message.Contains("ApiKey"))
+            {
+                logger.LogError(ex, "Anthropic API key not configured");
+                return Results.Problem(
+                    detail: "Anthropic API key is not configured. Please set Anthropic:ApiKey in configuration.",
+                    statusCode: 500);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Failed to generate presentation cues");
+                return Results.Problem("An internal error occurred.", statusCode: 500);
+            }
+        })
+        .RequireRateLimiting("match")
+        .WithName("GeneratePresentationCues")
+        .WithSummary("Turn a self-presentation into short keyword cues (rehearsal reminders)");
+
         return app;
     }
 }

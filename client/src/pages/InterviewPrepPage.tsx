@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Trash2, Plus, ArrowUp, ArrowDown } from 'lucide-react';
+import { Trash2, Plus, ArrowUp, ArrowDown, ListChecks, AlignLeft, RefreshCw } from 'lucide-react';
 import { useInterviewPrep, useInterviewPrepHistory } from '../lib/queries';
-import { useSaveInterviewPrep, useRestoreInterviewPrepHistory } from '../lib/mutations';
+import { useSaveInterviewPrep, useRestoreInterviewPrepHistory, useGeneratePresentationCues } from '../lib/mutations';
 import type { InterviewPrepResponse, InterviewPrepHistoryField, QaEntry } from '../lib/types';
 import { Button } from '../components/ui/button';
 import { Skeleton } from '../components/ui/skeleton';
@@ -133,6 +133,145 @@ function SectionHeader({ num, name, desc }: { num: string; name: string; desc: s
 }
 
 /* ------------------------------------------------------------------ */
+/* Self-presentation field — full text  ⇄  keyword cues               */
+/* ------------------------------------------------------------------ */
+const PRESENTATION_TEXTAREA_CLASS =
+  'w-full p-[1rem_1.25rem] border border-border rounded-lg text-foreground text-[0.88rem] resize-y outline-none leading-[1.8] whitespace-pre-wrap transition-all hover:border-muted-foreground/30 focus:border-ring focus:bg-white focus:shadow-[0_0_0_4px_rgba(0,0,0,0.04)] selection:bg-primary/10 selection:text-foreground';
+
+/* One cue line — split a leading "topic — keywords" so the topic reads bolder. */
+function CueLine({ text }: { text: string }) {
+  const sep = ['—', '–', ' - '].map((s) => text.indexOf(s)).filter((i) => i >= 0).sort((a, b) => a - b)[0];
+  let lead = '';
+  let rest = text;
+  if (sep !== undefined && sep > 0) {
+    const sepChar = text[sep] === ' ' ? ' - ' : text[sep];
+    lead = text.slice(0, sep).trim();
+    rest = text.slice(sep + sepChar.length).trim();
+  }
+  // dir="rtl" + text-right (matching the Signals lines): forces a Hebrew base
+  // direction so mixed Hebrew/English lines read consistently — Latin runs
+  // (Backend, NCR, .NET…) still render LTR within. dir="auto" was scrambling
+  // order on English-leading lines.
+  return (
+    <span dir="rtl" className="text-right leading-[1.6]">
+      {lead && <span className="font-semibold text-foreground">{lead} — </span>}
+      <span className="text-muted-foreground">{rest}</span>
+    </span>
+  );
+}
+
+function PresentationField({ label, hint, value, onChange, minHeight }: { label: string; hint: string; value: string; onChange: (v: string) => void; minHeight: number }) {
+  const [mode, setMode] = useState<'full' | 'cues'>('full');
+  const [cues, setCues] = useState<string[] | null>(null);
+  const [cuesFor, setCuesFor] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const gen = useGeneratePresentationCues();
+
+  const hasText = value.trim().length > 0;
+  const stale = cues !== null && cuesFor !== value;
+
+  async function generate(): Promise<void> {
+    setError(null);
+    try {
+      const res = await gen.mutateAsync(value);
+      setCues(res.cues ?? []);
+      setCuesFor(value);
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
+
+  function showCues(): void {
+    setMode('cues');
+    if (cues === null || cuesFor !== value) generate();
+  }
+
+  return (
+    <div className="mb-5">
+      <div className="flex items-baseline justify-between gap-3 mb-[0.35rem] flex-wrap">
+        <span className="text-[0.7rem] text-muted-foreground tracking-[0.14em] uppercase font-semibold flex items-center gap-[0.4rem]">
+          <span className="w-[3px] h-[3px] rounded-full bg-muted-foreground opacity-45 shrink-0" />
+          {label}
+        </span>
+        {/* Full text ⇄ Keywords toggle */}
+        <div className="inline-flex rounded-md border border-border overflow-hidden bg-muted/30 shrink-0">
+          <button
+            type="button"
+            onClick={() => setMode('full')}
+            className={`flex items-center gap-[0.35rem] px-[0.6rem] py-[0.3rem] text-[0.72rem] font-medium transition-colors ${mode === 'full' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+          >
+            <AlignLeft size={13} /> Full text
+          </button>
+          <button
+            type="button"
+            onClick={showCues}
+            disabled={!hasText}
+            title={hasText ? 'Show short keyword reminders' : 'Add some text first'}
+            className={`flex items-center gap-[0.35rem] px-[0.6rem] py-[0.3rem] text-[0.72rem] font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${mode === 'cues' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+          >
+            <ListChecks size={13} /> Keywords
+          </button>
+        </div>
+      </div>
+      <p className="text-[0.78rem] text-muted-foreground leading-[1.55] mb-2">{hint}</p>
+
+      {mode === 'full' ? (
+        <textarea
+          className={PRESENTATION_TEXTAREA_CLASS}
+          style={{ minHeight: `${minHeight}px`, background: 'var(--card)' }}
+          value={value}
+          onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => onChange(e.target.value)}
+          dir="auto"
+          spellCheck={false}
+        />
+      ) : (
+        <div
+          className="border border-border rounded-lg bg-card p-[1.1rem_1.35rem]"
+          style={{ minHeight: `${minHeight}px` }}
+        >
+          {gen.isPending && cues === null ? (
+            <div className="flex items-center gap-2 text-[0.82rem] text-muted-foreground">
+              <RefreshCw size={14} className="animate-spin" /> Distilling your key points…
+            </div>
+          ) : error ? (
+            <div className="text-[0.82rem] text-destructive">
+              Couldn't generate cues: {error}{' '}
+              <button type="button" onClick={generate} className="underline underline-offset-2 hover:text-foreground">Retry</button>
+            </div>
+          ) : cues && cues.length > 0 ? (
+            <>
+              <ol className="flex flex-col gap-[0.7rem] m-0 p-0 list-none">
+                {cues.map((c, i) => (
+                  <li key={i} dir="rtl" className="flex items-start gap-[0.7rem] text-[0.9rem]">
+                    <span className="shrink-0 mt-[0.05rem] w-[1.4rem] h-[1.4rem] rounded-full bg-muted text-muted-foreground text-[0.7rem] font-semibold flex items-center justify-center tabular-nums">{i + 1}</span>
+                    <CueLine text={c} />
+                  </li>
+                ))}
+              </ol>
+              <div className="flex items-center gap-3 mt-4 pt-3 border-t border-dashed border-border">
+                <button
+                  type="button"
+                  onClick={generate}
+                  disabled={gen.isPending}
+                  className="inline-flex items-center gap-[0.35rem] text-[0.74rem] font-medium text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+                >
+                  <RefreshCw size={12} className={gen.isPending ? 'animate-spin' : ''} /> Regenerate
+                </button>
+                {stale && !gen.isPending && (
+                  <span className="text-[0.72rem] text-amber-600">Text changed since these were generated.</span>
+                )}
+              </div>
+            </>
+          ) : (
+            <div className="text-[0.82rem] text-muted-foreground italic">No cues generated — the text may be too short.</div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /* Page                                                               */
 /* ------------------------------------------------------------------ */
 export default function InterviewPrepPage() {
@@ -260,16 +399,16 @@ export default function InterviewPrepPage() {
           name="Self-presentation"
           desc="How you introduce yourself, grounded in your values. Keep two versions: one tuned for an HR/recruiter conversation, one for a technical interviewer."
         />
-        <IntroTextarea
+        <PresentationField
           label="HR / Recruiter version"
-          hint="Values-first, accessible framing for a non-technical audience — who you are, what drives you, what you're looking for."
+          hint="Values-first, accessible framing for a non-technical audience — who you are, what drives you, what you're looking for. Switch to Keywords to rehearse from memory."
           value={hr}
           onChange={(v) => { setHr(v); setPresentationResult(null); }}
           minHeight={220}
         />
-        <IntroTextarea
+        <PresentationField
           label="Technical version"
-          hint="For a technical interviewer — your engineering values, depth, and how you work, still rooted in what matters to you."
+          hint="For a technical interviewer — your engineering values, depth, and how you work, still rooted in what matters to you. Switch to Keywords to rehearse from memory."
           value={tech}
           onChange={(v) => { setTech(v); setPresentationResult(null); }}
           minHeight={220}

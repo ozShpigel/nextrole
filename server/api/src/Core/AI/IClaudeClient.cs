@@ -28,4 +28,9 @@ public interface IClaudeClient
     // (one Hebrew paragraph) from the application's company/job context plus the
     // user's profile and interview-prep self-presentation.
     Task<string> GenerateWhyWorkHereAsync(Application app, string profile, InterviewPrepDocument prep, CancellationToken cancellationToken = default);
+
+    // Turns a written self-presentation into an ordered list of short keyword
+    // cues (memory reminders), so the user can speak from memory rather than
+    // read the text verbatim. Returns the cue lines in original order.
+    Task<List<string>> GeneratePresentationCuesAsync(string presentationText, CancellationToken cancellationToken = default);
 }

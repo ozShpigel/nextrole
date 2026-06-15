@@ -158,6 +158,19 @@ export function useRestoreInterviewPrepHistory() {
   });
 }
 
+// Stateless: turns a self-presentation into short keyword cues. Derived purely
+// from the supplied text (which may be unsaved in the editor), so nothing to
+// cache or invalidate.
+export function useGeneratePresentationCues() {
+  return useMutation({
+    mutationFn: (text: string) =>
+      matchApi('/interview-prep/cues', {
+        method: 'POST',
+        body: JSON.stringify({ text }),
+      }) as Promise<{ cues: string[] }>,
+  });
+}
+
 export function useUpdateAppStatus() {
   const queryClient = useQueryClient();
   return useMutation({

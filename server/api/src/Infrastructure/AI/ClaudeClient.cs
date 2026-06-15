@@ -246,6 +246,45 @@ public sealed class ClaudeClient : IClaudeClient
         return content;
     }
 
+    public async Task<List<string>> GeneratePresentationCuesAsync(string presentationText, CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Generating presentation cues ({Length} chars)", presentationText.Length);
+
+        // The user's own text — wrapped in XML and labelled as data, consistent
+        // with the project's system/user separation convention.
+        var userMessage = $"<presentation>\n{presentationText.Trim()}\n</presentation>";
+
+        var parameters = new MessageParameters
+        {
+            System = new List<SystemMessage> { new(PromptSeeds.PresentationCues) },
+            Messages = new List<Message> { new(RoleType.User, userMessage) },
+            MaxTokens = 1024,
+            Model = "claude-sonnet-4-20250514",
+            Temperature = 0.2m,
+            Stream = false
+        };
+
+        var response = await _client.Messages.GetClaudeMessageAsync(parameters, cancellationToken);
+        var content = response.Message?.ToString()?.Trim()
+            ?? throw new InvalidOperationException("Empty response from Claude API");
+
+        var json = ExtractJson(content);
+        var parsed = JsonSerializer.Deserialize<PresentationCuesResult>(json, CaseInsensitive);
+        var cues = (parsed?.Cues ?? [])
+            .Select(c => c?.Trim() ?? "")
+            .Where(c => c.Length > 0)
+            .ToList();
+
+        _logger.LogInformation("Generated {Count} presentation cues", cues.Count);
+        return cues;
+    }
+
+    private sealed record PresentationCuesResult
+    {
+        [JsonPropertyName("cues")]
+        public string[]? Cues { get; init; }
+    }
+
     // Shared request builder for both the live (stream:true) and batch (stream:false)
     // evaluator paths, so caching / thinking / max_tokens are constructed identically.
     private static MessageParameters BuildParameters(string systemPrompt, string userMessage, RoleScoringConfig cfg, bool stream)

@@ -159,7 +159,7 @@ public sealed class ClaudeClient : IClaudeClient
             System = new List<SystemMessage> { new(systemPrompt) },
             Messages = new List<Message> { new(RoleType.User, userMessage) },
             MaxTokens = 512,
-            Model = "claude-sonnet-4-20250514",
+            Model = "claude-sonnet-4-6",
             Temperature = 0.3m,
             Stream = false
         };
@@ -188,7 +188,7 @@ public sealed class ClaudeClient : IClaudeClient
             System = new List<SystemMessage> { new(PromptSeeds.CompanySummary) },
             Messages = new List<Message> { new(RoleType.User, companyName) },
             MaxTokens = 512,
-            Model = "claude-sonnet-4-20250514",
+            Model = "claude-sonnet-4-6",
             Temperature = 0.3m,
             Stream = false
         };
@@ -233,7 +233,7 @@ public sealed class ClaudeClient : IClaudeClient
             System = new List<SystemMessage> { new(systemBuilder.ToString()) },
             Messages = new List<Message> { new(RoleType.User, userBuilder.ToString()) },
             MaxTokens = 800,
-            Model = "claude-sonnet-4-20250514",
+            Model = "claude-sonnet-4-6",
             Temperature = 0.6m,
             Stream = false
         };
@@ -259,7 +259,7 @@ public sealed class ClaudeClient : IClaudeClient
             System = new List<SystemMessage> { new(PromptSeeds.PresentationCues) },
             Messages = new List<Message> { new(RoleType.User, userMessage) },
             MaxTokens = 1024,
-            Model = "claude-sonnet-4-20250514",
+            Model = "claude-sonnet-4-6",
             Temperature = 0.2m,
             Stream = false
         };
@@ -331,7 +331,7 @@ public sealed class ClaudeClient : IClaudeClient
             System = new List<SystemMessage> { new(systemPrompt) },
             Messages = new List<Message> { new(RoleType.User, userMessage) },
             MaxTokens = 2048,
-            Model = "claude-sonnet-4-20250514",
+            Model = "claude-sonnet-4-6",
             Temperature = 0.4m,
             Stream = false
         };

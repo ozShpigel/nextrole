@@ -10,6 +10,7 @@ import { ErrorBoundary } from './components/Error';
 import LandingPage from './pages/LandingPage';
 import DiscoveryPage from './pages/DiscoveryPage';
 import RunDetailPage from './pages/RunDetailPage';
+import ManualScorePage from './pages/ManualScorePage';
 import TrackerPage from './pages/TrackerPage';
 import ApplicationDetailPage from './pages/ApplicationDetailPage';
 import SettingsPage from './pages/SettingsPage';
@@ -28,6 +29,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
             <Route path="/" element={<LandingPage />} />
             <Route path="/discovery" element={<DiscoveryPage />} />
             <Route path="/discovery/:runId" element={<RunDetailPage />} />
+            <Route path="/score" element={<ManualScorePage />} />
             <Route path="/tracker" element={<TrackerPage />} />
             <Route path="/tracker/:id" element={<ApplicationDetailPage />} />
             <Route path="/interview-prep" element={<InterviewPrepPage />} />

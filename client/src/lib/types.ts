@@ -38,6 +38,31 @@ export interface TestPromptResult {
   verdict?: string | null;
 }
 
+// Manual scoring — score a pasted job description on demand via POST /api/match.
+// Request fields are camelCase (MatchRequest's default serialization); the
+// response mirrors MatchResponse.cs (also camelCase).
+export interface ManualMatchRequest {
+  jobDescription: string;
+  title?: string;
+  company?: string;
+  location?: string;
+}
+
+export interface MatchResponse {
+  jobTitle?: string | null;
+  company?: string | null;
+  overallScore?: number | null;
+  verdict: string;
+  breakdown?: Record<string, unknown>;
+  recommendation?: { shouldApply?: boolean; [key: string]: unknown };
+  honestAssessment?: string;
+  companyNewsAnalysis?: { greenSignals?: string[]; redSignals?: string[]; summary?: string } | null;
+  analystSnapshotInput?: string | null;
+  analystSnapshotOutput?: string | null;
+  evaluatorSnapshotInput?: string | null;
+  evaluatorSnapshotOutput?: string | null;
+}
+
 // Version history. Field is one of: content | analyst_prompt | evaluator_prompt | scoring_config
 export type HistoryField = 'content' | 'analyst_prompt' | 'evaluator_prompt' | 'scoring_config';
 

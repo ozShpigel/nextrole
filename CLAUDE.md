@@ -76,6 +76,9 @@ A discovery run has a `mode` (`live` | `batch`). The live path (UI "Discover now
 - **One cron** drives it: `POST /api/discovery/run-batch-cycle/{criteria_id}` does **collect-then-submit** (finalize the previous batch, then submit a new run). Results land at the next firing (~next day). Also: `POST /api/discovery/run/{id}?mode=batch` (submit-only) and `POST /api/discovery/finalize-batches` (collect-only).
 - **Run statuses** (batch): `pending → scraping → parsing → awaiting_batch → finalizing → completed`. The startup orphan-reconciler in `main.py` skips `awaiting_batch` (it legitimately spans restarts; the batch id is persisted) but fails it past ~26h (Anthropic batches expire at 24h). Batch jobs don't carry `evaluator_snapshot_input` (the prompt is built server-side and not returned).
 
+### Manual scoring (paste & score)
+
+The `/score` page (`ManualScorePage.tsx`, nav: "Score a Job") lets the user paste a job description and score it on demand — no discovery run needed. It reuses the existing live path with **no new backend**: `useScoreJob` POSTs `{jobDescription, title?, company?, location?}` to `POST /api/match` and renders the `MatchResponse` with the shared `AnalysisCard`. Title/company are optional inputs (the analyst extracts them when blank). "Save to Tracker" mirrors the scraper's `save_to_tracker` payload — `POST /api/applications` with `status: "DecidedToApply"`, `source: "manual"`, `matchAnalysis` = the response JSON minus the snapshot fields (snapshots go in their own Application columns) — then links to the new tracker entry. No company-news/Glassdoor enrichment on this path.
 
 ## Company Enrichment
 

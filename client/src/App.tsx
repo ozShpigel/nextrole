@@ -15,6 +15,7 @@ export default function App() {
           <div className="flex items-center gap-[0.15rem]">
             <NavLink to="/" end className={navLinkClass}>Home</NavLink>
             <NavLink to="/discovery" className={navLinkClass}>Discovery</NavLink>
+            <NavLink to="/score" className={navLinkClass}>Score a Job</NavLink>
             <NavLink to="/tracker" className={navLinkClass}>Tracker</NavLink>
             <NavLink to="/interview-prep" className={navLinkClass}>Interview Prep</NavLink>
             <NavLink to="/practice-interview" className={navLinkClass}>Practice Interview</NavLink>

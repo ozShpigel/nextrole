@@ -9,6 +9,8 @@ import type {
   MockTurnResponse,
   MockDebrief,
   MockSession,
+  ManualMatchRequest,
+  MatchResponse,
 } from './types';
 
 export function useTriggerRun() {
@@ -110,6 +112,18 @@ export function useSaveProfile() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['match', 'profile'] });
     },
+  });
+}
+
+// Score a pasted job description on demand (live path — analyst + evaluator).
+// Same endpoint the discovery "Discover now" flow uses per job.
+export function useScoreJob() {
+  return useMutation({
+    mutationFn: (body: ManualMatchRequest) =>
+      matchApi('', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }) as Promise<MatchResponse>,
   });
 }
 

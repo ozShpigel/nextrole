@@ -15,9 +15,8 @@ test.describe('Discovery Runs - Abort', () => {
 
     await page.goto('/discovery');
 
-    page.on('dialog', (dialog) => dialog.accept());
-
     await page.getByRole('button', { name: 'Abort search' }).click();
+    await page.getByRole('alertdialog').getByRole('button', { name: 'Abort' }).click();
 
     await expect(page.getByText('Failed', { exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Abort search' })).toBeHidden();
@@ -32,9 +31,8 @@ test.describe('Discovery Runs - Abort', () => {
 
     await page.goto('/discovery');
 
-    page.on('dialog', (dialog) => dialog.dismiss());
-
     await page.getByRole('button', { name: 'Abort search' }).click();
+    await page.getByRole('alertdialog').getByRole('button', { name: 'Cancel' }).click();
 
     await expect(page.getByText('Scraping')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Abort search' })).toBeVisible();

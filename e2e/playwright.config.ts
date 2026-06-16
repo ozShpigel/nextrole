@@ -1,7 +1,7 @@
 import { defineConfig } from '@playwright/test';
 
 const API_PORT = 5002;
-const SCRAPER_PORT = 5001;
+const SCRAPER_PORT = 8000;
 const FRONTEND_PORT = 5173;
 
 const testDbEnv = {
@@ -45,7 +45,7 @@ export default defineConfig({
       timeout: 30_000,
     },
     {
-      command: 'python -m uvicorn app.main:app --host 0.0.0.0 --port 5001',
+      command: 'python -m uvicorn app.main:app --host 0.0.0.0 --port 8000',
       cwd: '../server/scraper',
       port: SCRAPER_PORT,
       reuseExistingServer: !process.env.CI,

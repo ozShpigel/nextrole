@@ -64,9 +64,8 @@ test.describe('Tracker — Application List Data Flow', () => {
     await page.getByRole('button', { name: 'Applications' }).click();
     await expect(page.getByText('Delete Me')).toBeVisible();
 
-    page.on('dialog', (dialog) => dialog.accept());
-
     await page.getByRole('button', { name: 'Delete' }).click();
+    await page.getByRole('alertdialog').getByRole('button', { name: 'Delete' }).click();
     await expect(page.getByText('Delete Me')).toBeHidden();
     await expect(page.getByText('No applications yet')).toBeVisible();
   });

@@ -102,9 +102,8 @@ test.describe('Search Criteria — Delete', () => {
     await page.goto('/discovery');
     await expect(page.getByText('To Be Deleted')).toBeVisible();
 
-    page.on('dialog', (dialog) => dialog.accept());
-
     await page.getByRole('button', { name: 'Delete' }).click();
+    await page.getByRole('alertdialog').getByRole('button', { name: 'Delete' }).click();
 
     await expect(page.getByText('To Be Deleted')).toBeHidden();
     await expect(page.getByText('No search criteria')).toBeVisible();
@@ -116,9 +115,8 @@ test.describe('Search Criteria — Delete', () => {
     await page.goto('/discovery');
     await expect(page.getByText('Keep Me')).toBeVisible();
 
-    page.on('dialog', (dialog) => dialog.dismiss());
-
     await page.getByRole('button', { name: 'Delete' }).click();
+    await page.getByRole('alertdialog').getByRole('button', { name: 'Cancel' }).click();
 
     await expect(page.getByText('Keep Me')).toBeVisible();
   });

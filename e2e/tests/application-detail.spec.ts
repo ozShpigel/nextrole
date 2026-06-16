@@ -56,9 +56,8 @@ test.describe('Application Detail — Delete', () => {
 
     await page.goto(`/tracker/${app._id}`);
 
-    page.on('dialog', (dialog) => dialog.accept());
-
     await page.getByRole('button', { name: 'Delete' }).click();
+    await page.getByRole('alertdialog').getByRole('button', { name: 'Delete' }).click();
 
     await expect(page).not.toHaveURL(new RegExp(`/tracker/${app._id}`));
   });
@@ -68,9 +67,8 @@ test.describe('Application Detail — Delete', () => {
 
     await page.goto(`/tracker/${app._id}`);
 
-    page.on('dialog', (dialog) => dialog.dismiss());
-
     await page.getByRole('button', { name: 'Delete' }).click();
+    await page.getByRole('alertdialog').getByRole('button', { name: 'Cancel' }).click();
 
     await expect(page.getByRole('heading', { name: 'Safe Job' })).toBeVisible();
   });

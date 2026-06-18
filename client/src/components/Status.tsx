@@ -7,28 +7,58 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 
-const STATUS_BADGE_STYLES: Record<string, string> = {
-  Analyzing:            'bg-amber-50 text-amber-600 border-amber-600/12',
-  DecidedToApply:       'bg-purple-50 text-purple-500 border-[rgba(139,111,192,0.12)]',
-  Applied:              'bg-blue-50 text-blue-500 border-[rgba(74,130,197,0.12)]',
-  PhoneScreen:          'bg-emerald-50 text-emerald-600 border-emerald-600/12',
-  TechnicalInterview:   'bg-emerald-50 text-emerald-600 border-emerald-600/12',
-  FinalRound:           'bg-emerald-50 text-emerald-600 border-emerald-600/12',
-  OfferReceived:        'bg-[rgba(45,143,94,0.07)] text-[#2d8f5e] border-emerald-600/12',
-  Accepted:             'bg-emerald-50 text-emerald-600 border-emerald-600/15',
-  Rejected:             'bg-red-50 text-red-500 border-red-500/12',
-  Withdrawn:            'bg-[rgba(120,120,120,0.06)] text-[#888] border-[rgba(120,120,120,0.1)]',
+// Editorial status palette — each pipeline stage maps to one of the broadsheet
+// --ed-* tones (light/dark adaptive). Shared with the Statistics breakdown bars
+// so the whole tracker reads from one source of truth.
+//   ochre = under review · vermillion = action due · ink = sent/waiting
+//   sage  = interviewing → offer → accepted · oxblood = rejected · grey = withdrawn
+export const STATUS_TONE: Record<string, string> = {
+  Analyzing:          'var(--ed-gold)',
+  DecidedToApply:     'var(--ed-accent)',
+  Applied:            'var(--ed-ink-soft)',
+  PhoneScreen:        'var(--ed-yes)',
+  TechnicalInterview: 'var(--ed-yes)',
+  FinalRound:         'var(--ed-yes)',
+  OfferReceived:      'var(--ed-yes)',
+  Accepted:           'var(--ed-yes)',
+  Rejected:           'var(--ed-no)',
+  Withdrawn:          'var(--ed-ink-faint)',
 };
+
+// Accepted is the terminal win → a fully stamped (inverted) badge.
+const SOLID = new Set(['Accepted']);
+// Offer is a milestone → a slightly stronger tint than the in-flight stages.
+const EMPHASIS = new Set(['OfferReceived']);
 
 interface StatusBadgeProps {
   status: string;
 }
 
 export function StatusBadge({ status }: StatusBadgeProps) {
-  const colorClasses = STATUS_BADGE_STYLES[status] || STATUS_BADGE_STYLES.Analyzing;
+  const tone = STATUS_TONE[status] ?? STATUS_TONE.Analyzing;
   const label = STATUS_LABELS[status] || status;
+  const base = 'inline-flex items-center py-[0.22rem] px-[0.55rem] text-[0.6rem] font-semibold uppercase tracking-[0.1em] leading-[1.3] border';
+
+  if (SOLID.has(status)) {
+    return (
+      <span className={base} style={{ color: 'var(--ed-paper)', background: tone, borderColor: tone }}>
+        {label}
+      </span>
+    );
+  }
+
+  const bgPct = EMPHASIS.has(status) ? 15 : 8;
+  const borderPct = EMPHASIS.has(status) ? 48 : 30;
   return (
-    <span className={`inline-block py-1 px-[0.65rem] rounded-sm text-[0.72rem] font-semibold tracking-[0.02em] border ${colorClasses}`}>
+    <span
+      className={base}
+      style={{
+        color: tone,
+        background: `color-mix(in oklab, ${tone} ${bgPct}%, transparent)`,
+        borderColor: `color-mix(in oklab, ${tone} ${borderPct}%, transparent)`,
+        borderLeft: `2px solid ${tone}`,
+      }}
+    >
       {label}
     </span>
   );

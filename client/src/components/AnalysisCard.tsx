@@ -105,9 +105,28 @@ interface AnalysisCardProps {
   matchAnalysisJson: string | MatchAnalysis | null | undefined;
 }
 
-const FLAG_POS = 'py-1 px-[0.65rem] text-[0.76rem] font-medium border transition-transform hover:-translate-y-px bg-[var(--ed-yes)]/10 text-[var(--ed-yes)] border-[var(--ed-yes)]/25';
-const FLAG_NEG = 'py-1 px-[0.65rem] text-[0.76rem] font-medium border transition-transform hover:-translate-y-px bg-[var(--ed-no)]/10 text-[var(--ed-no)] border-[var(--ed-no)]/25';
 const SUBLABEL = 'block text-[0.62rem] text-[var(--ed-ink-faint)] uppercase tracking-[0.14em] font-semibold mb-[0.4rem]';
+
+// Editorial +/- signal footnotes — calmer than filled chips for the long
+// sentence-length flags the evaluator returns.
+function SignalRows({ green = [], red = [] }: { green?: string[]; red?: string[] }) {
+  return (
+    <div className="flex flex-col gap-[0.45rem]" dir="rtl">
+      {green.map((s, i) => (
+        <div key={`g${i}`} className="flex items-start gap-[0.55rem]">
+          <span className="ed-display text-[0.95rem] font-bold leading-[1.2] text-[var(--ed-yes)] shrink-0" aria-hidden="true">+</span>
+          <span className="text-[0.84rem] text-[var(--ed-ink)] leading-[1.55] text-right">{s}</span>
+        </div>
+      ))}
+      {red.map((s, i) => (
+        <div key={`r${i}`} className="flex items-start gap-[0.55rem]">
+          <span className="ed-display text-[0.95rem] font-bold leading-[1.2] text-[var(--ed-no)] shrink-0" aria-hidden="true">–</span>
+          <span className="text-[0.84rem] text-[var(--ed-ink)] leading-[1.55] text-right">{s}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export default function AnalysisCard({ matchAnalysisJson }: AnalysisCardProps) {
   const [open, setOpen] = useState(true);
@@ -223,9 +242,8 @@ export default function AnalysisCard({ matchAnalysisJson }: AnalysisCardProps) {
                 </div>
               ) : null}
               {(rec.greenFlags?.length || rec.redFlags?.length) ? (
-                <div dir="rtl" className="flex gap-2 flex-wrap mt-2">
-                  {(rec.greenFlags || []).map((f, i) => <span key={`g${i}`} className={FLAG_POS}>{f}</span>)}
-                  {(rec.redFlags || []).map((f, i) => <span key={`r${i}`} className={FLAG_NEG}>{f}</span>)}
+                <div className="mt-2">
+                  <SignalRows green={rec.greenFlags} red={rec.redFlags} />
                 </div>
               ) : null}
             </div>
@@ -235,10 +253,7 @@ export default function AnalysisCard({ matchAnalysisJson }: AnalysisCardProps) {
           {a.companyNewsAnalysis && (a.companyNewsAnalysis.greenSignals?.length || a.companyNewsAnalysis.redSignals?.length) && (
             <div className="mt-6 pt-4 border-t border-[var(--ed-rule)]">
               <h4 className="ed-display text-[1rem] font-semibold text-[var(--ed-ink)] mb-3">Company News Signals</h4>
-              <div className="flex gap-2 flex-wrap">
-                {(a.companyNewsAnalysis.greenSignals || []).map((s, i) => <span key={`ng${i}`} className={FLAG_POS}>{s}</span>)}
-                {(a.companyNewsAnalysis.redSignals || []).map((s, i) => <span key={`nr${i}`} className={FLAG_NEG}>{s}</span>)}
-              </div>
+              <SignalRows green={a.companyNewsAnalysis.greenSignals} red={a.companyNewsAnalysis.redSignals} />
               {a.companyNewsAnalysis.summary && (
                 <p dir="rtl" className="text-[0.84rem] text-[var(--ed-ink-soft)] leading-[1.6] mt-2 text-right">{a.companyNewsAnalysis.summary}</p>
               )}

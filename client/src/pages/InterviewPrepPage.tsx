@@ -4,7 +4,6 @@ import { Trash2, Plus, ArrowUp, ArrowDown, ListChecks, AlignLeft, RefreshCw, Mes
 import { useInterviewPrep, useInterviewPrepHistory } from '../lib/queries';
 import { useSaveInterviewPrep, useRestoreInterviewPrepHistory, useGeneratePresentationCues } from '../lib/mutations';
 import type { InterviewPrepResponse, InterviewPrepHistoryField, QaEntry } from '../lib/types';
-import { Button } from '../components/ui/button';
 import { Skeleton } from '../components/ui/skeleton';
 import {
   SaveResult,
@@ -12,6 +11,11 @@ import {
   HistoryDropdown,
   type SaveResultData,
 } from '../components/settings-shared';
+
+const ED_BTN = 'rounded-none border px-3.5 py-[0.5rem] text-[0.68rem] font-semibold uppercase tracking-[0.08em] transition-all disabled:opacity-50 disabled:pointer-events-none';
+const ED_GHOST = `${ED_BTN} border-[var(--ed-rule)] text-[var(--ed-ink-soft)] hover:border-[var(--ed-ink)] hover:text-[var(--ed-ink)]`;
+const ED_PRIMARY = `${ED_BTN} border-[var(--ed-accent)] bg-[var(--ed-accent)] text-[var(--ed-paper)] hover:bg-[var(--ed-accent-deep)]`;
+const ED_DANGER = `${ED_BTN} border-[var(--ed-rule)] text-[var(--ed-no)] hover:border-[var(--ed-no)] hover:bg-[var(--ed-no)]/10`;
 
 /* Thin wrapper binding the shared dropdown to the interview-prep hooks. */
 function HistoryButton({ field, onRestored }: { field: InterviewPrepHistoryField; onRestored: (data: InterviewPrepResponse) => void }) {
@@ -46,60 +50,58 @@ function QaRubricEditor({ entries, onChange }: { entries: QaEntry[]; onChange: (
     onChange([...entries, { question: '', answer: '' }]);
   }
 
+  const iconBtn = 'h-7 w-7 p-0 inline-flex items-center justify-center rounded-none text-[var(--ed-ink-soft)] transition-colors hover:text-[var(--ed-ink)] disabled:opacity-40 disabled:pointer-events-none';
   return (
     <div className="flex flex-col gap-4">
       {entries.length === 0 && (
-        <p className="text-[0.82rem] text-muted-foreground italic">
+        <p className="text-[0.82rem] text-[var(--ed-ink-faint)] italic">
           No questions yet. Add prepared answers to common interview questions like "Where do you see yourself in 5 years?".
         </p>
       )}
       {entries.map((e, idx) => (
-        <div key={idx} className="border border-border rounded-lg p-[1rem_1.15rem] bg-card relative">
+        <div key={idx} className="border border-[var(--ed-rule)] p-[1rem_1.15rem] bg-[var(--ed-panel)] relative">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-[0.7rem] text-muted-foreground tracking-[0.14em] uppercase font-semibold">
+            <span className="text-[0.7rem] text-[var(--ed-ink-faint)] tracking-[0.14em] uppercase font-semibold">
               Question {idx + 1}
             </span>
             <div className="flex items-center gap-1">
-              <Button
-                variant="ghost"
-                size="sm"
+              <button
+                type="button"
                 onClick={() => move(idx, -1)}
                 disabled={idx === 0}
                 aria-label="Move up"
-                className="h-7 w-7 p-0"
+                className={iconBtn}
               >
                 <ArrowUp size={14} />
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
+              </button>
+              <button
+                type="button"
                 onClick={() => move(idx, 1)}
                 disabled={idx === entries.length - 1}
                 aria-label="Move down"
-                className="h-7 w-7 p-0"
+                className={iconBtn}
               >
                 <ArrowDown size={14} />
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
+              </button>
+              <button
+                type="button"
                 onClick={() => remove(idx)}
                 aria-label="Remove question"
-                className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                className={`${iconBtn} hover:text-[var(--ed-no)]`}
               >
                 <Trash2 size={14} />
-              </Button>
+              </button>
             </div>
           </div>
           <input
-            className="w-full mb-2 p-[0.6rem_0.85rem] border border-border rounded-md text-foreground text-[0.88rem] font-medium outline-none transition-all hover:border-muted-foreground/30 focus:border-ring bg-background"
+            className="w-full mb-2 p-[0.6rem_0.85rem] border border-[var(--ed-rule)] text-[var(--ed-ink)] text-[0.88rem] font-medium outline-none transition-all hover:border-[var(--ed-ink-faint)] focus:border-[var(--ed-accent)] bg-[var(--ed-paper)]"
             placeholder="Question (e.g. Where do you see yourself in 5 years?)"
             value={e.question}
             onChange={(ev) => update(idx, { question: ev.target.value })}
             dir="auto"
           />
           <textarea
-            className="w-full p-[0.75rem_0.95rem] border border-border rounded-md text-foreground text-[0.88rem] resize-y outline-none leading-[1.7] whitespace-pre-wrap transition-all hover:border-muted-foreground/30 focus:border-ring bg-background"
+            className="w-full p-[0.75rem_0.95rem] border border-[var(--ed-rule)] text-[var(--ed-ink)] text-[0.88rem] resize-y outline-none leading-[1.7] whitespace-pre-wrap transition-all hover:border-[var(--ed-ink-faint)] focus:border-[var(--ed-accent)] bg-[var(--ed-paper)]"
             style={{ minHeight: '120px' }}
             placeholder="Your prepared answer / rubric for answering this question"
             value={e.answer}
@@ -110,9 +112,9 @@ function QaRubricEditor({ entries, onChange }: { entries: QaEntry[]; onChange: (
         </div>
       ))}
       <div>
-        <Button variant="outline" size="sm" onClick={add} className="gap-[0.4rem]">
+        <button type="button" onClick={add} className={`${ED_GHOST} inline-flex items-center gap-[0.4rem]`}>
           <Plus size={14} /> Add question
-        </Button>
+        </button>
       </div>
     </div>
   );
@@ -124,11 +126,12 @@ function QaRubricEditor({ entries, onChange }: { entries: QaEntry[]; onChange: (
 function SectionHeader({ num, name, desc }: { num: string; name: string; desc: string }) {
   return (
     <>
-      <div className="flex items-end gap-4 mb-[0.65rem] flex-wrap pb-[0.55rem] border-b border-border">
-        <span className="font-serif text-[2.4rem] font-bold text-muted-foreground leading-none">{num}</span>
-        <span className="font-serif text-[1.55rem] font-bold text-foreground leading-tight">{name}</span>
+      <div className="flex items-baseline gap-4 mb-1 flex-wrap">
+        <span className="ed-display font-black text-[2.4rem] text-[var(--ed-ink-faint)] leading-none">{num}</span>
+        <span className="ed-display italic font-semibold text-[1.4rem] tracking-[-0.01em] text-[var(--ed-ink)] leading-tight">{name}</span>
       </div>
-      <p className="text-[0.92rem] text-muted-foreground leading-[1.6] mb-5">{desc}</p>
+      <div className="border-t border-[var(--ed-rule-strong)] mb-4" />
+      <p className="text-[0.92rem] text-[var(--ed-ink-soft)] leading-[1.6] mb-5">{desc}</p>
     </>
   );
 }
@@ -137,7 +140,7 @@ function SectionHeader({ num, name, desc }: { num: string; name: string; desc: s
 /* Self-presentation field — full text  ⇄  keyword cues               */
 /* ------------------------------------------------------------------ */
 const PRESENTATION_TEXTAREA_CLASS =
-  'w-full p-[1rem_1.25rem] border border-border rounded-lg text-foreground text-[0.88rem] resize-y outline-none leading-[1.8] whitespace-pre-wrap transition-all hover:border-muted-foreground/30 focus:border-ring focus:bg-white focus:shadow-[0_0_0_4px_rgba(0,0,0,0.04)] selection:bg-primary/10 selection:text-foreground';
+  'w-full p-[1rem_1.25rem] border border-[var(--ed-rule)] text-[var(--ed-ink)] text-[0.88rem] resize-y outline-none leading-[1.8] whitespace-pre-wrap transition-all hover:border-[var(--ed-ink-faint)] focus:border-[var(--ed-accent)] selection:bg-[var(--ed-accent)]/10 selection:text-[var(--ed-ink)] bg-[var(--ed-paper)]';
 
 /* One cue line — split a leading "topic — keywords" so the topic reads bolder. */
 function CueLine({ text }: { text: string }) {
@@ -155,8 +158,8 @@ function CueLine({ text }: { text: string }) {
   // order on English-leading lines.
   return (
     <span dir="rtl" className="text-right leading-[1.6]">
-      {lead && <span className="font-semibold text-foreground">{lead} — </span>}
-      <span className="text-muted-foreground">{rest}</span>
+      {lead && <span className="font-semibold text-[var(--ed-ink)]">{lead} — </span>}
+      <span className="text-[var(--ed-ink-soft)]">{rest}</span>
     </span>
   );
 }
@@ -202,34 +205,34 @@ function PresentationField({ field, label, hint, value, savedValue, cachedCues, 
   return (
     <div className="mb-5">
       <div className="flex items-baseline justify-between gap-3 mb-[0.35rem] flex-wrap">
-        <span className="text-[0.7rem] text-muted-foreground tracking-[0.14em] uppercase font-semibold flex items-center gap-[0.4rem]">
-          <span className="w-[3px] h-[3px] rounded-full bg-muted-foreground opacity-45 shrink-0" />
+        <span className="text-[0.7rem] text-[var(--ed-ink-faint)] tracking-[0.14em] uppercase font-semibold flex items-center gap-[0.4rem]">
+          <span className="w-[3px] h-[3px] rounded-full bg-[var(--ed-ink-faint)] opacity-45 shrink-0" />
           {label}
         </span>
         {/* Full text ⇄ Keywords toggle */}
-        <div className="inline-flex rounded-md border border-border overflow-hidden bg-muted/30 shrink-0">
+        <div className="inline-flex border border-[var(--ed-rule)] overflow-hidden bg-[var(--ed-panel)] shrink-0">
           <button
             type="button"
             onClick={() => setMode('full')}
-            className={`flex items-center gap-[0.35rem] px-[0.6rem] py-[0.3rem] text-[0.72rem] font-medium transition-colors ${mode === 'full' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+            className={`flex items-center gap-[0.35rem] px-[0.6rem] py-[0.3rem] text-[0.72rem] font-medium transition-colors ${mode === 'full' ? 'bg-[var(--ed-paper)] text-[var(--ed-ink)]' : 'text-[var(--ed-ink-faint)] hover:text-[var(--ed-ink)]'}`}
           >
             <AlignLeft size={13} /> Full text
           </button>
           <button
             type="button"
             onClick={showCues}
-            className={`flex items-center gap-[0.35rem] px-[0.6rem] py-[0.3rem] text-[0.72rem] font-medium transition-colors ${mode === 'cues' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+            className={`flex items-center gap-[0.35rem] px-[0.6rem] py-[0.3rem] text-[0.72rem] font-medium transition-colors ${mode === 'cues' ? 'bg-[var(--ed-paper)] text-[var(--ed-ink)]' : 'text-[var(--ed-ink-faint)] hover:text-[var(--ed-ink)]'}`}
           >
             <ListChecks size={13} /> Keywords
           </button>
         </div>
       </div>
-      <p className="text-[0.78rem] text-muted-foreground leading-[1.55] mb-2">{hint}</p>
+      <p className="text-[0.78rem] text-[var(--ed-ink-faint)] leading-[1.55] mb-2">{hint}</p>
 
       {mode === 'full' ? (
         <textarea
           className={PRESENTATION_TEXTAREA_CLASS}
-          style={{ minHeight: `${minHeight}px`, background: 'var(--card)' }}
+          style={{ minHeight: `${minHeight}px` }}
           value={value}
           onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => onChange(e.target.value)}
           dir="auto"
@@ -237,46 +240,46 @@ function PresentationField({ field, label, hint, value, savedValue, cachedCues, 
         />
       ) : (
         <div
-          className="border border-border rounded-lg bg-card p-[1.1rem_1.35rem]"
+          className="border border-[var(--ed-rule)] bg-[var(--ed-panel)] p-[1.1rem_1.35rem]"
           style={{ minHeight: `${minHeight}px` }}
         >
           {gen.isPending && cues === null ? (
-            <div className="flex items-center gap-2 text-[0.82rem] text-muted-foreground">
+            <div className="flex items-center gap-2 text-[0.82rem] text-[var(--ed-ink-soft)]">
               <RefreshCw size={14} className="animate-spin" /> Distilling your key points…
             </div>
           ) : error ? (
-            <div className="text-[0.82rem] text-destructive">
+            <div className="text-[0.82rem] text-[var(--ed-no)]">
               Couldn't generate cues: {error}{' '}
-              <button type="button" onClick={() => generate(false)} className="underline underline-offset-2 hover:text-foreground">Retry</button>
+              <button type="button" onClick={() => generate(false)} className="underline underline-offset-2 hover:text-[var(--ed-ink)]">Retry</button>
             </div>
           ) : !hasSaved ? (
-            <div className="text-[0.82rem] text-muted-foreground italic">Save your self-presentation first to generate keyword reminders.</div>
+            <div className="text-[0.82rem] text-[var(--ed-ink-faint)] italic">Save your self-presentation first to generate keyword reminders.</div>
           ) : cues && cues.length > 0 ? (
             <>
               <ol className="flex flex-col gap-[0.7rem] m-0 p-0 list-none">
                 {cues.map((c, i) => (
                   <li key={i} dir="rtl" className="flex items-start gap-[0.7rem] text-[0.9rem]">
-                    <span className="shrink-0 mt-[0.05rem] w-[1.4rem] h-[1.4rem] rounded-full bg-muted text-muted-foreground text-[0.7rem] font-semibold flex items-center justify-center tabular-nums">{i + 1}</span>
+                    <span className="shrink-0 mt-[0.05rem] w-[1.4rem] h-[1.4rem] rounded-full bg-[var(--ed-paper)] border border-[var(--ed-rule)] text-[var(--ed-ink-soft)] text-[0.7rem] font-semibold flex items-center justify-center tabular-nums">{i + 1}</span>
                     <CueLine text={c} />
                   </li>
                 ))}
               </ol>
-              <div className="flex items-center gap-3 mt-4 pt-3 border-t border-dashed border-border">
+              <div className="flex items-center gap-3 mt-4 pt-3 border-t border-dashed border-[var(--ed-rule)]">
                 <button
                   type="button"
                   onClick={() => generate(true)}
                   disabled={gen.isPending}
-                  className="inline-flex items-center gap-[0.35rem] text-[0.74rem] font-medium text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+                  className="inline-flex items-center gap-[0.35rem] text-[0.74rem] font-medium text-[var(--ed-ink-soft)] hover:text-[var(--ed-ink)] transition-colors disabled:opacity-50"
                 >
                   <RefreshCw size={12} className={gen.isPending ? 'animate-spin' : ''} /> Regenerate
                 </button>
                 {dirty && !gen.isPending && (
-                  <span className="text-[0.72rem] text-amber-600">Based on your saved version — save to refresh.</span>
+                  <span className="text-[0.72rem] text-[var(--ed-gold)]">Based on your saved version — save to refresh.</span>
                 )}
               </div>
             </>
           ) : (
-            <div className="text-[0.82rem] text-muted-foreground italic">No cues generated — the text may be too short.</div>
+            <div className="text-[0.82rem] text-[var(--ed-ink-faint)] italic">No cues generated — the text may be too short.</div>
           )}
         </div>
       )}
@@ -388,21 +391,25 @@ export default function InterviewPrepPage() {
   const prepData = query.data as InterviewPrepResponse | undefined;
 
   return (
-    <div className="relative max-w-[960px] mx-auto px-7 pt-16 pb-32 animate-in fade-in slide-in-from-bottom-1 duration-500 max-sm:px-4 max-sm:pt-10 max-sm:pb-14">
-      <header className="mb-14 relative py-[0.4rem]">
-        <span className="inline-flex items-center gap-[0.55rem] font-mono text-[0.66rem] tracking-[0.3em] uppercase text-muted-foreground font-medium py-[0.32rem] pr-[0.95rem] pl-[0.7rem] border border-border rounded-full bg-muted/30 mb-[1.35rem]">
-          <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground shadow-[0_0_0_3px_rgba(0,0,0,0.06)] shrink-0" />
-          Interview Prep
-        </span>
-        <h1 className="font-serif text-[clamp(2.2rem,4.6vw,3.1rem)] font-bold text-foreground leading-[1.05] mb-3 tracking-[-0.018em]">Interview Prep</h1>
-        <p className="text-muted-foreground text-[0.98rem] max-w-[600px] leading-[1.65]">
+    <div className="editorial editorial-grain min-h-screen">
+    <div className="relative z-[1] max-w-[960px] mx-auto px-8 pt-12 pb-20 animate-in fade-in slide-in-from-bottom-1 duration-500 max-[640px]:px-5 max-[640px]:pt-8 max-[640px]:pb-14">
+      <header className="mb-9">
+        <div className="flex items-baseline justify-between gap-4 pb-[10px] border-b border-[var(--ed-rule)] text-[0.62rem] font-semibold uppercase tracking-[0.22em] text-[var(--ed-ink-faint)]">
+          <span>Vol. III · Interview Prep</span>
+          <span className="hidden sm:block text-[var(--ed-accent)]">Rehearse with intent</span>
+        </div>
+        <h1 className="ed-display font-black text-[clamp(2.4rem,6vw,4rem)] leading-[0.92] tracking-[-0.02em] text-[var(--ed-ink)] pt-4">
+          Interview <span className="italic font-medium text-[var(--ed-accent)]">Prep</span>
+        </h1>
+        <p className="mt-3 max-w-[600px] text-[0.95rem] leading-[1.6] text-[var(--ed-ink-soft)]">
           Your personal interview playbook — values-based self-presentations, prepared answers to common questions, and how to walk through your projects. Each section is versioned, so you can restore a prior draft anytime.
         </p>
         <div className="mt-5">
-          <Button asChild className="gap-[0.45rem]">
-            <Link to="/practice-interview"><MessageSquare size={15} /> Start a practice interview</Link>
-          </Button>
+          <Link to="/practice-interview" className={`${ED_PRIMARY} inline-flex items-center gap-[0.45rem]`}>
+            <MessageSquare size={15} /> Start a practice interview
+          </Link>
         </div>
+        <div className="mt-5 border-t-[3px] border-double border-[var(--ed-rule-strong)]" />
       </header>
 
       {error && (
@@ -438,17 +445,17 @@ export default function InterviewPrepPage() {
           onChange={(v) => { setTech(v); setPresentationResult(null); }}
           minHeight={220}
         />
-        <div className="flex justify-end items-center gap-[0.6rem] mt-2 pt-[1.1rem] border-t border-dashed border-border">
+        <div className="flex justify-end items-center gap-[0.6rem] mt-2 pt-[1.1rem] border-t border-dashed border-[var(--ed-rule)]">
           <HistoryButton field="self_presentation_hr" onRestored={applyData} />
           <HistoryButton field="self_presentation_technical" onRestored={applyData} />
           {isPresentationDirty && (
-            <Button variant="outline" size="sm" onClick={() => { setHr(originalHr); setTech(originalTech); setPresentationResult(null); }}>
+            <button type="button" className={ED_DANGER} onClick={() => { setHr(originalHr); setTech(originalTech); setPresentationResult(null); }}>
               Discard changes
-            </Button>
+            </button>
           )}
-          <Button onClick={savePresentation} disabled={!isPresentationDirty || savingPresentation}>
+          <button type="button" className={ED_PRIMARY} onClick={savePresentation} disabled={!isPresentationDirty || savingPresentation}>
             {savingPresentation ? 'Saving…' : 'Save self-presentation'}
-          </Button>
+          </button>
         </div>
         {presentationResult && <SaveResult result={presentationResult} />}
       </section>
@@ -461,16 +468,16 @@ export default function InterviewPrepPage() {
           desc="Prepared answers to popular interview questions. Add, edit, reorder, or remove entries — each question pairs with your go-to answer."
         />
         <QaRubricEditor entries={qa} onChange={(next) => { setQa(next); setQaResult(null); }} />
-        <div className="flex justify-end items-center gap-[0.6rem] mt-5 pt-[1.1rem] border-t border-dashed border-border">
+        <div className="flex justify-end items-center gap-[0.6rem] mt-5 pt-[1.1rem] border-t border-dashed border-[var(--ed-rule)]">
           <HistoryButton field="qa_rubric" onRestored={applyData} />
           {isQaDirty && (
-            <Button variant="outline" size="sm" onClick={() => { setQa(originalQa); setQaResult(null); }}>
+            <button type="button" className={ED_DANGER} onClick={() => { setQa(originalQa); setQaResult(null); }}>
               Discard changes
-            </Button>
+            </button>
           )}
-          <Button onClick={saveQa} disabled={!isQaDirty || savingQa}>
+          <button type="button" className={ED_PRIMARY} onClick={saveQa} disabled={!isQaDirty || savingQa}>
             {savingQa ? 'Saving…' : 'Save question rubric'}
-          </Button>
+          </button>
         </div>
         {qaResult && <SaveResult result={qaResult} />}
       </section>
@@ -496,37 +503,40 @@ export default function InterviewPrepPage() {
           onChange={(v) => { setPersonal(v); setProjectsResult(null); }}
           minHeight={220}
         />
-        <div className="flex justify-end items-center gap-[0.6rem] mt-2 pt-[1.1rem] border-t border-dashed border-border">
+        <div className="flex justify-end items-center gap-[0.6rem] mt-2 pt-[1.1rem] border-t border-dashed border-[var(--ed-rule)]">
           <HistoryButton field="presenting_work_project" onRestored={applyData} />
           <HistoryButton field="presenting_personal_project" onRestored={applyData} />
           {isProjectsDirty && (
-            <Button variant="outline" size="sm" onClick={() => { setWork(originalWork); setPersonal(originalPersonal); setProjectsResult(null); }}>
+            <button type="button" className={ED_DANGER} onClick={() => { setWork(originalWork); setPersonal(originalPersonal); setProjectsResult(null); }}>
               Discard changes
-            </Button>
+            </button>
           )}
-          <Button onClick={saveProjects} disabled={!isProjectsDirty || savingProjects}>
+          <button type="button" className={ED_PRIMARY} onClick={saveProjects} disabled={!isProjectsDirty || savingProjects}>
             {savingProjects ? 'Saving…' : 'Save project presentations'}
-          </Button>
+          </button>
         </div>
         {projectsResult && <SaveResult result={projectsResult} />}
       </section>
+    </div>
     </div>
   );
 }
 
 function InterviewPrepLoadingSkeleton() {
   return (
-    <div className="max-w-[960px] mx-auto px-7 pt-16 pb-32 max-sm:px-4">
-      <Skeleton className="h-4 w-32 mb-6" />
-      <Skeleton className="h-12 w-64 mb-3" />
-      <Skeleton className="h-4 w-full max-w-[560px] mb-2" />
-      <Skeleton className="h-4 w-3/4 max-w-[420px] mb-14" />
-      {[0, 1, 2].map((i) => (
-        <div key={i} className="mb-16">
-          <Skeleton className="h-8 w-48 mb-4" />
-          <Skeleton className="h-[160px] w-full" />
-        </div>
-      ))}
+    <div className="editorial editorial-grain min-h-screen">
+      <div className="relative z-[1] max-w-[960px] mx-auto px-8 pt-12 pb-20 max-[640px]:px-5 max-[640px]:pt-8 max-[640px]:pb-14">
+        <Skeleton className="h-4 w-32 mb-6" />
+        <Skeleton className="h-12 w-64 mb-3" />
+        <Skeleton className="h-4 w-full max-w-[560px] mb-2" />
+        <Skeleton className="h-4 w-3/4 max-w-[420px] mb-14" />
+        {[0, 1, 2].map((i) => (
+          <div key={i} className="mb-16">
+            <Skeleton className="h-8 w-48 mb-4" />
+            <Skeleton className="h-[160px] w-full" />
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

@@ -1,20 +1,8 @@
 import { useStats } from '../lib/queries';
 import { STATUS_LABELS } from '../lib/tracker';
 import { StatCard } from './Stats';
+import { STATUS_TONE } from './Status';
 import { Skeleton } from '@/components/ui/skeleton';
-
-const BAR_COLORS: Record<string, string> = {
-  Analyzing: '#d97706',
-  DecidedToApply: '#a855f7',
-  Applied: '#3b82f6',
-  PhoneScreen: '#059669',
-  TechnicalInterview: '#059669',
-  FinalRound: '#059669',
-  OfferReceived: '#6ee7b7',
-  Accepted: '#059669',
-  Rejected: '#ef4444',
-  Withdrawn: '#9ca3af',
-};
 
 export default function Statistics() {
   const { data: stats, isLoading } = useStats();
@@ -52,7 +40,7 @@ export default function Statistics() {
           {Object.entries(STATUS_LABELS).map(([key, label]) => {
             const count = breakdown[key] || 0;
             const pct = (count / max * 100).toFixed(0);
-            const color = BAR_COLORS[key] || 'var(--ed-ink-faint)';
+            const color = STATUS_TONE[key] || 'var(--ed-ink-faint)';
             return (
               <div key={key} className="flex items-center gap-3 py-[0.45rem] border-b border-[var(--ed-rule)] last:border-b-0">
                 <span className="min-w-[130px] text-[0.78rem] text-[var(--ed-ink-soft)] uppercase tracking-[0.06em] font-medium">{label}</span>

@@ -3,12 +3,47 @@ import { useProfile, useProfileHistory } from '../lib/queries';
 import { useSaveProfile, useTestPrompt, useRestoreHistory } from '../lib/mutations';
 import type { ProfileResponse, ConfigValue, TestPromptResult, HistoryField } from '../lib/types';
 import { EVALUATOR_PLACEHOLDERS, VERDICT_LABELS } from '../lib/scoring';
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
-import { Button } from '../components/ui/button';
-import { Badge } from '../components/ui/badge';
-import { Separator } from '../components/ui/separator';
 import { Skeleton } from '../components/ui/skeleton';
 import { SaveResult, HistoryDropdown, type SaveResultData } from '../components/settings-shared';
+
+// Editorial button — same call API as the shadcn Button used before, so every
+// existing <Button variant=... size="sm"> call site keeps working, but it now
+// renders as a broadsheet stamp on the --ed-* palette.
+type BtnVariant = 'default' | 'outline' | 'destructive' | 'secondary';
+function Button(
+  { variant = 'default', size, className = '', children, ...rest }:
+  { variant?: BtnVariant; size?: 'sm' | 'default'; className?: string; children: React.ReactNode } &
+  React.ButtonHTMLAttributes<HTMLButtonElement>,
+) {
+  const base = 'inline-flex items-center justify-center gap-1.5 rounded-none border font-semibold uppercase tracking-[0.08em] transition-all disabled:opacity-45 disabled:pointer-events-none';
+  const sz = size === 'sm' ? 'px-3 py-[0.42rem] text-[0.64rem]' : 'px-4 py-[0.55rem] text-[0.68rem]';
+  const variants: Record<BtnVariant, string> = {
+    default:     'border-[var(--ed-accent)] bg-[var(--ed-accent)] text-[var(--ed-paper)] hover:bg-[var(--ed-accent-deep)]',
+    outline:     'bg-transparent border-[var(--ed-rule)] text-[var(--ed-ink-soft)] hover:border-[var(--ed-ink)] hover:text-[var(--ed-ink)]',
+    destructive: 'bg-transparent border-[var(--ed-rule)] text-[var(--ed-no)] hover:border-[var(--ed-no)] hover:bg-[var(--ed-no)]/10',
+    secondary:   'border-[var(--ed-ink)] bg-[var(--ed-ink)] text-[var(--ed-paper)] hover:opacity-90',
+  };
+  return (
+    <button type="button" className={`${base} ${sz} ${variants[variant]} ${className}`} {...rest}>
+      {children}
+    </button>
+  );
+}
+
+// Vintage three-ink chart palette for the scoring infographic — one muted
+// printer's ink per dimension. Shared by the distribution bar, the dimension
+// list, and the role-config panels (analyst = technical, evaluator = execution).
+const DIM_INK = {
+  technical:      'var(--ed-gold)',
+  execution:      'var(--ed-yes)',
+  sustainability: 'var(--ed-accent)',
+} as const;
+
+// Shared editorial field styling.
+const EDITOR_CLS = 'w-full p-[1.4rem_1.5rem] border border-[var(--ed-rule)] bg-[var(--ed-panel)]/40 text-[var(--ed-ink)] font-code text-[0.85rem] resize-y outline-none leading-[1.8] text-left whitespace-pre-wrap transition-colors hover:border-[var(--ed-ink-faint)] focus:border-[var(--ed-accent)]';
+const FIELD_INPUT = 'py-[0.55rem] px-[0.8rem] bg-transparent border border-[var(--ed-rule)] text-[var(--ed-ink)] text-[0.88rem] font-code tabular-nums text-left transition-colors w-full hover:border-[var(--ed-ink-faint)] focus:border-[var(--ed-accent)] focus:outline-none disabled:opacity-45 disabled:cursor-not-allowed';
+const FIELD_LABEL = 'text-[0.62rem] text-[var(--ed-ink-faint)] tracking-[0.16em] uppercase font-semibold flex items-center gap-[0.4rem]';
+const META_TEXT = 'text-[0.72rem] text-[var(--ed-ink-faint)] tabular-nums tracking-[0.05em] font-medium';
 
 const MODEL_OPTIONS: string[] = [
   'claude-sonnet-4-6',
@@ -368,67 +403,52 @@ export default function SettingsPage() {
   if (loading) return <SettingsLoadingSkeleton />;
 
   return (
-    <div className="relative max-w-[960px] mx-auto px-7 pt-16 pb-32 animate-in fade-in slide-in-from-bottom-1 duration-500 isolate max-sm:px-4 max-sm:pt-10 max-sm:pb-14">
+    <div className="editorial editorial-grain min-h-screen">
+    <div className="relative z-[1] max-w-[960px] mx-auto px-8 pt-14 pb-32 animate-in fade-in slide-in-from-bottom-1 duration-500 max-sm:px-5 max-sm:pt-10 max-sm:pb-16">
       <FolioRail activeId={activeSection} dirtyMap={dirtyMap} />
       <UnsavedDock dirtyList={dirtyList} />
 
-      <header className="mb-14 relative py-[0.4rem]">
-        <span className="inline-flex items-center gap-[0.55rem] font-mono text-[0.66rem] tracking-[0.3em] uppercase text-muted-foreground font-medium py-[0.32rem] pr-[0.95rem] pl-[0.7rem] border border-border rounded-full bg-muted/30 mb-[1.35rem]">
-          <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground shadow-[0_0_0_3px_rgba(0,0,0,0.06)] shrink-0" />
-          Configuration · 2026
-        </span>
-        <h1 className="font-serif text-[clamp(2.2rem,4.6vw,3.1rem)] font-bold text-foreground leading-[1.05] mb-3 tracking-[-0.018em]">Settings</h1>
-        <p className="text-muted-foreground text-[0.98rem] max-w-[560px] leading-[1.65]">
+      <header className="mb-14 relative">
+        <div className="flex items-baseline justify-between gap-4 pb-[10px] border-b border-[var(--ed-rule)] text-[0.62rem] font-semibold uppercase tracking-[0.22em] text-[var(--ed-ink-faint)]">
+          <span>Vol. III · The Standards Desk</span>
+          <span className="hidden sm:block text-[var(--ed-accent)]">Configuration &amp; house style</span>
+        </div>
+        <h1 className="ed-display font-black text-[clamp(2.6rem,6.5vw,4.4rem)] leading-[0.9] tracking-[-0.022em] text-[var(--ed-ink)] pt-4">
+          Settings
+        </h1>
+        <p className="mt-3 max-w-[560px] text-[var(--ed-ink-soft)] text-[0.98rem] leading-[1.65]">
           View and edit the inputs for Claude analysis — your professional profile, prompts, and model parameters.
         </p>
-        <div className="mt-8 h-px relative" style={{ background: 'linear-gradient(to left, transparent 0%, oklch(0.7 0 0 / 0.3) 50%, transparent 100%)' }}>
-          <span
-            className="absolute top-1/2 right-1/2 translate-x-1/2 -translate-y-1/2 font-serif text-[0.9rem] text-muted-foreground bg-background px-3 opacity-75"
-          >
-            §
-          </span>
-        </div>
+        <div className="mt-6 border-t-[3px] border-double border-[var(--ed-rule-strong)]" />
       </header>
 
       {error && (
-        <div className="bg-destructive/5 border border-destructive/15 py-[0.85rem] px-[1.15rem] rounded mb-8 text-destructive text-[0.85rem]">
+        <div className="bg-[var(--ed-no)]/[0.07] border border-[var(--ed-no)]/30 py-[0.85rem] px-[1.15rem] mb-8 text-[var(--ed-no)] text-[0.85rem]">
           {error}
         </div>
       )}
 
       {/* 01 — Profile Editor */}
       <section className="mb-16 relative animate-in fade-in slide-in-from-bottom-2 duration-300" id="settings-section-01">
-        <div className="flex items-end gap-4 mb-[0.65rem] flex-wrap pb-[0.55rem] border-b border-border relative">
-          <span className="absolute bottom-[-1px] left-0 w-11 h-0.5 bg-gradient-to-r from-muted-foreground to-transparent rounded-sm" />
-          <span className="font-serif text-[2.4rem] font-bold text-muted-foreground tracking-[-0.03em] tabular-nums leading-[0.85] shrink-0 min-w-[2.6ch] relative group">
-            <span className="absolute bottom-[0.35em] left-0 w-[0.55em] h-0.5 bg-muted-foreground opacity-25 origin-left transition-all" />
-            01
-          </span>
-          <span className="font-serif text-[1.55rem] font-bold text-foreground tracking-[-0.012em] leading-[1.15] pb-[0.1rem]">Professional Profile</span>
-          <span className="ml-auto text-[0.7rem] text-muted-foreground py-[0.28rem] px-[0.8rem] rounded-full bg-muted/40 border border-border tracking-[0.04em] tabular-nums font-medium mb-[0.2rem] transition-all hover:border-muted-foreground/30 hover:text-muted-foreground">
-            {lastUpdated
-              ? `Updated ${new Date(lastUpdated).toLocaleDateString('en-US')}`
-              : 'Source: local file'}
-          </span>
-        </div>
-        <p className="text-[0.92rem] text-muted-foreground leading-[1.75] mt-[0.85rem] mb-6 max-w-[640px]">
+        <SectionHeader
+          num="01"
+          name="Professional Profile"
+          right={<MetaPill>{lastUpdated ? `Updated ${new Date(lastUpdated).toLocaleDateString('en-US')}` : 'Source: local file'}</MetaPill>}
+        />
+        <p className="text-[0.92rem] text-[var(--ed-ink-soft)] leading-[1.75] mt-[0.85rem] mb-6 max-w-[640px]">
           The professional profile sent to Claude for job analysis and matching. Changes take effect immediately after saving.
         </p>
         <textarea
-          className="w-full min-h-[420px] p-[1.5rem_1.65rem] border border-border rounded-lg text-foreground font-code text-[0.85rem] resize-y outline-none leading-[1.8] text-left whitespace-pre-wrap transition-all hover:border-muted-foreground/30 focus:border-ring focus:bg-white focus:shadow-[0_0_0_4px_rgba(0,0,0,0.04)] selection:bg-primary/10 selection:text-foreground"
+          className={`${EDITOR_CLS} min-h-[420px]`}
           value={profile}
           onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => { setProfile(e.target.value); setProfileResult(null); }}
           dir="auto"
           spellCheck={false}
-          style={{
-            background: 'var(--card)',
-          }}
         />
-        <div className="flex justify-between items-center mt-[1.1rem] pt-4 border-t border-dashed border-border relative max-sm:flex-col max-sm:gap-3 max-sm:items-stretch">
-          <span className="absolute top-[-1px] left-0 w-9 h-px bg-muted-foreground opacity-50" />
-          <span className="text-[0.76rem] text-muted-foreground tabular-nums tracking-[0.05em] font-medium inline-flex items-baseline gap-[0.35rem]">
+        <div className="flex justify-between items-center mt-[1.1rem] pt-4 border-t border-dashed border-[var(--ed-rule)] relative max-sm:flex-col max-sm:gap-3 max-sm:items-stretch">
+          <span className={`${META_TEXT} inline-flex items-baseline gap-[0.35rem]`}>
             {profile.length.toLocaleString()} chars
-            <span className="ml-2 text-muted-foreground text-[0.72rem] tracking-[0.04em] font-normal pl-[0.6rem] border-l border-border">· ≈{estimateTokens(profile).toLocaleString()} tokens</span>
+            <span className="ml-2 text-[var(--ed-ink-faint)] text-[0.7rem] tracking-[0.04em] font-normal pl-[0.6rem] border-l border-[var(--ed-rule)]">· ≈{estimateTokens(profile).toLocaleString()} tokens</span>
           </span>
           <div className="flex gap-[0.55rem] max-sm:justify-end max-sm:flex-wrap">
             <HistoryButton field="content" onRestored={applyProfileData} />
@@ -483,7 +503,7 @@ export default function SettingsPage() {
         desc={
           <>
             The instruction for Claude during the evaluation stage — scores fit on a 100-point scale across technology, culture, and role attributes.
-            The placeholder <code className="font-code text-[0.82em] py-[0.08em] px-[0.4em] bg-muted/50 border border-border rounded-[4px] text-muted-foreground isolate">{'{{USER_PROFILE}}'}</code> is replaced with your profile at runtime and must not be removed. The parsed job is supplied separately inside <code className="font-code text-[0.82em] py-[0.08em] px-[0.4em] bg-muted/50 border border-border rounded-[4px] text-muted-foreground isolate">{'<parsed_job>'}</code> tags in the user message.
+            The placeholder <code className="font-code text-[0.82em] py-[0.08em] px-[0.4em] bg-[var(--ed-panel)] border border-[var(--ed-rule)] text-[var(--ed-ink-soft)] isolate">{'{{USER_PROFILE}}'}</code> is replaced with your profile at runtime and must not be removed. The parsed job is supplied separately inside <code className="font-code text-[0.82em] py-[0.08em] px-[0.4em] bg-[var(--ed-panel)] border border-[var(--ed-rule)] text-[var(--ed-ink-soft)] isolate">{'<parsed_job>'}</code> tags in the user message.
           </>
         }
         activeStage="evaluate"
@@ -517,15 +537,8 @@ export default function SettingsPage() {
 
       {/* 04 — Scoring Config */}
       <section className="mb-16 relative animate-in fade-in slide-in-from-bottom-2 duration-300" id="settings-section-04" style={{ animationDelay: '0.12s' }}>
-        <div className="flex items-end gap-4 mb-[0.65rem] flex-wrap pb-[0.55rem] border-b border-border relative">
-          <span className="absolute bottom-[-1px] left-0 w-11 h-0.5 bg-gradient-to-r from-muted-foreground to-transparent rounded-sm" />
-          <span className="font-serif text-[2.4rem] font-bold text-muted-foreground tracking-[-0.03em] tabular-nums leading-[0.85] shrink-0 min-w-[2.6ch] relative">
-            <span className="absolute bottom-[0.35em] left-0 w-[0.55em] h-0.5 bg-muted-foreground opacity-25 origin-left transition-all" />
-            04
-          </span>
-          <span className="font-serif text-[1.55rem] font-bold text-foreground tracking-[-0.012em] leading-[1.15] pb-[0.1rem]">Analysis Config</span>
-        </div>
-        <p className="text-[0.92rem] text-muted-foreground leading-[1.75] mt-[0.85rem] mb-6 max-w-[640px]">
+        <SectionHeader num="04" name="Analysis Config" />
+        <p className="text-[0.92rem] text-[var(--ed-ink-soft)] leading-[1.75] mt-[0.85rem] mb-6 max-w-[640px]">
           Each pipeline stage is configured separately — the Analyst (parsing stage) and the Evaluator (scoring stage).
           Extended thinking forces temperature to 1.
         </p>
@@ -553,31 +566,31 @@ export default function SettingsPage() {
           />
         </div>
 
-        <div className="mt-5 pt-4 border-t border-dashed border-border max-w-[22rem]">
+        <div className="mt-5 pt-4 border-t border-dashed border-[var(--ed-rule)] max-w-[22rem]">
           <div className="flex flex-col gap-[0.55rem]">
-            <label className="text-[0.7rem] text-muted-foreground tracking-[0.14em] uppercase font-semibold flex items-center gap-[0.4rem]" htmlFor="cfg-min-score">
-              <span className="w-[3px] h-[3px] rounded-full bg-muted-foreground opacity-45 shrink-0" />
+            <label className={FIELD_LABEL} htmlFor="cfg-min-score">
+              <span className="w-[3px] h-[3px] rounded-full bg-[var(--ed-accent)] shrink-0" />
               Minimum score to save
             </label>
             <input
               id="cfg-min-score"
               type="number"
-              className="py-[0.55rem] px-[0.8rem] bg-transparent border border-input rounded-[7px] text-foreground text-[0.88rem] font-mono tabular-nums text-left transition-all w-full hover:border-muted-foreground/30 focus:border-ring focus:bg-white focus:ring-[3px] focus:ring-ring/20 focus:outline-none disabled:opacity-45 disabled:cursor-not-allowed"
+              className={FIELD_INPUT}
               value={config.min_score_to_save}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateConfig('min_score_to_save', parseInt(e.target.value) || 70)}
               min="0" max="100" step="5"
             />
-            <span className="text-[0.72rem] text-muted-foreground opacity-85 mt-[0.3rem]">Sets the API <code className="font-code">shouldApply</code> flag (score ≥ threshold). Note: what the scraper saves to the tracker is also gated by its own per-search threshold and verdict rule.</span>
+            <span className="text-[0.72rem] text-[var(--ed-ink-faint)] mt-[0.3rem] leading-[1.55]">Sets the API <code className="font-code text-[var(--ed-ink-soft)]">shouldApply</code> flag (score ≥ threshold). Note: what the scraper saves to the tracker is also gated by its own per-search threshold and verdict rule.</span>
           </div>
         </div>
 
-        <div className="mt-5 pt-4 border-t border-dashed border-border">
+        <div className="mt-5 pt-4 border-t border-dashed border-[var(--ed-rule)]">
           <div className="flex flex-col gap-[0.55rem]">
-            <label className="text-[0.7rem] text-muted-foreground tracking-[0.14em] uppercase font-semibold flex items-center gap-[0.4rem]">
-              <span className="w-[3px] h-[3px] rounded-full bg-muted-foreground opacity-45 shrink-0" />
+            <label className={FIELD_LABEL}>
+              <span className="w-[3px] h-[3px] rounded-full bg-[var(--ed-accent)] shrink-0" />
               Verdict bands
             </label>
-            <span className="text-[0.72rem] text-muted-foreground opacity-85">Inclusive lower bound (0–100) for each verdict. Below the “No” bound scores as STRONG_NO; a null score is INSUFFICIENT_DATA.</span>
+            <span className="text-[0.72rem] text-[var(--ed-ink-faint)] leading-[1.55]">Inclusive lower bound (0–100) for each verdict. Below the “No” bound scores as STRONG_NO; a null score is INSUFFICIENT_DATA.</span>
             <div className="grid grid-cols-4 gap-[0.6rem] mt-[0.4rem] max-[560px]:grid-cols-2">
               {([
                 ['strong_yes', 'Strong Yes'],
@@ -586,11 +599,11 @@ export default function SettingsPage() {
                 ['no', 'No'],
               ] as const).map(([key, label]) => (
                 <div key={key} className="flex flex-col gap-[0.3rem]">
-                  <label className="text-[0.68rem] text-muted-foreground font-medium" htmlFor={`cfg-band-${key}`}>{label}</label>
+                  <label className="text-[0.66rem] text-[var(--ed-ink-soft)] font-medium uppercase tracking-[0.06em]" htmlFor={`cfg-band-${key}`}>{label}</label>
                   <input
                     id={`cfg-band-${key}`}
                     type="number"
-                    className="py-[0.5rem] px-[0.7rem] bg-transparent border border-input rounded-[7px] text-foreground text-[0.85rem] font-mono tabular-nums text-left transition-all w-full hover:border-muted-foreground/30 focus:border-ring focus:bg-white focus:ring-[3px] focus:ring-ring/20 focus:outline-none"
+                    className={FIELD_INPUT}
                     value={config.verdict_bands[key]}
                     onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateConfig(`verdict_bands.${key}`, parseInt(e.target.value) || 0)}
                     min="0" max="100" step="5"
@@ -601,8 +614,7 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        <div className="flex justify-end items-center gap-[0.6rem] mt-6 pt-[1.1rem] border-t border-dashed border-border relative">
-          <span className="absolute top-[-1px] right-0 w-9 h-px bg-muted-foreground opacity-50" />
+        <div className="flex justify-end items-center gap-[0.6rem] mt-6 pt-[1.1rem] border-t border-dashed border-[var(--ed-rule)] relative">
           <HistoryButton field="scoring_config" onRestored={applyProfileData} />
           {isConfigDirty && (
             <Button variant="outline" size="sm" onClick={() => setConfig(originalConfig)} disabled={savingConfig}>
@@ -623,99 +635,96 @@ export default function SettingsPage() {
 
       {/* 05 — Scoring Structure */}
       <section className="mb-16 relative animate-in fade-in slide-in-from-bottom-2 duration-300" id="settings-section-05" style={{ animationDelay: '0.16s' }}>
-        <div className="flex items-end gap-4 mb-[0.65rem] flex-wrap pb-[0.55rem] border-b border-border relative">
-          <span className="absolute bottom-[-1px] left-0 w-11 h-0.5 bg-gradient-to-r from-muted-foreground to-transparent rounded-sm" />
-          <span className="font-serif text-[2.4rem] font-bold text-muted-foreground tracking-[-0.03em] tabular-nums leading-[0.85] shrink-0 min-w-[2.6ch] relative">
-            <span className="absolute bottom-[0.35em] left-0 w-[0.55em] h-0.5 bg-muted-foreground opacity-25 origin-left transition-all" />
-            05
-          </span>
-          <span className="font-serif text-[1.55rem] font-bold text-foreground tracking-[-0.012em] leading-[1.15] pb-[0.1rem]">Scoring Structure</span>
-        </div>
-        <p className="text-[0.92rem] text-muted-foreground leading-[1.75] mt-[0.85rem] mb-6 max-w-[640px]">
+        <SectionHeader num="05" name="Scoring Structure" />
+        <p className="text-[0.92rem] text-[var(--ed-ink-soft)] leading-[1.75] mt-[0.85rem] mb-6 max-w-[640px]">
           The total score is divided into three dimensions. Each dimension is composed of several weighted criteria.
         </p>
 
-        <div
-          className="flex h-3 rounded-full overflow-hidden mb-[1.4rem] relative"
-          aria-label="Score distribution"
-          style={{
-            background: 'oklch(0.97 0 0)',
-            boxShadow: 'none',
-          }}
-        >
-          <div
-            className="relative origin-right"
-            style={{
-              flex: 35,
-              background: 'linear-gradient(90deg, #c9a37c 0%, #a88256 100%)',
-              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.25)',
-              animationDelay: '0.15s',
-            }}
-          />
-          <div
-            className="relative origin-right border-r border-[rgba(255,255,255,0.55)]"
-            style={{
-              flex: 30,
-              background: 'linear-gradient(90deg, #5cbea9 0%, #3d9b85 100%)',
-              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.2)',
-              animationDelay: '0.25s',
-            }}
-          />
-          <div
-            className="relative origin-right border-r border-[rgba(255,255,255,0.55)]"
-            style={{
-              flex: 35,
-              background: 'linear-gradient(90deg, #a88ed8 0%, #8b6fc0 100%)',
-              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.2)',
-              animationDelay: '0.35s',
-            }}
-          />
+        {/* Flat three-ink distribution bar (weights 35 / 30 / 35) */}
+        <div className="flex h-[10px] overflow-hidden mb-[1.4rem] border border-[var(--ed-rule)]" aria-label="Score distribution">
+          <div style={{ flex: 35, background: DIM_INK.technical }} />
+          <div className="border-l border-[var(--ed-paper)]" style={{ flex: 30, background: DIM_INK.execution }} />
+          <div className="border-l border-[var(--ed-paper)]" style={{ flex: 35, background: DIM_INK.sustainability }} />
         </div>
 
-        <div className="flex flex-col border-t border-border mb-[1.85rem]">
+        <div className="flex flex-col border-t border-[var(--ed-rule-strong)] mb-[1.85rem]">
           <ScoringDimension
-            color="#a88256"
-            ringColor="rgba(168,130,86,0.12)"
+            color={DIM_INK.technical}
             name="Technical Fit"
             details="Core Stack 0–20 · System Design 0–15"
             points="35"
           />
           <ScoringDimension
-            color="#3d9b85"
-            ringColor="rgba(61,155,133,0.12)"
+            color={DIM_INK.execution}
             name="Engineering Execution Fit"
             details="Dev Practices 0–15 · Ownership & Delivery 0–15"
             points="30"
           />
           <ScoringDimension
-            color="#8b6fc0"
-            ringColor="rgba(139,111,192,0.12)"
+            color={DIM_INK.sustainability}
             name="Sustainability & Pace Fit"
             details="Work-Life 0–15 · Communication 0–10 · Growth 0–10"
             points="35"
           />
         </div>
 
-        <div className="flex flex-wrap gap-2 pt-3 border-t border-dashed border-border mt-2">
-          <VerdictItem className="bg-emerald-600/[0.08] text-emerald-600 border-emerald-600/[0.22]" label="STRONG_YES · 80–100" />
-          <VerdictItem className="bg-emerald-600/[0.04] text-emerald-600 border-emerald-600/[0.14] opacity-[0.92]" label="YES · 60–79" />
-          <VerdictItem className="bg-amber-600/[0.06] text-amber-600 border-amber-600/20" label="MAYBE · 40–59" />
-          <VerdictItem className="bg-red-500/[0.04] text-red-500 border-red-500/[0.14] opacity-[0.92]" label="NO · 20–39" />
-          <VerdictItem className="bg-red-500/[0.07] text-red-500 border-red-500/20" label="STRONG_NO · 0–19" />
+        <div className="flex flex-wrap gap-2 pt-3 border-t border-dashed border-[var(--ed-rule)] mt-2">
+          <VerdictItem tone="var(--ed-yes)" strong label="STRONG_YES · 80–100" />
+          <VerdictItem tone="var(--ed-yes)" label="YES · 60–79" />
+          <VerdictItem tone="var(--ed-gold)" label="MAYBE · 40–59" />
+          <VerdictItem tone="var(--ed-no)" label="NO · 20–39" />
+          <VerdictItem tone="var(--ed-no)" strong label="STRONG_NO · 0–19" />
         </div>
       </section>
 
+    </div>
     </div>
   );
 }
 
 /* ------------------------------------------------------------------ */
-/* Verdict Item                                                       */
+/* Section Header — numbered §-mark used by every section             */
 /* ------------------------------------------------------------------ */
-function VerdictItem({ className, label }: { className: string; label: string }) {
+function SectionHeader({ num, name, right }: { num: string; name: string; right?: React.ReactNode }) {
   return (
-    <span className={`relative py-[0.38rem] pr-[0.9rem] pl-[1.45rem] rounded-full text-[0.73rem] font-medium font-code tabular-nums tracking-[0.08em] border cursor-default transition-all hover:-translate-y-px hover:shadow-sm ${className}`}>
-      <span className="absolute top-1/2 left-[0.65rem] -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-current opacity-75" />
+    <div className="flex items-end gap-4 mb-[0.65rem] flex-wrap pb-[0.55rem] border-b border-[var(--ed-rule-strong)] relative">
+      <span className="absolute bottom-[-2px] left-0 w-12 h-[2px] bg-[var(--ed-accent)]" aria-hidden="true" />
+      <span className="ed-display text-[2.6rem] font-black text-[var(--ed-ink-faint)] tracking-[-0.03em] tabular-nums leading-[0.78] shrink-0">{num}</span>
+      <span className="ed-display text-[1.6rem] font-semibold text-[var(--ed-ink)] tracking-[-0.012em] leading-[1.15] pb-[0.1rem]">{name}</span>
+      {right && <span className="ml-auto mb-[0.25rem]">{right}</span>}
+    </div>
+  );
+}
+
+// Small editorial meta-pill (Updated …, Custom/Default).
+function MetaPill({ children, accent }: { children: React.ReactNode; accent?: boolean }) {
+  return (
+    <span
+      className={`inline-block text-[0.6rem] py-[0.24rem] px-[0.6rem] tracking-[0.12em] uppercase font-semibold tabular-nums border ${
+        accent
+          ? 'text-[var(--ed-accent)] border-[var(--ed-accent)]/35 bg-[var(--ed-accent)]/[0.07]'
+          : 'text-[var(--ed-ink-faint)] border-[var(--ed-rule)] bg-[var(--ed-panel)]/40'
+      }`}
+    >
+      {children}
+    </span>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Verdict Item — editorial classification stamp                      */
+/* ------------------------------------------------------------------ */
+function VerdictItem({ tone, label, strong }: { tone: string; label: string; strong?: boolean }) {
+  return (
+    <span
+      className="inline-flex items-center py-[0.32rem] px-[0.7rem] text-[0.66rem] font-semibold font-code tabular-nums tracking-[0.08em] uppercase border"
+      style={{
+        color: tone,
+        background: `color-mix(in oklab, ${tone} ${strong ? 14 : 7}%, transparent)`,
+        borderColor: `color-mix(in oklab, ${tone} ${strong ? 45 : 26}%, transparent)`,
+        borderLeft: `2px solid ${tone}`,
+      }}
+    >
       {label}
     </span>
   );
@@ -724,24 +733,16 @@ function VerdictItem({ className, label }: { className: string; label: string })
 /* ------------------------------------------------------------------ */
 /* Scoring Dimension                                                  */
 /* ------------------------------------------------------------------ */
-function ScoringDimension({ color, ringColor, name, details, points }: { color: string; ringColor: string; name: string; details: string; points: string }) {
+function ScoringDimension({ color, name, details, points }: { color: string; name: string; details: string; points: string }) {
   return (
-    <div
-      className="group grid grid-cols-[auto_1fr_auto] items-center gap-[1.1rem] py-[1.15rem] px-[0.35rem] border-b border-border transition-all relative hover:bg-accent hover:pl-[0.65rem] max-sm:grid-cols-[auto_1fr] max-sm:row-gap-1"
-      style={{ color }}
-    >
-      {/* Left accent line on hover */}
-      <span className="absolute left-[-4px] top-[18%] bottom-[18%] w-0.5 bg-current opacity-0 rounded-sm transition-opacity group-hover:opacity-55" />
-      <span
-        className="w-2.5 h-2.5 rounded-full shrink-0 transition-transform group-hover:scale-[1.15]"
-        style={{ background: color, boxShadow: `0 0 0 3px ${ringColor}` }}
-      />
+    <div className="group grid grid-cols-[auto_1fr_auto] items-center gap-[1.1rem] py-[1.05rem] border-b border-[var(--ed-rule)] transition-colors relative hover:bg-[var(--ed-panel)]/50 max-sm:grid-cols-[auto_1fr] max-sm:row-gap-1">
+      <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: color }} />
       <div className="flex flex-col gap-[0.15rem] min-w-0">
-        <span className="text-[0.95rem] font-semibold text-foreground font-serif tracking-[-0.005em]">{name}</span>
-        <span className="text-[0.78rem] text-muted-foreground font-mono tabular-nums tracking-[0.02em] text-left">{details}</span>
+        <span className="ed-display text-[1.05rem] font-semibold text-[var(--ed-ink)] tracking-[-0.005em]">{name}</span>
+        <span className="text-[0.76rem] text-[var(--ed-ink-faint)] font-code tabular-nums tracking-[0.02em] text-left">{details}</span>
       </div>
-      <span className="font-serif text-[1.15rem] font-bold text-foreground tabular-nums tracking-[-0.01em] max-sm:col-start-2 max-sm:justify-self-end">
-        {points}<small className="text-[0.65rem] text-muted-foreground tracking-[0.15em] uppercase font-medium font-mono ml-1">pt</small>
+      <span className="ed-display text-[1.35rem] font-bold tabular-nums tracking-[-0.01em] max-sm:col-start-2 max-sm:justify-self-end" style={{ color }}>
+        {points}<small className="text-[0.6rem] text-[var(--ed-ink-faint)] tracking-[0.15em] uppercase font-medium font-code ml-1">pt</small>
       </span>
     </div>
   );
@@ -823,76 +824,50 @@ function PromptSection({
     >
       {/* Prompt accent stripe */}
       <span
-        className="absolute left-0 w-[3px] rounded-[3px]"
-        style={{
-          top: '0.15rem',
-          bottom: '0.15rem',
-          background: 'linear-gradient(to bottom, transparent 0%, oklch(0.7 0 0 / 0.25) 12%, oklch(0.7 0 0 / 0.25) 88%, transparent 100%)',
-        }}
+        className="absolute left-0 top-[0.15rem] bottom-[0.15rem] w-[2px] bg-[var(--ed-accent)] opacity-30"
+        aria-hidden="true"
       />
 
-      <div className="flex items-end gap-4 mb-[0.65rem] flex-wrap pb-[0.55rem] border-b border-border relative">
-        <span className="absolute bottom-[-1px] left-0 w-11 h-0.5 bg-gradient-to-r from-muted-foreground to-transparent rounded-sm" />
-        <span className="font-serif text-[2.4rem] font-bold text-muted-foreground tracking-[-0.03em] tabular-nums leading-[0.85] shrink-0 min-w-[2.6ch] relative">
-          <span className="absolute bottom-[0.35em] left-0 w-[0.55em] h-0.5 bg-muted-foreground opacity-25 origin-left transition-all" />
-          {num}
-        </span>
-        <span className="font-serif text-[1.55rem] font-bold text-foreground tracking-[-0.012em] leading-[1.15] pb-[0.1rem]">{name}</span>
-        <span className={`ml-auto text-[0.7rem] py-[0.28rem] px-[0.8rem] rounded-full border tracking-[0.04em] tabular-nums font-medium mb-[0.2rem] transition-all hover:border-muted-foreground/30 hover:text-muted-foreground ${
-          isOverride
-            ? 'text-foreground border-primary/30 bg-primary/5'
-            : 'text-muted-foreground bg-muted/40 border-border'
-        }`}>
-          {isOverride ? 'Custom' : 'Default'}
-        </span>
-      </div>
+      <SectionHeader
+        num={num}
+        name={name}
+        right={<MetaPill accent={isOverride}>{isOverride ? 'Custom' : 'Default'}</MetaPill>}
+      />
 
       <div
-        className="flex items-center gap-4 my-[0.6rem] mb-[1.4rem] py-[0.6rem] px-4 border border-border rounded-full max-w-fit font-mono max-sm:flex-col max-sm:items-start max-sm:gap-[0.45rem] max-sm:max-w-full max-sm:rounded-xl max-sm:px-[0.85rem] max-sm:py-[0.7rem]"
+        className="flex items-center gap-4 my-[0.6rem] mb-[1.4rem] py-[0.55rem] px-4 border border-[var(--ed-rule)] bg-[var(--ed-panel)]/40 max-w-fit font-code max-sm:flex-col max-sm:items-start max-sm:gap-[0.45rem] max-sm:max-w-full max-sm:px-[0.85rem] max-sm:py-[0.7rem]"
         aria-label="Analysis stages"
-        style={{
-          background: 'var(--muted)',
-        }}
       >
-        <span className={`inline-flex items-center gap-2 text-[0.8rem] tracking-[0.03em] transition-colors ${activeStage === 'parse' ? 'text-foreground font-semibold' : 'text-muted-foreground'}`}>
-          <span className={`font-serif text-[1.1rem] leading-none transition-all tabular-nums ${activeStage === 'parse' ? 'text-foreground' : 'text-muted-foreground/40'}`}>①</span>
-          <span className={`tabular-nums ${activeStage === 'parse' ? 'border-b border-foreground/40 pb-0.5' : ''}`}>Parse · Analyst</span>
+        <span className={`inline-flex items-center gap-2 text-[0.78rem] uppercase tracking-[0.08em] transition-colors ${activeStage === 'parse' ? 'text-[var(--ed-ink)] font-semibold' : 'text-[var(--ed-ink-faint)]'}`}>
+          <span className={`ed-display text-[1.1rem] leading-none tabular-nums ${activeStage === 'parse' ? 'text-[var(--ed-accent)]' : 'text-[var(--ed-ink-faint)] opacity-50'}`}>①</span>
+          <span className={`tabular-nums ${activeStage === 'parse' ? 'border-b-2 border-[var(--ed-accent)] pb-0.5' : ''}`}>Parse · Analyst</span>
         </span>
-        {/* Arrow */}
-        <span className="w-[1.6rem] h-px shrink-0 relative max-sm:w-px max-sm:h-4" style={{ background: 'linear-gradient(to right, transparent 0%, oklch(0.7 0 0 / 0.35) 50%, transparent 100%)' }}>
-          <span
-            className="absolute top-1/2 right-0 w-[5px] h-[5px] -translate-y-1/2 max-sm:top-auto max-sm:bottom-0 max-sm:right-1/2 max-sm:translate-x-1/2"
-            style={{
-              borderTop: '1px solid oklch(0.7 0 0 / 0.45)',
-              borderRight: '1px solid oklch(0.7 0 0 / 0.45)',
-              transform: 'translateY(-50%) rotate(45deg)',
-            }}
-          />
-        </span>
-        <span className={`inline-flex items-center gap-2 text-[0.8rem] tracking-[0.03em] transition-colors ${activeStage === 'evaluate' ? 'text-foreground font-semibold' : 'text-muted-foreground'}`}>
-          <span className={`font-serif text-[1.1rem] leading-none transition-all tabular-nums ${activeStage === 'evaluate' ? 'text-foreground' : 'text-muted-foreground/40'}`}>②</span>
-          <span className={`tabular-nums ${activeStage === 'evaluate' ? 'border-b border-foreground/40 pb-0.5' : ''}`}>Evaluate · Evaluator</span>
+        <span className="w-[1.6rem] h-px shrink-0 bg-[var(--ed-rule)] max-sm:w-px max-sm:h-4" aria-hidden="true" />
+        <span className={`inline-flex items-center gap-2 text-[0.78rem] uppercase tracking-[0.08em] transition-colors ${activeStage === 'evaluate' ? 'text-[var(--ed-ink)] font-semibold' : 'text-[var(--ed-ink-faint)]'}`}>
+          <span className={`ed-display text-[1.1rem] leading-none tabular-nums ${activeStage === 'evaluate' ? 'text-[var(--ed-accent)]' : 'text-[var(--ed-ink-faint)] opacity-50'}`}>②</span>
+          <span className={`tabular-nums ${activeStage === 'evaluate' ? 'border-b-2 border-[var(--ed-accent)] pb-0.5' : ''}`}>Evaluate · Evaluator</span>
         </span>
       </div>
 
-      <p className="text-[0.92rem] text-muted-foreground leading-[1.75] mt-[0.85rem] mb-6 max-w-[640px]">{desc}</p>
+      <p className="text-[0.92rem] text-[var(--ed-ink-soft)] leading-[1.75] mt-[0.85rem] mb-6 max-w-[640px]">{desc}</p>
 
       {placeholders && placeholders.length > 0 && (
-        <div className="flex flex-wrap gap-[0.7rem] -mt-2 mb-[1.1rem] p-[0.6rem_0.85rem] border border-dashed border-border rounded-lg bg-muted/20 max-sm:p-[0.55rem_0.7rem]" role="status" aria-live="polite">
+        <div className="flex flex-wrap gap-[0.7rem] -mt-2 mb-[1.1rem] p-[0.6rem_0.85rem] border border-dashed border-[var(--ed-rule)] bg-[var(--ed-panel)]/30 max-sm:p-[0.55rem_0.7rem]" role="status" aria-live="polite">
           {placeholders.map(({ token, present }) => (
             <span
               key={token}
-              className={`inline-flex items-center gap-[0.4rem] py-[0.22rem] pr-[0.6rem] pl-[0.7rem] rounded-full font-mono text-[0.74rem] tabular-nums tracking-[0.02em] transition-all ${
-                present
-                  ? 'border border-emerald-600/[0.22] bg-emerald-600/[0.04] text-emerald-600'
-                  : 'border border-red-500/[0.35] bg-red-500/5 text-red-500'
-              }`}
+              className="inline-flex items-center gap-[0.4rem] py-[0.22rem] px-[0.6rem] font-code text-[0.74rem] tabular-nums tracking-[0.02em] border"
+              style={{
+                color: present ? 'var(--ed-yes)' : 'var(--ed-no)',
+                borderColor: `color-mix(in oklab, ${present ? 'var(--ed-yes)' : 'var(--ed-no)'} 35%, transparent)`,
+                background: `color-mix(in oklab, ${present ? 'var(--ed-yes)' : 'var(--ed-no)'} 7%, transparent)`,
+              }}
             >
               <span>{token}</span>
-              <span className="font-serif text-[0.9rem] leading-none" aria-hidden="true">
+              <span className="ed-display text-[0.9rem] leading-none" aria-hidden="true">
                 {present ? '✓' : '✗'}
               </span>
-              {!present && <span className="text-[0.7rem] tracking-[0.08em] uppercase text-red-500">missing</span>}
+              {!present && <span className="text-[0.68rem] tracking-[0.1em] uppercase">missing</span>}
             </span>
           ))}
         </div>
@@ -904,13 +879,13 @@ function PromptSection({
             <button
               key={`${h.offset}-${i}`}
               type="button"
-              className={`inline-flex items-baseline gap-[0.35rem] py-[0.28rem] px-[0.7rem] border border-border rounded-full bg-transparent text-muted-foreground font-mono text-[0.74rem] tracking-[0.02em] cursor-pointer transition-all hover:border-foreground/30 hover:bg-accent hover:text-foreground hover:-translate-y-px active:translate-y-0 ${
-                h.level === 1 ? 'font-semibold text-foreground' : h.level === 2 ? 'font-medium' : 'opacity-[0.78]'
+              className={`inline-flex items-baseline gap-[0.35rem] py-[0.26rem] px-[0.7rem] border border-[var(--ed-rule)] bg-transparent text-[var(--ed-ink-faint)] font-code text-[0.74rem] tracking-[0.02em] cursor-pointer transition-colors hover:border-[var(--ed-ink)] hover:text-[var(--ed-ink)] ${
+                h.level === 1 ? 'font-semibold text-[var(--ed-ink)]' : h.level === 2 ? 'font-medium' : 'opacity-[0.78]'
               }`}
               onClick={() => scrollTextareaToOffset(textareaRef.current, h.offset)}
               title={`Jump to "${h.text}"`}
             >
-              <span className="font-[Courier_New,monospace] text-[0.7rem] text-muted-foreground opacity-55 tracking-[-0.05em]" aria-hidden="true">{'#'.repeat(h.level)}</span>
+              <span className="text-[0.7rem] text-[var(--ed-accent)] opacity-70 tracking-[-0.05em]" aria-hidden="true">{'#'.repeat(h.level)}</span>
               <span className="tabular-nums">{h.text}</span>
             </button>
           ))}
@@ -918,10 +893,10 @@ function PromptSection({
       )}
 
       {confirmingReset && (
-        <div className="flex items-center justify-between gap-5 mb-[0.9rem] p-[0.95rem_1.15rem] rounded-lg animate-in fade-in slide-in-from-top-1 duration-200 flex-wrap bg-muted/30 border border-border max-sm:flex-col max-sm:items-stretch max-sm:gap-[0.7rem]" role="alertdialog" aria-live="assertive">
+        <div className="flex items-center justify-between gap-5 mb-[0.9rem] p-[0.95rem_1.15rem] animate-in fade-in slide-in-from-top-1 duration-200 flex-wrap bg-[var(--ed-panel)]/40 border border-[var(--ed-rule)] max-sm:flex-col max-sm:items-stretch max-sm:gap-[0.7rem]" role="alertdialog" aria-live="assertive">
           <div className="flex flex-col gap-1 flex-[1_1_260px] min-w-0">
-            <strong className="font-serif text-[0.95rem] font-bold tracking-[-0.005em] text-foreground">Reset to default?</strong>
-            <span className="text-[0.8rem] leading-[1.6] text-muted-foreground max-w-[520px]">
+            <strong className="ed-display text-[1.05rem] font-semibold tracking-[-0.005em] text-[var(--ed-ink)]">Reset to default?</strong>
+            <span className="text-[0.8rem] leading-[1.6] text-[var(--ed-ink-soft)] max-w-[520px]">
               The custom prompt will be deleted and replaced with the service default. This action cannot be undone.
             </span>
           </div>
@@ -943,22 +918,19 @@ function PromptSection({
 
       <textarea
         ref={textareaRef}
-        className="w-full p-[1.5rem_1.65rem] border border-input rounded-lg text-foreground font-code text-[0.85rem] resize-y outline-none leading-[1.8] text-left whitespace-pre-wrap transition-all hover:border-muted-foreground/30 focus:border-ring focus:bg-white focus:shadow-[0_0_0_4px_rgba(0,0,0,0.04)] selection:bg-primary/10 selection:text-foreground"
+        className={EDITOR_CLS}
         value={value}
         onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setValue(e.target.value)}
         dir="auto"
         spellCheck={false}
-        style={{
-          minHeight: `${editorMinHeight}px`,
-          background: 'var(--card)',
-        }}
+        style={{ minHeight: `${editorMinHeight}px` }}
       />
 
       {confirmUnsafeSave && (
-        <div className="flex items-center justify-between gap-5 mb-[0.9rem] p-[0.95rem_1.15rem] rounded-lg animate-in fade-in slide-in-from-top-1 duration-200 flex-wrap bg-destructive/5 border border-destructive/20 max-sm:flex-col max-sm:items-stretch max-sm:gap-[0.7rem]" role="alertdialog" aria-live="assertive">
+        <div className="flex items-center justify-between gap-5 mt-[0.9rem] p-[0.95rem_1.15rem] animate-in fade-in slide-in-from-top-1 duration-200 flex-wrap bg-[var(--ed-no)]/[0.06] border border-[var(--ed-no)]/30 max-sm:flex-col max-sm:items-stretch max-sm:gap-[0.7rem]" role="alertdialog" aria-live="assertive">
           <div className="flex flex-col gap-1 flex-[1_1_260px] min-w-0">
-            <strong className="font-serif text-[0.95rem] font-bold tracking-[-0.005em] text-destructive">Missing placeholder in prompt</strong>
-            <span className="text-[0.8rem] leading-[1.6] text-muted-foreground max-w-[520px]">
+            <strong className="ed-display text-[1.05rem] font-semibold tracking-[-0.005em] text-[var(--ed-no)]">Missing placeholder in prompt</strong>
+            <span className="text-[0.8rem] leading-[1.6] text-[var(--ed-ink-soft)] max-w-[520px]">
               Without the {'{{USER_PROFILE}}'} placeholder Claude will not receive your profile. You can save anyway, but analysis will be broken.
             </span>
           </div>
@@ -978,11 +950,10 @@ function PromptSection({
         </div>
       )}
 
-      <div className="flex justify-between items-center mt-[1.1rem] pt-4 border-t border-dashed border-border relative max-sm:flex-col max-sm:gap-3 max-sm:items-stretch">
-        <span className="absolute top-[-1px] left-0 w-9 h-px bg-muted-foreground opacity-50" />
-        <span className="text-[0.76rem] text-muted-foreground tabular-nums tracking-[0.05em] font-medium inline-flex items-baseline gap-[0.35rem]">
+      <div className="flex justify-between items-center mt-[1.1rem] pt-4 border-t border-dashed border-[var(--ed-rule)] relative max-sm:flex-col max-sm:gap-3 max-sm:items-stretch">
+        <span className={`${META_TEXT} inline-flex items-baseline gap-[0.35rem]`}>
           {(value?.length || 0).toLocaleString()} chars
-          <span className="ml-2 text-muted-foreground text-[0.72rem] tracking-[0.04em] font-normal pl-[0.6rem] border-l border-border">· ≈{estimateTokens(value).toLocaleString()} tokens</span>
+          <span className="ml-2 text-[var(--ed-ink-faint)] text-[0.7rem] tracking-[0.04em] font-normal pl-[0.6rem] border-l border-[var(--ed-rule)]">· ≈{estimateTokens(value).toLocaleString()} tokens</span>
         </span>
         <div className="flex gap-[0.55rem] max-sm:justify-end max-sm:flex-wrap">
           {historySlot}
@@ -1009,7 +980,7 @@ function PromptSection({
             </Button>
           )}
           <Button
-            className={saveWarning ? 'shadow-[0_0_0_3px_hsl(var(--destructive)/0.18),0_1px_2px_rgba(0,0,0,0.06)] animate-pulse hover:shadow-[0_0_0_4px_hsl(var(--destructive)/0.22),0_2px_6px_rgba(0,0,0,0.08)]' : ''}
+            className={saveWarning ? 'shadow-[0_0_0_3px_color-mix(in_oklab,var(--ed-no)_30%,transparent)] animate-pulse' : ''}
             onClick={onSave}
             disabled={saving || !isDirty}
             title={saveWarning ? 'Missing placeholder — additional confirmation required' : undefined}
@@ -1024,21 +995,20 @@ function PromptSection({
       )}
 
       {showTest && (
-        <div className="mt-5 p-[1.1rem_1.25rem] border border-dashed border-border rounded-lg bg-muted/20 animate-in fade-in slide-in-from-top-1 duration-200">
+        <div className="mt-5 p-[1.1rem_1.25rem] border border-dashed border-[var(--ed-rule)] bg-[var(--ed-panel)]/30 animate-in fade-in slide-in-from-top-1 duration-200">
           <div className="flex items-baseline justify-between gap-3 mb-[0.6rem] flex-wrap">
-            <strong className="font-serif text-[0.95rem] font-bold tracking-[-0.005em] text-foreground">Dry-run test</strong>
-            <span className="text-[0.72rem] text-muted-foreground">
+            <strong className="ed-display text-[1.05rem] font-semibold tracking-[-0.005em] text-[var(--ed-ink)]">Dry-run test</strong>
+            <span className="text-[0.72rem] text-[var(--ed-ink-faint)]">
               Runs the {activeStage === 'parse' ? 'parse' : 'parse (saved analyst) → evaluate'} stage with your unsaved edits. Nothing is saved.
             </span>
           </div>
           <textarea
-            className="w-full p-[0.9rem_1rem] border border-input rounded-lg text-foreground font-code text-[0.8rem] resize-y outline-none leading-[1.65] text-left whitespace-pre-wrap transition-all hover:border-muted-foreground/30 focus:border-ring focus:bg-white"
+            className={`${EDITOR_CLS} text-[0.8rem] leading-[1.65] p-[0.9rem_1rem] min-h-[120px]`}
             value={sampleJob}
             onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setSampleJob(e.target.value)}
             placeholder="Paste a sample job description to score…"
             dir="auto"
             spellCheck={false}
-            style={{ minHeight: '120px', background: 'var(--card)' }}
           />
           <div className="flex items-center gap-[0.6rem] mt-[0.7rem]">
             <Button
@@ -1048,11 +1018,11 @@ function PromptSection({
             >
               {testMutation.isPending ? 'Running…' : 'Run test'}
             </Button>
-            <span className="text-[0.72rem] text-muted-foreground tabular-nums">{sampleJob.length.toLocaleString()} chars</span>
+            <span className="text-[0.72rem] text-[var(--ed-ink-faint)] tabular-nums">{sampleJob.length.toLocaleString()} chars</span>
           </div>
 
           {testMutation.isError && (
-            <div className="mt-[0.8rem] p-[0.7rem_0.9rem] rounded-lg bg-destructive/5 border border-destructive/20 text-[0.8rem] text-destructive">
+            <div className="mt-[0.8rem] p-[0.7rem_0.9rem] bg-[var(--ed-no)]/[0.06] border border-[var(--ed-no)]/30 text-[0.8rem] text-[var(--ed-no)]">
               {(testMutation.error as Error)?.message || 'Test request failed'}
             </div>
           )}
@@ -1074,37 +1044,38 @@ function TestResultPanel({ result }: { result: TestPromptResult }) {
         {result.stages.map((s) => (
           <span
             key={s.stage}
-            className={`inline-flex items-center gap-[0.4rem] py-[0.22rem] pr-[0.7rem] pl-[0.6rem] rounded-full font-mono text-[0.74rem] tracking-[0.02em] ${
-              s.deserializedCleanly
-                ? 'border border-emerald-600/[0.22] bg-emerald-600/[0.04] text-emerald-600'
-                : 'border border-red-500/[0.35] bg-red-500/5 text-red-500'
-            }`}
+            className="inline-flex items-center gap-[0.4rem] py-[0.22rem] px-[0.6rem] font-code text-[0.74rem] tracking-[0.02em] border"
+            style={{
+              color: s.deserializedCleanly ? 'var(--ed-yes)' : 'var(--ed-no)',
+              borderColor: `color-mix(in oklab, ${s.deserializedCleanly ? 'var(--ed-yes)' : 'var(--ed-no)'} 35%, transparent)`,
+              background: `color-mix(in oklab, ${s.deserializedCleanly ? 'var(--ed-yes)' : 'var(--ed-no)'} 7%, transparent)`,
+            }}
           >
-            <span className="font-serif text-[0.9rem] leading-none" aria-hidden="true">{s.deserializedCleanly ? '✓' : '✗'}</span>
+            <span className="ed-display text-[0.9rem] leading-none" aria-hidden="true">{s.deserializedCleanly ? '✓' : '✗'}</span>
             <span className="capitalize">{s.stage}</span>
             <span className="opacity-70">{s.deserializedCleanly ? 'parsed' : 'failed'}</span>
           </span>
         ))}
         {typeof result.overallScore === 'number' && (
-          <span className="inline-flex items-center gap-[0.4rem] py-[0.22rem] px-[0.75rem] rounded-full font-mono text-[0.74rem] tabular-nums border border-border bg-muted/40 text-foreground">
+          <span className="inline-flex items-center gap-[0.4rem] py-[0.22rem] px-[0.75rem] font-code text-[0.74rem] tabular-nums border border-[var(--ed-rule)] bg-[var(--ed-panel)]/40 text-[var(--ed-ink)]">
             Score {result.overallScore}
-            {result.verdict && <span className="text-muted-foreground">· {VERDICT_LABELS[result.verdict] || result.verdict}</span>}
+            {result.verdict && <span className="text-[var(--ed-ink-faint)]">· {VERDICT_LABELS[result.verdict] || result.verdict}</span>}
           </span>
         )}
       </div>
 
       {result.stages.filter((s) => s.error).map((s) => (
-        <div key={`${s.stage}-err`} className="p-[0.7rem_0.9rem] rounded-lg bg-destructive/5 border border-destructive/20 text-[0.78rem] text-destructive leading-[1.55]">
+        <div key={`${s.stage}-err`} className="p-[0.7rem_0.9rem] bg-[var(--ed-no)]/[0.06] border border-[var(--ed-no)]/30 text-[0.78rem] text-[var(--ed-no)] leading-[1.55]">
           <strong className="font-semibold capitalize">{s.stage} failed:</strong> {s.error}
         </div>
       ))}
 
       {result.stages.filter((s) => s.rawOutput).map((s) => (
         <details key={`${s.stage}-raw`} className="group">
-          <summary className="cursor-pointer text-[0.74rem] text-muted-foreground hover:text-foreground tracking-[0.02em] select-none">
+          <summary className="cursor-pointer text-[0.74rem] text-[var(--ed-ink-faint)] hover:text-[var(--ed-ink)] tracking-[0.02em] select-none">
             Raw {s.stage} output
           </summary>
-          <pre className="mt-[0.5rem] p-[0.8rem_1rem] rounded-lg bg-card border border-border text-[0.74rem] leading-[1.55] overflow-auto max-h-[320px] whitespace-pre-wrap break-words text-muted-foreground" dir="ltr">
+          <pre className="mt-[0.5rem] p-[0.8rem_1rem] bg-[var(--ed-panel)] border border-[var(--ed-rule)] text-[0.74rem] leading-[1.55] overflow-auto max-h-[320px] whitespace-pre-wrap break-words text-[var(--ed-ink-soft)]" dir="ltr">
             {s.rawOutput}
           </pre>
         </details>
@@ -1148,128 +1119,107 @@ function RoleConfigPanel({ role, stage, titleHe, titleEn, hint, values, onChange
   const thinkId = `${idPrefix}-thinking`;
   const budgetId = `${idPrefix}-thinking-budget`;
 
-  const roleStyles: Record<string, React.CSSProperties> = {
-    analyst: {
-      background: 'var(--card)',
-    },
-    evaluator: {
-      background: 'var(--card)',
-    },
-  };
+  const roleColor = role === 'analyst' ? DIM_INK.technical : DIM_INK.execution;
+  const roleColorSoft = `color-mix(in oklab, ${roleColor} 9%, transparent)`;
+  const roleColorRing = `color-mix(in oklab, ${roleColor} 32%, transparent)`;
 
-  const roleColor = role === 'analyst' ? '#a88256' : '#3d9b85';
-  const roleColorSoft = role === 'analyst' ? 'rgba(168,130,86,0.09)' : 'rgba(61,155,133,0.08)';
-  const roleColorRing = role === 'analyst' ? 'rgba(168,130,86,0.3)' : 'rgba(61,155,133,0.28)';
-
-  const inputClasses = "py-[0.55rem] px-[0.8rem] bg-transparent border border-input rounded-[7px] text-foreground text-[0.88rem] font-mono tabular-nums text-left transition-all w-full hover:border-muted-foreground/30 hover:bg-background focus:outline-none disabled:opacity-45 disabled:cursor-not-allowed";
+  const focusOn = (el: HTMLElement) => { el.style.borderColor = roleColor; el.style.boxShadow = `0 0 0 3px ${roleColorSoft}`; };
+  const focusOff = (el: HTMLElement) => { el.style.borderColor = ''; el.style.boxShadow = ''; };
 
   return (
     <div
-      className="flex flex-col gap-[0.95rem] p-[1.35rem_1.4rem_1.2rem] border border-input rounded-lg relative overflow-hidden transition-all hover:shadow-sm"
-      style={{
-        ...roleStyles[role],
-      }}
-      onMouseEnter={(e: React.MouseEvent<HTMLDivElement>) => {
-        e.currentTarget.style.borderColor = roleColorRing;
-        e.currentTarget.style.boxShadow = `0 2px 10px rgba(0,0,0,0.04), 0 0 0 1px ${roleColorRing}`;
-      }}
-      onMouseLeave={(e: React.MouseEvent<HTMLDivElement>) => {
-        e.currentTarget.style.borderColor = '';
-        e.currentTarget.style.boxShadow = '';
-      }}
+      className="flex flex-col gap-[0.95rem] p-[1.35rem_1.4rem_1.2rem] border border-[var(--ed-rule)] bg-[var(--ed-panel)]/40 relative overflow-hidden transition-colors"
+      onMouseEnter={(e: React.MouseEvent<HTMLDivElement>) => { e.currentTarget.style.borderColor = roleColorRing; }}
+      onMouseLeave={(e: React.MouseEvent<HTMLDivElement>) => { e.currentTarget.style.borderColor = ''; }}
     >
       {/* Top accent stripe */}
       <span
-        className="absolute top-0 left-0 right-0 h-[3px] opacity-70"
+        className="absolute top-0 left-0 right-0 h-[3px]"
         style={{ background: `linear-gradient(90deg, ${roleColor} 0%, transparent 100%)` }}
       />
 
-      <div className="flex flex-col gap-[0.4rem] pb-[0.85rem] border-b border-dashed border-border relative">
+      <div className="flex flex-col gap-[0.4rem] pb-[0.85rem] border-b border-dashed border-[var(--ed-rule)] relative">
         <div className="flex items-center gap-[0.65rem]">
-          <span className="font-serif text-[1.35rem] leading-none font-bold opacity-85 shrink-0 tabular-nums" style={{ color: roleColor }}>{stage}</span>
-          <h3 className="inline-flex items-baseline gap-2 text-[0.95rem] text-foreground font-serif font-bold m-0 tracking-[-0.005em] flex-1 min-w-0">
-            <span className="font-bold">{titleHe}</span>
-            <span className="text-muted-foreground opacity-60 font-normal text-[0.85em]" aria-hidden="true">·</span>
-            <span className="font-mono text-[0.72rem] tracking-[0.22em] uppercase font-semibold" style={{ color: roleColor }}>{titleEn}</span>
+          <span className="ed-display text-[1.4rem] leading-none font-bold shrink-0 tabular-nums" style={{ color: roleColor }}>{stage}</span>
+          <h3 className="inline-flex items-baseline gap-2 text-[0.95rem] text-[var(--ed-ink)] ed-display font-semibold m-0 tracking-[-0.005em] flex-1 min-w-0">
+            <span>{titleHe}</span>
+            <span className="text-[var(--ed-ink-faint)] font-normal text-[0.85em]" aria-hidden="true">·</span>
+            <span className="font-code text-[0.7rem] tracking-[0.22em] uppercase font-semibold" style={{ color: roleColor }}>{titleEn}</span>
           </h3>
           <span
-            className="w-2 h-2 rounded-full shrink-0 animate-pulse"
-            style={{
-              background: roleColor,
-              boxShadow: `0 0 0 3px ${roleColorSoft}`,
-              animationDelay: role === 'evaluator' ? '1.6s' : undefined,
-            }}
+            className="w-2 h-2 rounded-full shrink-0"
+            style={{ background: roleColor, boxShadow: `0 0 0 3px ${roleColorSoft}` }}
             aria-hidden="true"
           />
         </div>
-        <p className="text-[0.78rem] text-muted-foreground leading-[1.55] m-0 pl-[1.9rem]">{hint}</p>
+        <p className="text-[0.78rem] text-[var(--ed-ink-faint)] leading-[1.55] m-0 pl-[2rem]">{hint}</p>
       </div>
 
       <div className="flex flex-col gap-[0.95rem]">
         <div className="flex flex-col gap-[0.55rem]">
-          <label className="text-[0.7rem] text-muted-foreground tracking-[0.14em] uppercase font-semibold flex items-center gap-[0.4rem]" htmlFor={modelId}>
-            <span className="w-[3px] h-[3px] rounded-full bg-muted-foreground opacity-45 shrink-0" />
+          <label className={FIELD_LABEL} htmlFor={modelId}>
+            <span className="w-[3px] h-[3px] rounded-full shrink-0" style={{ background: roleColor }} />
             Claude Model
           </label>
           <select
             id={modelId}
-            className={inputClasses}
+            className={FIELD_INPUT}
             value={values.model}
             onChange={(e: React.ChangeEvent<HTMLSelectElement>) => onChange('model', e.target.value)}
-            onFocus={(e: React.FocusEvent<HTMLSelectElement>) => { e.target.style.borderColor = roleColor; e.target.style.boxShadow = `0 0 0 3px ${roleColorSoft}`; }}
-            onBlur={(e: React.FocusEvent<HTMLSelectElement>) => { e.target.style.borderColor = ''; e.target.style.boxShadow = ''; }}
+            onFocus={(e) => focusOn(e.target)}
+            onBlur={(e) => focusOff(e.target)}
           >
             {MODEL_OPTIONS.map(m => <option key={m} value={m}>{m}</option>)}
           </select>
         </div>
 
         <div className="flex flex-col gap-[0.55rem]">
-          <label className="text-[0.7rem] text-muted-foreground tracking-[0.14em] uppercase font-semibold flex items-center gap-[0.4rem]" htmlFor={tempId}>
-            <span className="w-[3px] h-[3px] rounded-full bg-muted-foreground opacity-45 shrink-0" />
+          <label className={FIELD_LABEL} htmlFor={tempId}>
+            <span className="w-[3px] h-[3px] rounded-full shrink-0" style={{ background: roleColor }} />
             Temperature
           </label>
           <input
             id={tempId}
             type="number"
-            className={inputClasses}
+            className={FIELD_INPUT}
             value={values.temperature}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange('temperature', parseFloat(e.target.value) || 0)}
             min="0" max="1" step="0.1"
             disabled={values.thinking_enabled}
-            onFocus={(e: React.FocusEvent<HTMLInputElement>) => { e.target.style.borderColor = roleColor; e.target.style.boxShadow = `0 0 0 3px ${roleColorSoft}`; }}
-            onBlur={(e: React.FocusEvent<HTMLInputElement>) => { e.target.style.borderColor = ''; e.target.style.boxShadow = ''; }}
+            onFocus={(e) => focusOn(e.target)}
+            onBlur={(e) => focusOff(e.target)}
           />
         </div>
 
         <div className="flex flex-col gap-[0.55rem]">
-          <label className="text-[0.7rem] text-muted-foreground tracking-[0.14em] uppercase font-semibold flex items-center gap-[0.4rem]" htmlFor={tokensId}>
-            <span className="w-[3px] h-[3px] rounded-full bg-muted-foreground opacity-45 shrink-0" />
+          <label className={FIELD_LABEL} htmlFor={tokensId}>
+            <span className="w-[3px] h-[3px] rounded-full shrink-0" style={{ background: roleColor }} />
             Max Tokens
           </label>
           <input
             id={tokensId}
             type="number"
-            className={inputClasses}
+            className={FIELD_INPUT}
             value={values.max_tokens}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange('max_tokens', parseInt(e.target.value) || 1024)}
             min="512" max="16384" step="512"
-            onFocus={(e: React.FocusEvent<HTMLInputElement>) => { e.target.style.borderColor = roleColor; e.target.style.boxShadow = `0 0 0 3px ${roleColorSoft}`; }}
-            onBlur={(e: React.FocusEvent<HTMLInputElement>) => { e.target.style.borderColor = ''; e.target.style.boxShadow = ''; }}
+            onFocus={(e) => focusOn(e.target)}
+            onBlur={(e) => focusOff(e.target)}
           />
         </div>
 
         <div className="flex flex-col gap-[0.55rem]">
-          <label className="text-[0.7rem] text-muted-foreground tracking-[0.14em] uppercase font-semibold flex items-center gap-[0.4rem]" htmlFor={thinkId}>
-            <span className="w-[3px] h-[3px] rounded-full bg-muted-foreground opacity-45 shrink-0" />
+          <label className={FIELD_LABEL} htmlFor={thinkId}>
+            <span className="w-[3px] h-[3px] rounded-full shrink-0" style={{ background: roleColor }} />
             Extended Thinking
           </label>
           <select
             id={thinkId}
-            className={inputClasses}
+            className={FIELD_INPUT}
             value={values.thinking_enabled ? 'on' : 'off'}
             onChange={(e: React.ChangeEvent<HTMLSelectElement>) => onChange('thinking_enabled', e.target.value === 'on')}
-            onFocus={(e: React.FocusEvent<HTMLSelectElement>) => { e.target.style.borderColor = roleColor; e.target.style.boxShadow = `0 0 0 3px ${roleColorSoft}`; }}
-            onBlur={(e: React.FocusEvent<HTMLSelectElement>) => { e.target.style.borderColor = ''; e.target.style.boxShadow = ''; }}
+            onFocus={(e) => focusOn(e.target)}
+            onBlur={(e) => focusOff(e.target)}
           >
             <option value="on">Enabled (temperature=1)</option>
             <option value="off">Disabled</option>
@@ -1277,20 +1227,20 @@ function RoleConfigPanel({ role, stage, titleHe, titleEn, hint, values, onChange
         </div>
 
         <div className="flex flex-col gap-[0.55rem]">
-          <label className="text-[0.7rem] text-muted-foreground tracking-[0.14em] uppercase font-semibold flex items-center gap-[0.4rem]" htmlFor={budgetId}>
-            <span className="w-[3px] h-[3px] rounded-full bg-muted-foreground opacity-45 shrink-0" />
+          <label className={FIELD_LABEL} htmlFor={budgetId}>
+            <span className="w-[3px] h-[3px] rounded-full shrink-0" style={{ background: roleColor }} />
             Thinking Budget · tokens
           </label>
           <input
             id={budgetId}
             type="number"
-            className={inputClasses}
+            className={FIELD_INPUT}
             value={values.thinking_budget}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange('thinking_budget', parseInt(e.target.value) || 2048)}
             min="1024" max="16000" step="512"
             disabled={!values.thinking_enabled}
-            onFocus={(e: React.FocusEvent<HTMLInputElement>) => { e.target.style.borderColor = roleColor; e.target.style.boxShadow = `0 0 0 3px ${roleColorSoft}`; }}
-            onBlur={(e: React.FocusEvent<HTMLInputElement>) => { e.target.style.borderColor = ''; e.target.style.boxShadow = ''; }}
+            onFocus={(e) => focusOn(e.target)}
+            onBlur={(e) => focusOff(e.target)}
           />
         </div>
       </div>
@@ -1303,13 +1253,10 @@ function RoleConfigPanel({ role, stage, titleHe, titleEn, hint, values, onChange
 /* ------------------------------------------------------------------ */
 function FolioRail({ activeId, dirtyMap }: { activeId: string; dirtyMap: DirtyMap }) {
   return (
-    <aside className="hidden xl:block fixed top-1/2 left-7 -translate-y-1/2 z-40 w-[108px] py-5 px-3 font-mono animate-in fade-in slide-in-from-left-2 duration-500 pointer-events-auto" aria-label="Page navigation">
+    <aside className="hidden xl:block fixed top-1/2 left-7 -translate-y-1/2 z-40 w-[108px] py-5 px-3 font-code animate-in fade-in slide-in-from-left-2 duration-500 pointer-events-auto" aria-label="Page navigation">
       {/* Vertical line */}
-      <span
-        className="absolute top-0 bottom-0 right-0 w-px"
-        style={{ background: 'linear-gradient(to bottom, transparent 0%, oklch(0.7 0 0 / 0.15) 18%, oklch(0.7 0 0 / 0.15) 82%, transparent 100%)' }}
-      />
-      <div className="font-serif text-[1.3rem] text-muted-foreground text-left mb-4 pl-1 opacity-75" aria-hidden="true">§</div>
+      <span className="absolute top-0 bottom-0 right-0 w-px bg-[var(--ed-rule)]" aria-hidden="true" />
+      <div className="ed-display text-[1.4rem] text-[var(--ed-ink-faint)] text-left mb-4 pl-1" aria-hidden="true">§</div>
       <ol className="list-none m-0 p-0 flex flex-col gap-[0.1rem]">
         {SECTIONS.map((s) => {
           const isActive = activeId === s.id;
@@ -1318,33 +1265,33 @@ function FolioRail({ activeId, dirtyMap }: { activeId: string; dirtyMap: DirtyMa
             <li key={s.id} className="m-0">
               <button
                 type="button"
-                className={`grid grid-cols-[auto_14px_1fr_auto] items-center gap-[0.55rem] w-full py-2 px-[0.35rem] bg-transparent border-none cursor-pointer font-sans text-left transition-all relative hover:translate-x-[2px] ${
-                  isActive ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'
+                className={`grid grid-cols-[auto_14px_1fr_auto] items-center gap-[0.55rem] w-full py-2 px-[0.35rem] bg-transparent border-none cursor-pointer text-left transition-all relative hover:translate-x-[2px] ${
+                  isActive ? 'text-[var(--ed-ink)]' : 'text-[var(--ed-ink-faint)] hover:text-[var(--ed-ink)]'
                 }`}
                 onClick={() => scrollToSection(s.id)}
                 aria-current={isActive ? 'true' : undefined}
                 aria-label={`${s.num} — ${s.name}${isDirty ? ' (unsaved)' : ''}`}
               >
-                <span className={`font-serif font-semibold tabular-nums leading-none min-w-[1.6ch] transition-all ${
-                  isActive ? 'text-[1.1rem] text-foreground' : 'text-[0.9rem]'
+                <span className={`ed-display font-semibold tabular-nums leading-none min-w-[1.6ch] transition-all ${
+                  isActive ? 'text-[1.15rem] text-[var(--ed-ink)]' : 'text-[0.9rem]'
                 }`} style={{ color: isActive ? undefined : 'inherit' }}>{s.num}</span>
                 <span
-                  className={`h-px transition-all ${isActive ? 'w-[14px] opacity-90 bg-foreground h-0.5' : 'w-2 opacity-35 bg-current'}`}
+                  className={`h-px transition-all ${isActive ? 'w-[14px] opacity-100 bg-[var(--ed-accent)] h-0.5' : 'w-2 opacity-40 bg-current'}`}
                   aria-hidden="true"
                 />
-                <span className={`text-[0.66rem] tracking-[0.18em] uppercase font-medium whitespace-nowrap transition-all ${
-                  isActive ? 'opacity-100 text-foreground font-semibold' : 'opacity-70'
+                <span className={`text-[0.64rem] tracking-[0.18em] uppercase font-semibold whitespace-nowrap transition-all ${
+                  isActive ? 'opacity-100 text-[var(--ed-ink)]' : 'opacity-70'
                 }`} style={{ color: isActive ? undefined : 'inherit' }}>{s.short}</span>
-                {isDirty && <span className="w-1.5 h-1.5 rounded-full bg-destructive shadow-[0_0_0_3px_oklch(0.6_0.2_25/0.15)] shrink-0 animate-pulse" aria-hidden="true" />}
+                {isDirty && <span className="w-1.5 h-1.5 rounded-full bg-[var(--ed-accent)] shrink-0 animate-pulse" aria-hidden="true" />}
               </button>
             </li>
           );
         })}
       </ol>
-      <div className="mt-4 pl-[0.35rem] flex items-baseline gap-[0.2rem] font-code text-[0.68rem] text-muted-foreground tracking-[0.1em] tabular-nums opacity-60" aria-hidden="true">
+      <div className="mt-4 pl-[0.35rem] flex items-baseline gap-[0.2rem] font-code text-[0.66rem] text-[var(--ed-ink-faint)] tracking-[0.1em] tabular-nums opacity-70" aria-hidden="true">
         <span>{SECTIONS.length.toString().padStart(2, '0')}</span>
-        <span className="text-muted-foreground opacity-60">/</span>
-        <span className="text-muted-foreground">{SECTIONS.length.toString().padStart(2, '0')}</span>
+        <span className="opacity-60">/</span>
+        <span>{SECTIONS.length.toString().padStart(2, '0')}</span>
       </div>
     </aside>
   );
@@ -1367,20 +1314,20 @@ function UnsavedDock({ dirtyList }: { dirtyList: SectionInfo[] }) {
       aria-hidden={!visible}
     >
       <div
-        className="flex items-center gap-4 py-[0.65rem] pr-3 pl-4 backdrop-blur-[20px] border border-border rounded-full flex-wrap max-[860px]:p-[0.5rem_0.65rem_0.5rem_0.85rem] max-[860px]:rounded-[18px] max-[860px]:gap-[0.7rem]"
+        className="flex items-center gap-4 py-[0.65rem] pr-3 pl-4 backdrop-blur-[20px] border border-[var(--ed-rule-strong)] flex-wrap max-[860px]:p-[0.5rem_0.65rem_0.5rem_0.85rem] max-[860px]:gap-[0.7rem]"
         style={{
-          background: 'oklch(1 0 0 / 0.88)',
+          background: 'color-mix(in oklab, var(--ed-paper) 88%, transparent)',
           WebkitBackdropFilter: 'blur(20px) saturate(1.25)',
           backdropFilter: 'blur(20px) saturate(1.25)',
-          boxShadow: '0 18px 48px rgba(0,0,0,0.06), 0 4px 14px rgba(0,0,0,0.04), inset 0 1px 0 rgba(255,255,255,0.85)',
+          boxShadow: '0 18px 48px rgba(0,0,0,0.10)',
         }}
       >
-        <div className="inline-flex items-center gap-[0.55rem] pr-[0.9rem] border-r border-border font-mono text-[0.82rem] text-foreground font-medium max-[860px]:pr-[0.7rem] max-[860px]:text-[0.76rem]">
-          <span className="w-2 h-2 rounded-full bg-amber-400 relative shrink-0">
-            <span className="absolute inset-[-4px] rounded-full bg-amber-400 opacity-30 animate-pulse" />
+        <div className="inline-flex items-center gap-[0.55rem] pr-[0.9rem] border-r border-[var(--ed-rule)] font-code text-[0.8rem] text-[var(--ed-ink)] font-medium max-[860px]:pr-[0.7rem] max-[860px]:text-[0.74rem]">
+          <span className="w-2 h-2 rounded-full bg-[var(--ed-gold)] relative shrink-0">
+            <span className="absolute inset-[-4px] rounded-full bg-[var(--ed-gold)] opacity-30 animate-pulse" />
           </span>
-          <span className="font-serif text-[1.1rem] font-bold text-foreground leading-none tabular-nums">{dirtyList.length}</span>
-          <span className="text-muted-foreground tracking-[0.01em]">
+          <span className="ed-display text-[1.1rem] font-bold text-[var(--ed-ink)] leading-none tabular-nums">{dirtyList.length}</span>
+          <span className="text-[var(--ed-ink-faint)] tracking-[0.01em] uppercase text-[0.66rem] font-semibold">
             {dirtyList.length === 1 ? 'unsaved change' : 'unsaved changes'}
           </span>
         </div>
@@ -1389,12 +1336,12 @@ function UnsavedDock({ dirtyList }: { dirtyList: SectionInfo[] }) {
             <button
               key={s.id}
               type="button"
-              className="inline-flex items-center gap-[0.4rem] py-[0.32rem] pr-[0.85rem] pl-[0.55rem] border border-border rounded-full bg-white text-foreground font-mono text-[0.76rem] font-medium cursor-pointer transition-all hover:border-foreground/30 hover:-translate-y-px hover:shadow-md max-[860px]:py-[0.28rem] max-[860px]:pr-[0.7rem] max-[860px]:pl-[0.45rem] max-[860px]:text-[0.72rem]"
+              className="inline-flex items-center gap-[0.4rem] py-[0.34rem] pr-[0.85rem] pl-[0.5rem] border border-[var(--ed-rule)] bg-transparent text-[var(--ed-ink-soft)] font-code text-[0.72rem] font-semibold uppercase tracking-[0.06em] cursor-pointer transition-colors hover:border-[var(--ed-ink)] hover:text-[var(--ed-ink)] max-[860px]:pr-[0.7rem] max-[860px]:pl-[0.4rem]"
               onClick={() => scrollToSection(s.id)}
               title={`Jump to ${s.name}`}
             >
-              <span className="font-serif font-bold text-foreground tabular-nums py-[0.08rem] px-[0.45rem] bg-muted rounded-full text-[0.72rem] leading-[1.4]">{s.num}</span>
-              <span className="tracking-[0.01em] max-[860px]:hidden">{s.name}</span>
+              <span className="ed-display font-bold text-[var(--ed-ink)] tabular-nums py-[0.05rem] px-[0.4rem] bg-[var(--ed-panel)] border border-[var(--ed-rule)] text-[0.7rem] leading-[1.3]">{s.num}</span>
+              <span className="max-[860px]:hidden normal-case tracking-[0.02em]">{s.name}</span>
             </button>
           ))}
         </div>
@@ -1408,39 +1355,37 @@ function UnsavedDock({ dirtyList }: { dirtyList: SectionInfo[] }) {
 /* ------------------------------------------------------------------ */
 function SettingsLoadingSkeleton() {
   return (
-    <div className="relative max-w-[960px] mx-auto px-7 pt-16 pb-32 animate-in fade-in slide-in-from-bottom-1 duration-500 isolate" role="status" aria-live="polite" aria-label="Loading settings">
-      <header className="mb-12 pb-6 relative" aria-hidden="true">
-        <span className="inline-block font-mono text-[0.72rem] tracking-[0.22em] uppercase text-muted-foreground mb-[0.65rem] opacity-85">Configuration · 2026</span>
-        <h1 className="font-serif text-[clamp(2.2rem,4.5vw,3rem)] font-bold text-foreground leading-[1.05] m-0 mb-4 tracking-[-0.015em] animate-in fade-in duration-300">
+    <div className="editorial editorial-grain min-h-screen">
+    <div className="relative z-[1] max-w-[960px] mx-auto px-8 pt-14 pb-32 animate-in fade-in slide-in-from-bottom-1 duration-500 max-sm:px-5" role="status" aria-live="polite" aria-label="Loading settings">
+      <header className="mb-12 relative" aria-hidden="true">
+        <div className="pb-[10px] border-b border-[var(--ed-rule)] text-[0.62rem] font-semibold uppercase tracking-[0.22em] text-[var(--ed-ink-faint)]">Vol. III · The Standards Desk</div>
+        <h1 className="ed-display text-[clamp(2.6rem,6.5vw,4.4rem)] font-black text-[var(--ed-ink)] leading-[0.9] pt-4 mb-4 tracking-[-0.022em] animate-in fade-in duration-300">
           Settings
         </h1>
         <Skeleton className="w-[62%] h-[14px] rounded-[4px] mt-2" />
-        <div
-          className="mt-[1.4rem] h-px"
-          style={{ background: 'linear-gradient(to left, transparent, oklch(0.7 0 0 / 0.2) 50%, transparent)' }}
-        />
+        <div className="mt-[1.4rem] border-t-[3px] border-double border-[var(--ed-rule-strong)]" />
       </header>
 
       {/* Section ghost - profile editor */}
       <section
-        className="mb-10 pb-8 border-b border-border animate-in fade-in slide-in-from-bottom-2 duration-300"
+        className="mb-10 pb-8 border-b border-[var(--ed-rule)] animate-in fade-in slide-in-from-bottom-2 duration-300"
         style={{ animationDelay: '280ms' }}
         aria-hidden="true"
       >
         <div className="flex items-baseline gap-[0.85rem] mb-4">
-          <span className="font-serif text-[2.2rem] font-bold text-muted-foreground tracking-[0.02em] leading-none tabular-nums relative">
+          <span className="ed-display text-[2.4rem] font-black text-[var(--ed-ink-faint)] tracking-[-0.03em] leading-none tabular-nums relative">
             01
-            <span className="absolute bottom-[-0.35rem] left-0 w-[1.8rem] h-px bg-muted-foreground opacity-40" />
+            <span className="absolute bottom-[-0.35rem] left-0 w-[2rem] h-[2px] bg-[var(--ed-accent)]" />
           </span>
-          <Skeleton className="w-[140px] h-4 rounded-[4px]" />
-          <Skeleton className="w-[92px] h-[18px] rounded-full ml-auto max-[720px]:hidden" />
+          <Skeleton className="w-[160px] h-5 rounded-[4px]" />
+          <Skeleton className="w-[92px] h-[18px] rounded-[4px] ml-auto max-[720px]:hidden" />
         </div>
         <Skeleton className="w-[68%] h-3 rounded-[4px]" />
         {/* Editor preview */}
-        <div className="relative bg-card/60 border border-border rounded-lg p-[1.2rem_1.25rem_1.35rem] pl-12 mt-4 overflow-hidden">
-          <div className="absolute inset-0 right-auto w-9 bg-muted/30 border-r border-border flex flex-col justify-around py-[0.9rem]">
+        <div className="relative bg-[var(--ed-panel)]/40 border border-[var(--ed-rule)] p-[1.2rem_1.25rem_1.35rem] pl-12 mt-4 overflow-hidden">
+          <div className="absolute inset-0 right-auto w-9 bg-[var(--ed-panel)]/60 border-r border-[var(--ed-rule)] flex flex-col justify-around py-[0.9rem]">
             {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => (
-              <span key={i} className="block w-[0.45rem] h-px bg-muted-foreground/30 ml-auto mr-[0.45rem]" />
+              <span key={i} className="block w-[0.45rem] h-px bg-[var(--ed-ink-faint)]/40 ml-auto mr-[0.45rem]" />
             ))}
           </div>
           <div className="flex flex-col gap-[0.85rem] leading-[1.75]">
@@ -1460,44 +1405,38 @@ function SettingsLoadingSkeleton() {
         aria-hidden="true"
       >
         <div className="flex items-baseline gap-[0.85rem] mb-4">
-          <span className="font-serif text-[2.2rem] font-bold text-muted-foreground tracking-[0.02em] leading-none tabular-nums relative">
+          <span className="ed-display text-[2.4rem] font-black text-[var(--ed-ink-faint)] tracking-[-0.03em] leading-none tabular-nums relative">
             04
-            <span className="absolute bottom-[-0.35rem] left-0 w-[1.8rem] h-px bg-muted-foreground opacity-40" />
+            <span className="absolute bottom-[-0.35rem] left-0 w-[2rem] h-[2px] bg-[var(--ed-accent)]" />
           </span>
-          <Skeleton className="w-[140px] h-4 rounded-[4px]" />
+          <Skeleton className="w-[160px] h-5 rounded-[4px]" />
         </div>
-        <div className="grid grid-cols-2 gap-px bg-border border border-border rounded-lg overflow-hidden mt-4 max-[720px]:grid-cols-1">
+        <div className="grid grid-cols-2 gap-[1.35rem] mt-4 max-[720px]:grid-cols-1">
           {/* Analyst panel */}
-          <div className="bg-card p-[1.4rem_1.35rem_1.2rem] flex flex-col gap-[0.85rem] relative">
-            <span className="absolute top-0 left-0 w-[42px] h-0.5 opacity-50" style={{ background: 'linear-gradient(90deg, rgba(168,130,86,0.9), transparent)' }} />
-            <div className="flex items-center gap-[0.65rem] pb-[0.65rem] border-b border-border">
-              <span
-                className="w-2 h-2 rounded-full shrink-0 animate-pulse"
-                style={{ background: '#a88256' }}
-              />
+          <div className="bg-[var(--ed-panel)]/40 border border-[var(--ed-rule)] p-[1.4rem_1.35rem_1.2rem] flex flex-col gap-[0.85rem] relative overflow-hidden">
+            <span className="absolute top-0 left-0 right-0 h-[3px]" style={{ background: `linear-gradient(90deg, ${DIM_INK.technical}, transparent)` }} />
+            <div className="flex items-center gap-[0.65rem] pb-[0.65rem] border-b border-dashed border-[var(--ed-rule)]">
+              <span className="w-2 h-2 rounded-full shrink-0 animate-pulse" style={{ background: DIM_INK.technical }} />
               <Skeleton className="flex-1 max-w-[140px] h-[14px] rounded-[4px]" />
             </div>
             {[0, 1, 2, 3].map((i) => (
               <div key={i} className="flex flex-col gap-[0.4rem]">
                 <Skeleton className="w-[48%] h-[10px] rounded-[3px]" />
-                <Skeleton className="w-full h-[34px] rounded-lg" />
+                <Skeleton className="w-full h-[34px] rounded-[4px]" />
               </div>
             ))}
           </div>
           {/* Evaluator panel */}
-          <div className="bg-card p-[1.4rem_1.35rem_1.2rem] flex flex-col gap-[0.85rem] relative">
-            <span className="absolute top-0 left-0 w-[42px] h-0.5 opacity-50" style={{ background: 'linear-gradient(90deg, rgba(61,155,133,0.9), transparent)' }} />
-            <div className="flex items-center gap-[0.65rem] pb-[0.65rem] border-b border-border">
-              <span
-                className="w-2 h-2 rounded-full shrink-0 animate-pulse"
-                style={{ background: '#0d9488' }}
-              />
+          <div className="bg-[var(--ed-panel)]/40 border border-[var(--ed-rule)] p-[1.4rem_1.35rem_1.2rem] flex flex-col gap-[0.85rem] relative overflow-hidden">
+            <span className="absolute top-0 left-0 right-0 h-[3px]" style={{ background: `linear-gradient(90deg, ${DIM_INK.execution}, transparent)` }} />
+            <div className="flex items-center gap-[0.65rem] pb-[0.65rem] border-b border-dashed border-[var(--ed-rule)]">
+              <span className="w-2 h-2 rounded-full shrink-0 animate-pulse" style={{ background: DIM_INK.execution }} />
               <Skeleton className="flex-1 max-w-[140px] h-[14px] rounded-[4px]" />
             </div>
             {[0, 1, 2, 3].map((i) => (
               <div key={i} className="flex flex-col gap-[0.4rem]">
                 <Skeleton className="w-[48%] h-[10px] rounded-[3px]" />
-                <Skeleton className="w-full h-[34px] rounded-lg" />
+                <Skeleton className="w-full h-[34px] rounded-[4px]" />
               </div>
             ))}
           </div>
@@ -1505,12 +1444,12 @@ function SettingsLoadingSkeleton() {
       </section>
 
       {/* Cycling subtitle */}
-      <div className="mt-11 pt-[1.4rem] border-t border-dashed border-border flex items-center gap-[0.7rem] font-serif text-[0.95rem] text-muted-foreground italic tracking-[-0.005em] relative">
-        <span className="absolute top-[-1px] left-0 w-9 h-px bg-muted-foreground opacity-50" />
-        <span className="font-serif text-[1.2rem] text-muted-foreground opacity-75 not-italic" aria-hidden="true">§</span>
+      <div className="mt-11 pt-[1.4rem] border-t border-dashed border-[var(--ed-rule)] flex items-center gap-[0.7rem] ed-display text-[1rem] text-[var(--ed-ink-faint)] italic tracking-[-0.005em] relative">
+        <span className="ed-display text-[1.2rem] text-[var(--ed-accent)] opacity-80 not-italic" aria-hidden="true">§</span>
         <span aria-hidden="true">Loading...</span>
         <span className="sr-only">Loading settings</span>
       </div>
+    </div>
     </div>
   );
 }

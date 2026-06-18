@@ -1,7 +1,6 @@
 import { useStats } from '../lib/queries';
 import { STATUS_LABELS } from '../lib/tracker';
 import { StatCard } from './Stats';
-import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 
 const BAR_COLORS: Record<string, string> = {
@@ -23,10 +22,10 @@ export default function Statistics() {
   if (isLoading || !stats) return (
     <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] max-md:grid-cols-2 gap-3 mb-6">
       {[0, 1, 2, 3].map((i) => (
-        <Card key={i} className="py-6 px-5 text-center">
-          <Skeleton className="w-12 h-8 rounded mx-auto mb-2" />
-          <Skeleton className="w-20 h-3 rounded mx-auto" />
-        </Card>
+        <div key={i} className="border border-[var(--ed-rule)] py-6 px-5">
+          <Skeleton className="w-12 h-8 rounded mb-2" />
+          <Skeleton className="w-20 h-3 rounded" />
+        </div>
       ))}
     </div>
   );
@@ -36,34 +35,38 @@ export default function Statistics() {
 
   return (
     <>
-      <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] max-md:grid-cols-2 gap-3 mb-6">
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] max-md:grid-cols-2 gap-3 mb-9">
         <StatCard value={stats.total} label="Total Applications" />
         <StatCard value={stats.applied} label="Applied" />
         <StatCard value={stats.avgScore || '-'} label="Average Score" />
         <StatCard value={`${stats.responseRate}%`} label="Response Rate" />
       </div>
 
-      <Card className="p-6 mb-4 transition-all hover:border-border hover:shadow-md mt-4">
-        <h3 className="text-[0.95rem] font-semibold text-foreground mb-3 pb-[0.6rem] border-b border-border">Status Breakdown</h3>
-        <div className="mt-4">
+      <section className="mb-4">
+        <div className="flex items-baseline justify-between gap-3 mb-1">
+          <span className="ed-display italic font-semibold text-[1.4rem] tracking-[-0.01em] text-[var(--ed-ink)]">Status Breakdown</span>
+          <span className="text-[0.6rem] font-semibold uppercase tracking-[0.2em] text-[var(--ed-ink-faint)]">By stage</span>
+        </div>
+        <div className="border-t border-[var(--ed-rule-strong)] mb-4" />
+        <div>
           {Object.entries(STATUS_LABELS).map(([key, label]) => {
             const count = breakdown[key] || 0;
             const pct = (count / max * 100).toFixed(0);
-            const color = BAR_COLORS[key] || 'var(--muted-foreground)';
+            const color = BAR_COLORS[key] || 'var(--ed-ink-faint)';
             return (
-              <div key={key} className="flex items-center gap-3 mb-[0.65rem]">
-                <span className="min-w-[130px] text-[0.82rem] text-muted-foreground">{label}</span>
-                <div className="flex-1 h-[22px] bg-muted rounded-sm overflow-hidden border border-border">
-                  <div className="h-full rounded-[5px] transition-all duration-[800ms] flex items-center justify-center text-[0.72rem] font-semibold" style={{ width: `${pct}%`, background: color }}>
+              <div key={key} className="flex items-center gap-3 py-[0.45rem] border-b border-[var(--ed-rule)] last:border-b-0">
+                <span className="min-w-[130px] text-[0.78rem] text-[var(--ed-ink-soft)] uppercase tracking-[0.06em] font-medium">{label}</span>
+                <div className="flex-1 h-[18px] bg-[var(--ed-rule)]/40 overflow-hidden">
+                  <div className="h-full transition-all duration-[800ms] flex items-center justify-end pr-2 text-[0.68rem] font-semibold text-[var(--ed-paper)]" style={{ width: `${pct}%`, background: color }}>
                     {count > 0 ? count : ''}
                   </div>
                 </div>
-                <span className="min-w-[30px] text-left text-[0.82rem] text-muted-foreground">{count}</span>
+                <span className="min-w-[26px] text-left ed-display text-[0.85rem] text-[var(--ed-ink)] tabular-nums">{count}</span>
               </div>
             );
           })}
         </div>
-      </Card>
+      </section>
     </>
   );
 }

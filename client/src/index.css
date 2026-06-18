@@ -127,3 +127,77 @@
   }
   a { text-decoration: none; color: inherit; }
 }
+
+/* ============================================================
+   Editorial Broadsheet — a scoped sub-theme for the discovery
+   flow (DiscoveryPage + RunDetailPage). All colors live as
+   --ed-* design tokens so the look adapts to light/dark and
+   never leaks hardcoded hex into the JSX.
+   ============================================================ */
+.editorial {
+  --ed-paper:        #f5f1e8;   /* warm ivory canvas        */
+  --ed-panel:        #efe9dc;   /* slightly deeper panel    */
+  --ed-ink:          #1c1a17;   /* near-black ink           */
+  --ed-ink-soft:     #4a463e;   /* muted body ink           */
+  --ed-ink-faint:    #8c857a;   /* captions, metadata       */
+  --ed-rule:         #cdc6b6;   /* hairline rule            */
+  --ed-rule-strong:  #1c1a17;   /* heavy masthead rule      */
+  --ed-accent:       #b23a25;   /* vermillion accent        */
+  --ed-accent-deep:  #8c2c1b;
+  --ed-yes:          #3f6f4a;   /* muted editorial green    */
+  --ed-no:           #9a3324;   /* oxblood                  */
+  --ed-gold:         #7a6a3f;
+
+  background-color: var(--ed-paper);
+  color: var(--ed-ink);
+}
+.dark .editorial {
+  --ed-paper:        #15130e;   /* warm near-black          */
+  --ed-panel:        #1d1a13;
+  --ed-ink:          #f1ece0;
+  --ed-ink-soft:     #cabfa9;
+  --ed-ink-faint:    #8c8472;
+  --ed-rule:         #3a352a;
+  --ed-rule-strong:  #6f6855;
+  --ed-accent:       #d9694e;
+  --ed-accent-deep:  #e58b73;
+  --ed-yes:          #84b389;
+  --ed-no:           #d98873;
+  --ed-gold:         #bda878;
+}
+
+/* paper grain + faint top vignette (decorative, full-bleed) */
+.editorial-grain::before {
+  content: "";
+  position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.4'/%3E%3C/svg%3E");
+  opacity: .05; mix-blend-mode: multiply;
+}
+.dark .editorial-grain::before { mix-blend-mode: screen; opacity: .04; }
+
+/* display face */
+.ed-display {
+  font-family: "Fraunces", "Noto Serif Hebrew", Georgia, serif;
+  font-optical-sizing: auto;
+}
+
+/* staggered entry reveal */
+@keyframes ed-rise { to { opacity: 1; transform: none; } }
+.ed-rise {
+  opacity: 0; transform: translateY(14px);
+  animation: ed-rise .7s cubic-bezier(.2,.7,.2,1) forwards;
+}
+
+/* ruled meter fill — width driven by inline --p (0..1) */
+@keyframes ed-grow { to { transform: scaleX(var(--p, 0)); } }
+.ed-fill {
+  position: absolute; inset: 0 auto 0 0; transform-origin: left;
+  transform: scaleX(0);
+  animation: ed-grow 1.1s cubic-bezier(.2,.7,.2,1) forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ed-rise, .ed-fill { animation: none; }
+  .ed-rise { opacity: 1; transform: none; }
+  .ed-fill { transform: scaleX(var(--p, 0)); }
+}

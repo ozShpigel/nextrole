@@ -4,10 +4,7 @@ import { useRunDetail, useRunJobs, useProfile } from '../lib/queries';
 import { useSaveJob, useDismissJob, useRescoreJob, useSaveProfile } from '../lib/mutations';
 import type { ProfileResponse } from '../lib/types';
 import { VERDICT_LABELS, EVALUATOR_PLACEHOLDERS } from '../lib/scoring';
-import { scoreColor } from '../lib/format';
 import { SnapshotsModal } from '../components/Snapshots';
-import { Card } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -96,12 +93,28 @@ interface PromptResult {
 }
 
 function verdictColor(verdict: string | null): string {
-  if (verdict === 'STRONG_YES' || verdict === 'YES') return '#059669';
-  if (verdict === 'MAYBE') return '#d97706';
-  if (verdict === 'NO' || verdict === 'STRONG_NO') return '#ef4444';
-  if (verdict === 'MATCH_FAILED') return '#ef4444';
-  return 'var(--muted-foreground)';
+  if (verdict === 'STRONG_YES' || verdict === 'YES') return 'var(--ed-yes)';
+  if (verdict === 'MAYBE') return 'var(--ed-gold)';
+  if (verdict === 'NO' || verdict === 'STRONG_NO') return 'var(--ed-no)';
+  if (verdict === 'MATCH_FAILED') return 'var(--ed-no)';
+  return 'var(--ed-ink-faint)';
 }
+
+// Editorial score tint (replaces the emerald/amber/red of lib/format.scoreColor)
+function edScoreColor(score: number | null | undefined, max?: number | null): string {
+  if (score == null) return 'var(--ed-ink-faint)';
+  const pct = max != null && max > 0 ? score / max : score / 100;
+  if (pct >= 0.6) return 'var(--ed-yes)';
+  if (pct >= 0.4) return 'var(--ed-gold)';
+  return 'var(--ed-no)';
+}
+
+// The three scoring dimensions, in display order, for the at-a-glance meters.
+const DIMENSION_METERS: { key: string; label: string }[] = [
+  { key: 'technicalFit', label: 'Technical' },
+  { key: 'engineeringExecutionFit', label: 'Execution' },
+  { key: 'sustainabilityPaceFit', label: 'Sustainability' },
+];
 
 export default function RunDetail() {
   const { runId } = useParams<{ runId: string }>();
@@ -257,18 +270,17 @@ export default function RunDetail() {
   }
 
   if (loading) return (
-    <div className="relative max-w-[960px] mx-auto px-7 pt-14 pb-20 animate-in fade-in slide-in-from-bottom-1 duration-500 isolate max-[640px]:px-4 max-[640px]:pt-10 max-[640px]:pb-14">
-      {/* Atmospheric glows */}
-      <div className="absolute -top-[140px] -right-[220px] w-[540px] h-[540px] blur-[60px] pointer-events-none -z-1" style={{ background: 'radial-gradient(circle, rgba(0,0,0,0.03) 0%, transparent 65%)' }} />
-      <div className="absolute top-[40%] -left-[200px] w-[420px] h-[420px] blur-[60px] pointer-events-none -z-1" style={{ background: 'radial-gradient(circle, rgba(0,0,0,0.02) 0%, transparent 65%)' }} />
-      <RunDetailLoadingSkeleton />
+    <div className="editorial editorial-grain min-h-screen">
+      <div className="relative z-[1] max-w-[1040px] mx-auto px-8 pt-12 pb-20 animate-in fade-in slide-in-from-bottom-1 duration-500 max-[640px]:px-5 max-[640px]:pt-8 max-[640px]:pb-14">
+        <RunDetailLoadingSkeleton />
+      </div>
     </div>
   );
   if (error) return (
-    <div className="relative max-w-[960px] mx-auto px-7 pt-14 pb-20 animate-in fade-in slide-in-from-bottom-1 duration-500 isolate max-[640px]:px-4 max-[640px]:pt-10 max-[640px]:pb-14">
-      <div className="absolute -top-[140px] -right-[220px] w-[540px] h-[540px] blur-[60px] pointer-events-none -z-1" style={{ background: 'radial-gradient(circle, rgba(0,0,0,0.03) 0%, transparent 65%)' }} />
-      <div className="absolute top-[40%] -left-[200px] w-[420px] h-[420px] blur-[60px] pointer-events-none -z-1" style={{ background: 'radial-gradient(circle, rgba(0,0,0,0.02) 0%, transparent 65%)' }} />
-      <div className="mt-4 p-3 bg-destructive/10 text-destructive text-[0.88rem] rounded border border-destructive/20">{error}</div>
+    <div className="editorial editorial-grain min-h-screen">
+      <div className="relative z-[1] max-w-[1040px] mx-auto px-8 pt-12 pb-20 animate-in fade-in slide-in-from-bottom-1 duration-500 max-[640px]:px-5 max-[640px]:pt-8 max-[640px]:pb-14">
+        <div className="mt-4 p-3 bg-[var(--ed-no)]/10 text-[var(--ed-no)] text-[0.88rem] border border-[var(--ed-no)]/30">{error}</div>
+      </div>
     </div>
   );
   if (!run) return null;
@@ -283,65 +295,66 @@ export default function RunDetail() {
     );
   const failedCount = visibleJobs.filter(isFailed).length;
 
-  const runStatusBadge = run.status === 'completed'
-    ? 'bg-emerald-50 text-emerald-600 border-emerald-600/18'
-    : run.status === 'failed'
-      ? 'bg-red-50 text-red-500 border-red-500/18'
-      : 'bg-amber-50 text-amber-600 border-amber-600/18';
+  const statusTint = run.status === 'completed' ? 'var(--ed-yes)'
+    : run.status === 'failed' ? 'var(--ed-no)'
+    : 'var(--ed-gold)';
+
+  const actionBtn = 'rounded-none border px-3 py-[0.4rem] text-[0.68rem] font-semibold uppercase tracking-[0.08em] transition-all disabled:opacity-50 disabled:pointer-events-none';
+  const ghostBtn = `${actionBtn} border-[var(--ed-rule)] text-[var(--ed-ink-soft)] hover:border-[var(--ed-ink)] hover:text-[var(--ed-ink)]`;
 
   return (
-    <div className="relative max-w-[960px] mx-auto px-7 pt-14 pb-20 animate-in fade-in slide-in-from-bottom-1 duration-500 isolate max-[640px]:px-4 max-[640px]:pt-10 max-[640px]:pb-14">
-      {/* Atmospheric glows */}
-      <div className="absolute -top-[140px] -right-[220px] w-[540px] h-[540px] blur-[60px] pointer-events-none -z-1" style={{ background: 'radial-gradient(circle, rgba(0,0,0,0.03) 0%, transparent 65%)' }} />
-      <div className="absolute top-[40%] -left-[200px] w-[420px] h-[420px] blur-[60px] pointer-events-none -z-1" style={{ background: 'radial-gradient(circle, rgba(0,0,0,0.02) 0%, transparent 65%)' }} />
+    <div className="editorial editorial-grain min-h-screen">
+      <div className="relative z-[1] max-w-[1040px] mx-auto px-8 pt-12 pb-20 animate-in fade-in slide-in-from-bottom-1 duration-500 max-[640px]:px-5 max-[640px]:pt-8 max-[640px]:pb-14">
 
-      <Link to="/discovery" className="inline-flex items-center gap-[0.3rem] text-[0.82rem] text-primary mb-5 transition-all tracking-[0.02em] hover:opacity-75 hover:-translate-x-[3px]">&larr; Back to Job Discovery</Link>
+      <Link to="/discovery" className="inline-flex items-center gap-[0.3rem] text-[0.72rem] font-semibold uppercase tracking-[0.12em] text-[var(--ed-accent)] mb-7 transition-all hover:-translate-x-[3px]">&larr; Back to Job Discovery</Link>
 
-      <Card className="p-6 mb-6">
-        <h2 className="font-serif text-[1.6rem] font-bold text-foreground mb-3 tracking-[-0.01em]">{run.criteria_name}</h2>
-        <div className="flex gap-4 flex-wrap items-center text-[0.85rem] text-muted-foreground">
-          <Badge variant="outline" className={`text-[0.7rem] font-medium py-[0.22rem] px-[0.65rem] rounded-full tracking-[0.06em] font-mono shrink-0 ${runStatusBadge}`}>
-            {statusMap[run.status] || run.status}
-          </Badge>
+      {/* Run dossier masthead */}
+      <header className="mb-9">
+        <div className="flex items-baseline justify-between gap-4 pb-[10px] border-b border-[var(--ed-rule)] text-[0.62rem] font-semibold uppercase tracking-[0.22em] text-[var(--ed-ink-faint)]">
+          <span style={{ color: statusTint }}>{statusMap[run.status] || run.status}</span>
+          <span className="hidden sm:block">Run Dossier</span>
+        </div>
+        <h2 className="ed-display font-black text-[clamp(2rem,5vw,3.4rem)] leading-[0.95] tracking-[-0.02em] text-[var(--ed-ink)] pt-4 mb-4">{run.criteria_name}</h2>
+        <div className="flex gap-7 flex-wrap items-baseline text-[0.8rem] font-medium text-[var(--ed-ink-soft)] tabular-nums border-t border-[var(--ed-rule-strong)] pt-3">
           <span>Scraped: {run.jobs_scraped}</span>
           <span>Scored: {run.jobs_scored}</span>
           <span>Saved: {run.jobs_saved}</span>
           <span>Duplicates: {run.jobs_skipped_duplicate}</span>
         </div>
-        {isActive && <div className="mt-4 p-3 bg-muted text-muted-foreground text-[0.88rem] rounded border border-border">Processing... the page will update automatically</div>}
-        {run.error && <div className="mt-4 p-3 bg-destructive/10 text-destructive text-[0.88rem] rounded border border-destructive/20">{run.error}</div>}
+        {isActive && <div className="mt-4 p-3 bg-[var(--ed-panel)] text-[var(--ed-ink-soft)] text-[0.88rem] border border-[var(--ed-rule)]">Processing... the page will update automatically</div>}
+        {run.error && <div className="mt-4 p-3 bg-[var(--ed-no)]/10 text-[var(--ed-no)] text-[0.88rem] border border-[var(--ed-no)]/30">{run.error}</div>}
         {!isActive && failedCount > 0 && (
-          <div className="mt-4 p-[0.85rem_1rem] bg-red-500/[0.04] border border-red-500/[0.22] rounded flex items-center justify-between gap-4 text-red-500 text-[0.88rem]">
+          <div className="mt-4 p-[0.85rem_1rem] bg-[var(--ed-no)]/[0.06] border border-[var(--ed-no)]/30 flex items-center justify-between gap-4 text-[var(--ed-no)] text-[0.88rem]">
             <span>{failedCount} jobs failed scoring — you can retry</span>
-            <Button
-              size="sm"
+            <button
+              type="button"
               onClick={rescoreAllFailed}
               disabled={bulkRescoring}
-              className="shrink-0"
+              className="shrink-0 rounded-none border border-[var(--ed-no)] px-3 py-[0.4rem] text-[0.68rem] font-semibold uppercase tracking-[0.08em] text-[var(--ed-no)] transition-all hover:bg-[var(--ed-no)] hover:text-[var(--ed-paper)] disabled:opacity-50"
             >
               {bulkRescoring ? 'Rescoring...' : 'Rescore All Failed'}
-            </Button>
+            </button>
           </div>
         )}
-      </Card>
+      </header>
 
       {/* Eval prompt panel */}
-      <Card className="mb-6 p-0 overflow-hidden">
+      <div className="mb-9 border border-[var(--ed-rule)]">
         <div className="flex items-center justify-between gap-4 p-[0.9rem_1.25rem]">
           <button
             type="button"
-            className="group inline-flex items-center gap-[0.6rem] bg-transparent border-none p-[0.2rem_0] cursor-pointer font-sans text-[0.9rem] font-semibold text-foreground"
+            className="group inline-flex items-center gap-[0.6rem] bg-transparent border-none p-[0.2rem_0] cursor-pointer text-[0.9rem] font-semibold text-[var(--ed-ink)]"
             onClick={togglePromptPanel}
             aria-expanded={promptOpen}
           >
-            <span className="text-[0.9rem] text-primary w-[0.9rem] inline-block text-center" aria-hidden="true">{promptOpen ? '▾' : '▸'}</span>
-            <span className="font-serif text-[1rem] tracking-[0.01em] transition-colors group-hover:text-primary">Evaluator Prompt</span>
-            <span className={`text-[0.66rem] tracking-[0.14em] uppercase font-medium py-[0.2rem] px-[0.55rem] rounded-full border ${promptIsOverride ? 'bg-primary/10 text-primary border-primary/20' : 'bg-muted text-muted-foreground border-border'}`}>
+            <span className="text-[0.9rem] text-[var(--ed-accent)] w-[0.9rem] inline-block text-center" aria-hidden="true">{promptOpen ? '▾' : '▸'}</span>
+            <span className="ed-display text-[1.05rem] tracking-[0.01em] transition-colors group-hover:text-[var(--ed-accent)]">Evaluator Prompt</span>
+            <span className={`text-[0.62rem] tracking-[0.14em] uppercase font-semibold py-[0.2rem] px-[0.55rem] border ${promptIsOverride ? 'bg-[var(--ed-accent)]/10 text-[var(--ed-accent)] border-[var(--ed-accent)]/30' : 'bg-[var(--ed-panel)] text-[var(--ed-ink-faint)] border-[var(--ed-rule)]'}`}>
               {promptIsOverride ? 'Custom' : 'Default'}
             </span>
           </button>
           {promptLastSaved && (
-            <span className="text-[0.72rem] text-muted-foreground tracking-[0.04em]">
+            <span className="text-[0.72rem] text-[var(--ed-ink-faint)] tracking-[0.04em]">
               Updated {new Date(promptLastSaved).toLocaleString('en-US')}
             </span>
           )}
@@ -349,174 +362,201 @@ export default function RunDetail() {
 
         {promptOpen && (
           promptLoading ? (
-            <div className="p-[1.25rem_1.5rem] text-muted-foreground text-[0.88rem] border-t border-dashed border-border">Loading prompt...</div>
+            <div className="p-[1.25rem_1.5rem] text-[var(--ed-ink-faint)] text-[0.88rem] border-t border-dashed border-[var(--ed-rule)]">Loading prompt...</div>
           ) : (
-            <div className="p-[1rem_1.5rem_1.25rem] border-t border-dashed border-border flex flex-col gap-3">
-              <p className="text-[0.82rem] text-muted-foreground leading-[1.55]">
+            <div className="p-[1rem_1.5rem_1.25rem] border-t border-dashed border-[var(--ed-rule)] flex flex-col gap-3">
+              <p className="text-[0.82rem] text-[var(--ed-ink-soft)] leading-[1.55]">
                 Edit the evaluator prompt. Changes affect the next rescore — no need to navigate to settings.
               </p>
               {missingPlaceholders.length > 0 && (
-                <div className="text-[0.8rem] p-[0.55rem_0.8rem] bg-red-500/[0.06] border border-red-500/[0.22] rounded text-red-500 flex flex-wrap gap-[0.3rem] items-center">
-                  Missing placeholders: {missingPlaceholders.map((p: string) => <code key={p} className="font-code text-[0.78rem] bg-red-500/[0.08] py-[0.08rem] px-[0.4rem] rounded-[4px]">{p}</code>).reduce<React.ReactNode[]>((acc, cur, i) => i === 0 ? [cur] : [...acc, ' · ', cur], [])}
+                <div className="text-[0.8rem] p-[0.55rem_0.8rem] bg-[var(--ed-no)]/[0.08] border border-[var(--ed-no)]/30 text-[var(--ed-no)] flex flex-wrap gap-[0.3rem] items-center">
+                  Missing placeholders: {missingPlaceholders.map((p: string) => <code key={p} className="font-code text-[0.78rem] bg-[var(--ed-no)]/[0.1] py-[0.08rem] px-[0.4rem]">{p}</code>).reduce<React.ReactNode[]>((acc, cur, i) => i === 0 ? [cur] : [...acc, ' · ', cur], [])}
                 </div>
               )}
               <textarea
-                className="min-h-[360px] resize-y p-[0.9rem_1rem] font-code text-[0.82rem] leading-[1.6] text-foreground bg-muted border border-border rounded text-left whitespace-pre-wrap transition-all focus:outline-none focus:border-ring focus:ring-[3px] focus:ring-ring/20"
+                className="min-h-[360px] resize-y p-[0.9rem_1rem] font-code text-[0.82rem] leading-[1.6] text-[var(--ed-ink)] bg-[var(--ed-panel)] border border-[var(--ed-rule)] text-left whitespace-pre-wrap transition-all focus:outline-none focus:border-[var(--ed-ink)]"
                 value={evaluatorPrompt}
                 onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => { setEvaluatorPrompt(e.target.value); setPromptResult(null); }}
                 dir="auto"
                 spellCheck={false}
               />
               <div className="flex items-center justify-end flex-wrap gap-2 pt-1">
-                <span className="mr-auto text-[0.72rem] text-muted-foreground tracking-[0.04em]">
+                <span className="mr-auto text-[0.72rem] text-[var(--ed-ink-faint)] tracking-[0.04em]">
                   {evaluatorPrompt.length.toLocaleString()} chars · ~{Math.ceil(evaluatorPrompt.length / 4).toLocaleString()} tokens
                 </span>
-                <Button
-                  variant="outline"
-                  size="sm"
+                <button
+                  type="button"
                   onClick={resetPrompt}
                   disabled={savingPrompt}
                   title="Reset the evaluator prompt to the built-in default"
+                  className={ghostBtn}
                 >
                   Reset to Default
-                </Button>
+                </button>
                 {isPromptDirty && (
-                  <Button
-                    variant="outline"
-                    size="sm"
+                  <button
+                    type="button"
                     onClick={() => { setEvaluatorPrompt(originalPrompt); setPromptResult(null); }}
                     disabled={savingPrompt}
+                    className={ghostBtn}
                   >
                     Discard Changes
-                  </Button>
+                  </button>
                 )}
-                <Button
-                  size="sm"
+                <button
+                  type="button"
                   onClick={savePrompt}
                   disabled={savingPrompt || !isPromptDirty}
+                  className={`${actionBtn} border-[var(--ed-accent)] bg-[var(--ed-accent)] text-[var(--ed-paper)] hover:bg-[var(--ed-accent-deep)]`}
                 >
                   {savingPrompt ? 'Saving...' : 'Save'}
-                </Button>
+                </button>
               </div>
               {promptResult && (
-                <div className={`text-[0.82rem] p-[0.55rem_0.85rem] rounded border ${promptResult.type === 'success' ? 'bg-emerald-50 text-emerald-600 border-emerald-600/18' : 'bg-red-50 text-red-500 border-red-500/[0.22]'}`}>
+                <div className={`text-[0.82rem] p-[0.55rem_0.85rem] border ${promptResult.type === 'success' ? 'bg-[var(--ed-yes)]/10 text-[var(--ed-yes)] border-[var(--ed-yes)]/30' : 'bg-[var(--ed-no)]/10 text-[var(--ed-no)] border-[var(--ed-no)]/30'}`}>
                   {promptResult.message}
                 </div>
               )}
             </div>
           )
         )}
-      </Card>
+      </div>
+
+      {/* Feed header */}
+      <div className="flex items-baseline justify-between gap-3 mb-1">
+        <span className="ed-display italic font-semibold text-[1.5rem] tracking-[-0.01em] text-[var(--ed-ink)]">Scored roles</span>
+        <span className="text-[0.6rem] font-semibold uppercase tracking-[0.2em] text-[var(--ed-ink-faint)]">Analyst + Evaluator</span>
+      </div>
 
       {visibleJobs.length === 0 && !isActive ? (
-        <p className="text-center text-muted-foreground py-12 text-[0.95rem]">No jobs found</p>
+        <p className="text-center text-[var(--ed-ink-faint)] py-12 text-[0.95rem] border-t border-[var(--ed-rule-strong)]">No jobs found</p>
       ) : (
-        <div className="flex flex-col gap-4">
-          {visibleJobs.map((j) => (
-            <div key={j.id} className="bg-card border border-border rounded-lg p-6 transition-all hover:border-border hover:shadow-lg hover:-translate-y-px">
-              <div className="flex justify-between items-start gap-4 mb-3 max-[640px]:flex-col">
-                <div>
-                  <h3 className="font-serif text-[1.15rem] font-bold text-foreground m-0 tracking-[-0.005em]">{j.title}</h3>
-                  <div className="text-[0.88rem] text-muted-foreground mt-[0.15rem]">{j.company}</div>
-                  {j.location && <div className="text-[0.78rem] text-muted-foreground mt-[0.1rem] tracking-[0.02em]">{j.location}</div>}
-                  {j.glassdoor_data && (
-                    <div className="flex items-center gap-[0.35rem] mt-[0.25rem]">
-                      <span className="text-[0.75rem] font-medium" style={{ color: j.glassdoor_data.rating >= 4.0 ? '#059669' : j.glassdoor_data.rating >= 3.0 ? '#d97706' : '#ef4444' }}>
-                        {j.glassdoor_data.rating.toFixed(1)} / 5
-                      </span>
-                      {j.glassdoor_data.reviewCount && <span className="text-[0.7rem] text-muted-foreground">({j.glassdoor_data.reviewCount.toLocaleString()} reviews)</span>}
-                      {j.glassdoor_data.url && <a href={j.glassdoor_data.url} target="_blank" rel="noopener noreferrer" className="text-[0.7rem] text-primary hover:opacity-75">Glassdoor</a>}
+        <div>
+          {visibleJobs.map((j, idx) => {
+            const num = String(idx + 1).padStart(2, '0');
+            const breakdown = j.match_analysis?.breakdown;
+            const verdictLabel = VERDICT_LABELS[j.verdict as keyof typeof VERDICT_LABELS] || j.verdict || '-';
+            return (
+            <article key={j.id} className="ed-rise border-t border-[var(--ed-rule-strong)] pt-7 pb-8" style={{ animationDelay: `${idx * 80}ms` }}>
+              <div className="grid grid-cols-[3rem_1fr_220px] gap-x-8 max-[820px]:grid-cols-1 max-[820px]:gap-x-0 max-[820px]:gap-y-5">
+                {/* index */}
+                <div className="ed-display text-[1.5rem] leading-none pt-1 tabular-nums text-[var(--ed-ink-faint)] max-[820px]:hidden">{num}</div>
+
+                {/* main column */}
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[0.62rem] font-semibold uppercase tracking-[0.16em] text-[var(--ed-ink-faint)] mb-2">
+                    <span className="text-[var(--ed-accent)] font-bold normal-case tracking-[0.02em] text-[0.74rem]">{j.company}</span>
+                    {j.location && <><span className="w-[3px] h-[3px] rounded-full bg-[var(--ed-rule)]" /><span>{j.location}</span></>}
+                    {j.glassdoor_data && (
+                      <>
+                        <span className="w-[3px] h-[3px] rounded-full bg-[var(--ed-rule)]" />
+                        <span className="inline-flex items-center gap-[0.35rem] normal-case tracking-normal text-[0.72rem]">
+                          <span className="font-semibold" style={{ color: edScoreColor(j.glassdoor_data.rating, 5) }}>{j.glassdoor_data.rating.toFixed(1)} / 5</span>
+                          {j.glassdoor_data.reviewCount && <span className="text-[var(--ed-ink-faint)]">({j.glassdoor_data.reviewCount.toLocaleString()} reviews)</span>}
+                          {j.glassdoor_data.url && <a href={j.glassdoor_data.url} target="_blank" rel="noopener noreferrer" className="text-[var(--ed-accent)] hover:opacity-75">Glassdoor</a>}
+                        </span>
+                      </>
+                    )}
+                  </div>
+
+                  <h3 className="ed-display font-semibold text-[clamp(1.45rem,2.6vw,2.05rem)] leading-[1.04] tracking-[-0.018em] text-[var(--ed-ink)] mb-3">{j.title}</h3>
+
+                  {j.company_news && j.company_news.length > 0 && (
+                    <details className="my-2">
+                      <summary className="text-[0.72rem] font-semibold uppercase tracking-[0.08em] text-[var(--ed-ink-faint)] cursor-pointer hover:text-[var(--ed-ink)] transition-colors">
+                        Company News ({j.company_news.length})
+                      </summary>
+                      <ul className="mt-2 pl-4 list-disc marker:text-[var(--ed-rule)]">
+                        {j.company_news.map((n, i) => (
+                          <li key={i} className="text-[0.78rem] text-[var(--ed-ink-soft)] leading-[1.6] mb-[0.2rem]">
+                            {n.title}{n.source && <span className="text-[var(--ed-ink-faint)]"> — {n.source}</span>}
+                          </li>
+                        ))}
+                      </ul>
+                    </details>
+                  )}
+
+                  {j.match_analysis?.honestAssessment && (
+                    <div dir="rtl" className="text-[0.9rem] text-[var(--ed-ink-soft)] leading-[1.75] my-3 pr-4 border-r-2 border-[var(--ed-accent)] text-right">{j.match_analysis.honestAssessment}</div>
+                  )}
+
+                  <div className="flex gap-2 items-center mt-4 flex-wrap">
+                    {j.job_url && <a href={j.job_url} target="_blank" rel="noopener noreferrer" className={ghostBtn}>View Job</a>}
+                    {isRescorable(j) && (
+                      <button type="button" className={ghostBtn} onClick={() => rescoreJob(j)} disabled={rescoringIds.has(j.id) || bulkRescoring}>
+                        {rescoringIds.has(j.id) ? 'Scoring...' : 'Rescore'}
+                      </button>
+                    )}
+                    {breakdown && (
+                      <button type="button" className={ghostBtn} onClick={() => toggleBreakdown(j.id)}>
+                        {openBreakdownIds.has(j.id) ? 'Hide Breakdown' : 'Score Breakdown'}
+                      </button>
+                    )}
+                    {(j.evaluator_snapshot_input || j.analyst_snapshot_input) && (
+                      <button type="button" className={ghostBtn} onClick={() => setSnapshotsJob(j)}>Claude Calls</button>
+                    )}
+                    {!j.saved_to_tracker && j.verdict && j.verdict !== 'MATCH_FAILED' && j.verdict !== 'INSUFFICIENT_DATA' && (
+                      <button type="button" className={`${actionBtn} border-[var(--ed-accent)] bg-[var(--ed-accent)] text-[var(--ed-paper)] hover:bg-[var(--ed-accent-deep)]`} onClick={() => saveJob(j.id)}>Save to Tracker</button>
+                    )}
+                    {j.saved_to_tracker && <span className="text-[0.66rem] font-semibold uppercase tracking-[0.08em] text-[var(--ed-yes)] py-[0.35rem] px-[0.7rem] border border-[var(--ed-yes)]/40">Saved</span>}
+                    <button type="button" className={`${actionBtn} border-[var(--ed-rule)] text-[var(--ed-no)] hover:border-[var(--ed-no)] hover:bg-[var(--ed-no)]/10`} onClick={() => dismissJob(j.id)}>Dismiss</button>
+                  </div>
+                </div>
+
+                {/* score column */}
+                <aside className="border-l border-[var(--ed-rule)] pl-6 max-[820px]:border-l-0 max-[820px]:border-t max-[820px]:border-[var(--ed-rule)] max-[820px]:pl-0 max-[820px]:pt-5">
+                  <div className="text-[0.58rem] font-bold uppercase tracking-[0.2em] inline-flex items-center gap-[0.45rem] mb-2" style={{ color: verdictColor(j.verdict) }}>
+                    <span className="w-[7px] h-[7px] rounded-full" style={{ background: verdictColor(j.verdict) }} />
+                    {verdictLabel}
+                  </div>
+                  {j.score != null && (
+                    <div className="ed-display font-black text-[3.6rem] leading-[0.8] tracking-[-0.03em] tabular-nums flex items-baseline gap-1 text-[var(--ed-ink)]">
+                      {j.score}<span className="text-[0.95rem] font-normal text-[var(--ed-ink-faint)]">/100</span>
                     </div>
                   )}
-                </div>
-                <div className="text-center shrink-0 py-[0.4rem] px-3 bg-muted border border-border rounded">
-                  {j.score != null ? (
-                    <>
-                      <div className="font-serif text-[1.9rem] font-bold leading-none tracking-[-0.02em]" style={{ color: verdictColor(j.verdict) }}>{j.score}</div>
-                      <div className="text-[0.7rem] font-medium mt-1 tracking-[0.06em]" style={{ color: verdictColor(j.verdict) }}>{VERDICT_LABELS[j.verdict as keyof typeof VERDICT_LABELS] || j.verdict || '-'}</div>
-                    </>
-                  ) : (
-                    <div className="text-[0.7rem] font-medium mt-1 tracking-[0.06em]" style={{ color: 'var(--muted-foreground)' }}>{VERDICT_LABELS[j.verdict as keyof typeof VERDICT_LABELS] || j.verdict || '-'}</div>
+                  {breakdown && (
+                    <div className="mt-5 flex flex-col gap-[0.7rem] pt-4 border-t border-[var(--ed-rule)]">
+                      {DIMENSION_METERS.map((dim) => {
+                        const d = breakdown[dim.key];
+                        if (!d) return null;
+                        const p = d.maxScore > 0 ? d.score / d.maxScore : 0;
+                        return (
+                          <div key={dim.key}>
+                            <div className="flex justify-between items-baseline mb-[0.3rem]">
+                              <span className="text-[0.58rem] font-semibold uppercase tracking-[0.1em] text-[var(--ed-ink-soft)]">{dim.label}</span>
+                              <span className="ed-display text-[0.78rem] tabular-nums text-[var(--ed-ink)]">{d.score} / {d.maxScore}</span>
+                            </div>
+                            <span className="relative block h-[3px] bg-[var(--ed-rule)] overflow-hidden">
+                              <span className="ed-fill bg-[var(--ed-ink)]" style={{ ['--p' as string]: p }} />
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
                   )}
-                </div>
+                </aside>
               </div>
 
-              {j.company_news && j.company_news.length > 0 && (
-                <details className="my-2">
-                  <summary className="text-[0.78rem] font-medium text-muted-foreground cursor-pointer hover:text-foreground transition-colors">
-                    Company News ({j.company_news.length})
-                  </summary>
-                  <ul className="mt-1 pl-4 list-disc">
-                    {j.company_news.map((n, i) => (
-                      <li key={i} className="text-[0.78rem] text-muted-foreground leading-[1.6] mb-[0.2rem]">
-                        {n.title}{n.source && <span className="text-muted-foreground/60"> — {n.source}</span>}
-                      </li>
-                    ))}
-                  </ul>
-                </details>
-              )}
-
-              {j.match_analysis?.honestAssessment && (
-                <div dir="rtl" className="text-[0.85rem] text-muted-foreground leading-[1.7] my-3 p-[0.9rem_1.1rem] bg-muted/50 border border-dashed border-border rounded text-right">{j.match_analysis.honestAssessment}</div>
-              )}
-
-              <div className="flex gap-2 items-center mt-3">
-                {j.job_url && <Button variant="outline" size="sm" asChild><a href={j.job_url} target="_blank" rel="noopener noreferrer">View Job</a></Button>}
-                {isRescorable(j) && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => rescoreJob(j)}
-                    disabled={rescoringIds.has(j.id) || bulkRescoring}
-                  >
-                    {rescoringIds.has(j.id) ? 'Scoring...' : 'Rescore'}
-                  </Button>
-                )}
-                {j.match_analysis?.breakdown && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => toggleBreakdown(j.id)}
-                  >
-                    {openBreakdownIds.has(j.id) ? 'Hide Breakdown' : 'Score Breakdown'}
-                  </Button>
-                )}
-                {(j.evaluator_snapshot_input || j.analyst_snapshot_input) && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setSnapshotsJob(j)}
-                  >
-                    Claude Calls
-                  </Button>
-                )}
-                {!j.saved_to_tracker && j.verdict && j.verdict !== 'MATCH_FAILED' && j.verdict !== 'INSUFFICIENT_DATA' && (
-                  <Button size="sm" onClick={() => saveJob(j.id)}>Save to Tracker</Button>
-                )}
-                {j.saved_to_tracker && <span className="text-[0.72rem] text-emerald-600 font-medium py-1 px-[0.7rem] bg-emerald-50 border border-emerald-600/18 rounded-full tracking-[0.06em]">Saved</span>}
-                <Button variant="destructive" size="sm" onClick={() => dismissJob(j.id)}>Dismiss</Button>
-              </div>
-
-              {openBreakdownIds.has(j.id) && j.match_analysis?.breakdown && (
-                <div className="mt-3 p-[1.1rem_1.25rem] bg-muted/50 border border-dashed border-border rounded animate-in fade-in slide-in-from-top-1 duration-200 flex flex-col gap-[1.1rem]">
+              {openBreakdownIds.has(j.id) && breakdown && (
+                <div className="mt-5 p-[1.25rem_1.4rem] bg-[var(--ed-panel)] border border-[var(--ed-rule)] animate-in fade-in slide-in-from-top-1 duration-200 flex flex-col gap-[1.25rem]">
                   {(() => {
                     const green = j.match_analysis?.recommendation?.greenFlags ?? [];
                     const red = j.match_analysis?.recommendation?.redFlags ?? [];
                     if (green.length === 0 && red.length === 0) return null;
                     return (
-                      <div className="pb-[0.6rem] border-b border-border/60">
-                        <span className="block text-[0.7rem] uppercase tracking-[0.08em] text-muted-foreground font-medium mb-[0.55rem]">Signals</span>
-                        <div className="flex flex-col gap-[0.4rem]" dir="rtl">
+                      <div className="pb-[0.7rem] border-b border-[var(--ed-rule)]">
+                        <span className="block text-[0.62rem] uppercase tracking-[0.16em] text-[var(--ed-ink-faint)] font-semibold mb-[0.6rem]">Signals</span>
+                        <div className="flex flex-col gap-[0.45rem]" dir="rtl">
                           {green.map((s, i) => (
                             <div key={`g${i}`} className="flex items-start gap-[0.55rem]">
-                              <span className="mt-[0.45rem] w-[6px] h-[6px] rounded-full bg-emerald-500 shrink-0" />
-                              <span className="text-[0.78rem] text-foreground leading-[1.5] text-right" dir="rtl">{s}</span>
+                              <span className="ed-display text-[0.95rem] font-bold leading-[1.2] text-[var(--ed-yes)] shrink-0">+</span>
+                              <span className="text-[0.82rem] text-[var(--ed-ink)] leading-[1.5] text-right" dir="rtl">{s}</span>
                             </div>
                           ))}
                           {red.map((s, i) => (
                             <div key={`r${i}`} className="flex items-start gap-[0.55rem]">
-                              <span className="mt-[0.45rem] w-[6px] h-[6px] rounded-full bg-red-500 shrink-0" />
-                              <span className="text-[0.78rem] text-foreground leading-[1.5] text-right" dir="rtl">{s}</span>
+                              <span className="ed-display text-[0.95rem] font-bold leading-[1.2] text-[var(--ed-no)] shrink-0">–</span>
+                              <span className="text-[0.82rem] text-[var(--ed-ink)] leading-[1.5] text-right" dir="rtl">{s}</span>
                             </div>
                           ))}
                         </div>
@@ -531,10 +571,10 @@ export default function RunDetail() {
                     const neg = (d[dim.negKey] as string[] | undefined) ?? [];
                     return (
                       <div key={dim.key}>
-                        <div className="flex items-baseline justify-between gap-3 mb-[0.5rem] pb-[0.4rem] border-b border-border/60">
-                          <span className="text-[0.88rem] font-semibold text-foreground">{dim.label}</span>
-                          <span className="font-serif text-[0.95rem] font-bold shrink-0" style={{ color: scoreColor(d.score, d.maxScore) }}>
-                            {d.score} <span className="text-muted-foreground font-normal text-[0.78rem]">/ {d.maxScore}</span>
+                        <div className="flex items-baseline justify-between gap-3 mb-[0.5rem] pb-[0.4rem] border-b border-[var(--ed-rule)]">
+                          <span className="text-[0.84rem] font-semibold text-[var(--ed-ink)]">{dim.label}</span>
+                          <span className="ed-display text-[0.95rem] font-semibold shrink-0 tabular-nums" style={{ color: edScoreColor(d.score, d.maxScore) }}>
+                            {d.score} <span className="text-[var(--ed-ink-faint)] font-normal text-[0.78rem]">/ {d.maxScore}</span>
                           </span>
                         </div>
                         {components.length > 0 ? (
@@ -542,32 +582,33 @@ export default function RunDetail() {
                             {components.map((c, i) => (
                               <div key={i} className="flex flex-col gap-[0.12rem]">
                                 <div className="flex items-baseline justify-between gap-3">
-                                  <span className="text-[0.8rem] font-medium text-foreground">{c.name}</span>
-                                  <span className="shrink-0 font-mono text-[0.76rem] font-semibold tabular-nums" style={{ color: scoreColor(c.score, c.maxScore) }}>{c.score}/{c.maxScore}</span>
+                                  <span className="text-[0.8rem] font-medium text-[var(--ed-ink)]">{c.name}</span>
+                                  <span className="shrink-0 ed-display text-[0.78rem] font-semibold tabular-nums" style={{ color: edScoreColor(c.score, c.maxScore) }}>{c.score}/{c.maxScore}</span>
                                 </div>
-                                {c.reason && <span className="text-[0.76rem] text-muted-foreground leading-[1.5] text-right" dir="rtl">{c.reason}</span>}
+                                {c.reason && <span className="text-[0.76rem] text-[var(--ed-ink-soft)] leading-[1.5] text-right" dir="rtl">{c.reason}</span>}
                               </div>
                             ))}
                           </div>
                         ) : (pos.length > 0 || neg.length > 0) ? (
                           <div className="flex flex-wrap gap-[0.35rem]" dir="rtl">
                             {pos.map((s, i) => (
-                              <span key={`p${i}`} className="text-[0.74rem] py-[0.15rem] px-[0.5rem] rounded bg-emerald-50 text-emerald-600 border border-emerald-600/15">{s}</span>
+                              <span key={`p${i}`} className="text-[0.74rem] py-[0.15rem] px-[0.5rem] bg-[var(--ed-yes)]/10 text-[var(--ed-yes)] border border-[var(--ed-yes)]/25">{s}</span>
                             ))}
                             {neg.map((s, i) => (
-                              <span key={`n${i}`} className="text-[0.74rem] py-[0.15rem] px-[0.5rem] rounded bg-red-50 text-red-500 border border-red-500/15">{s}</span>
+                              <span key={`n${i}`} className="text-[0.74rem] py-[0.15rem] px-[0.5rem] bg-[var(--ed-no)]/10 text-[var(--ed-no)] border border-[var(--ed-no)]/25">{s}</span>
                             ))}
                           </div>
                         ) : (
-                          <span className="text-[0.76rem] text-muted-foreground italic">No detailed reasons provided</span>
+                          <span className="text-[0.76rem] text-[var(--ed-ink-faint)] italic">No detailed reasons provided</span>
                         )}
                       </div>
                     );
                   })}
                 </div>
               )}
-            </div>
-          ))}
+            </article>
+            );
+          })}
         </div>
       )}
 
@@ -583,6 +624,7 @@ export default function RunDetail() {
           onClose={() => setSnapshotsJob(null)}
         />
       )}
+      </div>
     </div>
   );
 }

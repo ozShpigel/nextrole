@@ -1,8 +1,6 @@
 import { useState } from 'react';
 import { useAddApplication } from '../lib/mutations';
 import { STATUS_LABELS } from '../lib/tracker';
-import { Card } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
@@ -48,8 +46,11 @@ export default function AddApplication({ onSaved }: AddApplicationProps) {
   }
 
   return (
-    <Card className="p-6 mb-4">
-      <h3 className="text-[0.95rem] font-semibold text-foreground mb-3 pb-[0.6rem] border-b border-border">Add New Application</h3>
+    <section className="mb-4">
+      <div className="flex items-baseline justify-between gap-3 mb-1">
+        <span className="ed-display italic font-semibold text-[1.4rem] tracking-[-0.01em] text-[var(--ed-ink)]">Add New Application</span>
+      </div>
+      <div className="border-t border-[var(--ed-rule-strong)] mb-6" />
       <form onSubmit={handleSubmit}>
         <div className="grid grid-cols-2 max-md:grid-cols-1 gap-4">
           <div className="mb-5">
@@ -84,8 +85,8 @@ export default function AddApplication({ onSaved }: AddApplicationProps) {
           <Label>Job Description</Label>
           <Textarea placeholder="Paste the job description here..." value={form.jobDescription} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => update('jobDescription', e.target.value)} dir="auto" />
         </div>
-        <Button type="submit" disabled={addMutation.isPending}>{addMutation.isPending ? 'Saving...' : 'Add Application'}</Button>
+        <button type="submit" disabled={addMutation.isPending} className="rounded-none border border-[var(--ed-accent)] bg-[var(--ed-accent)] px-4 py-[0.55rem] text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-[var(--ed-paper)] transition-all hover:bg-[var(--ed-accent-deep)] disabled:opacity-50">{addMutation.isPending ? 'Saving...' : 'Add Application'}</button>
       </form>
-    </Card>
+    </section>
   );
 }

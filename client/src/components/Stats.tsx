@@ -1,5 +1,4 @@
-﻿import { Card } from '@/components/ui/card';
-import { relativeTime } from '../lib/format';
+﻿import { relativeTime } from '../lib/format';
 
 interface StatCardProps {
   value: string | number;
@@ -8,11 +7,11 @@ interface StatCardProps {
 
 export function StatCard({ value, label }: StatCardProps) {
   return (
-    <Card className="group py-6 px-5 text-center relative overflow-hidden transition-all hover:border-border hover:-translate-y-[3px] hover:shadow-md">
-      <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-primary to-ring opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
-      <div className="font-sans text-[2rem] font-bold text-foreground tracking-[-0.02em]">{value}</div>
-      <div className="text-[0.78rem] text-muted-foreground mt-[0.3rem] uppercase tracking-[0.06em] font-medium">{label}</div>
-    </Card>
+    <div className="group border border-[var(--ed-rule)] bg-[var(--ed-panel)]/40 py-6 px-5 relative overflow-hidden transition-all hover:border-[var(--ed-ink)] hover:-translate-y-[2px]">
+      <span className="absolute top-0 inset-x-0 h-[2px] bg-[var(--ed-accent)] opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+      <div className="ed-display text-[2.4rem] font-black leading-none text-[var(--ed-ink)] tracking-[-0.02em] tabular-nums">{value}</div>
+      <div className="text-[0.62rem] text-[var(--ed-ink-faint)] mt-[0.45rem] uppercase tracking-[0.18em] font-semibold">{label}</div>
+    </div>
   );
 }
 
@@ -22,23 +21,21 @@ interface StatStripProps {
   lastRun: string | null | undefined;
 }
 
+function StatFigure({ value, label }: { value: string | number; label: string }) {
+  return (
+    <div className="flex flex-col gap-[0.3rem] px-6 py-1 first:pl-0 last:pr-0">
+      <span className="ed-display font-black text-[2rem] leading-none tracking-[-0.02em] tabular-nums text-[var(--ed-ink)]">{value}</span>
+      <span className="text-[0.62rem] font-semibold uppercase tracking-[0.2em] text-[var(--ed-ink-faint)]">{label}</span>
+    </div>
+  );
+}
+
 export function StatStrip({ criteriaCount, runsCount, lastRun }: StatStripProps) {
   return (
-    <div className="grid grid-cols-3 gap-px bg-border border border-border rounded-lg overflow-hidden mb-10 backdrop-blur-[8px] max-[640px]:grid-cols-1">
-      <div className="bg-card p-[1rem_1.25rem] flex flex-col gap-1 transition-colors hover:bg-background">
-        <span className="font-serif text-[1.55rem] font-bold text-foreground tabular-nums leading-[1.1] tracking-[-0.01em]">{criteriaCount}</span>
-        <span className="text-[0.7rem] text-muted-foreground tracking-[0.12em] uppercase font-medium">Active Criteria</span>
-      </div>
-      <div className="bg-card p-[1rem_1.25rem] flex flex-col gap-1 transition-colors hover:bg-background">
-        <span className="font-serif text-[1.55rem] font-bold text-foreground tabular-nums leading-[1.1] tracking-[-0.01em]">{runsCount}</span>
-        <span className="text-[0.7rem] text-muted-foreground tracking-[0.12em] uppercase font-medium">Search History</span>
-      </div>
-      <div className="bg-card p-[1rem_1.25rem] flex flex-col gap-1 transition-colors hover:bg-background">
-        <span className={`font-serif font-bold tabular-nums leading-[1.1] tracking-[-0.01em] ${!lastRun ? 'text-muted-foreground text-[1.1rem] font-medium' : 'text-[1.55rem] text-foreground'}`}>
-          {lastRun ? relativeTime(lastRun) : '—'}
-        </span>
-        <span className="text-[0.7rem] text-muted-foreground tracking-[0.12em] uppercase font-medium">Last Search</span>
-      </div>
+    <div className="flex items-stretch mb-11 divide-x divide-[var(--ed-rule)] max-[640px]:flex-col max-[640px]:divide-x-0 max-[640px]:divide-y max-[640px]:gap-0">
+      <StatFigure value={criteriaCount} label="Active Criteria" />
+      <StatFigure value={runsCount} label="Search History" />
+      <StatFigure value={lastRun ? relativeTime(lastRun) : '—'} label="Last Search" />
     </div>
   );
 }

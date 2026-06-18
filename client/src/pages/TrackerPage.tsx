@@ -1,7 +1,5 @@
 import { useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import { Card } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import Dashboard from '../components/Dashboard';
 import ApplicationList from '../components/ApplicationList';
 import AddApplication from '../components/AddApplication';
@@ -19,6 +17,10 @@ const TABS: Tab[] = [
   { key: 'stats', label: 'Statistics' },
 ];
 
+const TODAY = new Date().toLocaleDateString('en-US', {
+  weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+});
+
 export default function TrackerPage() {
   const location = useLocation();
   const initialTab = (location.state as { tab?: string } | null)?.tab || 'dashboard';
@@ -29,18 +31,29 @@ export default function TrackerPage() {
   }
 
   return (
-    <div className="min-h-[calc(100vh-56px)] bg-background animate-in fade-in slide-in-from-bottom-1 duration-300">
-      <div className="bg-muted border-b border-border py-5 mb-8">
-        <h1 className="font-sans text-[1.4rem] font-bold text-foreground max-w-[1100px] mx-auto px-6 tracking-[-0.01em]">Application Tracker</h1>
-        <p className="text-muted-foreground text-[0.85rem] max-w-[1100px] mt-[0.15rem] mx-auto px-6">Manage and track your hiring processes</p>
-      </div>
+    <div className="editorial editorial-grain min-h-[calc(100vh-56px)] animate-in fade-in slide-in-from-bottom-1 duration-300">
+      <div className="relative z-[1] max-w-[1100px] mx-auto px-8 pt-12 pb-16 max-[640px]:px-5 max-[640px]:pt-8">
+        {/* Masthead */}
+        <header className="mb-7">
+          <div className="flex items-baseline justify-between gap-4 pb-[10px] border-b border-[var(--ed-rule)] text-[0.62rem] font-semibold uppercase tracking-[0.22em] text-[var(--ed-ink-faint)]">
+            <span>Vol. III · Tracker</span>
+            <span className="tabular-nums">{TODAY}</span>
+          </div>
+          <h1 className="ed-display font-black text-[clamp(2.4rem,6vw,4rem)] leading-[0.92] tracking-[-0.02em] text-[var(--ed-ink)] pt-4">
+            Application <span className="italic font-medium text-[var(--ed-accent)]">Tracker</span>
+          </h1>
+          <p className="mt-3 max-w-[560px] text-[0.95rem] leading-[1.6] text-[var(--ed-ink-soft)]">
+            Manage and track your hiring processes
+          </p>
+          <div className="mt-5 border-t-[3px] border-double border-[var(--ed-rule-strong)]" />
+        </header>
 
-      <div className="max-w-[1100px] mx-auto px-6 pb-8">
-        <div className="flex gap-1 mb-8 bg-card rounded p-[0.3rem] border border-border shadow-sm max-md:flex-wrap">
+        {/* Editorial tab bar */}
+        <div className="flex gap-7 mb-9 border-b border-[var(--ed-rule)] max-md:gap-5 max-md:flex-wrap">
           {TABS.map((t) => (
             <button
               key={t.key}
-              className={`py-[0.55rem] px-5 bg-transparent border-none rounded-[7px] cursor-pointer text-[0.85rem] font-medium font-sans transition-all hover:text-foreground hover:bg-accent ${activeTab === t.key ? 'text-foreground bg-accent' : 'text-muted-foreground'}`}
+              className={`relative -mb-px pb-3 pt-1 bg-transparent border-none cursor-pointer text-[0.78rem] font-semibold uppercase tracking-[0.1em] transition-colors ${activeTab === t.key ? 'text-[var(--ed-ink)] border-b-2 border-[var(--ed-accent)]' : 'text-[var(--ed-ink-faint)] border-b-2 border-transparent hover:text-[var(--ed-ink)]'}`}
               onClick={() => switchTab(t.key)}
             >
               {t.label}

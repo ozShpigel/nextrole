@@ -106,22 +106,21 @@ export default function DiscoveryPage() {
 
   if (loading) {
     return (
-      <div className="relative max-w-[960px] mx-auto px-7 pt-14 pb-20 animate-in fade-in slide-in-from-bottom-1 duration-500 isolate max-[640px]:px-4 max-[640px]:pt-10 max-[640px]:pb-14">
-        <div className="absolute -top-[140px] -right-[220px] w-[540px] h-[540px] blur-[60px] pointer-events-none -z-1" style={{ background: 'radial-gradient(circle, rgba(0,0,0,0.03) 0%, transparent 65%)' }} />
-        <div className="absolute top-[40%] -left-[200px] w-[420px] h-[420px] blur-[60px] pointer-events-none -z-1" style={{ background: 'radial-gradient(circle, rgba(0,0,0,0.02) 0%, transparent 65%)' }} />
-        {wakingUp ? (
-          <WakeUpIndicator attempt={wakeAttempt} elapsed={wakeElapsed} />
-        ) : (
-          <DiscoveryLoadingSkeleton />
-        )}
+      <div className="editorial editorial-grain min-h-screen">
+        <div className="relative z-[1] max-w-[1040px] mx-auto px-8 pt-12 pb-20 animate-in fade-in slide-in-from-bottom-1 duration-500 max-[640px]:px-5 max-[640px]:pt-8 max-[640px]:pb-14">
+          {wakingUp ? (
+            <WakeUpIndicator attempt={wakeAttempt} elapsed={wakeElapsed} />
+          ) : (
+            <DiscoveryLoadingSkeleton />
+          )}
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="relative max-w-[960px] mx-auto px-7 pt-14 pb-20 animate-in fade-in slide-in-from-bottom-1 duration-500 isolate max-[640px]:px-4 max-[640px]:pt-10 max-[640px]:pb-14">
-      <div className="absolute -top-[140px] -right-[220px] w-[540px] h-[540px] blur-[60px] pointer-events-none -z-1" style={{ background: 'radial-gradient(circle, rgba(0,0,0,0.03) 0%, transparent 65%)' }} />
-      <div className="absolute top-[40%] -left-[200px] w-[420px] h-[420px] blur-[60px] pointer-events-none -z-1" style={{ background: 'radial-gradient(circle, rgba(0,0,0,0.02) 0%, transparent 65%)' }} />
+    <div className="editorial editorial-grain min-h-screen">
+      <div className="relative z-[1] max-w-[1040px] mx-auto px-8 pt-12 pb-20 animate-in fade-in slide-in-from-bottom-1 duration-500 max-[640px]:px-5 max-[640px]:pt-8 max-[640px]:pb-14">
 
       <PageHeader onNewCriteria={() => openForm()} />
       <StatStrip criteriaCount={criteria.length} runsCount={runs.length} lastRun={lastRun} />
@@ -147,6 +146,7 @@ export default function DiscoveryPage() {
         onConfirm={() => confirmState?.onConfirm()}
         onCancel={() => setConfirmState(null)}
       />
+      </div>
     </div>
   );
 }

@@ -4,7 +4,6 @@ import ConfirmDialog from '../components/ConfirmDialog';
 import { useQueryClient } from '@tanstack/react-query';
 import { useApplicationDetail } from '../lib/queries';
 import { useDeleteApplication, useUpdateSalary, useGenerateCompanySummary, useGenerateWhyWorkHere } from '../lib/mutations';
-import { scoreColor } from '../lib/format';
 import { StatusBadge, StatusModal } from '../components/Status';
 import CollapsibleSection from '../components/CollapsibleSection';
 import { SnapshotsCard } from '../components/Snapshots';
@@ -12,9 +11,34 @@ import AnalysisCard from '../components/AnalysisCard';
 import Timeline from '../components/Timeline';
 import { InterviewList, InterviewModal } from '../components/Interviews';
 import { NoteList, NoteModal } from '../components/Notes';
-import { Card } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+
+// Editorial score tint (var(--ed-*), valid only inside the .editorial scope)
+function edScoreColor(score: number | null | undefined): string {
+  if (score == null) return 'var(--ed-ink-faint)';
+  if (score >= 60) return 'var(--ed-yes)';
+  if (score >= 40) return 'var(--ed-gold)';
+  return 'var(--ed-no)';
+}
+
+// Shared editorial button styles
+const ED_BTN = 'rounded-none border px-3.5 py-[0.5rem] text-[0.68rem] font-semibold uppercase tracking-[0.08em] transition-all disabled:opacity-50 disabled:pointer-events-none';
+const ED_GHOST = `${ED_BTN} border-[var(--ed-rule)] text-[var(--ed-ink-soft)] hover:border-[var(--ed-ink)] hover:text-[var(--ed-ink)]`;
+const ED_PRIMARY = `${ED_BTN} border-[var(--ed-accent)] bg-[var(--ed-accent)] text-[var(--ed-paper)] hover:bg-[var(--ed-accent-deep)]`;
+const ED_DANGER = `${ED_BTN} border-[var(--ed-rule)] text-[var(--ed-no)] hover:border-[var(--ed-no)] hover:bg-[var(--ed-no)]/10`;
+
+// Editorial section heading (italic serif kicker + heavy rule)
+function SectionHead({ title, action }: { title: string; action?: React.ReactNode }) {
+  return (
+    <>
+      <div className="flex items-center justify-between gap-3 mb-1">
+        <span className="ed-display italic font-semibold text-[1.3rem] tracking-[-0.01em] text-[var(--ed-ink)]">{title}</span>
+        {action}
+      </div>
+      <div className="border-t border-[var(--ed-rule-strong)] mb-4" />
+    </>
+  );
+}
 
 interface Interview {
   id: string;
@@ -108,8 +132,8 @@ export default function ApplicationDetail() {
   }
 
   if (detailQuery.isLoading) return (
-    <div className="min-h-[calc(100vh-56px)] bg-background animate-in fade-in slide-in-from-bottom-1 duration-300">
-      <div className="max-w-[1100px] mx-auto px-6 pb-8">
+    <div className="editorial editorial-grain min-h-[calc(100vh-56px)] animate-in fade-in slide-in-from-bottom-1 duration-300">
+      <div className="relative z-[1] max-w-[1100px] mx-auto px-8 pt-12 pb-16 max-[640px]:px-5">
         <ApplicationDetailLoadingSkeleton />
       </div>
     </div>
@@ -117,8 +141,8 @@ export default function ApplicationDetail() {
 
   const data = detailQuery.data as ApplicationDetailData | undefined;
   if (!data) return (
-    <div className="min-h-[calc(100vh-56px)] bg-background animate-in fade-in slide-in-from-bottom-1 duration-300">
-      <div className="max-w-[1100px] mx-auto px-6 pb-8">
+    <div className="editorial editorial-grain min-h-[calc(100vh-56px)] animate-in fade-in slide-in-from-bottom-1 duration-300">
+      <div className="relative z-[1] max-w-[1100px] mx-auto px-8 pt-12 pb-16 max-[640px]:px-5">
         <ApplicationDetailLoadingSkeleton />
       </div>
     </div>
@@ -127,48 +151,46 @@ export default function ApplicationDetail() {
   const { application: app, interviews, notes, statusUpdates } = data;
 
   return (
-    <div className="min-h-[calc(100vh-56px)] bg-background animate-in fade-in slide-in-from-bottom-1 duration-300">
-      <div className="max-w-[1100px] mx-auto px-6 pb-8">
-        <Link to="/tracker" state={{ tab: 'list' }} className="text-primary cursor-pointer text-[0.88rem] mb-5 inline-flex items-center gap-[0.4rem] font-medium transition-all hover:text-primary/80 hover:gap-[0.6rem]">&larr; Back to List</Link>
+    <div className="editorial editorial-grain min-h-[calc(100vh-56px)] animate-in fade-in slide-in-from-bottom-1 duration-300">
+      <div className="relative z-[1] max-w-[1100px] mx-auto px-8 pt-12 pb-16 max-[640px]:px-5">
+        <Link to="/tracker" state={{ tab: 'list' }} className="text-[var(--ed-accent)] cursor-pointer text-[0.72rem] font-semibold uppercase tracking-[0.12em] mb-7 inline-flex items-center gap-[0.4rem] transition-all hover:-translate-x-[3px]">&larr; Back to List</Link>
 
-        {/* Header */}
-        <Card className="p-6 mb-4 transition-all hover:border-border hover:shadow-md">
-          <div className="flex justify-between items-start mb-6 flex-wrap gap-4">
-            <div>
-              <h2 className="text-foreground mb-1 text-[1.3rem] font-bold tracking-[-0.01em]">{app.jobTitle}</h2>
-              <div className="text-muted-foreground text-[0.95rem]">{app.company}</div>
-              <div className="mt-4 flex items-center gap-3 flex-wrap">
+        {/* Header masthead */}
+        <header className="mb-9">
+          <div className="flex justify-between items-start gap-6 flex-wrap pb-4 border-b border-[var(--ed-rule-strong)]">
+            <div className="min-w-0">
+              <div className="text-[0.7rem] font-bold uppercase tracking-[0.16em] text-[var(--ed-accent)] mb-2">{app.company}</div>
+              <h2 className="ed-display font-black text-[clamp(1.9rem,4.5vw,3rem)] leading-[0.98] tracking-[-0.02em] text-[var(--ed-ink)]">{app.jobTitle}</h2>
+              <div className="mt-3 flex items-center gap-3 flex-wrap">
                 <StatusBadge status={app.status} />
                 <DaysInStage updatedAt={app.updatedAt} />
               </div>
             </div>
-            <div className="text-center">
-              <div className="font-sans text-[2.2rem] font-bold tracking-[-0.02em]" style={{ color: scoreColor(app.matchScore) }}>{app.matchScore ?? '-'}</div>
-              <div className="text-muted-foreground text-[0.84rem]">{app.matchVerdict || ''}</div>
+            <div className="text-right shrink-0">
+              <div className="ed-display font-black text-[3.4rem] leading-[0.8] tracking-[-0.03em] tabular-nums" style={{ color: edScoreColor(app.matchScore) }}>{app.matchScore ?? '-'}</div>
+              <div className="text-[0.6rem] font-bold uppercase tracking-[0.18em] mt-2 text-[var(--ed-ink-faint)]">{app.matchVerdict || ''}</div>
             </div>
           </div>
 
-          <NextAction status={app.status} updatedAt={app.updatedAt} interviews={interviews} />
+          <div className="pt-4">
+            <NextAction status={app.status} updatedAt={app.updatedAt} interviews={interviews} />
 
-          <SalaryField appId={app.id} initialValue={app.salary} />
+            <SalaryField appId={app.id} initialValue={app.salary} />
 
-          <div className="flex gap-2 flex-wrap mt-4">
-            {app.jobUrl && (
-              <Button variant="outline" asChild>
-                <a href={app.jobUrl} target="_blank" rel="noopener noreferrer">View Job</a>
-              </Button>
-            )}
-            <Button onClick={() => setModal({ type: 'status' })}>Update Status</Button>
-            <Button variant="outline" asChild>
-              <Link to={`/practice-interview?applicationId=${app.id}&company=${encodeURIComponent(app.company)}&jobTitle=${encodeURIComponent(app.jobTitle)}`}>
+            <div className="flex gap-2 flex-wrap mt-4">
+              {app.jobUrl && (
+                <a href={app.jobUrl} target="_blank" rel="noopener noreferrer" className={ED_GHOST}>View Job</a>
+              )}
+              <button type="button" className={ED_PRIMARY} onClick={() => setModal({ type: 'status' })}>Update Status</button>
+              <Link to={`/practice-interview?applicationId=${app.id}&company=${encodeURIComponent(app.company)}&jobTitle=${encodeURIComponent(app.jobTitle)}`} className={ED_GHOST}>
                 Practice Interview
               </Link>
-            </Button>
-            <Button variant="outline" onClick={() => setModal({ type: 'interview' })}>Add Interview</Button>
-            <Button variant="outline" onClick={() => setModal({ type: 'note' })}>Add Note</Button>
-            <Button variant="destructive" onClick={deleteApp}>Delete</Button>
+              <button type="button" className={ED_GHOST} onClick={() => setModal({ type: 'interview' })}>Add Interview</button>
+              <button type="button" className={ED_GHOST} onClick={() => setModal({ type: 'note' })}>Add Note</button>
+              <button type="button" className={ED_DANGER} onClick={deleteApp}>Delete</button>
+            </div>
           </div>
-        </Card>
+        </header>
 
         {/* AI Analysis */}
         <AnalysisCard matchAnalysisJson={app.matchAnalysis} />
@@ -193,10 +215,10 @@ export default function ApplicationDetail() {
         )}
 
         {/* Timeline */}
-        <Card className="p-6 mb-4 transition-all hover:border-border hover:shadow-md">
-          <h3 className="text-[0.95rem] font-semibold text-foreground mb-3 pb-[0.6rem] border-b border-border">Timeline</h3>
+        <section className="mb-9">
+          <SectionHead title="Timeline" />
           <Timeline statusUpdates={statusUpdates} interviews={interviews} notes={notes} />
-        </Card>
+        </section>
 
         {/* Interviews */}
         <CollapsibleSection title={`Interviews (${interviews.length})`}>
@@ -254,7 +276,7 @@ function DaysInStage({ updatedAt }: { updatedAt: string }) {
   const days = daysAgo(updatedAt);
   if (days === null) return null;
   const label = days === 0 ? 'Today' : days === 1 ? '1 day' : `${days} days`;
-  const color = days >= 14 ? '#ef4444' : days >= 7 ? '#d97706' : 'var(--muted-foreground)';
+  const color = days >= 14 ? 'var(--ed-no)' : days >= 7 ? 'var(--ed-gold)' : 'var(--ed-ink-faint)';
   return <span className="text-[0.78rem] font-medium" style={{ color }}>{label} in stage</span>;
 }
 
@@ -277,7 +299,7 @@ function NextAction({ status, updatedAt, interviews }: { status: string; updated
 
   if (!suggestion) return null;
   return (
-    <div className="mb-3 py-[0.45rem] px-3 rounded-md bg-primary/5 border border-primary/15 text-[0.82rem] text-primary font-medium">
+    <div className="mb-3 py-[0.5rem] px-3 bg-[var(--ed-accent)]/[0.07] border-l-2 border-[var(--ed-accent)] text-[0.84rem] text-[var(--ed-accent-deep)] font-medium">
       → {suggestion}
     </div>
   );
@@ -305,16 +327,16 @@ function SalaryField({ appId, initialValue }: { appId: string; initialValue: str
 
   return (
     <div className="flex items-center gap-2 mb-3">
-      <label className="text-[0.82rem] text-muted-foreground font-medium shrink-0">Salary</label>
+      <label className="text-[0.64rem] uppercase tracking-[0.1em] text-[var(--ed-ink-faint)] font-semibold shrink-0">Salary</label>
       <input
-        className="max-w-[200px] h-8 text-[0.84rem] px-2 rounded-md border border-border bg-background text-foreground"
+        className="max-w-[200px] h-8 text-[0.84rem] px-2 rounded-none border border-[var(--ed-rule)] bg-transparent text-[var(--ed-ink)] focus:outline-none focus:border-[var(--ed-ink)]"
         placeholder="e.g. 25-30K/mo"
         value={value}
         onChange={(e: React.ChangeEvent<HTMLInputElement>) => setValue(e.target.value)}
         onBlur={save}
         onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => e.key === 'Enter' && save()}
       />
-      {saved && <span className="text-[0.75rem] text-green-600 font-medium">Saved</span>}
+      {saved && <span className="text-[0.7rem] uppercase tracking-[0.08em] text-[var(--ed-yes)] font-semibold">Saved</span>}
     </div>
   );
 }
@@ -336,21 +358,23 @@ function CompanySummaryBlock({ appId, initialSummary }: { appId: string; initial
   }
 
   return (
-    <Card className="p-6 mb-4 transition-all hover:border-border hover:shadow-md">
-      <div className="flex items-center justify-between mb-3 pb-[0.6rem] border-b border-border">
-        <h3 className="text-[0.95rem] font-semibold text-foreground">Company Summary</h3>
-        <Button variant="outline" size="sm" onClick={generate} disabled={loading}>
-          {loading ? 'Generating...' : summary ? 'Regenerate' : 'Generate'}
-        </Button>
-      </div>
+    <section className="mb-9">
+      <SectionHead
+        title="Company Summary"
+        action={
+          <button type="button" className={ED_GHOST} onClick={generate} disabled={loading}>
+            {loading ? 'Generating...' : summary ? 'Regenerate' : 'Generate'}
+          </button>
+        }
+      />
       {summary ? (
-        <p dir="rtl" className="text-[0.88rem] leading-[1.75] text-foreground whitespace-pre-wrap text-right m-0">
+        <p dir="rtl" className="text-[0.9rem] leading-[1.8] text-[var(--ed-ink)] whitespace-pre-wrap text-right m-0">
           {summary}
         </p>
       ) : (
-        <p className="text-[0.82rem] text-muted-foreground italic m-0">Click Generate to create an AI summary of this company.</p>
+        <p className="text-[0.82rem] text-[var(--ed-ink-faint)] italic m-0">Click Generate to create an AI summary of this company.</p>
       )}
-    </Card>
+    </section>
   );
 }
 
@@ -380,32 +404,34 @@ function WhyWorkHereBlock({ appId, initialAnswer }: { appId: string; initialAnsw
   }
 
   return (
-    <Card className="p-6 mb-4 transition-all hover:border-border hover:shadow-md">
-      <div className="flex items-center justify-between mb-3 pb-[0.6rem] border-b border-border">
-        <h3 className="text-[0.95rem] font-semibold text-foreground">למה לעבוד כאן?</h3>
-        <Button variant="outline" size="sm" onClick={generate} disabled={loading}>
-          {loading ? 'Generating...' : answer ? 'Regenerate' : 'Generate'}
-        </Button>
-      </div>
+    <section className="mb-9">
+      <SectionHead
+        title="למה לעבוד כאן?"
+        action={
+          <button type="button" className={ED_GHOST} onClick={generate} disabled={loading}>
+            {loading ? 'Generating...' : answer ? 'Regenerate' : 'Generate'}
+          </button>
+        }
+      />
       {answer ? (
         <div className="relative">
-          <p dir="rtl" className="text-[0.88rem] leading-[1.75] text-foreground whitespace-pre-wrap text-right m-0 pl-16">
+          <p dir="rtl" className="text-[0.9rem] leading-[1.8] text-[var(--ed-ink)] whitespace-pre-wrap text-right m-0 pl-16">
             {answer}
           </p>
           <button
             type="button"
             onClick={copyToClipboard}
-            className="absolute top-0 left-0 py-[0.3rem] px-[0.6rem] rounded-md text-[0.72rem] font-medium border border-border bg-card text-muted-foreground cursor-pointer transition-all hover:border-foreground/30 hover:text-foreground"
+            className="absolute top-0 left-0 py-[0.3rem] px-[0.6rem] rounded-none text-[0.66rem] font-semibold uppercase tracking-[0.06em] border border-[var(--ed-rule)] bg-transparent text-[var(--ed-ink-faint)] cursor-pointer transition-all hover:border-[var(--ed-ink)] hover:text-[var(--ed-ink)]"
           >
             {copied ? 'Copied' : 'Copy'}
           </button>
         </div>
       ) : (
-        <p className="text-[0.82rem] text-muted-foreground italic m-0">
+        <p className="text-[0.82rem] text-[var(--ed-ink-faint)] italic m-0">
           Generate a personalized answer to "Why do you want to work here?" based on this role and your profile.
         </p>
       )}
-    </Card>
+    </section>
   );
 }
 
@@ -429,36 +455,36 @@ function CompanyEnrichment({ companyNewsJson, glassdoorDataJson }: { companyNews
   if (!news?.length && !glassdoor) return null;
 
   return (
-    <Card className="p-6 mb-4 transition-all hover:border-border hover:shadow-md">
-      <h3 className="text-[0.95rem] font-semibold text-foreground mb-3 pb-[0.6rem] border-b border-border">Company Info</h3>
+    <section className="mb-9">
+      <SectionHead title="Company Info" />
 
       {glassdoor && (
         <div className="flex items-center gap-[0.45rem] mb-3">
-          <span className="text-[0.82rem] font-medium" style={{
-            color: glassdoor.rating >= 4.0 ? '#059669'
-                 : glassdoor.rating >= 3.0 ? '#d97706'
-                 : '#ef4444'
+          <span className="text-[0.84rem] font-semibold" style={{
+            color: glassdoor.rating >= 4.0 ? 'var(--ed-yes)'
+                 : glassdoor.rating >= 3.0 ? 'var(--ed-gold)'
+                 : 'var(--ed-no)'
           }}>
             Glassdoor {glassdoor.rating.toFixed(1)} / 5
           </span>
-          {glassdoor.reviewCount && <span className="text-[0.75rem] text-muted-foreground">({glassdoor.reviewCount.toLocaleString()} reviews)</span>}
-          {glassdoor.url && <a href={glassdoor.url} target="_blank" rel="noopener noreferrer" className="text-[0.75rem] text-primary hover:opacity-75">View</a>}
+          {glassdoor.reviewCount && <span className="text-[0.75rem] text-[var(--ed-ink-faint)]">({glassdoor.reviewCount.toLocaleString()} reviews)</span>}
+          {glassdoor.url && <a href={glassdoor.url} target="_blank" rel="noopener noreferrer" className="text-[0.75rem] text-[var(--ed-accent)] hover:opacity-75">View</a>}
         </div>
       )}
 
       {news && news.length > 0 && (
         <div>
-          <h4 className="text-[0.82rem] font-medium text-muted-foreground mb-1">Recent News ({news.length})</h4>
-          <ul className="pl-4 list-disc">
+          <h4 className="text-[0.62rem] font-semibold uppercase tracking-[0.14em] text-[var(--ed-ink-faint)] mb-2">Recent News ({news.length})</h4>
+          <ul className="pl-4 list-disc marker:text-[var(--ed-rule)]">
             {news.map((n, i) => (
-              <li key={i} className="text-[0.78rem] text-muted-foreground leading-[1.6] mb-[0.2rem]">
-                {n.title}{n.source && <span className="text-muted-foreground/60"> — {n.source}</span>}
+              <li key={i} className="text-[0.8rem] text-[var(--ed-ink-soft)] leading-[1.65] mb-[0.2rem]">
+                {n.title}{n.source && <span className="text-[var(--ed-ink-faint)]"> — {n.source}</span>}
               </li>
             ))}
           </ul>
         </div>
       )}
-    </Card>
+    </section>
   );
 }
 

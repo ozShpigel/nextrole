@@ -39,12 +39,12 @@ export default function Dashboard() {
   const recent: RecentApp[] = applicationsQuery.data?.slice(0, 5) ?? [];
 
   if (loading) return <DashboardLoadingSkeleton />;
-  if (error) return <Card className="p-6 mb-4"><p className="text-muted-foreground">Error loading data: {error}</p></Card>;
+  if (error) return <div className="border border-[var(--ed-no)]/30 bg-[var(--ed-no)]/10 p-6 mb-4"><p className="text-[var(--ed-no)]">Error loading data: {error}</p></div>;
 
   return (
     <>
       {stats && (
-        <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] max-md:grid-cols-2 gap-3 mb-6">
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] max-md:grid-cols-2 gap-3 mb-9">
           <StatCard value={stats.total} label="Total Applications" />
           <StatCard value={stats.inProgress} label="In Progress" />
           <StatCard value={stats.avgScore || '-'} label="Average Score" />
@@ -52,39 +52,51 @@ export default function Dashboard() {
         </div>
       )}
 
-      <Card className="p-6 mb-4 transition-all hover:border-border hover:shadow-md">
-        <h3 className="text-[0.95rem] font-semibold text-foreground mb-3 pb-[0.6rem] border-b border-border">Upcoming Interviews</h3>
+      <section className="mb-9">
+        <div className="flex items-baseline justify-between gap-3 mb-1">
+          <span className="ed-display italic font-semibold text-[1.4rem] tracking-[-0.01em] text-[var(--ed-ink)]">Upcoming Interviews</span>
+          <span className="text-[0.6rem] font-semibold uppercase tracking-[0.2em] text-[var(--ed-ink-faint)]">Section 01</span>
+        </div>
+        <div className="border-t border-[var(--ed-rule-strong)]" />
         {upcoming.length === 0 ? (
-          <p className="text-center py-12 text-muted-foreground text-[0.88rem]">No upcoming interviews</p>
+          <p className="text-center py-12 text-[var(--ed-ink-faint)] text-[0.88rem]">No upcoming interviews</p>
         ) : (
           upcoming.map((u, i) => (
-            <div key={i} className="bg-muted border border-border rounded p-[1rem_1.25rem] mb-3 transition-all hover:border-border hover:shadow-sm">
-              <div className="flex justify-between items-center mb-2">
-                <span className="font-semibold text-foreground text-[0.88rem]">{u.interview.type} - {u.company || ''}</span>
-                <span className="text-[0.78rem] text-muted-foreground">{formatDateTime(u.interview.scheduledAt)}</span>
+            <div key={i} className="border-t border-[var(--ed-rule)] py-[0.95rem] first:border-t-0">
+              <div className="flex justify-between items-baseline gap-3 mb-1">
+                <span className="ed-display font-semibold text-[var(--ed-ink)] text-[1.02rem] tracking-[-0.005em]">{u.interview.type} — {u.company || ''}</span>
+                <span className="text-[0.74rem] text-[var(--ed-ink-faint)] tabular-nums shrink-0">{formatDateTime(u.interview.scheduledAt)}</span>
               </div>
-              <div className="text-[0.84rem] text-foreground leading-[1.6] text-muted-foreground">{u.jobTitle || ''} {u.interview.interviewer ? `| ${u.interview.interviewer}` : ''}</div>
+              <div className="text-[0.84rem] text-[var(--ed-ink-soft)] leading-[1.6]">{u.jobTitle || ''} {u.interview.interviewer ? `· ${u.interview.interviewer}` : ''}</div>
             </div>
           ))
         )}
-      </Card>
+      </section>
 
-      <Card className="p-6 mb-4 transition-all hover:border-border hover:shadow-md mt-4">
-        <h3 className="text-[0.95rem] font-semibold text-foreground mb-3 pb-[0.6rem] border-b border-border">Recent Activity</h3>
+      <section className="mb-4">
+        <div className="flex items-baseline justify-between gap-3 mb-1">
+          <span className="ed-display italic font-semibold text-[1.4rem] tracking-[-0.01em] text-[var(--ed-ink)]">Recent Activity</span>
+          <span className="text-[0.6rem] font-semibold uppercase tracking-[0.2em] text-[var(--ed-ink-faint)]">Section 02</span>
+        </div>
+        <div className="border-t border-[var(--ed-rule-strong)]" />
         {recent.length === 0 ? (
-          <p className="text-center py-12 text-muted-foreground text-[0.88rem]">No recent activity</p>
+          <p className="text-center py-12 text-[var(--ed-ink-faint)] text-[0.88rem]">No recent activity</p>
         ) : (
-          recent.map((a) => (
-            <div key={a.id} className="group flex gap-4 py-[0.85rem] border-b border-border items-start transition-colors last:border-b-0 cursor-pointer" onClick={() => navigate(`/tracker/${a.id}`)}>
-              <div className="w-[34px] h-[34px] rounded-[9px] flex items-center justify-center text-[0.8rem] shrink-0 transition-transform group-hover:scale-[1.08] bg-blue-50 text-blue-500">&#x1F4CB;</div>
-              <div className="flex-1">
-                <div className="text-[0.84rem] mt-[0.15rem]"><strong>{a.jobTitle}</strong> - {a.company} <StatusBadge status={a.status} /></div>
-                <div className="text-[0.73rem] text-muted-foreground">{formatDate(a.createdAt)}</div>
+          recent.map((a, i) => (
+            <div key={a.id} className="group flex items-baseline gap-4 py-[0.9rem] border-t border-[var(--ed-rule)] transition-colors hover:bg-[var(--ed-panel)]/60 cursor-pointer first:border-t-0" onClick={() => navigate(`/tracker/${a.id}`)}>
+              <span className="ed-display text-[1.05rem] leading-none tabular-nums text-[var(--ed-ink-faint)] shrink-0 w-7">{String(i + 1).padStart(2, '0')}</span>
+              <div className="flex-1 min-w-0">
+                <div className="text-[0.9rem] flex items-center gap-2 flex-wrap">
+                  <span className="ed-display font-semibold text-[var(--ed-ink)] transition-colors group-hover:text-[var(--ed-accent-deep)]">{a.jobTitle}</span>
+                  <span className="text-[var(--ed-ink-faint)]">— {a.company}</span>
+                  <StatusBadge status={a.status} />
+                </div>
+                <div className="text-[0.72rem] text-[var(--ed-ink-faint)] mt-[0.15rem] tabular-nums">{formatDate(a.createdAt)}</div>
               </div>
             </div>
           ))
         )}
-      </Card>
+      </section>
     </>
   );
 }

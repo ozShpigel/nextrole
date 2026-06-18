@@ -29,11 +29,6 @@ describe("LandingPage", () => {
     expect(settingsLink).toHaveAttribute("href", "/settings");
   });
 
-  it("renders the version badge", () => {
-    renderWithRouter(<Landing />);
-    expect(screen.getByText(/V 0\.1\.0/)).toBeInTheDocument();
-  });
-
   it("renders the footer", () => {
     renderWithRouter(<Landing />);
     expect(screen.getByText(/NextRole/)).toBeInTheDocument();

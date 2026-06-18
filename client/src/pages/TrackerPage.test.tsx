@@ -21,7 +21,9 @@ vi.mock("../components/Statistics", () => ({
 describe("TrackerPage", () => {
   it("renders page title and subtitle", () => {
     renderWithRouter(<TrackerPage />);
-    expect(screen.getByText("Application Tracker")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Application Tracker" }),
+    ).toBeInTheDocument();
     expect(
       screen.getByText("Manage and track your hiring processes"),
     ).toBeInTheDocument();

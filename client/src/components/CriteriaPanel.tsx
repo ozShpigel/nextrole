@@ -1,9 +1,6 @@
 ﻿import { useState } from 'react';
 import { useSaveCriteria } from '../lib/mutations';
-import { Card } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Progress } from '@/components/ui/progress';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
@@ -31,52 +28,60 @@ interface CriteriaCardProps {
 }
 
 export function CriteriaCard({ criteria, index, onEdit, onDelete, onRun }: CriteriaCardProps) {
+  const num = String(index + 1).padStart(2, '0');
   return (
-    <Card
-      className="group relative p-[1.4rem_1.5rem] transition-all flex flex-col animate-in fade-in slide-in-from-bottom-2 duration-300 hover:border-border hover:shadow-[0_8px_24px_rgba(0,0,0,0.05)] hover:-translate-y-px"
+    <div
+      className="ed-rise group relative flex flex-col border-t border-[var(--ed-rule-strong)] pt-4 pb-1"
       style={{ animationDelay: `${index * 70}ms` }}
     >
-      <div className="absolute top-0 right-0 w-[3px] h-[40px] rounded-tr-lg opacity-60 transition-all group-hover:opacity-100 group-hover:h-[64px]" style={{ background: 'linear-gradient(180deg, var(--primary) 0%, transparent 100%)' }} />
-
-      <div className="flex justify-between items-start gap-3 mb-[0.85rem]">
-        <h3 className="font-serif text-[1.15rem] font-bold text-foreground tracking-[-0.005em] leading-[1.3] flex-1 min-w-0">{criteria.name}</h3>
+      <div className="flex justify-between items-start gap-3 mb-3">
+        <div className="flex items-start gap-3 min-w-0">
+          <span className="ed-display text-[1.4rem] leading-none pt-[2px] tabular-nums text-[var(--ed-ink-faint)]">{num}</span>
+          <h3 className="ed-display font-semibold text-[1.3rem] tracking-[-0.015em] leading-[1.15] text-[var(--ed-ink)] transition-colors group-hover:text-[var(--ed-accent-deep)]">{criteria.name}</h3>
+        </div>
         <div className="flex gap-[0.35rem] shrink-0">
-          <Button variant="outline" size="sm" onClick={() => onEdit(criteria)}>Edit</Button>
-          <Button variant="destructive" size="sm" onClick={() => onDelete(criteria.id)}>Delete</Button>
+          <Button variant="ghost" size="sm" onClick={() => onEdit(criteria)} className="rounded-none h-7 px-2 text-[0.7rem] uppercase tracking-[0.06em] text-[var(--ed-ink-soft)] hover:bg-[var(--ed-panel)] hover:text-[var(--ed-ink)]">Edit</Button>
+          <Button variant="ghost" size="sm" onClick={() => onDelete(criteria.id)} className="rounded-none h-7 px-2 text-[0.7rem] uppercase tracking-[0.06em] text-[var(--ed-no)] hover:bg-[var(--ed-no)]/10">Delete</Button>
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-[0.35rem] mb-[0.85rem]">
-        {criteria.job_titles.map((t) => <span key={t} className="py-[0.2rem] px-[0.6rem] bg-muted text-primary border border-border rounded-[6px] text-[0.78rem] font-medium tracking-[0.01em]">{t}</span>)}
+      <div className="flex flex-wrap gap-[0.35rem] mb-[0.85rem] pl-[calc(1.4rem+0.75rem)] max-[480px]:pl-0">
+        {criteria.job_titles.map((t) => <span key={t} className="py-[0.15rem] px-[0.55rem] border border-[var(--ed-rule)] text-[var(--ed-ink-soft)] text-[0.74rem] font-medium tracking-[0.01em]">{t}</span>)}
       </div>
 
-      <div className="flex flex-col gap-[0.35rem] py-[0.7rem] mb-[0.85rem] border-t border-dashed border-border border-b">
+      <div className="flex flex-col gap-[0.35rem] py-[0.7rem] mb-[0.85rem] border-y border-dashed border-[var(--ed-rule)]">
         {criteria.locations.length > 0 && (
           <div className="flex items-center justify-between gap-2 text-[0.8rem]">
-            <span className="text-muted-foreground tracking-[0.05em] text-[0.7rem] uppercase font-medium">Location</span>
-            <span className="text-foreground font-medium min-w-0 overflow-hidden text-ellipsis whitespace-nowrap" title={criteria.locations.join(', ')}>
+            <span className="text-[var(--ed-ink-faint)] tracking-[0.08em] text-[0.64rem] uppercase font-semibold">Location</span>
+            <span className="text-[var(--ed-ink)] font-medium min-w-0 overflow-hidden text-ellipsis whitespace-nowrap" title={criteria.locations.join(', ')}>
               {criteria.locations.join(' · ')}
             </span>
           </div>
         )}
         <div className="flex items-center justify-between gap-2 text-[0.8rem]">
-          <span className="text-muted-foreground tracking-[0.05em] text-[0.7rem] uppercase font-medium">Sites</span>
-          <span className="text-foreground font-medium min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">{criteria.site_names.join(' · ')}</span>
+          <span className="text-[var(--ed-ink-faint)] tracking-[0.08em] text-[0.64rem] uppercase font-semibold">Sites</span>
+          <span className="text-[var(--ed-ink)] font-medium min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">{criteria.site_names.join(' · ')}</span>
         </div>
       </div>
 
-      <div className="flex items-center gap-[0.6rem] mb-[0.85rem]">
-        <span className="text-[0.7rem] text-muted-foreground tracking-[0.1em] uppercase font-medium">Threshold</span>
-        <Progress value={criteria.min_score_to_save} className="flex-1 h-[5px]" />
-        <span className="font-serif text-[0.9rem] font-bold text-foreground tabular-nums tracking-[-0.01em]">
-          {criteria.min_score_to_save}<small className="text-[0.65rem] text-muted-foreground font-medium font-mono tracking-[0.1em] uppercase ml-[0.2rem]">/100</small>
+      <div className="flex items-center gap-[0.6rem] mb-[1.1rem]">
+        <span className="text-[0.64rem] text-[var(--ed-ink-faint)] tracking-[0.1em] uppercase font-semibold shrink-0">Threshold</span>
+        <span className="relative flex-1 h-[3px] bg-[var(--ed-rule)] overflow-hidden">
+          <span className="ed-fill bg-[var(--ed-ink)]" style={{ ['--p' as string]: criteria.min_score_to_save / 100 }} />
+        </span>
+        <span className="ed-display font-semibold text-[0.95rem] text-[var(--ed-ink)] tabular-nums shrink-0">
+          {criteria.min_score_to_save}<small className="text-[0.6rem] text-[var(--ed-ink-faint)] font-medium tracking-[0.06em] ml-[0.15rem]">/100</small>
         </span>
       </div>
 
-      <Button className="w-full mt-auto" onClick={() => onRun(criteria.id)}>
+      <button
+        type="button"
+        onClick={() => onRun(criteria.id)}
+        className="mt-auto w-full border border-[var(--ed-ink)] bg-transparent py-[0.6rem] text-[0.72rem] font-semibold uppercase tracking-[0.1em] text-[var(--ed-ink)] transition-all hover:bg-[var(--ed-ink)] hover:text-[var(--ed-paper)]"
+      >
         Run Search →
-      </Button>
-    </Card>
+      </button>
+    </div>
   );
 }
 
@@ -91,24 +96,25 @@ interface CriteriaSectionProps {
 export function CriteriaSection({ criteria, onEdit, onDelete, onRun, onNew }: CriteriaSectionProps) {
   return (
     <section className="mb-[3.25rem] relative">
-      <div className="flex items-baseline gap-[0.85rem] mb-[1.3rem] flex-wrap">
-        <Badge variant="outline" className="font-serif text-[0.78rem] font-bold text-foreground tracking-[0.14em] tabular-nums border-border bg-muted/50">01</Badge>
-        <span className="font-serif text-[1.35rem] font-bold text-foreground tracking-[-0.005em]">Search Criteria</span>
+      <div className="flex items-baseline justify-between gap-3 mb-1">
+        <span className="ed-display italic font-semibold text-[1.5rem] tracking-[-0.01em] text-[var(--ed-ink)]">Search Criteria</span>
+        <span className="text-[0.6rem] font-semibold uppercase tracking-[0.2em] text-[var(--ed-ink-faint)]">Section 01</span>
       </div>
+      <div className="border-t border-[var(--ed-rule-strong)] mb-7" />
 
       {criteria.length === 0 ? (
-        <Card className="border-[1.5px] border-dashed p-[2.75rem_1.5rem] text-center shadow-none">
-          <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-muted border border-border text-primary font-serif text-[1.5rem] font-bold mb-[0.85rem]">+</div>
-          <div className="font-serif text-[1.05rem] font-semibold text-foreground mb-[0.3rem]">No search criteria</div>
-          <div className="text-muted-foreground text-[0.85rem] leading-[1.6] mb-[1.1rem] max-w-[360px] mx-auto">
+        <div className="border border-dashed border-[var(--ed-rule)] p-[2.75rem_1.5rem] text-center">
+          <div className="ed-display text-[2rem] font-black text-[var(--ed-accent)] mb-2">+</div>
+          <div className="ed-display text-[1.15rem] font-semibold text-[var(--ed-ink)] mb-[0.3rem]">No search criteria</div>
+          <div className="text-[var(--ed-ink-soft)] text-[0.85rem] leading-[1.6] mb-[1.1rem] max-w-[360px] mx-auto">
             Define your first criteria to start automatically scanning jobs from LinkedIn and Indeed.
           </div>
-          <Button onClick={onNew}>
+          <Button onClick={onNew} className="rounded-none bg-[var(--ed-accent)] text-[var(--ed-paper)] hover:bg-[var(--ed-accent-deep)] uppercase text-[0.7rem] font-semibold tracking-[0.08em]">
             + Create New Criteria
           </Button>
-        </Card>
+        </div>
       ) : (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-x-9 gap-y-3 md:grid-cols-2">
           {criteria.map((c, i) => (
             <CriteriaCard
               key={c.id}

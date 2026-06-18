@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { statusClass, statusDotColors, statusBadgeColors, STATUS_LABEL, type DiscoveryStatus, type StatusClass } from '../lib/discovery';
+import { statusClass, statusDotColors, statusBadgeColors, statusTone, STATUS_LABEL, type DiscoveryStatus, type StatusClass } from '../lib/discovery';
 
 interface DiscoveryRun {
   id: string;
@@ -43,7 +43,7 @@ function DiscoveryDetail({ run, index, onAbort }: DiscoveryDetailProps) {
         <span className="ed-display text-[1.05rem] leading-none tabular-nums text-[var(--ed-ink-faint)]">{num}</span>
         <span className={`w-[8px] h-[8px] rounded-full shrink-0 ${statusDotColors[sCls] || 'bg-muted-foreground'}`} />
         <span className="ed-display font-semibold text-[var(--ed-ink)] text-[1.05rem] tracking-[-0.005em] flex-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap transition-colors group-hover:text-[var(--ed-accent-deep)]">{run.criteria_name}</span>
-        <span className={`text-[0.62rem] font-medium py-[0.18rem] px-[0.55rem] rounded-full border tracking-[0.08em] uppercase shrink-0 ${statusBadgeColors[sCls] || ''}`}>{STATUS_LABEL[run.status] || run.status}</span>
+        <span className={`text-[0.6rem] font-semibold py-[0.2rem] px-[0.55rem] border tracking-[0.1em] uppercase shrink-0 ${statusBadgeColors[sCls] || ''}`} style={{ borderLeft: `2px solid ${statusTone[sCls]}` }}>{STATUS_LABEL[run.status] || run.status}</span>
         {isActive && (
           <button
             type="button"

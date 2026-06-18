@@ -17,16 +17,26 @@ export function statusClass(status: DiscoveryStatus): StatusClass {
   return 'status-dim';
 }
 
+// Editorial run-status tones (light/dark adaptive). Shared by the dot, the
+// stamp badge, and its left tone-bar so the Search History matches the rest of
+// the broadsheet: sage = done · oxblood = failed · ochre = in-flight.
+export const statusTone: Record<StatusClass, string> = {
+  'status-green': 'var(--ed-yes)',
+  'status-red': 'var(--ed-no)',
+  'status-yellow': 'var(--ed-gold)',
+  'status-dim': 'var(--ed-ink-faint)',
+};
+
 export const statusDotColors: Record<StatusClass, string> = {
-  'status-green': 'bg-emerald-600',
-  'status-red': 'bg-red-500',
-  'status-yellow': 'bg-amber-600 animate-pulse',
-  'status-dim': 'bg-muted-foreground',
+  'status-green': 'bg-[var(--ed-yes)]',
+  'status-red': 'bg-[var(--ed-no)]',
+  'status-yellow': 'bg-[var(--ed-gold)] animate-pulse',
+  'status-dim': 'bg-[var(--ed-ink-faint)]',
 };
 
 export const statusBadgeColors: Record<StatusClass, string> = {
-  'status-green': 'bg-emerald-50 text-emerald-600 border-emerald-600/18',
-  'status-red': 'bg-red-50 text-red-500 border-red-500/18',
-  'status-yellow': 'bg-amber-50 text-amber-600 border-amber-600/18',
-  'status-dim': 'bg-muted/50 text-muted-foreground border-border',
+  'status-green': 'bg-[var(--ed-yes)]/10 text-[var(--ed-yes)] border-[var(--ed-yes)]/30',
+  'status-red': 'bg-[var(--ed-no)]/10 text-[var(--ed-no)] border-[var(--ed-no)]/30',
+  'status-yellow': 'bg-[var(--ed-gold)]/12 text-[var(--ed-gold)] border-[var(--ed-gold)]/30',
+  'status-dim': 'bg-[var(--ed-panel)] text-[var(--ed-ink-faint)] border-[var(--ed-rule)]',
 };

@@ -1,9 +1,55 @@
-import { NavLink, Outlet } from 'react-router-dom';
-import { Sun, Moon } from 'lucide-react';
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { Sun, Moon, ChevronDown } from 'lucide-react';
 import { useTheme } from './lib/theme';
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from '@/components/ui/dropdown-menu';
 
 const navLinkClass = ({ isActive }: { isActive: boolean }): string =>
   `relative py-[0.45rem] px-4 rounded-lg text-[0.82rem] font-medium transition-all ${isActive ? 'text-foreground bg-accent' : 'text-muted-foreground hover:text-foreground hover:bg-accent'}`;
+
+const triggerClass = (active: boolean): string =>
+  `relative flex items-center gap-1 py-[0.45rem] px-4 rounded-lg text-[0.82rem] font-medium transition-all outline-none focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:bg-accent data-[state=open]:text-foreground ${active ? 'text-foreground bg-accent' : 'text-muted-foreground hover:text-foreground hover:bg-accent'}`;
+
+type NavChild = { to: string; label: string };
+
+const FIND_GROUP: NavChild[] = [
+  { to: '/discovery', label: 'Discovery' },
+  { to: '/score', label: 'Score a Job' },
+];
+
+const INTERVIEW_GROUP: NavChild[] = [
+  { to: '/interview-prep', label: 'Interview Prep' },
+  { to: '/practice-interview', label: 'Practice Interview' },
+];
+
+function NavGroup({ label, items }: { label: string; items: NavChild[] }) {
+  const { pathname } = useLocation();
+  const navigate = useNavigate();
+  const active = items.some((item) => pathname.startsWith(item.to));
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger className={triggerClass(active)}>
+        {label}
+        <ChevronDown size={13} className="opacity-60 transition-transform data-[state=open]:rotate-180" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="min-w-[10rem]">
+        {items.map((item) => (
+          <DropdownMenuItem
+            key={item.to}
+            onSelect={() => navigate(item.to)}
+            className={pathname.startsWith(item.to) ? 'bg-accent text-foreground' : ''}
+          >
+            {item.label}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
 
 export default function App() {
   const { theme, toggleTheme } = useTheme();
@@ -14,11 +60,9 @@ export default function App() {
           <NavLink to="/" className="font-serif font-bold text-[0.95rem] text-foreground tracking-[0.02em] transition-opacity hover:opacity-75">NextRole</NavLink>
           <div className="flex items-center gap-[0.15rem]">
             <NavLink to="/" end className={navLinkClass}>Home</NavLink>
-            <NavLink to="/discovery" className={navLinkClass}>Discovery</NavLink>
-            <NavLink to="/score" className={navLinkClass}>Score a Job</NavLink>
+            <NavGroup label="Find" items={FIND_GROUP} />
             <NavLink to="/tracker" className={navLinkClass}>Tracker</NavLink>
-            <NavLink to="/interview-prep" className={navLinkClass}>Interview Prep</NavLink>
-            <NavLink to="/practice-interview" className={navLinkClass}>Practice Interview</NavLink>
+            <NavGroup label="Interview" items={INTERVIEW_GROUP} />
             <NavLink to="/settings" className={navLinkClass}>Settings</NavLink>
             <button
               onClick={toggleTheme}

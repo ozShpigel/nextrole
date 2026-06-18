@@ -18,9 +18,13 @@ export default function WakeUpIndicator({ attempt, elapsed }: WakeUpIndicatorPro
         <span className="absolute top-1/2 left-1/2 w-[7px] h-[7px] rounded-full origin-[0_0] opacity-80 animate-pulse" style={{ background: '#8b6fc0' }} />
       </div>
       <div className="flex flex-col gap-[0.35rem] flex-1 min-w-0">
-        <div className="font-serif text-[1.05rem] font-bold text-foreground tracking-[-0.005em]">Waking up the discovery service</div>
+        <div className="font-serif text-[1.05rem] font-bold text-foreground tracking-[-0.005em]">
+          {import.meta.env.PROD ? 'Waking up the discovery service' : 'Waiting for the discovery service'}
+        </div>
         <div className="text-[0.82rem] text-muted-foreground leading-[1.65]">
-          The service was asleep (Render Free Tier). Waking up can take up to a minute — we are waiting and will retry automatically.
+          {import.meta.env.PROD
+            ? 'The service was asleep (Render Free Tier). Waking up can take up to a minute — we are waiting and will retry automatically.'
+            : 'No response from the local scraper (localhost:8000). Make sure it is running — we are retrying automatically.'}
         </div>
         {attempt > 0 && (
           <div className="mt-1 font-mono text-[0.7rem] tracking-[0.14em] uppercase text-primary tabular-nums">

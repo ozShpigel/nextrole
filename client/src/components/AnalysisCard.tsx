@@ -151,7 +151,7 @@ export default function AnalysisCard({ matchAnalysisJson }: AnalysisCardProps) {
         onKeyDown={(e: React.KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen(!open); } }}
         role="button" tabIndex={0} aria-expanded={open}
       >
-        <span className="ed-display italic font-semibold text-[1.4rem] tracking-[-0.01em] text-[var(--ed-ink)]">AI Analysis</span>
+        <h3 className="ed-display italic font-semibold text-[1.4rem] tracking-[-0.01em] text-[var(--ed-ink)] m-0">AI Analysis</h3>
         <span className="text-[var(--ed-accent)] text-[0.9rem]" aria-hidden="true">{open ? '▾' : '▸'}</span>
       </div>
       <div className="border-t border-[var(--ed-rule-strong)]" />

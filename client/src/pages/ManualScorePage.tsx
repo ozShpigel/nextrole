@@ -3,15 +3,15 @@ import { Link } from 'react-router-dom';
 import { useScoreJob, useAddApplication } from '../lib/mutations';
 import type { MatchResponse } from '../lib/types';
 import AnalysisCard from '../components/AnalysisCard';
-import { Card } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 
 const MIN_DESCRIPTION = 50;
+
+const ED_BTN = 'rounded-none border px-4 py-[0.55rem] text-[0.7rem] font-semibold uppercase tracking-[0.1em] transition-all disabled:opacity-50 disabled:pointer-events-none';
+const ED_GHOST = `${ED_BTN} border-[var(--ed-rule)] text-[var(--ed-ink-soft)] hover:border-[var(--ed-ink)] hover:text-[var(--ed-ink)]`;
+const ED_PRIMARY = `${ED_BTN} border-[var(--ed-accent)] bg-[var(--ed-accent)] text-[var(--ed-paper)] hover:bg-[var(--ed-accent-deep)]`;
 
 interface SavedRef {
   id: string;
@@ -106,21 +106,24 @@ export default function ManualScorePage() {
   }
 
   return (
-    <div className="relative max-w-[960px] mx-auto px-7 pt-14 pb-20 animate-in fade-in slide-in-from-bottom-1 duration-500 isolate max-[640px]:px-4 max-[640px]:pt-10 max-[640px]:pb-14">
-      {/* Atmospheric glows */}
-      <div className="absolute -top-[140px] -right-[220px] w-[540px] h-[540px] blur-[60px] pointer-events-none -z-1" style={{ background: 'radial-gradient(circle, rgba(0,0,0,0.03) 0%, transparent 65%)' }} />
-      <div className="absolute top-[40%] -left-[200px] w-[420px] h-[420px] blur-[60px] pointer-events-none -z-1" style={{ background: 'radial-gradient(circle, rgba(0,0,0,0.02) 0%, transparent 65%)' }} />
+    <div className="editorial editorial-grain min-h-screen">
+      <div className="relative z-[1] max-w-[1040px] mx-auto px-8 pt-12 pb-20 animate-in fade-in slide-in-from-bottom-1 duration-500 max-[640px]:px-5 max-[640px]:pt-8 max-[640px]:pb-14">
 
-      <header className="mb-8 relative">
-        <Badge variant="outline" className="font-mono text-[0.65rem] tracking-[0.26em] uppercase text-muted-foreground font-medium border-border bg-muted/50 mb-[1.2rem]">Manual · Paste & Score</Badge>
-        <h1 className="font-serif text-[clamp(2rem,4vw,2.7rem)] font-bold text-foreground leading-[1.1] mb-[0.65rem] tracking-[-0.01em]">Score a Job</h1>
-        <p className="text-muted-foreground text-[0.95rem] max-w-[560px] leading-[1.6]">
+      <header className="mb-9 relative">
+        <div className="flex items-baseline justify-between gap-4 pb-[10px] border-b border-[var(--ed-rule)] text-[0.62rem] font-semibold uppercase tracking-[0.22em] text-[var(--ed-ink-faint)]">
+          <span>Vol. III · Score</span>
+          <span className="hidden sm:block text-[var(--ed-accent)]">Manual · Paste &amp; Score</span>
+        </div>
+        <h1 className="ed-display font-black text-[clamp(2.4rem,6vw,4rem)] leading-[0.92] tracking-[-0.02em] text-[var(--ed-ink)] pt-4">
+          Score a <span className="italic font-medium text-[var(--ed-accent)]">Job</span>
+        </h1>
+        <p className="mt-3 text-[var(--ed-ink-soft)] text-[0.95rem] max-w-[560px] leading-[1.6]">
           Paste a job description to score it against your profile — the same AI analysis as discovery, on demand. Save the ones worth pursuing straight to your tracker.
         </p>
-        <Separator className="mt-[1.6rem]" />
+        <div className="mt-5 border-t-[3px] border-double border-[var(--ed-rule-strong)]" />
       </header>
 
-      <Card className="p-6 mb-6">
+      <div className="border border-[var(--ed-rule)] p-6 mb-9">
         <div className="grid grid-cols-2 gap-4 mb-4 max-[640px]:grid-cols-1">
           <div className="flex flex-col gap-[0.4rem]">
             <Label htmlFor="ms-title">Job Title</Label>
@@ -132,7 +135,7 @@ export default function ManualScorePage() {
           </div>
         </div>
         <div className="flex flex-col gap-[0.4rem] mb-4">
-          <Label htmlFor="ms-location">Location <span className="text-muted-foreground font-normal">(optional)</span></Label>
+          <Label htmlFor="ms-location">Location <span className="text-[var(--ed-ink-faint)] font-normal">(optional)</span></Label>
           <Input id="ms-location" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="e.g. Tel Aviv / Remote" />
         </div>
         <div className="flex flex-col gap-[0.4rem]">
@@ -145,61 +148,60 @@ export default function ManualScorePage() {
             dir="auto"
             className="min-h-[280px] resize-y font-sans text-[0.88rem] leading-[1.6]"
           />
-          <div className="flex items-center justify-between text-[0.72rem] text-muted-foreground tracking-[0.02em]">
+          <div className="flex items-center justify-between text-[0.72rem] text-[var(--ed-ink-faint)] tracking-[0.02em]">
             <span>{title.trim() || company.trim() ? '' : 'Title and company are optional — the analyst will extract them if left blank.'}</span>
-            <span>{trimmedDescription.length.toLocaleString()} chars{trimmedDescription.length > 0 && trimmedDescription.length < MIN_DESCRIPTION ? ` · need ${MIN_DESCRIPTION}+` : ''}</span>
+            <span className="tabular-nums">{trimmedDescription.length.toLocaleString()} chars{trimmedDescription.length > 0 && trimmedDescription.length < MIN_DESCRIPTION ? ` · need ${MIN_DESCRIPTION}+` : ''}</span>
           </div>
         </div>
 
         <div className="flex items-center gap-2 mt-5">
-          <Button onClick={handleScore} disabled={!canScore}>
+          <button type="button" className={ED_PRIMARY} onClick={handleScore} disabled={!canScore}>
             {scoreJob.isPending ? 'Scoring…' : 'Score Job'}
-          </Button>
+          </button>
           {(result || description || title || company || location) && (
-            <Button variant="outline" onClick={handleReset} disabled={scoreJob.isPending}>
+            <button type="button" className={ED_GHOST} onClick={handleReset} disabled={scoreJob.isPending}>
               Clear
-            </Button>
+            </button>
           )}
           {scoreJob.isPending && (
-            <span className="text-[0.8rem] text-muted-foreground">Running analyst + evaluator — this can take up to a minute.</span>
+            <span className="text-[0.8rem] text-[var(--ed-ink-faint)]">Running analyst + evaluator — this can take up to a minute.</span>
           )}
         </div>
 
         {error && (
-          <div className="mt-4 p-3 bg-destructive/10 text-destructive text-[0.88rem] rounded border border-destructive/20">{error}</div>
+          <div className="mt-4 p-3 bg-[var(--ed-no)]/10 text-[var(--ed-no)] text-[0.88rem] border border-[var(--ed-no)]/30">{error}</div>
         )}
-      </Card>
+      </div>
 
       {result && (
         <>
           <AnalysisCard matchAnalysisJson={JSON.stringify(result)} />
 
-          <Card className="p-5 flex items-center justify-between gap-4 flex-wrap">
+          <div className="border border-[var(--ed-rule)] p-5 flex items-center justify-between gap-4 flex-wrap">
             {saved ? (
               <>
-                <span className="text-[0.88rem] text-emerald-600 font-medium">Saved to your tracker.</span>
-                <Button asChild>
-                  <Link to={`/tracker/${saved.id}`}>View in Tracker</Link>
-                </Button>
+                <span className="text-[0.88rem] text-[var(--ed-yes)] font-semibold uppercase tracking-[0.06em]">Saved to your tracker.</span>
+                <Link to={`/tracker/${saved.id}`} className={ED_PRIMARY}>View in Tracker</Link>
               </>
             ) : (
               <>
-                <div className="text-[0.85rem] text-muted-foreground leading-[1.5]">
+                <div className="text-[0.85rem] text-[var(--ed-ink-soft)] leading-[1.5]">
                   {canSave
-                    ? <>Save <span className="text-foreground font-medium">{resolvedTitle}</span> at <span className="text-foreground font-medium">{resolvedCompany}</span> to your tracker.</>
+                    ? <>Save <span className="text-[var(--ed-ink)] font-semibold">{resolvedTitle}</span> at <span className="text-[var(--ed-ink)] font-semibold">{resolvedCompany}</span> to your tracker.</>
                     : 'Add a job title and company above to save this to your tracker.'}
                 </div>
-                <Button onClick={handleSave} disabled={!canSave}>
+                <button type="button" className={ED_PRIMARY} onClick={handleSave} disabled={!canSave}>
                   {addApplication.isPending ? 'Saving…' : 'Save to Tracker'}
-                </Button>
+                </button>
               </>
             )}
             {saveError && (
-              <div className="w-full mt-1 p-3 bg-destructive/10 text-destructive text-[0.88rem] rounded border border-destructive/20">{saveError}</div>
+              <div className="w-full mt-1 p-3 bg-[var(--ed-no)]/10 text-[var(--ed-no)] text-[0.88rem] border border-[var(--ed-no)]/30">{saveError}</div>
             )}
-          </Card>
+          </div>
         </>
       )}
+      </div>
     </div>
   );
 }

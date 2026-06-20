@@ -3,7 +3,6 @@ namespace ApplicationTracker.Core.Matching;
 public interface IJobMatchService
 {
     Task<MatchResponse> AnalyzeMatchAsync(MatchRequest request, CancellationToken cancellationToken = default);
-    Task<TestPromptResult> TestPromptAsync(TestPromptRequest request, CancellationToken cancellationToken = default);
 
     // Batch (cron) path: analyst runs live per job (ParseAsync), then all parsed
     // jobs are evaluated in one Anthropic batch (submit), collected later (get).

@@ -1,11 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { useRunDetail, useRunJobs, useProfile } from '../lib/queries';
-import { useSaveJob, useDismissJob, useRescoreJob, useSaveProfile } from '../lib/mutations';
-import type { ProfileResponse } from '../lib/types';
-import { VERDICT_LABELS, EVALUATOR_PLACEHOLDERS } from '../lib/scoring';
+import { useRunDetail, useRunJobs } from '../lib/queries';
+import { useSaveJob, useDismissJob, useRescoreJob } from '../lib/mutations';
+import { VERDICT_LABELS } from '../lib/scoring';
 import { SnapshotsModal } from '../components/Snapshots';
-import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 
 interface GlassdoorData {
@@ -87,11 +85,6 @@ interface Run {
   error?: string;
 }
 
-interface PromptResult {
-  type: 'success' | 'error';
-  message: string;
-}
-
 function verdictColor(verdict: string | null): string {
   if (verdict === 'STRONG_YES' || verdict === 'YES') return 'var(--ed-yes)';
   if (verdict === 'MAYBE') return 'var(--ed-gold)';
@@ -127,13 +120,10 @@ export default function RunDetail() {
   const jobsQuery = useRunJobs(runId!, isActive ?? false);
   const jobs = (jobsQuery.data as DiscoveredJob[] | undefined) ?? [];
 
-  const profileQuery = useProfile();
-
   // --- Mutation hooks ---
   const saveJobMutation = useSaveJob();
   const dismissJobMutation = useDismissJob();
   const rescoreJobMutation = useRescoreJob();
-  const saveProfileMutation = useSaveProfile();
 
   // --- UI state ---
   const [rescoringIds, setRescoringIds] = useState<Set<string>>(() => new Set());
@@ -149,31 +139,6 @@ export default function RunDetail() {
       return next;
     });
   }
-
-  // Inline Evaluator-prompt editor state — lazy-loaded from /api/match/profile
-  // the first time the panel opens. Saving writes through to the same Mongo
-  // override the Settings page uses, so the next rescore picks it up with no
-  // navigation.
-  const [promptOpen, setPromptOpen] = useState<boolean>(false);
-  const [evaluatorPrompt, setEvaluatorPrompt] = useState<string>('');
-  const [originalPrompt, setOriginalPrompt] = useState<string>('');
-  const [promptIsOverride, setPromptIsOverride] = useState<boolean>(false);
-  const [promptLastSaved, setPromptLastSaved] = useState<string | null>(null);
-  const [promptResult, setPromptResult] = useState<PromptResult | null>(null);
-  const [promptLoaded, setPromptLoaded] = useState<boolean>(false);
-
-  // Initialize local prompt state from profile data when panel first opens
-  useEffect(() => {
-    if (promptOpen && !promptLoaded && profileQuery.data) {
-      const data = profileQuery.data;
-      const p = data?.evaluator_prompt || '';
-      setEvaluatorPrompt(p);
-      setOriginalPrompt(p);
-      setPromptIsOverride(!!data?.evaluator_prompt_is_override);
-      setPromptLastSaved(data?.updated_at ?? null);
-      setPromptLoaded(true);
-    }
-  }, [promptOpen, promptLoaded, profileQuery.data]);
 
   // --- Derived state ---
   const loading = runQuery.isLoading || jobsQuery.isLoading;
@@ -227,46 +192,6 @@ export default function RunDetail() {
       }
     }
     setBulkRescoring(false);
-  }
-
-  function togglePromptPanel(): void {
-    setPromptOpen((prev) => !prev);
-  }
-
-  function persistPrompt(body: Record<string, unknown>, successMsg: string): void {
-    setPromptResult(null);
-    saveProfileMutation.mutate(body, {
-      onSuccess: (data) => {
-        const profile = data as ProfileResponse;
-        const p = profile?.evaluator_prompt || '';
-        setEvaluatorPrompt(p);
-        setOriginalPrompt(p);
-        setPromptIsOverride(!!profile?.evaluator_prompt_is_override);
-        setPromptLastSaved(profile?.updated_at ?? null);
-        setPromptResult({ type: 'success', message: successMsg });
-      },
-      onError: (e) => {
-        setPromptResult({ type: 'error', message: 'Save failed: ' + (e as Error).message });
-      },
-    });
-  }
-
-  const savingPrompt = saveProfileMutation.isPending;
-  const promptLoading = promptOpen && !promptLoaded && profileQuery.isLoading;
-  const missingPlaceholders = EVALUATOR_PLACEHOLDERS.filter((p: string) => !evaluatorPrompt.includes(p));
-  const isPromptDirty = evaluatorPrompt !== originalPrompt;
-
-  function savePrompt(): void {
-    if (missingPlaceholders.length > 0) {
-      const msg = `Missing placeholders: ${missingPlaceholders.join(', ')}. Without them, scoring will break. Save anyway?`;
-      if (!confirm(msg)) return;
-    }
-    persistPrompt({ evaluator_prompt: evaluatorPrompt }, 'Prompt saved. Run a rescore to see the effect.');
-  }
-
-  function resetPrompt(): void {
-    if (!confirm('Reset the prompt to the service default? Your customization will be removed.')) return;
-    persistPrompt({ evaluator_prompt: '' }, 'Prompt reset to default.');
   }
 
   if (loading) return (
@@ -337,90 +262,6 @@ export default function RunDetail() {
           </div>
         )}
       </header>
-
-      {/* Eval prompt panel */}
-      <div className="mb-9 border border-[var(--ed-rule)]">
-        <div className="flex items-center justify-between gap-4 p-[0.9rem_1.25rem]">
-          <button
-            type="button"
-            className="group inline-flex items-center gap-[0.6rem] bg-transparent border-none p-[0.2rem_0] cursor-pointer text-[0.9rem] font-semibold text-[var(--ed-ink)]"
-            onClick={togglePromptPanel}
-            aria-expanded={promptOpen}
-          >
-            <span className="text-[0.9rem] text-[var(--ed-accent)] w-[0.9rem] inline-block text-center" aria-hidden="true">{promptOpen ? '▾' : '▸'}</span>
-            <span className="ed-display text-[1.05rem] tracking-[0.01em] transition-colors group-hover:text-[var(--ed-accent)]">Evaluator Prompt</span>
-            <span className={`text-[0.62rem] tracking-[0.14em] uppercase font-semibold py-[0.2rem] px-[0.55rem] border ${promptIsOverride ? 'bg-[var(--ed-accent)]/10 text-[var(--ed-accent)] border-[var(--ed-accent)]/30' : 'bg-[var(--ed-panel)] text-[var(--ed-ink-faint)] border-[var(--ed-rule)]'}`}>
-              {promptIsOverride ? 'Custom' : 'Default'}
-            </span>
-          </button>
-          {promptLastSaved && (
-            <span className="text-[0.72rem] text-[var(--ed-ink-faint)] tracking-[0.04em]">
-              Updated {new Date(promptLastSaved).toLocaleString('en-US')}
-            </span>
-          )}
-        </div>
-
-        {promptOpen && (
-          promptLoading ? (
-            <div className="p-[1.25rem_1.5rem] text-[var(--ed-ink-faint)] text-[0.88rem] border-t border-dashed border-[var(--ed-rule)]">Loading prompt...</div>
-          ) : (
-            <div className="p-[1rem_1.5rem_1.25rem] border-t border-dashed border-[var(--ed-rule)] flex flex-col gap-3">
-              <p className="text-[0.82rem] text-[var(--ed-ink-soft)] leading-[1.55]">
-                Edit the evaluator prompt. Changes affect the next rescore — no need to navigate to settings.
-              </p>
-              {missingPlaceholders.length > 0 && (
-                <div className="text-[0.8rem] p-[0.55rem_0.8rem] bg-[var(--ed-no)]/[0.08] border border-[var(--ed-no)]/30 text-[var(--ed-no)] flex flex-wrap gap-[0.3rem] items-center">
-                  Missing placeholders: {missingPlaceholders.map((p: string) => <code key={p} className="font-code text-[0.78rem] bg-[var(--ed-no)]/[0.1] py-[0.08rem] px-[0.4rem]">{p}</code>).reduce<React.ReactNode[]>((acc, cur, i) => i === 0 ? [cur] : [...acc, ' · ', cur], [])}
-                </div>
-              )}
-              <textarea
-                className="min-h-[360px] resize-y p-[0.9rem_1rem] font-code text-[0.82rem] leading-[1.6] text-[var(--ed-ink)] bg-[var(--ed-panel)] border border-[var(--ed-rule)] text-left whitespace-pre-wrap transition-all focus:outline-none focus:border-[var(--ed-ink)]"
-                value={evaluatorPrompt}
-                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => { setEvaluatorPrompt(e.target.value); setPromptResult(null); }}
-                dir="auto"
-                spellCheck={false}
-              />
-              <div className="flex items-center justify-end flex-wrap gap-2 pt-1">
-                <span className="mr-auto text-[0.72rem] text-[var(--ed-ink-faint)] tracking-[0.04em]">
-                  {evaluatorPrompt.length.toLocaleString()} chars · ~{Math.ceil(evaluatorPrompt.length / 4).toLocaleString()} tokens
-                </span>
-                <button
-                  type="button"
-                  onClick={resetPrompt}
-                  disabled={savingPrompt}
-                  title="Reset the evaluator prompt to the built-in default"
-                  className={ghostBtn}
-                >
-                  Reset to Default
-                </button>
-                {isPromptDirty && (
-                  <button
-                    type="button"
-                    onClick={() => { setEvaluatorPrompt(originalPrompt); setPromptResult(null); }}
-                    disabled={savingPrompt}
-                    className={ghostBtn}
-                  >
-                    Discard Changes
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={savePrompt}
-                  disabled={savingPrompt || !isPromptDirty}
-                  className={`${actionBtn} border-[var(--ed-accent)] bg-[var(--ed-accent)] text-[var(--ed-paper)] hover:bg-[var(--ed-accent-deep)]`}
-                >
-                  {savingPrompt ? 'Saving...' : 'Save'}
-                </button>
-              </div>
-              {promptResult && (
-                <div className={`text-[0.82rem] p-[0.55rem_0.85rem] border ${promptResult.type === 'success' ? 'bg-[var(--ed-yes)]/10 text-[var(--ed-yes)] border-[var(--ed-yes)]/30' : 'bg-[var(--ed-no)]/10 text-[var(--ed-no)] border-[var(--ed-no)]/30'}`}>
-                  {promptResult.message}
-                </div>
-              )}
-            </div>
-          )
-        )}
-      </div>
 
       {/* Feed header */}
       <div className="flex items-baseline justify-between gap-3 mb-1">

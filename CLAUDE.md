@@ -50,7 +50,7 @@ cd server/scraper; .\.venv\Scripts\python.exe -m uvicorn app.main:app --host 0.0
 - Mailbot is a one-shot process (run via cron/scheduler), not a long-running service
 - Frontend is an English LTR SPA (shadcn/ui + Tailwind v4) styled with the custom **Editorial Broadsheet** theme (see Design System below). Content can be mixed Hebrew RTL (AI summaries, prompts, interview text) — render those nodes with `dir="rtl"`/`dir="auto"`
 - AI prompts use system/user separation: trusted instructions in the API system prompt field, untrusted external data (job descriptions, emails) in the user message wrapped in XML tags
-- `scoring_config` keys are validated against an allowlist before persisting to MongoDB
+- `scoring_config` and the Analyst/Evaluator prompts are read-only server configuration (Options pattern), not user-editable data — see **Scoring Pipeline** below
 - `GET /api/applications` returns a lightweight `ApplicationListItem` projection (only the fields the tracker/dashboard render) — the full `Application` document is fetched per-application via `GET /api/applications/{id}`. Status updates patch the React Query list cache optimistically (`setQueryData`) instead of refetching the list
 
 ## Design System — Editorial Broadsheet
@@ -70,8 +70,7 @@ The frontend uses a custom **Editorial Broadsheet** theme — warm paper, hairli
 
 Each job scoring = 2 Claude API calls: Analyst (Haiku) + Evaluator (Sonnet with extended thinking).
 
-- **Scoring config** is stored in MongoDB `profile` collection (doc id: "default"), loaded with 30s cache — no API restart needed for config changes
-- **Custom evaluator prompt** stored in DB overrides the system prompt in `PromptSeeds.cs`
+- **Scoring config & prompts are read-only configuration** (admin-only), bound via the .NET Options pattern — not user-editable data. `scoring_config` (models, temperature, max tokens, thinking, `min_score_to_save`, verdict bands) lives in `appsettings.json` under `Scoring`, bound to `ScoringConfig` via `IOptions<ScoringConfig>`. The Analyst/Evaluator system prompts default from `PromptSeeds.cs`, bound via `IOptions<PromptOptions>`. Both override per-deploy with env vars (`Scoring__Evaluator__Temperature`, `Scoring__MinScoreToSave`, `Prompts__Analyzer`, `Prompts__Evaluator`, …). Changing either is a redeploy/restart — there is **no** runtime UI/endpoint to edit them and no 30s hot-reload. The Settings page edits only the professional profile `content` (still MongoDB-backed, with version history)
 - **Scoring dimensions**: Technical Fit (35pts), Engineering Execution Fit (30pts), Sustainability & Pace Fit (35pts)
 - **Sub-component breakdown**: each dimension's `breakdown.<dim>.components[]` array (modeled by `ScoreComponent` in `MatchResponse.cs`) splits its score into sub-criteria, each with `name`, `score`, `maxScore`, and a one-sentence `reason` — Technical Fit → Core Stack (0-20) + System Design (0-15); Engineering Execution → Development Practices/Role Clarity & Ownership + Engineering Maturity; Sustainability & Pace → Work-Life + Communication/Pace + Growth/Long-term Risk. Dimension score = sum of its components; surfaced in the discovery UI via the "Score Breakdown" button on each job card, alongside a "Signals" summary (recommendation green/red flags)
 - **Verdicts**: STRONG_YES, YES, MAYBE, NO, STRONG_NO, INSUFFICIENT_DATA

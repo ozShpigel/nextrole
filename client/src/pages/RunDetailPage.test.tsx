@@ -1,7 +1,7 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderWithRouter } from '../test/render';
-import { discoveryApi, matchApi } from '../lib/api';
+import { discoveryApi } from '../lib/api';
 import RunDetail from './RunDetailPage';
 
 vi.mock('../lib/api', () => ({
@@ -56,7 +56,6 @@ function renderWithJobs(jobs: ReturnType<typeof makeJob>[], runOverrides = {}) {
   vi.mocked(discoveryApi)
     .mockResolvedValueOnce({ ...mockRun, ...runOverrides })
     .mockResolvedValueOnce(jobs);
-  vi.mocked(matchApi).mockResolvedValue({ evaluator_prompt: '', evaluator_prompt_is_override: false });
   return renderWithRouter(<RunDetail />);
 }
 
@@ -413,16 +412,6 @@ describe('RunDetailPage - Failed Scoring Banner', () => {
       expect(screen.getByText('Processing... the page will update automatically')).toBeInTheDocument();
     });
     expect(screen.queryByRole('button', { name: 'Rescore All Failed' })).not.toBeInTheDocument();
-  });
-});
-
-describe('RunDetailPage - Evaluator Prompt Panel', () => {
-  it('toggle is visible with Default label', async () => {
-    renderWithJobs([makeJob()]);
-    await waitFor(() => {
-      expect(screen.getByText('Evaluator Prompt')).toBeInTheDocument();
-    });
-    expect(screen.getByText('Default')).toBeInTheDocument();
   });
 });
 

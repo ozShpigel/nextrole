@@ -129,43 +129,6 @@ public static class MatchEndpoints
         .WithName("GetEvaluationBatch")
         .WithSummary("Poll/collect evaluator batch (batch path, stage 3)");
 
-        app.MapPost("/api/match/test-prompt", async (
-            [FromBody] TestPromptRequest request,
-            IJobMatchService jobMatchService,
-            ILogger<Program> logger,
-            CancellationToken ct) =>
-        {
-            if (request is null || string.IsNullOrWhiteSpace(request.JobDescription))
-                return Results.BadRequest(new { error = "JobDescription is required" });
-
-            if (request.Target is not ("analyst" or "evaluator"))
-                return Results.BadRequest(new { error = "target must be 'analyst' or 'evaluator'" });
-
-            if (request.JobDescription.Length > 50_000)
-                return Results.BadRequest(new { error = "JobDescription exceeds maximum length of 50,000 characters" });
-
-            try
-            {
-                var result = await jobMatchService.TestPromptAsync(request, ct);
-                return Results.Ok(result);
-            }
-            catch (InvalidOperationException ex) when (ex.Message.Contains("ApiKey"))
-            {
-                logger.LogError(ex, "Anthropic API key not configured");
-                return Results.Problem(
-                    detail: "Anthropic API key is not configured. Please set Anthropic:ApiKey in configuration.",
-                    statusCode: 500);
-            }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, "Error processing test-prompt request");
-                return Results.Problem(detail: "An error occurred while processing the request", statusCode: 500);
-            }
-        })
-        .RequireRateLimiting("match")
-        .WithName("TestPrompt")
-        .WithSummary("Dry-run a candidate prompt/config against a sample job without persisting");
-
         app.MapGet("/api/match/profile", async (
             IProfileProvider provider,
             ILogger<Program> logger,
@@ -177,11 +140,6 @@ public static class MatchEndpoints
                 return Results.Ok(new
                 {
                     content = doc.Content,
-                    scoring_config = doc.ScoringConfig,
-                    analyst_prompt = doc.AnalystPrompt,
-                    evaluator_prompt = doc.EvaluatorPrompt,
-                    analyst_prompt_is_override = doc.AnalystIsOverride,
-                    evaluator_prompt_is_override = doc.EvaluatorIsOverride,
                     updated_at = doc.UpdatedAt
                 });
             }
@@ -192,7 +150,7 @@ public static class MatchEndpoints
             }
         })
         .WithName("GetProfile")
-        .WithSummary("Get the stored professional profile, scoring config, and prompts");
+        .WithSummary("Get the stored professional profile content");
 
         app.MapPut("/api/match/profile", async (
             [FromBody] UpdateProfileRequest request,
@@ -200,34 +158,16 @@ public static class MatchEndpoints
             ILogger<Program> logger,
             CancellationToken ct) =>
         {
-            if (request is null)
-                return Results.BadRequest(new { error = "request body is required" });
-
-            if (request.Content is null
-                && request.ScoringConfig is null
-                && request.AnalystPrompt is null
-                && request.EvaluatorPrompt is null)
-            {
-                return Results.BadRequest(new { error = "at least one field must be provided" });
-            }
+            if (request is null || request.Content is null)
+                return Results.BadRequest(new { error = "content is required" });
 
             try
             {
-                await provider.UpsertProfileAsync(
-                    request.Content,
-                    request.ScoringConfig,
-                    request.AnalystPrompt,
-                    request.EvaluatorPrompt,
-                    ct);
+                await provider.UpsertProfileAsync(request.Content, ct);
                 var updated = await provider.GetProfileDocumentAsync(ct);
                 return Results.Ok(new
                 {
                     content = updated.Content,
-                    scoring_config = updated.ScoringConfig,
-                    analyst_prompt = updated.AnalystPrompt,
-                    evaluator_prompt = updated.EvaluatorPrompt,
-                    analyst_prompt_is_override = updated.AnalystIsOverride,
-                    evaluator_prompt_is_override = updated.EvaluatorIsOverride,
                     updated_at = updated.UpdatedAt
                 });
             }
@@ -238,7 +178,7 @@ public static class MatchEndpoints
             }
         })
         .WithName("UpdateProfile")
-        .WithSummary("Update profile, scoring config, and/or prompts (all fields optional)");
+        .WithSummary("Update the professional profile content");
 
         app.MapGet("/api/match/profile/history/{field}", async (
             string field,
@@ -262,7 +202,7 @@ public static class MatchEndpoints
             }
         })
         .WithName("GetProfileHistory")
-        .WithSummary("List prior versions of a profile field (content, analyst_prompt, evaluator_prompt, scoring_config)");
+        .WithSummary("List prior versions of the profile content");
 
         app.MapPost("/api/match/profile/history/{field}/restore", async (
             string field,
@@ -278,11 +218,6 @@ public static class MatchEndpoints
                 return Results.Ok(new
                 {
                     content = updated.Content,
-                    scoring_config = updated.ScoringConfig,
-                    analyst_prompt = updated.AnalystPrompt,
-                    evaluator_prompt = updated.EvaluatorPrompt,
-                    analyst_prompt_is_override = updated.AnalystIsOverride,
-                    evaluator_prompt_is_override = updated.EvaluatorIsOverride,
                     updated_at = updated.UpdatedAt
                 });
             }

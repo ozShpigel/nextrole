@@ -9,16 +9,7 @@ vi.mock('../lib/api', () => ({
 
 const mockProfileResponse = {
   content: 'test profile content',
-  analyst_prompt: 'test analyst prompt',
-  analyst_prompt_is_override: false,
-  evaluator_prompt: 'test evaluator prompt with {{USER_PROFILE}} and {{PARSED_JOB}}',
-  evaluator_prompt_is_override: false,
   updated_at: '2026-05-01T00:00:00Z',
-  scoring_config: {
-    analyst: { model: 'claude-sonnet-4-6', temperature: 0.3, max_tokens: 4096, thinking_enabled: true, thinking_budget: 2048 },
-    evaluator: { model: 'claude-sonnet-4-6', temperature: 0.3, max_tokens: 4096, thinking_enabled: true, thinking_budget: 2048 },
-    min_score_to_save: 70,
-  },
 };
 
 beforeEach(() => {
@@ -45,10 +36,12 @@ describe('SettingsPage', () => {
       expect(screen.getByText('Professional Profile')).toBeInTheDocument();
     });
 
-    expect(screen.getByText('Analyst Prompt')).toBeInTheDocument();
-    expect(screen.getByText('Evaluator Prompt')).toBeInTheDocument();
-    expect(screen.getByText('Analysis Config')).toBeInTheDocument();
-    expect(screen.getByText('Scoring Structure')).toBeInTheDocument();
+    // Prompts and scoring config are now locked server configuration — their
+    // editing sections must no longer render on the Settings page.
+    expect(screen.queryByText('Analyst Prompt')).not.toBeInTheDocument();
+    expect(screen.queryByText('Evaluator Prompt')).not.toBeInTheDocument();
+    expect(screen.queryByText('Analysis Config')).not.toBeInTheDocument();
+    expect(screen.queryByText('Scoring Structure')).not.toBeInTheDocument();
 
     expect(screen.queryByRole('status', { name: /loading settings/i })).not.toBeInTheDocument();
   });

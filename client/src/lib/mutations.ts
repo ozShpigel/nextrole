@@ -1,8 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, matchApi, discoveryApi } from './api';
 import type {
-  TestPromptRequest,
-  TestPromptResult,
   HistoryField,
   InterviewPrepHistoryField,
   MockTurn,
@@ -124,16 +122,6 @@ export function useScoreJob() {
         method: 'POST',
         body: JSON.stringify(body),
       }) as Promise<MatchResponse>,
-  });
-}
-
-export function useTestPrompt() {
-  return useMutation({
-    mutationFn: (body: TestPromptRequest) =>
-      matchApi('/test-prompt', {
-        method: 'POST',
-        body: JSON.stringify(body),
-      }) as Promise<TestPromptResult>,
   });
 }
 

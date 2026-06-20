@@ -6,6 +6,7 @@ using ApplicationTracker.Core.Repositories;
 using ApplicationTracker.Infrastructure.AI;
 using ApplicationTracker.Infrastructure.Profile;
 using ApplicationTracker.Infrastructure.Repositories;
+using Microsoft.Extensions.Options;
 using MongoDB.Driver;
 
 namespace ApplicationTracker.Api.Extensions;
@@ -35,6 +36,17 @@ public static class ServiceExtensions
             new StatusUpdateRepository(sp.GetRequiredService<IMongoCollection<StatusUpdate>>()));
         services.AddScoped<IMockInterviewRepository>(sp =>
             new MockInterviewRepository(sp.GetRequiredService<IMongoCollection<MockInterviewSession>>()));
+
+        // Read-only scoring configuration (Options pattern). Prompts default from
+        // PromptSeeds (code); scoring config values live in appsettings "Scoring".
+        // Both override per-deploy via env vars (Prompts__*, Scoring__*). Also
+        // expose the resolved values as plain singletons so consumers in the Core
+        // project can inject them without taking a Microsoft.Extensions.Options
+        // dependency.
+        services.Configure<PromptOptions>(configuration.GetSection("Prompts"));
+        services.Configure<ScoringConfig>(configuration.GetSection("Scoring"));
+        services.AddSingleton(sp => sp.GetRequiredService<IOptions<PromptOptions>>().Value);
+        services.AddSingleton(sp => sp.GetRequiredService<IOptions<ScoringConfig>>().Value);
 
         // Job matching: profile lookup + Claude client + orchestration service
         services.AddMemoryCache();

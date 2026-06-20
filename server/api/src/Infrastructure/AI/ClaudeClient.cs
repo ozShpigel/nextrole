@@ -85,6 +85,8 @@ public sealed class ClaudeClient : IClaudeClient
     private readonly AnthropicClient _client;
     private readonly PromptBuilder _promptBuilder;
     private readonly IProfileProvider _profileProvider;
+    private readonly PromptOptions _prompts;
+    private readonly ScoringConfig _scoring;
     private readonly ILogger<ClaudeClient> _logger;
 
     public ClaudeClient(
@@ -92,6 +94,8 @@ public sealed class ClaudeClient : IClaudeClient
         IHttpClientFactory httpClientFactory,
         PromptBuilder promptBuilder,
         IProfileProvider profileProvider,
+        PromptOptions prompts,
+        ScoringConfig scoring,
         ILogger<ClaudeClient> logger)
     {
         var apiKey = configuration["Anthropic:ApiKey"];
@@ -104,15 +108,20 @@ public sealed class ClaudeClient : IClaudeClient
         _client = new AnthropicClient(apiKey, httpClient);
         _promptBuilder = promptBuilder;
         _profileProvider = profileProvider;
+        _prompts = prompts;
+        _scoring = scoring;
         _logger = logger;
     }
 
-    public async Task<(ParsedJob Parsed, ClaudeCallSnapshot Snapshot)> ParseJobDescriptionAsync(string jobDescription, CancellationToken cancellationToken = default)
-    {
-        var analystPrompt = await _profileProvider.GetAnalystPromptAsync(cancellationToken);
-        var cfg = (await _profileProvider.GetScoringConfigAsync(cancellationToken)).Analyst;
-        return await ParseJobDescriptionAsync(jobDescription, analystPrompt, cfg, cancellationToken);
-    }
+    // Configured prompts, blank-guarded back to the bundled seed so an empty
+    // override env var can never silently ship an empty system prompt.
+    private string AnalystPrompt =>
+        string.IsNullOrWhiteSpace(_prompts.Analyzer) ? PromptSeeds.Analyst : _prompts.Analyzer;
+    private string EvaluatorPrompt =>
+        string.IsNullOrWhiteSpace(_prompts.Evaluator) ? PromptSeeds.Evaluator : _prompts.Evaluator;
+
+    public Task<(ParsedJob Parsed, ClaudeCallSnapshot Snapshot)> ParseJobDescriptionAsync(string jobDescription, CancellationToken cancellationToken = default)
+        => ParseJobDescriptionAsync(jobDescription, AnalystPrompt, _scoring.Analyst, cancellationToken);
 
     public async Task<(ParsedJob Parsed, ClaudeCallSnapshot Snapshot)> ParseJobDescriptionAsync(string jobDescription, string analystPrompt, RoleScoringConfig analystConfig, CancellationToken cancellationToken = default)
     {
@@ -125,12 +134,8 @@ public sealed class ClaudeClient : IClaudeClient
         return (result, snapshot);
     }
 
-    public async Task<(MatchResponse Response, ClaudeCallSnapshot Snapshot)> EvaluateMatchAsync(string profile, ParsedJob parsedJob, List<CompanyNewsItem>? companyNews = null, GlassdoorData? glassdoorData = null, CancellationToken cancellationToken = default)
-    {
-        var evaluatorPrompt = await _profileProvider.GetEvaluatorPromptAsync(cancellationToken);
-        var cfg = (await _profileProvider.GetScoringConfigAsync(cancellationToken)).Evaluator;
-        return await EvaluateMatchAsync(profile, parsedJob, evaluatorPrompt, cfg, companyNews, glassdoorData, cancellationToken);
-    }
+    public Task<(MatchResponse Response, ClaudeCallSnapshot Snapshot)> EvaluateMatchAsync(string profile, ParsedJob parsedJob, List<CompanyNewsItem>? companyNews = null, GlassdoorData? glassdoorData = null, CancellationToken cancellationToken = default)
+        => EvaluateMatchAsync(profile, parsedJob, EvaluatorPrompt, _scoring.Evaluator, companyNews, glassdoorData, cancellationToken);
 
     public async Task<(MatchResponse Response, ClaudeCallSnapshot Snapshot)> EvaluateMatchAsync(string profile, ParsedJob parsedJob, string evaluatorPrompt, RoleScoringConfig evaluatorConfig, List<CompanyNewsItem>? companyNews = null, GlassdoorData? glassdoorData = null, CancellationToken cancellationToken = default)
     {
@@ -463,8 +468,8 @@ public sealed class ClaudeClient : IClaudeClient
     public async Task<string> SubmitEvaluationBatchAsync(IReadOnlyList<EvaluationBatchItem> items, CancellationToken cancellationToken = default)
     {
         var profile = await _profileProvider.GetProfileAsync(cancellationToken);
-        var evaluatorPrompt = await _profileProvider.GetEvaluatorPromptAsync(cancellationToken);
-        var cfg = (await _profileProvider.GetScoringConfigAsync(cancellationToken)).Evaluator;
+        var evaluatorPrompt = EvaluatorPrompt;
+        var cfg = _scoring.Evaluator;
 
         var requests = new List<BatchRequest>(items.Count);
         foreach (var item in items)

@@ -42,16 +42,29 @@ cd server/scraper; .\.venv\Scripts\python.exe -m uvicorn app.main:app --host 0.0
 - Use TypeScript throughout the frontend
 - Use Bun as the runtime and package manager (not npm/yarn)
 - Use shadcn/ui components for all UI (import from @/components/ui/*)
-- Use shadcn's semantic color tokens (e.g. bg-background, text-muted-foreground, text-destructive) instead of hardcoded Tailwind colors
+- Never hardcode Tailwind palette colors (emerald/amber/red…). Use design tokens: the Editorial Broadsheet `--ed-*` tokens inside editorial pages, and shadcn's semantic tokens (bg-background, text-muted-foreground, text-destructive) in neutral/shared chrome (the nav, portaled dialogs). See **Design System** below
 - Use Axios for HTTP requests (not fetch)
 - Use TanStack React Query (useQuery, useMutation) for server state management (not useEffect + useState)
 - Use context7 MCP server to fetch up-to-date documentation for libraries
 - All Claude/Anthropic AI calls live exclusively in the API — the Scraper delegates scoring via HTTP
 - Mailbot is a one-shot process (run via cron/scheduler), not a long-running service
-- Frontend is an English LTR SPA using shadcn/ui components with the default neutral theme
+- Frontend is an English LTR SPA (shadcn/ui + Tailwind v4) styled with the custom **Editorial Broadsheet** theme (see Design System below). Content can be mixed Hebrew RTL (AI summaries, prompts, interview text) — render those nodes with `dir="rtl"`/`dir="auto"`
 - AI prompts use system/user separation: trusted instructions in the API system prompt field, untrusted external data (job descriptions, emails) in the user message wrapped in XML tags
 - `scoring_config` keys are validated against an allowlist before persisting to MongoDB
 - `GET /api/applications` returns a lightweight `ApplicationListItem` projection (only the fields the tracker/dashboard render) — the full `Application` document is fetched per-application via `GET /api/applications/{id}`. Status updates patch the React Query list cache optimistically (`setQueryData`) instead of refetching the list
+
+## Design System — Editorial Broadsheet
+
+The frontend uses a custom **Editorial Broadsheet** theme — warm paper, hairline rules, Fraunces display serif — layered over shadcn/ui. It is a **scoped sub-theme** (not a global override) defined in `client/src/index.css` under the `.editorial` class, with both light and dark variants (`.dark .editorial`), so it follows the global theme toggle.
+
+- **Tokens** (`--ed-*` CSS vars): `--ed-paper`, `--ed-panel`, `--ed-ink`, `--ed-ink-soft`, `--ed-ink-faint`, `--ed-rule`, `--ed-rule-strong`, `--ed-accent` (vermillion), `--ed-accent-deep`, `--ed-yes` (sage), `--ed-no` (oxblood), `--ed-gold` (ochre). Semantic mapping: success→`--ed-yes`, error/destructive→`--ed-no`, warning→`--ed-gold`, accent/primary→`--ed-accent`.
+- **Usage**: inside an editorial page, style with these tokens via Tailwind arbitrary values — `text-[var(--ed-ink)]`, `border-[var(--ed-rule)]`, `bg-[var(--ed-panel)]/40`, and `color-mix(in oklab, var(--ed-yes) 10%, transparent)` for tints — **not** the neutral shadcn tokens (`text-foreground`, `bg-card`, `text-muted-foreground`, …).
+- **Helpers** (in `index.css`): `.editorial-grain` (paper grain overlay), `.ed-display` (Fraunces, loaded in `index.html`), `.ed-rise` (staggered entry), `.ed-fill` (ruled-meter fill via inline `--p`).
+- **Page pattern**: wrap in `<div className="editorial editorial-grain min-h-screen"><div className="relative z-[1] max-w-… mx-auto …">…</div></div>`; lead with a masthead (dateline rule + `ed-display` title with an italic vermillion accent word + `border-double` rule) and italic/numbered `ed-display` section heads over heavy rules.
+- **Scope caveat**: `var(--ed-*)` only resolves **inside** the `.editorial` subtree. The global nav (`App.tsx`) stays neutral by design. **Do not** put `--ed-*` styling on anything rendered in a React **portal** (shadcn `Dialog`/`Select` content mounts at `document.body`, outside `.editorial`) or on a component shared with a non-editorial host.
+- **Covered pages** (all editorial): Home (`LandingPage`), Discovery, Run detail, Tracker (Dashboard/Applications/Statistics/Add), Application detail, Score a Job, Interview Prep, Practice Interview, Settings. Shared primitives: a local editorial `Button`, `SectionHeader`, and status **stamps** (sharp, uppercase, tinted, 2px left tone-bar).
+- **Status colors are centralized**: application statuses → `STATUS_TONE` in `components/Status.tsx` (also drives the Statistics breakdown bars); discovery run statuses → `statusTone`/`statusDotColors`/`statusBadgeColors` in `lib/discovery.ts`. Both map the pipeline onto the `--ed-*` tones — extend these maps rather than re-coloring badges inline.
+- **Reference**: `design-prototypes/editorial-broadsheet.html` is a self-contained mockup of the look.
 
 ## Scoring Pipeline
 
@@ -127,7 +140,9 @@ One-shot process: pulls active applications from the API, parses last-24h Gmail 
 - **Interview idempotency** — the create-interview endpoint updates the existing auto-detected interview of the same type instead of inserting a duplicate (multiple emails in one scheduling thread each parse as `InterviewScheduled`). Scoped to interviews with `Notes == "Auto-detected from email"`; manual interviews are never merged.
 ## Testing
 
-E2E tests use Playwright. Use the `e2e-test-writer` agent to write tests — it has the full setup details, database config, and conventions.
+- **Unit/component**: Vitest + Testing Library (`cd client && bunx vitest run`). Tests query by text/role/testid — preserve those when restyling. Editorial restyles must keep heading roles (e.g. `AnalysisCard`'s "AI Analysis" stays an `<h3>`, asserted by an e2e `getByRole('heading')`).
+- **E2E**: Playwright in `/e2e` (`npx playwright test`, use `--reporter=line` to avoid the HTML report server hanging). Use the `e2e-test-writer` agent to **write** tests — it has the full setup, DB config, and conventions.
+- **Running e2e locally — stop your dev servers first.** Playwright's `webServer` config sets `reuseExistingServer` when not CI, so if your dev servers are up on :5002/:8000/:5173 it runs the suite against them (your dev `job-tracker` DB) instead of spawning its own against the **test** DBs (`job-tracker-test`/`jobmatch-test`, which `global-setup` drops). Gotcha: a uvicorn `--reload` reloader can survive a task kill and hold :8000 in *Bound* (not *Listen*) state — a `-State Listen` port check won't see it; find/kill the python PID directly.
 
 ## Security
 

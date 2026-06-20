@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+#
+# Lightweight, dependency-free secret scanner that runs before every commit.
+# Blocks the commit if a staged change looks like a credential.
+#
+# Enable once per clone:   git config core.hooksPath .githooks
+# Bypass in an emergency:  git commit --no-verify   (avoid unless you're sure)
+#
+# For deeper scanning, also install gitleaks via .pre-commit-config.yaml.
+
+set -euo pipefail
+
+# Patterns for high-signal secrets. Add your own as needed.
+patterns=(
+  'sk-ant-[a-zA-Z0-9_-]{20,}'                 # Anthropic API key
+  'sk-[a-zA-Z0-9]{20,}'                       # OpenAI-style key
+  'AKIA[0-9A-Z]{16}'                          # AWS access key id
+  'ghp_[A-Za-z0-9]{20,}'                      # GitHub PAT (classic)
+  'github_pat_[A-Za-z0-9_]{20,}'              # GitHub PAT (fine-grained)
+  'AIza[0-9A-Za-z_-]{35}'                     # Google API key
+  'xox[baprs]-[A-Za-z0-9-]{10,}'              # Slack token
+  'mongodb(\+srv)?://[^[:space:]"'"'"']*:[^[:space:]"'"'"'@]+@'  # Mongo URI with password
+  '-----BEGIN [A-Z ]*PRIVATE KEY-----'        # PEM private key
+)
+
+# Only scan the staged diff (added lines), not the whole tree.
+staged_added="$(git diff --cached --no-color --diff-filter=ACM -U0 | grep -E '^\+' | grep -vE '^\+\+\+' || true)"
+
+found=0
+for p in "${patterns[@]}"; do
+  if echo "$staged_added" | grep -qiE -e "$p"; then
+    echo "✖ Potential secret matching /$p/ found in staged changes." >&2
+    found=1
+  fi
+done
+
+if [ "$found" -ne 0 ]; then
+  echo "" >&2
+  echo "Commit blocked. Move the value to an environment variable and remove it from the diff." >&2
+  echo "If this is a false positive, re-run with: git commit --no-verify" >&2
+  exit 1
+fi
+
+exit 0

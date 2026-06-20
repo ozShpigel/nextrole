@@ -1,0 +1,12 @@
+# Deeper secret scanning via gitleaks (entropy + 100s of provider rules).
+# One-time setup:
+#   pipx install pre-commit   (or: pip install pre-commit)
+#   pre-commit install
+# Then gitleaks runs automatically on every commit.
+#
+# This complements the dependency-free .githooks/pre-commit regex net.
+repos:
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.18.4
+    hooks:
+      - id: gitleaks

@@ -26,6 +26,7 @@ venv/
 .env.test
 credentials.json
 token.json
+.secrets-to-scrub.txt
 
 # Docker
 docker-compose.override.yml

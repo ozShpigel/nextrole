@@ -44,6 +44,16 @@ try
 
     var logger = host.Services.GetRequiredService<ILogger<Program>>();
 
+    // Optional integration: with no Gmail credentials, skip cleanly instead of
+    // crashing. Lets the platform run on just a Mongo connection string + AI key.
+    if (!GmailEmailService.TryResolveCredentialsPath(builder.Configuration, exeDir, out _))
+    {
+        // Direct stdout (not ILogger): this one-shot exits immediately, before
+        // the buffered console logger would flush.
+        Console.WriteLine("Gmail not configured (no credentials file) — skipping email sync.");
+        return 0;
+    }
+
     var orchestrator = host.Services.GetRequiredService<MailbotOrchestrator>();
 
     logger.LogInformation("Mailbot service started");

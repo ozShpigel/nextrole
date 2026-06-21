@@ -22,42 +22,42 @@ public sealed class GmailEmailService : IGmailEmailService
     private readonly ILogger<GmailEmailService> _logger;
     private readonly string? _query;
 
+    // Resolve the Gmail credentials path in order of preference:
+    // 1. Explicit Gmail:CredentialsPath config (absolute or relative to content root)
+    // 2. Render secret file at /etc/secrets/credentials.json
+    // 3. Local credentials.json next to the executable (content root)
+    // Returns true (with the resolved existing path) only if a file is present, so
+    // the host can choose to skip Gmail entirely instead of crashing.
+    public static bool TryResolveCredentialsPath(IConfiguration config, string contentRoot, out string path)
+    {
+        var configuredPath = config["Gmail:CredentialsPath"];
+        if (!string.IsNullOrWhiteSpace(configuredPath))
+        {
+            path = Path.IsPathRooted(configuredPath)
+                ? configuredPath
+                : Path.Combine(contentRoot, configuredPath);
+        }
+        else if (File.Exists("/etc/secrets/credentials.json"))
+        {
+            path = "/etc/secrets/credentials.json";
+        }
+        else
+        {
+            path = Path.Combine(contentRoot, "credentials.json");
+        }
+        return File.Exists(path);
+    }
+
     public GmailEmailService(IConfiguration config, IHostEnvironment env, ILogger<GmailEmailService> logger)
     {
         _logger = logger;
 
-        // Choose credentials path in order of preference:
-        // 1. Explicit Gmail:CredentialsPath config (absolute or relative)
-        // 2. Render secret file at /etc/secrets/credentials.json
-        // 3. Local credentials.json next to the executable (content root)
-        var configuredPath = config["Gmail:CredentialsPath"];
-        var secretPath = "/etc/secrets/credentials.json";
-        var localPath = Path.Combine(env.ContentRootPath, "credentials.json");
-
-        string credentialPath;
-        if (!string.IsNullOrWhiteSpace(configuredPath))
-        {
-            credentialPath = Path.IsPathRooted(configuredPath)
-                ? configuredPath
-                : Path.Combine(env.ContentRootPath, configuredPath);
-            _logger.LogInformation("Using configured Gmail credentials path: {Path}", credentialPath);
-        }
-        else if (File.Exists(secretPath))
-        {
-            credentialPath = secretPath;
-            _logger.LogInformation("Using Gmail credentials from secret path: {Path}", credentialPath);
-        }
-        else
-        {
-            credentialPath = localPath;
-            _logger.LogInformation("Using Gmail credentials from local path: {Path}", credentialPath);
-        }
-
-        if (!File.Exists(credentialPath))
+        if (!TryResolveCredentialsPath(config, env.ContentRootPath, out var credentialPath))
         {
             throw new FileNotFoundException($"Gmail credentials file not found at '{credentialPath}'. " +
                                             "Ensure credentials.json is mounted as a secret or provide Gmail:CredentialsPath.");
         }
+        _logger.LogInformation("Using Gmail credentials path: {Path}", credentialPath);
 
         var tokenSecretPath = "/etc/secrets/gmail-token.json";
         UserCredential credential;

@@ -129,7 +129,7 @@ dotnet build job-application-platform.sln
 job-application-platform/
 ├── API/                          # Unified backend (matching + tracking)
 │   ├── Data/
-│   │   └── professional-profile.md
+│   │   └── sample-profile.json   # fictional sample persona (seed)
 │   ├── Dockerfile
 │   └── src/
 │       ├── Api/                  # Entry point + endpoints

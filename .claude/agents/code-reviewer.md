@@ -21,7 +21,7 @@ Key conventions to enforce:
 - All Claude/Anthropic AI calls must live exclusively in the API project
 - Mailbot is a one-shot process, not a long-running service
 - AI prompts live in `API/src/Infrastructure/AI/PromptSeeds.cs`
-- Professional profile seed in `API/Data/professional-profile.md`
+- Professional profile seed (fictional sample) in `server/api/Data/sample-profile.json`
 - No test projects exist currently
 - CI/CD is per-service with path-based triggers
 

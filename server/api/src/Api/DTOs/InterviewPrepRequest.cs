@@ -2,9 +2,9 @@ using System.Text.Json.Serialization;
 
 namespace ApplicationTracker.Api.DTOs;
 
-// Per-field carry-forward semantics (mirrors UpdateProfileRequest):
-// null = keep existing value, non-null = overwrite. For qa_rubric, a non-null
-// list replaces the whole list; null carries the existing list forward.
+// Per-field carry-forward semantics: null = keep existing value, non-null =
+// overwrite. For qa_rubric, a non-null list replaces the whole list; null
+// carries the existing list forward.
 public sealed record InterviewPrepRequest
 {
     [JsonPropertyName("self_presentation_hr")]

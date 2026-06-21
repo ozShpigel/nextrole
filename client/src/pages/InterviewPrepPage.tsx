@@ -154,7 +154,7 @@ function CueLine({ text }: { text: string }) {
   }
   // dir="rtl" + text-right (matching the Signals lines): forces a Hebrew base
   // direction so mixed Hebrew/English lines read consistently — Latin runs
-  // (Backend, NCR, .NET…) still render LTR within. dir="auto" was scrambling
+  // (Backend, AWS, React…) still render LTR within. dir="auto" was scrambling
   // order on English-leading lines.
   return (
     <span dir="rtl" className="text-right leading-[1.6]">

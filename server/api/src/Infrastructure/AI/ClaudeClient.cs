@@ -290,6 +290,37 @@ public sealed class ClaudeClient : IClaudeClient
         public string[]? Cues { get; init; }
     }
 
+    public async Task<NormalizedProfile> NormalizeProfileAsync(string text, CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Normalizing profile free-text ({Length} chars)", text.Length);
+
+        // The candidate's own pasted text — wrapped in XML and labelled as data,
+        // consistent with the project's system/user separation convention.
+        var userMessage = $"<candidate_text>\n{text.Trim()}\n</candidate_text>";
+        var cfg = _scoring.Analyst;
+
+        var parameters = new MessageParameters
+        {
+            System = new List<SystemMessage> { new(PromptSeeds.NormalizeProfile) },
+            Messages = new List<Message> { new(RoleType.User, userMessage) },
+            MaxTokens = 4096,
+            Model = cfg.Model,
+            Temperature = cfg.Temperature,
+            Stream = false
+        };
+
+        var response = await _client.Messages.GetClaudeMessageAsync(parameters, cancellationToken);
+        var content = response.Message?.ToString()?.Trim()
+            ?? throw new InvalidOperationException("Empty response from Claude API");
+
+        var json = ExtractJson(content);
+        var result = JsonSerializer.Deserialize<NormalizedProfile>(json, CaseInsensitive)
+            ?? throw new InvalidOperationException("Failed to deserialize NormalizedProfile");
+
+        _logger.LogInformation("Normalized profile: {Roles} role(s)", result.Experience.Length);
+        return result;
+    }
+
     // ── Mock interview ──────────────────────────────────────────────────────
 
     public async Task<MockTurnResult> GenerateMockInterviewTurnAsync(

@@ -129,6 +129,13 @@ public static class MatchEndpoints
         .WithName("GetEvaluationBatch")
         .WithSummary("Poll/collect evaluator batch (batch path, stage 3)");
 
+        static object ToProfileResponse(ProfileDocument doc) => new
+        {
+            content = doc.Content,
+            structured = doc.Structured,
+            updated_at = doc.UpdatedAt
+        };
+
         app.MapGet("/api/match/profile", async (
             IProfileProvider provider,
             ILogger<Program> logger,
@@ -137,11 +144,7 @@ public static class MatchEndpoints
             try
             {
                 var doc = await provider.GetProfileDocumentAsync(ct);
-                return Results.Ok(new
-                {
-                    content = doc.Content,
-                    updated_at = doc.UpdatedAt
-                });
+                return Results.Ok(ToProfileResponse(doc));
             }
             catch (Exception ex)
             {
@@ -150,26 +153,22 @@ public static class MatchEndpoints
             }
         })
         .WithName("GetProfile")
-        .WithSummary("Get the stored professional profile content");
+        .WithSummary("Get the stored professional profile (rendered content + structured fields)");
 
         app.MapPut("/api/match/profile", async (
-            [FromBody] UpdateProfileRequest request,
+            [FromBody] StructuredProfile request,
             IProfileProvider provider,
             ILogger<Program> logger,
             CancellationToken ct) =>
         {
-            if (request is null || request.Content is null)
-                return Results.BadRequest(new { error = "content is required" });
+            if (request is null)
+                return Results.BadRequest(new { error = "a structured profile is required" });
 
             try
             {
-                await provider.UpsertProfileAsync(request.Content, ct);
+                await provider.UpsertProfileAsync(request, ct);
                 var updated = await provider.GetProfileDocumentAsync(ct);
-                return Results.Ok(new
-                {
-                    content = updated.Content,
-                    updated_at = updated.UpdatedAt
-                });
+                return Results.Ok(ToProfileResponse(updated));
             }
             catch (Exception ex)
             {
@@ -178,7 +177,42 @@ public static class MatchEndpoints
             }
         })
         .WithName("UpdateProfile")
-        .WithSummary("Update the professional profile content");
+        .WithSummary("Update the professional profile (structured); content is re-rendered server-side");
+
+        // Normalization layer: pasted free-text experience/skills → structured
+        // profile fields, for the user to review/edit before saving. Not persisted.
+        app.MapPost("/api/match/profile/normalize", async (
+            [FromBody] NormalizeProfileRequest request,
+            ApplicationTracker.Core.AI.IClaudeClient claude,
+            ILogger<Program> logger,
+            CancellationToken ct) =>
+        {
+            if (request is null || string.IsNullOrWhiteSpace(request.Text))
+                return Results.BadRequest(new { error = "text is required" });
+            if (request.Text.Length > 50_000)
+                return Results.BadRequest(new { error = "text exceeds maximum length of 50,000 characters" });
+
+            try
+            {
+                var normalized = await claude.NormalizeProfileAsync(request.Text, ct);
+                return Results.Ok(normalized);
+            }
+            catch (InvalidOperationException ex) when (ex.Message.Contains("ApiKey"))
+            {
+                logger.LogError(ex, "Anthropic API key not configured");
+                return Results.Problem(
+                    detail: "Anthropic API key is not configured. Please set Anthropic:ApiKey in configuration.",
+                    statusCode: 500);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Failed to normalize profile text");
+                return Results.Problem("An internal error occurred.", statusCode: 500);
+            }
+        })
+        .RequireRateLimiting("match")
+        .WithName("NormalizeProfile")
+        .WithSummary("Normalize pasted free-text experience/skills into structured profile fields");
 
         app.MapGet("/api/match/profile/history/{field}", async (
             string field,
@@ -215,11 +249,7 @@ public static class MatchEndpoints
             {
                 await provider.RestoreHistoryAsync(field, request?.Index ?? -1, ct);
                 var updated = await provider.GetProfileDocumentAsync(ct);
-                return Results.Ok(new
-                {
-                    content = updated.Content,
-                    updated_at = updated.UpdatedAt
-                });
+                return Results.Ok(ToProfileResponse(updated));
             }
             catch (ArgumentException ex)
             {

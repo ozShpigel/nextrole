@@ -1,3 +1,5 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using ApplicationTracker.Core.Profile;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
@@ -15,6 +17,24 @@ public sealed class MongoProfileProvider : IProfileProvider
     private const string CacheKey = "profile_doc";
     private const string InterviewPrepCacheKey = "interview_prep_doc";
     private static readonly TimeSpan CacheDuration = TimeSpan.FromSeconds(30);
+
+    // Sub-doc holding the structured, user-editable profile. The rendered prompt
+    // text is derived from it and stored in `content` for back-compat.
+    private const string StructuredKey = "profile_structured";
+    private static readonly JsonSerializerOptions StructuredJson = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        PropertyNameCaseInsensitive = true,
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+    };
+
+    private static BsonDocument ToBson(StructuredProfile p) =>
+        BsonDocument.Parse(JsonSerializer.Serialize(p, StructuredJson));
+
+    private static StructuredProfile FromBson(BsonValue? v) =>
+        v is { IsBsonDocument: true }
+            ? JsonSerializer.Deserialize<StructuredProfile>(v.AsBsonDocument.ToJson(), StructuredJson) ?? new()
+            : new();
 
     private const string InterviewPrepKey = "interview_prep";
     private const string InterviewPrepHistoryKey = "history_interview_prep";
@@ -72,7 +92,7 @@ public sealed class MongoProfileProvider : IProfileProvider
         ProfileDocument result;
         if (doc is null)
         {
-            _logger.LogInformation("No profile doc in Mongo; seeding from Data/professional-profile.md");
+            _logger.LogInformation("No profile doc in Mongo; seeding from Data/sample-profile.json");
             result = await SeedFromFileAsync(cancellationToken);
         }
         else
@@ -84,17 +104,16 @@ public sealed class MongoProfileProvider : IProfileProvider
         return result;
     }
 
-    public async Task UpsertProfileAsync(string? content, CancellationToken cancellationToken = default)
+    public async Task UpsertProfileAsync(StructuredProfile profile, CancellationToken cancellationToken = default)
     {
+        profile ??= new StructuredProfile();
+        var structuredBson = ToBson(profile);
+        var content = ProfileRenderer.Render(profile);
+
         var filter = Builders<BsonDocument>.Filter.Eq("id", DocId);
         var existing = await _collection.Find(filter).FirstOrDefaultAsync(cancellationToken);
 
-        var effectiveContent = content
-            ?? (existing != null && existing.Contains("content") && existing["content"].IsString
-                ? existing["content"].AsString
-                : "");
-
-        // Version history: snapshot the PREVIOUS value of `content` when it
+        // Version history: snapshot the PREVIOUS structured profile when it
         // actually changes (newest-first, capped). Carries existing history forward.
         var history = existing != null && existing.Contains("history") && existing["history"].IsBsonDocument
             ? existing["history"].AsBsonDocument.DeepClone().AsBsonDocument
@@ -103,9 +122,9 @@ public sealed class MongoProfileProvider : IProfileProvider
             ? existing["updated_at"]
             : (BsonValue)BsonNull.Value;
 
-        if (content is not null && existing != null && existing.Contains("content")
-            && existing["content"].IsString && existing["content"].AsString != effectiveContent)
-            PushHistory(history, "content", existing["content"], prevSavedAt);
+        if (existing != null && existing.Contains(StructuredKey) && existing[StructuredKey].IsBsonDocument
+            && !existing[StructuredKey].AsBsonDocument.Equals(structuredBson))
+            PushHistory(history, "profile", existing[StructuredKey], prevSavedAt);
 
         // Partial $set so this write only ever touches the fields it owns — the
         // interview_prep / history_interview_prep sub-objects (written by a
@@ -115,13 +134,10 @@ public sealed class MongoProfileProvider : IProfileProvider
         {
             Builders<BsonDocument>.Update.SetOnInsert("id", DocId),
             Builders<BsonDocument>.Update.Set("updated_at", DateTime.UtcNow),
+            Builders<BsonDocument>.Update.Set(StructuredKey, structuredBson),
+            // `content` is the rendered, prompt-facing projection of the structured profile.
+            Builders<BsonDocument>.Update.Set("content", content),
         };
-
-        // content: overwrite only when provided; otherwise leave existing untouched
-        // (seed an empty string on first insert so the field always exists).
-        sets.Add(content is not null
-            ? Builders<BsonDocument>.Update.Set("content", content)
-            : Builders<BsonDocument>.Update.SetOnInsert("content", effectiveContent));
 
         if (history.ElementCount > 0)
             sets.Add(Builders<BsonDocument>.Update.Set("history", history));
@@ -135,14 +151,14 @@ public sealed class MongoProfileProvider : IProfileProvider
         _cache.Remove(CacheKey);
 
         _logger.LogInformation(
-            "Profile upserted (content={ContentState})",
-            content is null ? "unchanged" : $"{content.Length} chars");
+            "Profile upserted ({Roles} role(s), {Content} chars rendered)",
+            profile.Experience.Length, content.Length);
     }
 
     private const int HistoryCap = 10;
     private static readonly HashSet<string> HistoryFields = new(StringComparer.Ordinal)
     {
-        "content"
+        "profile"
     };
 
     private static void ValidateHistoryField(string field)
@@ -187,10 +203,24 @@ public sealed class MongoProfileProvider : IProfileProvider
             DateTime? savedAt = el.Contains("saved_at") && el["saved_at"].IsValidDateTime
                 ? el["saved_at"].ToUniversalTime()
                 : null;
-            var (preview, length) = PreviewOf(value);
+            var (preview, length) = field == "profile" && value.IsBsonDocument
+                ? StructuredPreview(FromBson(value))
+                : PreviewOf(value);
             entries.Add(new ProfileHistoryEntry { Index = i, SavedAt = savedAt, Preview = preview, Length = length });
         }
         return entries;
+    }
+
+    // Short, readable preview of a structured-profile snapshot for the history list.
+    private static (string Preview, int Length) StructuredPreview(StructuredProfile p)
+    {
+        var parts = new List<string>();
+        if (!string.IsNullOrWhiteSpace(p.Summary)) parts.Add(p.Summary.Trim());
+        parts.Add($"{p.Experience.Length} role(s)");
+        if (p.Strengths.Length > 0) parts.Add($"{p.Strengths.Length} strength(s)");
+        if (p.CoreValues.Length > 0) parts.Add($"{p.CoreValues.Length} value(s)");
+        var text = string.Join(" · ", parts);
+        return (text.Length > 300 ? text[..300] + "…" : text, text.Length);
     }
 
     public async Task RestoreHistoryAsync(string field, int index, CancellationToken cancellationToken = default)
@@ -212,8 +242,8 @@ public sealed class MongoProfileProvider : IProfileProvider
 
         // Route through UpsertProfileAsync so restoring itself snapshots the
         // current value into history (i.e. a restore is undoable).
-        if (field == "content")
-            await UpsertProfileAsync(value.IsString ? value.AsString : "", cancellationToken);
+        if (field == "profile")
+            await UpsertProfileAsync(FromBson(value), cancellationToken);
     }
 
     // ── Interview prep ──────────────────────────────────────────────────────
@@ -524,25 +554,28 @@ public sealed class MongoProfileProvider : IProfileProvider
     private async Task<ProfileDocument> SeedFromFileAsync(CancellationToken cancellationToken)
     {
         var basePath = _configuration["ContentRoot"] ?? Directory.GetCurrentDirectory();
-        var relativePath = _configuration["Profile:FilePath"] ?? "Data/professional-profile.md";
+        var relativePath = _configuration["Profile:FilePath"] ?? "Data/sample-profile.json";
         var filePath = Path.Combine(basePath, relativePath);
 
-        string content;
+        StructuredProfile profile;
         if (File.Exists(filePath))
         {
-            content = await File.ReadAllTextAsync(filePath, cancellationToken);
-            _logger.LogInformation("Seeded profile from file: {FilePath} ({Length} chars)", filePath, content.Length);
+            var json = await File.ReadAllTextAsync(filePath, cancellationToken);
+            profile = JsonSerializer.Deserialize<StructuredProfile>(json, StructuredJson) ?? new();
+            _logger.LogInformation("Seeded profile from file: {FilePath} ({Roles} role(s))", filePath, profile.Experience.Length);
         }
         else
         {
-            content = "";
+            profile = new StructuredProfile();
             _logger.LogWarning("Seed file missing: {FilePath}. Inserted empty profile.", filePath);
         }
 
+        var content = ProfileRenderer.Render(profile);
         var doc = new BsonDocument
         {
             ["id"] = DocId,
             ["content"] = content,
+            [StructuredKey] = ToBson(profile),
             ["updated_at"] = DateTime.UtcNow
         };
 
@@ -556,6 +589,7 @@ public sealed class MongoProfileProvider : IProfileProvider
     private static ProfileDocument ToProfileDocument(BsonDocument doc)
     {
         var content = doc.Contains("content") && doc["content"].IsString ? doc["content"].AsString : "";
+        var structured = doc.Contains(StructuredKey) ? FromBson(doc[StructuredKey]) : new StructuredProfile();
 
         DateTime? updatedAt = null;
         if (doc.Contains("updated_at") && doc["updated_at"].IsValidDateTime)
@@ -566,6 +600,7 @@ public sealed class MongoProfileProvider : IProfileProvider
         return new ProfileDocument
         {
             Content = content,
+            Structured = structured,
             UpdatedAt = updatedAt
         };
     }

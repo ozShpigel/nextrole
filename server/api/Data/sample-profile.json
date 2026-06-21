@@ -1,0 +1,57 @@
+{
+  "summary": "Senior software engineer with ~9 years building web applications and backend services across product teams in e-commerce and healthtech.",
+  "seniority": "Senior",
+  "domains": ["e-commerce", "healthtech"],
+  "experience": [
+    {
+      "title": "Senior Software Engineer",
+      "company": "Lumen Retail",
+      "dates": "2021–Present",
+      "highlights": [
+        "Lead engineer on the checkout platform serving millions of orders per month",
+        "Designed and shipped a service that reduced payment-failure retries by 40%",
+        "Introduced contract tests and CI gates that cut production regressions",
+        "Mentored three engineers and ran the team's design-review process"
+      ]
+    },
+    {
+      "title": "Software Engineer",
+      "company": "Atlas Health",
+      "dates": "2017–2021",
+      "highlights": [
+        "Built patient-facing scheduling features end to end (React + Node.js)",
+        "Migrated a monolith module to a service with zero-downtime cutover",
+        "Improved API p95 latency by 35% through query and caching work"
+      ]
+    },
+    {
+      "title": "Junior Software Engineer",
+      "company": "Brightline Labs",
+      "dates": "2014–2017",
+      "highlights": [
+        "Delivered features across a Java/Spring web application",
+        "Wrote the team's first automated integration test suite"
+      ]
+    }
+  ],
+  "skills": {
+    "languages": ["TypeScript", "Python", "Java"],
+    "frameworks": ["React", "Node.js", "Spring Boot"],
+    "infrastructure": ["AWS", "Docker", "GitHub Actions"],
+    "databases": ["PostgreSQL", "Redis"],
+    "other": ["REST API design", "CI/CD", "Test automation"]
+  },
+  "strengths": [
+    "Clear written communication and documentation",
+    "Breaking ambiguous problems into shippable milestones",
+    "Mentoring and growing junior engineers",
+    "Pragmatic trade-off decisions under constraints"
+  ],
+  "coreValues": [
+    "Sustainable, steady pace over short-term heroics",
+    "End-to-end ownership of what I build",
+    "Quality, reliability, and observability",
+    "Continuous learning and honest communication"
+  ],
+  "rawExperienceText": "Senior software engineer, ~9 years. Lumen Retail (2021–Present) — Senior Software Engineer on the checkout platform (millions of orders/month); cut payment-failure retries 40%; added contract tests and CI gates. Atlas Health (2017–2021) — Software Engineer; patient scheduling features in React + Node.js; migrated a monolith module to a service with zero downtime; improved API p95 latency 35%. Brightline Labs (2014–2017) — Junior Software Engineer; Java/Spring web app; built the first integration test suite. Skills: TypeScript, Python, Java, React, Node.js, Spring Boot, AWS, Docker, GitHub Actions, PostgreSQL, Redis, REST API design, CI/CD."
+}

@@ -24,6 +24,10 @@ public interface IClaudeClient
     Task<EmailParseResult?> ParseEmailAsync(string subject, string from, string body, List<string> knownCompanies, CancellationToken cancellationToken = default);
     Task<string> SummarizeCompanyAsync(string companyName, CancellationToken cancellationToken = default);
 
+    // Normalization layer: convert a candidate's pasted free-text experience/skills
+    // into the structured NormalizedProfile (extraction only, no scoring).
+    Task<ApplicationTracker.Core.Profile.NormalizedProfile> NormalizeProfileAsync(string text, CancellationToken cancellationToken = default);
+
     // Generates a personalized "why do you want to work here?" interview answer
     // (one Hebrew paragraph) from the application's company/job context plus the
     // user's profile and interview-prep self-presentation.

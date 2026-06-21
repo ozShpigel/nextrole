@@ -4,9 +4,11 @@ public interface IProfileProvider
 {
     Task<string> GetProfileAsync(CancellationToken cancellationToken = default);
     Task<ProfileDocument> GetProfileDocumentAsync(CancellationToken cancellationToken = default);
-    Task UpsertProfileAsync(string? content, CancellationToken cancellationToken = default);
+    // Persist the structured profile; the prompt-facing `content` string is
+    // re-rendered from it (ProfileRenderer) and stored alongside.
+    Task UpsertProfileAsync(StructuredProfile profile, CancellationToken cancellationToken = default);
 
-    // Version history: snapshots of prior values of the profile `content`,
+    // Version history: snapshots of prior versions of the structured profile,
     // newest-first. (Prompts and scoring config are read-only configuration and
     // are no longer stored or versioned here.)
     Task<IReadOnlyList<ProfileHistoryEntry>> GetHistoryAsync(string field, CancellationToken cancellationToken = default);
@@ -62,6 +64,9 @@ public sealed record ProfileHistoryEntry
 
 public sealed record ProfileDocument
 {
+    // Rendered, prompt-facing profile text (derived from Structured).
     public string Content { get; init; } = "";
+    // The structured, user-editable profile.
+    public StructuredProfile Structured { get; init; } = new();
     public DateTime? UpdatedAt { get; init; }
 }

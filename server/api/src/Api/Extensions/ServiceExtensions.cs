@@ -15,7 +15,7 @@ public static class ServiceExtensions
 {
     public static IServiceCollection AddApplicationServices(this IServiceCollection services, IConfiguration configuration)
     {
-        // Exposed so MongoProfileProvider can locate Data/professional-profile.md at runtime
+        // Exposed so MongoProfileProvider can locate Data/sample-profile.json at runtime
         configuration["ContentRoot"] = AppContext.BaseDirectory;
 
         // Repositories

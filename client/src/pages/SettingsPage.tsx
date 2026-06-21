@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useProfile, useProfileHistory } from '../lib/queries';
-import { useSaveProfile, useRestoreHistory } from '../lib/mutations';
-import type { ProfileResponse, HistoryField } from '../lib/types';
+import { useSaveProfile, useRestoreHistory, useNormalizeProfile } from '../lib/mutations';
+import type {
+  ProfileResponse, StructuredProfile, ExperienceItem, SkillGroups, NormalizedProfile, HistoryField,
+} from '../lib/types';
 import { Skeleton } from '../components/ui/skeleton';
 import { SaveResult, HistoryDropdown, type SaveResultData } from '../components/settings-shared';
 
@@ -27,29 +29,54 @@ function Button(
   );
 }
 
-const EDITOR_CLS = 'w-full p-[1.4rem_1.5rem] border border-[var(--ed-rule)] bg-[var(--ed-panel)]/40 text-[var(--ed-ink)] font-code text-[0.85rem] resize-y outline-none leading-[1.8] text-left whitespace-pre-wrap transition-colors hover:border-[var(--ed-ink-faint)] focus:border-[var(--ed-accent)]';
+const EDITOR_CLS = 'w-full p-[1rem_1.1rem] border border-[var(--ed-rule)] bg-[var(--ed-panel)]/40 text-[var(--ed-ink)] font-code text-[0.82rem] resize-y outline-none leading-[1.7] text-left whitespace-pre-wrap transition-colors hover:border-[var(--ed-ink-faint)] focus:border-[var(--ed-accent)]';
+const FIELD_INPUT = 'w-full py-[0.5rem] px-[0.75rem] bg-transparent border border-[var(--ed-rule)] text-[var(--ed-ink)] text-[0.85rem] font-code text-left transition-colors hover:border-[var(--ed-ink-faint)] focus:border-[var(--ed-accent)] focus:outline-none';
+const FIELD_LABEL = 'text-[0.62rem] text-[var(--ed-ink-faint)] tracking-[0.16em] uppercase font-semibold';
 const META_TEXT = 'text-[0.72rem] text-[var(--ed-ink-faint)] tabular-nums tracking-[0.05em] font-medium';
 
-const estimateTokens = (text: string | undefined | null): number => Math.ceil((text?.length || 0) / 4);
+const EMPTY_SKILLS: SkillGroups = { languages: [], frameworks: [], infrastructure: [], databases: [], other: [] };
+const EMPTY_PROFILE: StructuredProfile = {
+  summary: '', seniority: '', domains: [], experience: [], skills: EMPTY_SKILLS,
+  strengths: [], coreValues: [], rawExperienceText: '',
+};
+
+const lines = (s: string): string[] => s.split('\n').map((l) => l.trim()).filter(Boolean);
+const csv = (s: string): string[] => s.split(',').map((l) => l.trim()).filter(Boolean);
+const toLines = (a: string[]): string => (a ?? []).join('\n');
+const toCsv = (a: string[]): string => (a ?? []).join(', ');
+
+// Normalize a profile loaded from the API into a fully-populated shape so the
+// controlled inputs never see undefined.
+function hydrate(p?: StructuredProfile | null): StructuredProfile {
+  return {
+    ...EMPTY_PROFILE,
+    ...(p ?? {}),
+    skills: { ...EMPTY_SKILLS, ...(p?.skills ?? {}) },
+    experience: p?.experience ?? [],
+    domains: p?.domains ?? [],
+    strengths: p?.strengths ?? [],
+    coreValues: p?.coreValues ?? [],
+  };
+}
 
 export default function SettingsPage() {
-  const [profile, setProfile] = useState<string>('');
-  const [originalProfile, setOriginalProfile] = useState<string>('');
+  const [profile, setProfile] = useState<StructuredProfile>(EMPTY_PROFILE);
+  const [original, setOriginal] = useState<StructuredProfile>(EMPTY_PROFILE);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
 
-  const [savingProfile, setSavingProfile] = useState<boolean>(false);
-  const [profileResult, setProfileResult] = useState<SaveResultData | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [result, setResult] = useState<SaveResultData | null>(null);
+  const [normalizeError, setNormalizeError] = useState<string | null>(null);
 
   const profileQuery = useProfile();
   const saveProfileMutation = useSaveProfile();
+  const normalizeMutation = useNormalizeProfile();
   const [initialized, setInitialized] = useState(false);
 
-  // Reset editor state (and its "original" baseline) from a profile response.
-  // Used on first load and after a history restore.
   function applyProfileData(data: ProfileResponse): void {
-    const content = data?.content || '';
-    setProfile(content);
-    setOriginalProfile(content);
+    const h = hydrate(data?.structured);
+    setProfile(h);
+    setOriginal(h);
     setLastUpdated(data?.updated_at ?? null);
   }
 
@@ -63,21 +90,70 @@ export default function SettingsPage() {
 
   const loading = profileQuery.isLoading;
   const error = profileQuery.error?.message ?? null;
+  const isDirty = JSON.stringify(profile) !== JSON.stringify(original);
 
-  const isProfileDirty = profile !== originalProfile;
+  // Partial updates that also clear the stale save banner.
+  function patch(p: Partial<StructuredProfile>): void {
+    setProfile((prev) => ({ ...prev, ...p }));
+    setResult(null);
+  }
+  function patchSkills(p: Partial<SkillGroups>): void {
+    setProfile((prev) => ({ ...prev, skills: { ...prev.skills, ...p } }));
+    setResult(null);
+  }
+  function patchRole(i: number, p: Partial<ExperienceItem>): void {
+    setProfile((prev) => ({
+      ...prev,
+      experience: prev.experience.map((r, idx) => (idx === i ? { ...r, ...p } : r)),
+    }));
+    setResult(null);
+  }
+  function addRole(): void {
+    patch({ experience: [...profile.experience, { title: '', company: '', dates: '', highlights: [] }] });
+  }
+  function removeRole(i: number): void {
+    patch({ experience: profile.experience.filter((_, idx) => idx !== i) });
+  }
 
-  async function saveProfile(): Promise<void> {
-    setSavingProfile(true);
-    setProfileResult(null);
+  async function normalize(): Promise<void> {
+    setNormalizeError(null);
+    setResult(null);
+    if (!profile.rawExperienceText.trim()) {
+      setNormalizeError('Paste your experience and skills first.');
+      return;
+    }
     try {
-      const data = await saveProfileMutation.mutateAsync({ content: profile }) as ProfileResponse;
-      setLastUpdated(data?.updated_at ?? null);
-      setOriginalProfile(profile);
-      setProfileResult({ type: 'success', message: 'Profile saved successfully' });
+      const n = await normalizeMutation.mutateAsync(profile.rawExperienceText) as NormalizedProfile;
+      // Merge the extracted experience/skills; keep manual strengths/values + the raw paste.
+      setProfile((prev) => ({
+        ...prev,
+        summary: n.summary ?? '',
+        seniority: n.seniority ?? '',
+        domains: n.domains ?? [],
+        experience: n.experience ?? [],
+        skills: { ...EMPTY_SKILLS, ...(n.skills ?? {}) },
+      }));
     } catch (e) {
-      setProfileResult({ type: 'error', message: `Error saving: ${(e as Error).message}` });
+      setNormalizeError(`Normalization failed: ${(e as Error).message}`);
+    }
+  }
+
+  async function save(): Promise<void> {
+    setSaving(true);
+    setResult(null);
+    try {
+      const data = await saveProfileMutation.mutateAsync(
+        profile as unknown as Record<string, unknown>,
+      ) as ProfileResponse;
+      setLastUpdated(data?.updated_at ?? null);
+      const h = hydrate(data?.structured ?? profile);
+      setProfile(h);
+      setOriginal(h);
+      setResult({ type: 'success', message: 'Profile saved successfully' });
+    } catch (e) {
+      setResult({ type: 'error', message: `Error saving: ${(e as Error).message}` });
     } finally {
-      setSavingProfile(false);
+      setSaving(false);
     }
   }
 
@@ -90,14 +166,16 @@ export default function SettingsPage() {
       <header className="mb-14 relative">
         <div className="flex items-baseline justify-between gap-4 pb-[10px] border-b border-[var(--ed-rule)] text-[0.62rem] font-semibold uppercase tracking-[0.22em] text-[var(--ed-ink-faint)]">
           <span>Vol. III · The Standards Desk</span>
-          <span className="hidden sm:block text-[var(--ed-accent)]">House style &amp; profile</span>
+          <span className="hidden sm:block text-[var(--ed-accent)]">Your candidate profile</span>
         </div>
         <h1 className="ed-display font-black text-[clamp(2.6rem,6.5vw,4.4rem)] leading-[0.9] tracking-[-0.022em] text-[var(--ed-ink)] pt-4">
           Settings
         </h1>
-        <p className="mt-3 max-w-[560px] text-[var(--ed-ink-soft)] text-[0.98rem] leading-[1.65]">
+        <p className="mt-3 max-w-[600px] text-[var(--ed-ink-soft)] text-[0.98rem] leading-[1.65]">
           Your professional profile — the input Claude uses for job analysis and matching.
-          The scoring prompts and model parameters are managed as server configuration.
+          Paste your experience and skills and let the normalizer structure them; add your
+          strengths and core values by hand. The scoring prompts and model parameters are
+          managed as server configuration.
         </p>
         <div className="mt-6 border-t-[3px] border-double border-[var(--ed-rule-strong)]" />
       </header>
@@ -108,49 +186,162 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {/* 01 — Profile Editor */}
       <section className="mb-16 relative animate-in fade-in slide-in-from-bottom-2 duration-300" id="settings-section-01">
         <SectionHeader
           num="01"
           name="Professional Profile"
-          right={<MetaPill>{lastUpdated ? `Updated ${new Date(lastUpdated).toLocaleDateString('en-US')}` : 'Source: local file'}</MetaPill>}
+          right={<MetaPill>{lastUpdated ? `Updated ${new Date(lastUpdated).toLocaleDateString('en-US')}` : 'Source: sample'}</MetaPill>}
         />
-        <p className="text-[0.92rem] text-[var(--ed-ink-soft)] leading-[1.75] mt-[0.85rem] mb-6 max-w-[640px]">
-          The professional profile sent to Claude for job analysis and matching. Changes take effect immediately after saving.
-        </p>
-        <textarea
-          className={`${EDITOR_CLS} min-h-[420px]`}
-          value={profile}
-          onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => { setProfile(e.target.value); setProfileResult(null); }}
-          dir="auto"
-          spellCheck={false}
-        />
+
+        {/* Experience & skills — paste + normalize */}
+        <FieldGroup
+          title="Experience & skills"
+          desc="Paste your background as free text, then Normalize to structure it. Review and edit the result below."
+        >
+          <textarea
+            className={`${EDITOR_CLS} min-h-[160px]`}
+            value={profile.rawExperienceText}
+            onChange={(e) => patch({ rawExperienceText: e.target.value })}
+            placeholder="Paste your roles, accomplishments, and skills…"
+            dir="auto"
+            spellCheck={false}
+          />
+          <div className="flex items-center gap-3 mt-2 flex-wrap">
+            <Button size="sm" onClick={normalize} disabled={normalizeMutation.isPending || !profile.rawExperienceText.trim()}>
+              {normalizeMutation.isPending ? 'Normalizing…' : 'Normalize'}
+            </Button>
+            <span className={META_TEXT}>{profile.rawExperienceText.length.toLocaleString()} chars</span>
+            {normalizeError && <span className="text-[0.78rem] text-[var(--ed-no)]">{normalizeError}</span>}
+          </div>
+        </FieldGroup>
+
+        {/* Normalized: summary / seniority / domains */}
+        <FieldGroup title="Summary">
+          <textarea
+            className={`${EDITOR_CLS} min-h-[64px]`}
+            value={profile.summary}
+            onChange={(e) => patch({ summary: e.target.value })}
+            placeholder="One or two factual sentences (auto-filled by Normalize; editable)."
+            dir="auto"
+            spellCheck={false}
+          />
+          <div className="grid grid-cols-2 gap-3 mt-3 max-sm:grid-cols-1">
+            <label className="flex flex-col gap-[0.4rem]">
+              <span className={FIELD_LABEL}>Seniority</span>
+              <input className={FIELD_INPUT} value={profile.seniority ?? ''} onChange={(e) => patch({ seniority: e.target.value })} placeholder="e.g. Senior" />
+            </label>
+            <label className="flex flex-col gap-[0.4rem]">
+              <span className={FIELD_LABEL}>Domains (comma-separated)</span>
+              <input className={FIELD_INPUT} value={toCsv(profile.domains)} onChange={(e) => patch({ domains: csv(e.target.value) })} placeholder="e.g. fintech, healthtech" />
+            </label>
+          </div>
+        </FieldGroup>
+
+        {/* Experience items */}
+        <FieldGroup title="Experience" desc="One entry per role.">
+          <div className="flex flex-col gap-4">
+            {profile.experience.map((role, i) => (
+              <div key={i} className="border border-[var(--ed-rule)] bg-[var(--ed-panel)]/30 p-[1rem_1.1rem]">
+                <div className="grid grid-cols-3 gap-3 max-sm:grid-cols-1">
+                  <input className={FIELD_INPUT} value={role.title} onChange={(e) => patchRole(i, { title: e.target.value })} placeholder="Title" />
+                  <input className={FIELD_INPUT} value={role.company} onChange={(e) => patchRole(i, { company: e.target.value })} placeholder="Company" />
+                  <input className={FIELD_INPUT} value={role.dates} onChange={(e) => patchRole(i, { dates: e.target.value })} placeholder="Dates (e.g. 2021–Present)" />
+                </div>
+                <div className="mt-2 flex flex-col gap-[0.4rem]">
+                  <span className={FIELD_LABEL}>Highlights (one per line)</span>
+                  <textarea
+                    className={`${EDITOR_CLS} min-h-[80px]`}
+                    value={toLines(role.highlights)}
+                    onChange={(e) => patchRole(i, { highlights: lines(e.target.value) })}
+                    dir="auto"
+                    spellCheck={false}
+                  />
+                </div>
+                <div className="flex justify-end mt-2">
+                  <Button variant="destructive" size="sm" onClick={() => removeRole(i)}>Remove role</Button>
+                </div>
+              </div>
+            ))}
+            <div><Button variant="outline" size="sm" onClick={addRole}>+ Add role</Button></div>
+          </div>
+        </FieldGroup>
+
+        {/* Skills */}
+        <FieldGroup title="Skills" desc="Comma-separated, grouped.">
+          <div className="grid grid-cols-2 gap-3 max-sm:grid-cols-1">
+            {([
+              ['languages', 'Languages'],
+              ['frameworks', 'Frameworks'],
+              ['infrastructure', 'Infrastructure'],
+              ['databases', 'Databases'],
+              ['other', 'Other'],
+            ] as const).map(([key, label]) => (
+              <label key={key} className="flex flex-col gap-[0.4rem]">
+                <span className={FIELD_LABEL}>{label}</span>
+                <input
+                  className={FIELD_INPUT}
+                  value={toCsv(profile.skills[key])}
+                  onChange={(e) => patchSkills({ [key]: csv(e.target.value) } as Partial<SkillGroups>)}
+                />
+              </label>
+            ))}
+          </div>
+        </FieldGroup>
+
+        {/* Manual: strengths + core values */}
+        <FieldGroup title="Strengths" desc="Manual — one per line. (Not auto-extracted.)">
+          <textarea
+            className={`${EDITOR_CLS} min-h-[96px]`}
+            value={toLines(profile.strengths)}
+            onChange={(e) => patch({ strengths: lines(e.target.value) })}
+            placeholder="e.g. Clear written communication"
+            dir="auto"
+            spellCheck={false}
+          />
+        </FieldGroup>
+
+        <FieldGroup title="Core values" desc="Manual — one per line. (Not auto-extracted.)">
+          <textarea
+            className={`${EDITOR_CLS} min-h-[96px]`}
+            value={toLines(profile.coreValues)}
+            onChange={(e) => patch({ coreValues: lines(e.target.value) })}
+            placeholder="e.g. Sustainable pace over short-term heroics"
+            dir="auto"
+            spellCheck={false}
+          />
+        </FieldGroup>
+
         <div className="flex justify-between items-center mt-[1.1rem] pt-4 border-t border-dashed border-[var(--ed-rule)] relative max-sm:flex-col max-sm:gap-3 max-sm:items-stretch">
-          <span className={`${META_TEXT} inline-flex items-baseline gap-[0.35rem]`}>
-            {profile.length.toLocaleString()} chars
-            <span className="ml-2 text-[var(--ed-ink-faint)] text-[0.7rem] tracking-[0.04em] font-normal pl-[0.6rem] border-l border-[var(--ed-rule)]">· ≈{estimateTokens(profile).toLocaleString()} tokens</span>
+          <span className={META_TEXT}>
+            {profile.experience.length} role(s) · {profile.strengths.length} strength(s) · {profile.coreValues.length} value(s)
           </span>
           <div className="flex gap-[0.55rem] max-sm:justify-end max-sm:flex-wrap">
-            <HistoryButton field="content" onRestored={applyProfileData} />
-            {isProfileDirty && (
-              <Button variant="outline" size="sm" onClick={() => setProfile(originalProfile)} disabled={savingProfile}>
+            <HistoryButton field="profile" onRestored={applyProfileData} />
+            {isDirty && (
+              <Button variant="outline" size="sm" onClick={() => setProfile(original)} disabled={saving}>
                 Discard changes
               </Button>
             )}
-            <Button
-              onClick={saveProfile}
-              disabled={savingProfile || !isProfileDirty}
-            >
-              {savingProfile ? 'Saving...' : 'Save profile'}
+            <Button onClick={save} disabled={saving || !isDirty}>
+              {saving ? 'Saving...' : 'Save profile'}
             </Button>
           </div>
         </div>
-        {profileResult && (
-          <SaveResult result={profileResult} />
-        )}
+        {result && <SaveResult result={result} />}
       </section>
 
     </div>
+    </div>
+  );
+}
+
+function FieldGroup({ title, desc, children }: { title: string; desc?: string; children: React.ReactNode }) {
+  return (
+    <div className="mt-7">
+      <h3 className="ed-display text-[1.15rem] font-semibold text-[var(--ed-ink)] tracking-[-0.005em]">{title}</h3>
+      {desc && <p className="text-[0.82rem] text-[var(--ed-ink-soft)] leading-[1.6] mt-[0.2rem] mb-3 max-w-[640px]">{desc}</p>}
+      {!desc && <div className="mb-3" />}
+      {children}
     </div>
   );
 }
@@ -169,7 +360,6 @@ function SectionHeader({ num, name, right }: { num: string; name: string; right?
   );
 }
 
-// Small editorial meta-pill (Updated …).
 function MetaPill({ children }: { children: React.ReactNode }) {
   return (
     <span className="inline-block text-[0.6rem] py-[0.24rem] px-[0.6rem] tracking-[0.12em] uppercase font-semibold tabular-nums border text-[var(--ed-ink-faint)] border-[var(--ed-rule)] bg-[var(--ed-panel)]/40">
@@ -208,39 +398,23 @@ function SettingsLoadingSkeleton() {
         <div className="mt-[1.4rem] border-t-[3px] border-double border-[var(--ed-rule-strong)]" />
       </header>
 
-      {/* Section ghost - profile editor */}
-      <section
-        className="mb-10 pb-8 border-b border-[var(--ed-rule)] animate-in fade-in slide-in-from-bottom-2 duration-300"
-        style={{ animationDelay: '280ms' }}
-        aria-hidden="true"
-      >
+      <section className="mb-10 pb-8 border-b border-[var(--ed-rule)] animate-in fade-in slide-in-from-bottom-2 duration-300" style={{ animationDelay: '280ms' }} aria-hidden="true">
         <div className="flex items-baseline gap-[0.85rem] mb-4">
           <span className="ed-display text-[2.4rem] font-black text-[var(--ed-ink-faint)] tracking-[-0.03em] leading-none tabular-nums relative">
             01
             <span className="absolute bottom-[-0.35rem] left-0 w-[2rem] h-[2px] bg-[var(--ed-accent)]" />
           </span>
-          <Skeleton className="w-[160px] h-5 rounded-[4px]" />
+          <Skeleton className="w-[180px] h-5 rounded-[4px]" />
           <Skeleton className="w-[92px] h-[18px] rounded-[4px] ml-auto max-[720px]:hidden" />
         </div>
         <Skeleton className="w-[68%] h-3 rounded-[4px]" />
-        {/* Editor preview */}
-        <div className="relative bg-[var(--ed-panel)]/40 border border-[var(--ed-rule)] p-[1.2rem_1.25rem_1.35rem] pl-12 mt-4 overflow-hidden">
-          <div className="absolute inset-0 right-auto w-9 bg-[var(--ed-panel)]/60 border-r border-[var(--ed-rule)] flex flex-col justify-around py-[0.9rem]">
-            {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => (
-              <span key={i} className="block w-[0.45rem] h-px bg-[var(--ed-ink-faint)]/40 ml-auto mr-[0.45rem]" />
-            ))}
-          </div>
-          <div className="flex flex-col gap-[0.85rem] leading-[1.75]">
-            <Skeleton className="h-3 rounded-[4px] w-3/4" />
-            <Skeleton className="h-3 rounded-[4px] w-full" />
-            <Skeleton className="h-3 rounded-[4px] w-[45%]" />
-            <Skeleton className="h-3 rounded-[4px] w-full" />
-            <Skeleton className="h-3 rounded-[4px] w-3/4" />
-          </div>
+        <div className="bg-[var(--ed-panel)]/40 border border-[var(--ed-rule)] p-[1.2rem] mt-4 flex flex-col gap-[0.85rem]">
+          <Skeleton className="h-3 rounded-[4px] w-3/4" />
+          <Skeleton className="h-3 rounded-[4px] w-full" />
+          <Skeleton className="h-3 rounded-[4px] w-[45%]" />
         </div>
       </section>
 
-      {/* Cycling subtitle */}
       <div className="mt-11 pt-[1.4rem] border-t border-dashed border-[var(--ed-rule)] flex items-center gap-[0.7rem] ed-display text-[1rem] text-[var(--ed-ink-faint)] italic tracking-[-0.005em] relative">
         <span className="ed-display text-[1.2rem] text-[var(--ed-accent)] opacity-80 not-italic" aria-hidden="true">§</span>
         <span aria-hidden="true">Loading...</span>

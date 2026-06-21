@@ -1,7 +1,47 @@
-// The professional profile is the only user-editable field; prompts and scoring
-// config are now read-only server configuration (appsettings / env), not data.
+// The professional profile is the user-editable INPUT; prompts and scoring
+// config are read-only server configuration (appsettings / env), not data.
+// Experience & skills are LLM-normalized from pasted free text; strengths and
+// core values are explicit manual inputs. `content` is the server-rendered
+// projection the scoring prompts consume (read-only on the client).
+export interface ExperienceItem {
+  title: string;
+  company: string;
+  dates: string;
+  highlights: string[];
+}
+
+export interface SkillGroups {
+  languages: string[];
+  frameworks: string[];
+  infrastructure: string[];
+  databases: string[];
+  other: string[];
+}
+
+export interface StructuredProfile {
+  summary: string;
+  seniority?: string | null;
+  domains: string[];
+  experience: ExperienceItem[];
+  skills: SkillGroups;
+  strengths: string[];
+  coreValues: string[];
+  rawExperienceText: string;
+}
+
+// Output of POST /api/match/profile/normalize (experience + skills only;
+// strengths/core values are never auto-generated).
+export interface NormalizedProfile {
+  summary: string;
+  seniority?: string | null;
+  domains: string[];
+  experience: ExperienceItem[];
+  skills: SkillGroups;
+}
+
 export interface ProfileResponse {
   content?: string;
+  structured?: StructuredProfile;
   updated_at?: string;
 }
 
@@ -30,8 +70,8 @@ export interface MatchResponse {
   evaluatorSnapshotOutput?: string | null;
 }
 
-// Version history. The profile `content` is the only versioned profile field.
-export type HistoryField = 'content';
+// Version history. The structured profile is versioned under the 'profile' field.
+export type HistoryField = 'profile';
 
 export interface ProfileHistoryEntry {
   index: number;

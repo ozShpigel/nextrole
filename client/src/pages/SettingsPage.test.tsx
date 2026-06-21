@@ -8,7 +8,17 @@ vi.mock('../lib/api', () => ({
 }));
 
 const mockProfileResponse = {
-  content: 'test profile content',
+  content: '<professional_profile>…</professional_profile>',
+  structured: {
+    summary: 'Senior engineer.',
+    seniority: 'Senior',
+    domains: ['fintech'],
+    experience: [{ title: 'Senior Software Engineer', company: 'Lumen Retail', dates: '2021–Present', highlights: ['Led checkout platform'] }],
+    skills: { languages: ['TypeScript'], frameworks: ['React'], infrastructure: ['AWS'], databases: ['PostgreSQL'], other: [] },
+    strengths: ['Clear communication'],
+    coreValues: ['Sustainable pace'],
+    rawExperienceText: 'Senior engineer, 9 years…',
+  },
   updated_at: '2026-05-01T00:00:00Z',
 };
 
@@ -36,12 +46,16 @@ describe('SettingsPage', () => {
       expect(screen.getByText('Professional Profile')).toBeInTheDocument();
     });
 
-    // Prompts and scoring config are now locked server configuration — their
-    // editing sections must no longer render on the Settings page.
+    // Structured profile editor: experience/skills (normalized) + manual fields.
+    expect(screen.getByText('Experience & skills')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Normalize/i })).toBeInTheDocument();
+    expect(screen.getByText('Strengths')).toBeInTheDocument();
+    expect(screen.getByText('Core values')).toBeInTheDocument();
+
+    // Prompts and scoring config are locked server configuration — not editable here.
     expect(screen.queryByText('Analyst Prompt')).not.toBeInTheDocument();
     expect(screen.queryByText('Evaluator Prompt')).not.toBeInTheDocument();
     expect(screen.queryByText('Analysis Config')).not.toBeInTheDocument();
-    expect(screen.queryByText('Scoring Structure')).not.toBeInTheDocument();
 
     expect(screen.queryByRole('status', { name: /loading settings/i })).not.toBeInTheDocument();
   });

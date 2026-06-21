@@ -9,6 +9,7 @@ import type {
   MockSession,
   ManualMatchRequest,
   MatchResponse,
+  NormalizedProfile,
 } from './types';
 
 export function useTriggerRun() {
@@ -122,6 +123,18 @@ export function useScoreJob() {
         method: 'POST',
         body: JSON.stringify(body),
       }) as Promise<MatchResponse>,
+  });
+}
+
+// Normalize pasted free-text experience/skills into structured fields for review.
+// Does not persist — the user edits the result, then saves via useSaveProfile.
+export function useNormalizeProfile() {
+  return useMutation({
+    mutationFn: (text: string) =>
+      matchApi('/profile/normalize', {
+        method: 'POST',
+        body: JSON.stringify({ text }),
+      }) as Promise<NormalizedProfile>,
   });
 }
 

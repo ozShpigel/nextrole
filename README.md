@@ -2,6 +2,28 @@
 
 An AI-powered toolkit for managing your entire job search — from discovering opportunities to tracking applications. Built as a monorepo with a unified React frontend.
 
+## Single-tenant by design
+
+This app is **single-tenant on purpose**: one user, **no authentication**. It is meant to run as
+*your* private tool against *your* database. There is no login and no per-user data partitioning —
+keep it that way.
+
+To put it online safely, run **two separate instances of the same code**, each pointed at its own
+MongoDB via the connection-string environment variable:
+
+| Instance | MongoDB | `DemoMode` | Who |
+|----------|---------|-----------|-----|
+| **Private** (your real tool) | your real database | off | you only |
+| **Public demo** | a *separate* database seeded with **fictional data only** | **on** | anyone |
+
+The public demo runs in **read-only mode** (`DemoMode=true`): visitors can run AI analyses and browse
+the seeded fictional data, but all job-tracker writes are disabled, so they can't pollute shared data.
+Your real data lives only on the private instance — the demo's connection string must point at the
+separate seeded demo database, never the real one.
+
+See [DEMO_MODE](#demo-mode-public-read-only-demo), [Demo data seeding](#demo-data-seeding), and
+[Run your own private copy](#run-your-own-private-copy).
+
 ## Architecture
 
 Three loosely-coupled services communicate over HTTP, fronted by a single-page React app with Nginx reverse proxy:
@@ -109,19 +131,89 @@ dotnet build job-application-platform.sln
 
 ## Environment Variables
 
-| Variable | Used By | Description |
-|----------|---------|-------------|
-| `ANTHROPIC_API_KEY` / `Anthropic__ApiKey` | API, Mailbot | Claude API key |
-| `MongoDB__ConnectionString` | API | MongoDB connection string |
-| `MongoDB__DatabaseName` | API | Application tracking DB (default `job-tracker`) |
-| `MongoDB__Database` | API | Profile/scoring DB (default `jobmatch`) |
-| `MONGODB_CONNECTION_STRING` | Scraper | MongoDB connection string |
-| `API_BASE_URL` | Scraper | Unified API URL — used for AI scoring, dedup, and save |
-| `Tracker__BaseUrl` | Mailbot | API URL for status updates |
-| `API_URL` | Frontend (Nginx) | Upstream URL for API proxy |
-| `SCRAPER_URL` | Frontend (Nginx) | Upstream URL for Scraper proxy |
-| `VITE_API_URL` | Frontend (build arg) | Direct-call URL baked into the SPA — bypasses nginx when set |
-| `VITE_SCRAPER_URL` | Frontend (build arg) | Same, for the Scraper |
+The Mongo connection string and the Anthropic key are read **only** from the environment — never
+hardcoded. `.env.example` templates are provided for the API (`server/api/src/Api/.env.example`) and
+the Scraper (`server/scraper/.env.example`); copy to `.env` and fill in. ASP.NET maps `__` in env var
+names to config `:` (e.g. `MongoDB__ConnectionString` → `MongoDB:ConnectionString`).
+
+**Minimum to run:** the API needs only `MongoDB__ConnectionString` + `Anthropic__ApiKey`; the Scraper
+needs only `MONGODB_CONNECTION_STRING`. Everything else is optional with sensible defaults.
+
+### API (ASP.NET Core)
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `MongoDB__ConnectionString` | **yes** | — | MongoDB connection string |
+| `Anthropic__ApiKey` | **yes** | — | Claude API key |
+| `DemoMode` | no | `false` | `true` = public read-only demo (tracker writes return 403) |
+| `MongoDB__DatabaseName` | no | `job-tracker` | Application tracking DB |
+| `MongoDB__Database` / `MongoDB__ProfileDatabase` | no | `jobmatch` | Profile/scoring DB |
+| `CorsOrigins` | no | `""` (none) | Comma-separated allowed browser origins; `*` for dev |
+| `Scoring__*`, `Prompts__Analyzer`, `Prompts__Evaluator` | no | see `appsettings.json` / `PromptSeeds.cs` | Read-only scoring config & prompt overrides |
+
+### Scraper (Python FastAPI)
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `MONGODB_CONNECTION_STRING` | **yes** | — | MongoDB connection string |
+| `DEMO_MODE` | no | `false` | `true` = read-only (all scraper writes return 403) |
+| `MONGODB_DATABASE_NAME` | no | `job-tracker` | Database name |
+| `API_BASE_URL` | no | `http://localhost:5002` | Unified API URL (scoring, dedup, save) |
+| `CRON_SECRET` | no | `""` (no guard) | Shared secret for cron-triggered endpoints |
+| `CORS_ORIGINS` | no | `*` | Comma-separated allowed browser origins |
+
+### Mailbot (.NET console, optional) & Frontend
+
+| Variable | Service | Required | Description |
+|----------|---------|----------|-------------|
+| `Anthropic__ApiKey` | Mailbot | yes (if used) | Claude API key for email parsing |
+| `Gmail__CredentialsPath` | Mailbot | no | OAuth credentials file; **if absent, mailbot skips and exits cleanly** |
+| `Tracker__BaseUrl` | Mailbot | no (`http://localhost:5002`) | API URL for status updates |
+| `API_URL` / `SCRAPER_URL` | Frontend (Nginx) | no | Upstream URLs for the reverse proxy |
+| `VITE_API_URL` / `VITE_SCRAPER_URL` | Frontend (build arg) | no | Direct-call URLs baked into the SPA (bypass nginx) |
+
+## DEMO_MODE (public read-only demo)
+
+Set `DemoMode=true` (API) and `DEMO_MODE=true` (Scraper) on the public instance. Effect:
+
+- **Allowed:** all reads, plus non-persisting AI analyses — score a job (`POST /api/match`), profile
+  normalize, mock-interview turn/debrief, email parse.
+- **Blocked (HTTP 403):** every job-tracker write — create/update/delete applications, status, notes,
+  interviews, profile/interview-prep edits, mock-session saves, and all scraper writes (discovery
+  runs, criteria, job save/dismiss).
+- The frontend reads `GET /api/config` and shows a "read-only demo" banner; blocked writes surface a
+  friendly message.
+
+Default is off, so your private/local instance behaves normally with full read/write.
+
+## Demo data seeding
+
+Populate a database with fictional demo data (the sample persona + a handful of fictional applications
+across statuses). Point it at the **demo** database and run:
+
+```bash
+MongoDB__ConnectionString="<demo-db-uri>" dotnet run --project server/api/src/Seeder
+```
+
+It's idempotent (skips applications that already exist) and safe to re-run. Never run it against your
+real database.
+
+## Run your own private copy
+
+```bash
+git clone <this-repo> && cd job-application-platform
+
+# API — needs only Mongo + an Anthropic key
+MongoDB__ConnectionString="<your-mongo-uri>" Anthropic__ApiKey="sk-ant-..." \
+  dotnet run --project server/api/src/Api          # http://localhost:5002
+
+# Frontend
+cd client && bun install && bun run dev            # http://localhost:5173
+```
+
+Optional: the Scraper (job discovery) and Mailbot (Gmail sync). Both degrade gracefully — the app runs
+on just a Mongo connection string + an Anthropic key, and the Mailbot simply skips if no Gmail
+credentials are configured. Leave `DemoMode` unset for full read/write.
 
 ## Project Structure
 

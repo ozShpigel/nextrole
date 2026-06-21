@@ -1,6 +1,7 @@
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { Sun, Moon, ChevronDown } from 'lucide-react';
 import { useTheme } from './lib/theme';
+import { useConfig } from './lib/queries';
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -53,8 +54,14 @@ function NavGroup({ label, items }: { label: string; items: NavChild[] }) {
 
 export default function App() {
   const { theme, toggleTheme } = useTheme();
+  const { data: config } = useConfig();
   return (
     <div className="relative">
+      {config?.demoMode && (
+        <div className="bg-primary/10 text-foreground border-b border-border text-center text-[0.78rem] font-medium py-[0.4rem] px-4">
+          Read-only demo — explore the sample data freely; changes are disabled.
+        </div>
+      )}
       <nav data-app-nav className="bg-background/80 backdrop-blur-[20px] border-b border-border sticky top-0 z-50">
         <div className="max-w-[1100px] mx-auto px-6 flex items-center justify-between h-14">
           <NavLink to="/" className="font-serif font-bold text-[0.95rem] text-foreground tracking-[0.02em] transition-opacity hover:opacity-75">NextRole</NavLink>

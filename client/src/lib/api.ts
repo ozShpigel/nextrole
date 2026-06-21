@@ -10,6 +10,9 @@ interface ApiError extends Error {
 const API_BASE      = (import.meta.env.VITE_API_URL     || '').replace(/\/$/, '');
 const SCRAPER_BASE  = (import.meta.env.VITE_SCRAPER_URL || '').replace(/\/$/, '');
 
+// Surfaced when the read-only demo instance blocks a write (HTTP 403).
+const DEMO_BLOCKED_MSG = 'This action is disabled in the read-only demo.';
+
 export async function api(path: string, options: ApiOptions = {}) {
   const { headers, ...fetchOptions } = options;
   const url = API_BASE ? `${API_BASE}/api${path}` : `/api${path}`;
@@ -18,6 +21,7 @@ export async function api(path: string, options: ApiOptions = {}) {
     ...fetchOptions,
   });
   if (!res.ok && res.status !== 204) {
+    if (res.status === 403) throw new Error(DEMO_BLOCKED_MSG);
     const err = await res.text();
     throw new Error(err || `HTTP ${res.status}`);
   }
@@ -34,7 +38,8 @@ export async function matchApi(path: string, options: ApiOptions = {}) {
   });
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
-    const err: ApiError = new Error(data.detail || data.error || `HTTP ${res.status}`);
+    const err: ApiError = new Error(
+      res.status === 403 ? DEMO_BLOCKED_MSG : (data.detail || data.error || `HTTP ${res.status}`));
     err.status = res.status;
     err.data = data;
     throw err;
@@ -51,7 +56,8 @@ export async function discoveryApi(path: string, options: ApiOptions = {}) {
   });
   if (!res.ok && res.status !== 204) {
     const data = await res.json().catch(() => ({}));
-    const err: ApiError = new Error(data.detail || data.error || `HTTP ${res.status}`);
+    const err: ApiError = new Error(
+      res.status === 403 ? DEMO_BLOCKED_MSG : (data.detail || data.error || `HTTP ${res.status}`));
     err.status = res.status;
     err.data = data;
     throw err;

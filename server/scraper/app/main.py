@@ -89,6 +89,18 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Scraper Service", lifespan=lifespan)
 
+
+# DEMO_MODE — public demo instance: block every write (criteria/run/job
+# mutations) so visitors can't pollute shared data. All scraper mutations are
+# writes/triggers (none are pure analysis), so blocking by method is enough.
+# GETs (health, list/get runs/jobs/criteria) still work. Off by default.
+@app.middleware("http")
+async def demo_guard(request, call_next):
+    if settings.demo_mode and request.method in ("POST", "PUT", "PATCH", "DELETE"):
+        from fastapi.responses import JSONResponse
+        return JSONResponse(status_code=403, content={"error": "This is a read-only demo."})
+    return await call_next(request)
+
 # Enable CORS so the frontend can call this service directly from the browser
 # (mirrors the candy-babies pattern). Removing the nginx middleman eliminates
 # the double-hop retry amplification that was causing Cloudflare 429s on cold

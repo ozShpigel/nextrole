@@ -65,6 +65,15 @@ export function useRunJobs(runId: string, isActive: boolean) {
   });
 }
 
+// Public client config (e.g. demo mode) — drives the read-only banner.
+export function useConfig() {
+  return useQuery<{ demoMode: boolean }>({
+    queryKey: ['config'],
+    queryFn: () => api('/config'),
+    staleTime: Infinity,
+  });
+}
+
 export function useProfile() {
   return useQuery<ProfileResponse>({
     queryKey: ['match', 'profile'],

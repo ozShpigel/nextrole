@@ -103,6 +103,37 @@ catch (Exception ex)
 app.UseCors();
 app.UseRateLimiter();
 
+// DEMO_MODE — for the public demo instance: the job tracker is read-only.
+// AI analyses (non-persisting) stay enabled; every other write returns 403, so
+// visitors can explore the seeded fictional data without polluting it. Off by
+// default (private/local instance behaves normally).
+var demoMode = builder.Configuration.GetValue<bool>("DemoMode");
+if (demoMode)
+{
+    // Non-persisting analysis endpoints stay writable (exact-path match — a prefix
+    // on "/api/match" would wrongly allow PUT /api/match/profile).
+    var analysisAllowlist = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+    {
+        "/api/match", "/api/match/parse", "/api/match/batch",
+        "/api/match/profile/normalize", "/api/mock-interview/turn",
+        "/api/mock-interview/debrief", "/api/emails/parse",
+    };
+    app.Use(async (ctx, next) =>
+    {
+        var method = ctx.Request.Method;
+        var mutating = HttpMethods.IsPost(method) || HttpMethods.IsPut(method)
+            || HttpMethods.IsPatch(method) || HttpMethods.IsDelete(method);
+        if (mutating && !analysisAllowlist.Contains(ctx.Request.Path.Value ?? ""))
+        {
+            ctx.Response.StatusCode = StatusCodes.Status403Forbidden;
+            await ctx.Response.WriteAsJsonAsync(new { error = "This is a read-only demo." });
+            return;
+        }
+        await next();
+    });
+    startupLogger.LogInformation("DEMO_MODE enabled — tracker writes are disabled");
+}
+
 app.MapGet("/health", (ILogger<Program> logger) =>
 {
     logger.LogInformation("Health check hit");
@@ -110,6 +141,11 @@ app.MapGet("/health", (ILogger<Program> logger) =>
 })
     .WithName("Health")
     .WithSummary("Liveness probe for orchestration and Job Match wake-up checks");
+
+// Lets the client surface a read-only banner without guessing from 403s.
+app.MapGet("/api/config", () => Results.Ok(new { demoMode }))
+    .WithName("GetClientConfig")
+    .WithSummary("Public client config (e.g. demo mode)");
 
 if (app.Environment.IsDevelopment())
 {

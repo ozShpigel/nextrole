@@ -221,7 +221,14 @@ public sealed class GmailEmailService : IGmailEmailService
 
     private DateTime ParseEmailDate(string dateString)
     {
-        if (DateTimeOffset.TryParse(dateString, out var dto))
+        // RFC 2822 Date headers often carry a trailing comment like " (UTC)" that
+        // DateTimeOffset.TryParse rejects (e.g. "Wed, 17 Jun 2026 07:37:26 +0000 (UTC)").
+        // Strip a trailing parenthetical before parsing.
+        var cleaned = System.Text.RegularExpressions.Regex
+            .Replace(dateString ?? "", @"\s*\([^)]*\)\s*$", "")
+            .Trim();
+
+        if (DateTimeOffset.TryParse(cleaned, out var dto))
             return dto.UtcDateTime;
 
         _logger.LogWarning("Failed to parse email date '{DateString}', falling back to UtcNow", dateString);

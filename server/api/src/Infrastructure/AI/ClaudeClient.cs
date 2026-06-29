@@ -151,12 +151,17 @@ public sealed class ClaudeClient : IClaudeClient
 
     public async Task<EmailParseResult?> ParseEmailAsync(
         string subject, string from, string body, List<string> knownCompanies,
+        DateTime? referenceDate = null,
         CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Parsing email: {Subject}", subject);
 
         var companiesList = string.Join(", ", knownCompanies);
-        var systemPrompt = string.Format(PromptSeeds.EmailParser, companiesList);
+        // Reference date for resolving day-first / year-less / relative interview
+        // dates (e.g. "28.6" → 2026-06-28). Use the email's own received date when
+        // known (so re-syncing old mail resolves the right year); else now.
+        var refDate = (referenceDate ?? DateTime.UtcNow).ToString("yyyy-MM-dd");
+        var systemPrompt = string.Format(PromptSeeds.EmailParser, companiesList, refDate);
         var userMessage = $"<email>\n<subject>{subject}</subject>\n<from>{from}</from>\n<body>{body}</body>\n</email>";
 
         var parameters = new MessageParameters

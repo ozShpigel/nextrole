@@ -41,9 +41,19 @@ public sealed class TrackerApiClient : ITrackerApiClient
 
     public async Task<List<TrackerApplication>?> GetActiveApplicationsAsync(CancellationToken ct = default)
     {
+        var apps = await GetAllApplicationsAsync(ct);
+        if (apps is null) return null;
+
+        var active = apps.Where(a => !TerminalStatuses.Contains(a.Status)).ToList();
+        _logger.LogInformation("Retrieved {Total} applications, {Active} active", apps.Count, active.Count);
+        return active;
+    }
+
+    public async Task<List<TrackerApplication>?> GetAllApplicationsAsync(CancellationToken ct = default)
+    {
         using var response = await SendWithRetryAsync(
             () => _http.GetAsync("/api/applications", ct),
-            "GetActiveApplicationsAsync",
+            "GetAllApplicationsAsync",
             ct);
 
         if (response is null || !response.IsSuccessStatusCode)
@@ -53,12 +63,8 @@ public sealed class TrackerApiClient : ITrackerApiClient
             return null;
         }
 
-        var apps = await response.Content.ReadFromJsonAsync<List<TrackerApplication>>(cancellationToken: ct)
+        return await response.Content.ReadFromJsonAsync<List<TrackerApplication>>(cancellationToken: ct)
             ?? new List<TrackerApplication>();
-
-        var active = apps.Where(a => !TerminalStatuses.Contains(a.Status)).ToList();
-        _logger.LogInformation("Retrieved {Total} applications, {Active} active", apps.Count, active.Count);
-        return active;
     }
 
     public async Task<bool> UpdateApplicationStatusAsync(Guid appId, string newStatus, string? note = null, CancellationToken ct = default)

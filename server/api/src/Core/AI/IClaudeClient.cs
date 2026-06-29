@@ -21,7 +21,7 @@ public interface IClaudeClient
     Task<string> SubmitEvaluationBatchAsync(IReadOnlyList<EvaluationBatchItem> items, CancellationToken cancellationToken = default);
     Task<EvaluationBatchResult> GetEvaluationBatchAsync(string batchId, CancellationToken cancellationToken = default);
 
-    Task<EmailParseResult?> ParseEmailAsync(string subject, string from, string body, List<string> knownCompanies, CancellationToken cancellationToken = default);
+    Task<EmailParseResult?> ParseEmailAsync(string subject, string from, string body, List<string> knownCompanies, DateTime? referenceDate = null, CancellationToken cancellationToken = default);
     Task<string> SummarizeCompanyAsync(string companyName, CancellationToken cancellationToken = default);
 
     // Normalization layer: convert a candidate's pasted free-text experience/skills

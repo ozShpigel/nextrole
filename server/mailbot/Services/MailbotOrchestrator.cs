@@ -72,48 +72,8 @@ public sealed class MailbotOrchestrator
                 return result;
             }
 
-            // Step 3: Parse ONLY emails from tracked companies
-            var parsed = 0;
-            var updated = 0;
-
-            foreach (var email in emails)
-            {
-                try
-                {
-                    // Parse with Claude (passes company list for filtering)
-                    var update = await _parser.ParseEmailAsync(email, companies, ct);
-
-                    if (update == null)
-                        continue;
-
-                    parsed++;
-
-                    // Step 4: Find matching application (company + job title when
-                    // there are several apps at the same company)
-                    var app = MatchApplication(activeApps, update);
-
-                    if (app == null)
-                    {
-                        _logger.LogWarning("Parsed email from {Company} but no matching app found", update.Company);
-                        continue;
-                    }
-
-                    // Step 5: Apply update
-                    var wasUpdated = await ApplyUpdateAsync(app, update, ct);
-
-                    if (wasUpdated)
-                    {
-                        updated++;
-                        result.UpdatedApplications.Add($"{app.Company} - {update.UpdateType}");
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Error processing email: {Subject}", email.Subject);
-                    result.Errors.Add($"Email '{email.Subject}': {ex.Message}");
-                }
-            }
-
+            // Steps 3-5: parse, match, apply (shared with re-sync)
+            var (parsed, updated) = await ProcessEmailsAsync(emails, companies, activeApps, result, ct);
             result.EmailsParsed = parsed;
             result.ApplicationsUpdated = updated;
             result.Success = true;
@@ -130,6 +90,124 @@ public sealed class MailbotOrchestrator
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// Re-sync a single application from its FULL email history (not just the last
+    /// 24h), to recover from a missed/mis-parsed email. Reconcile-only: it fixes the
+    /// current state (interview date, status) and writes only on actual change — it
+    /// does not delete existing timeline rows.
+    /// </summary>
+    public async Task<SyncResult> RunResyncAsync(string company, string? title, CancellationToken ct = default)
+    {
+        _logger.LogInformation("=== Starting re-sync for company '{Company}'{Title} ===",
+            company, string.IsNullOrWhiteSpace(title) ? "" : $", title '{title}'");
+
+        var result = new SyncResult();
+        try
+        {
+            // All applications (incl. terminal) so re-sync can target any app.
+            var allApps = await _tracker.GetAllApplicationsAsync(ct);
+            if (allApps is null)
+            {
+                const string msg = "Could not reach Application Tracker. Re-sync aborted.";
+                _logger.LogError("{Message}", msg);
+                result.Errors.Add(msg);
+                result.Success = false;
+                return result;
+            }
+
+            var candidates = allApps
+                .Where(a => a.Company.Equals(company, StringComparison.OrdinalIgnoreCase))
+                .Where(a => string.IsNullOrWhiteSpace(title)
+                    || NormalizeTitle(a.JobTitle) == NormalizeTitle(title)
+                    || NormalizeTitle(a.JobTitle).Contains(NormalizeTitle(title))
+                    || NormalizeTitle(title).Contains(NormalizeTitle(a.JobTitle)))
+                .ToList();
+
+            if (candidates.Count == 0)
+            {
+                _logger.LogWarning("No application found for company '{Company}'{Title}", company,
+                    string.IsNullOrWhiteSpace(title) ? "" : $" / title '{title}'");
+                result.Success = true;
+                return result;
+            }
+
+            // Full label history for this company (no 24h limit), oldest → newest
+            // so later emails refine earlier ones.
+            var query = $"label:JobApplications \"{company}\"";
+            var emails = (await _gmail.GetEmailsByQueryAsync(query, ct))
+                .OrderBy(e => e.ReceivedAt)
+                .ToList();
+            result.EmailsChecked = emails.Count;
+
+            if (emails.Count == 0)
+            {
+                _logger.LogInformation("No emails found for company '{Company}'", company);
+                result.Success = true;
+                return result;
+            }
+
+            var (parsed, updated) = await ProcessEmailsAsync(emails, new List<string> { company }, candidates, result, ct);
+            result.EmailsParsed = parsed;
+            result.ApplicationsUpdated = updated;
+            result.Success = true;
+
+            _logger.LogInformation(
+                "=== Re-sync complete === Company: {Company}, Emails: {Checked}, Parsed: {Parsed}, Updated: {Updated}",
+                company, result.EmailsChecked, parsed, updated);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Re-sync failed for company '{Company}'", company);
+            result.Errors.Add($"Re-sync failed: {ex.Message}");
+            result.Success = false;
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Parse each email, match it to one of the candidate applications, and apply
+    /// the update. Shared by the daily sync and re-sync. `companies` is the filter
+    /// list passed to the parser; `candidates` is the set the match is drawn from.
+    /// </summary>
+    private async Task<(int Parsed, int Updated)> ProcessEmailsAsync(
+        List<EmailMessage> emails, List<string> companies, List<TrackerApplication> candidates,
+        SyncResult result, CancellationToken ct)
+    {
+        var parsed = 0;
+        var updated = 0;
+
+        foreach (var email in emails)
+        {
+            try
+            {
+                var update = await _parser.ParseEmailAsync(email, companies, ct);
+                if (update == null) continue;
+                parsed++;
+
+                var app = MatchApplication(candidates, update);
+                if (app == null)
+                {
+                    _logger.LogWarning("Parsed email from {Company} but no matching app found", update.Company);
+                    continue;
+                }
+
+                if (await ApplyUpdateAsync(app, update, ct))
+                {
+                    updated++;
+                    result.UpdatedApplications.Add($"{app.Company} - {update.UpdateType}");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error processing email: {Subject}", email.Subject);
+                result.Errors.Add($"Email '{email.Subject}': {ex.Message}");
+            }
+        }
+
+        return (parsed, updated);
     }
 
     /// <summary>
@@ -203,8 +281,7 @@ public sealed class MailbotOrchestrator
         switch (update.UpdateType)
         {
             case "ApplicationReceived":
-                return await _tracker.UpdateApplicationStatusAsync(
-                    app.Id, "Applied", "Email confirmation received", ct);
+                return await SetStatusAsync(app, "Applied", "Email confirmation received", ct);
 
             case "InterviewScheduled":
                 var interviewAdded = await _tracker.AddInterviewAsync(app.Id, new AddInterviewRequest
@@ -224,20 +301,18 @@ public sealed class MailbotOrchestrator
                     _ => "PhoneScreen"
                 };
 
-                var statusUpdated = await _tracker.UpdateApplicationStatusAsync(
-                    app.Id, newStatus, $"Interview scheduled: {update.InterviewType}", ct);
+                var statusUpdated = await SetStatusAsync(
+                    app, newStatus, $"Interview scheduled: {update.InterviewType}", ct);
                 if (!statusUpdated)
-                    _logger.LogWarning("Interview added for {AppId} but status update to {Status} failed", app.Id, newStatus);
+                    _logger.LogWarning("Interview added for {AppId} but status update to {Status} failed/skipped", app.Id, newStatus);
 
                 return interviewAdded;
 
             case "Rejected":
-                return await _tracker.UpdateApplicationStatusAsync(
-                    app.Id, "Rejected", "Rejection email received", ct);
+                return await SetStatusAsync(app, "Rejected", "Rejection email received", ct);
 
             case "OfferReceived":
-                return await _tracker.UpdateApplicationStatusAsync(
-                    app.Id, "OfferReceived", "Offer email received", ct);
+                return await SetStatusAsync(app, "OfferReceived", "Offer email received", ct);
 
             case "FollowUp":
                 _logger.LogInformation("Follow-up email for {Company}: {Notes}", app.Company, update.Notes);
@@ -249,9 +324,40 @@ public sealed class MailbotOrchestrator
         }
     }
 
+    // Application status lifecycle order (mirrors the API's ApplicationStatus enum).
+    // Used to prevent re-syncing an older email from rewinding status.
+    private static readonly string[] StatusOrder =
+    {
+        "Analyzing", "DecidedToApply", "Applied", "PhoneScreen", "TechnicalInterview",
+        "FinalRound", "OfferReceived", "Accepted", "Rejected", "Withdrawn"
+    };
+
+    private static int StatusRank(string? status) =>
+        Array.FindIndex(StatusOrder, s => s.Equals(status, StringComparison.OrdinalIgnoreCase));
+
+    // Apply a status change, but never move an application backwards (a late /
+    // re-synced early-stage email must not rewind a more advanced status). Unknown
+    // statuses (rank -1) are not blocked. The API itself no-ops same-status writes.
+    private async Task<bool> SetStatusAsync(TrackerApplication app, string newStatus, string note, CancellationToken ct)
+    {
+        var current = StatusRank(app.Status);
+        var next = StatusRank(newStatus);
+        if (current >= 0 && next >= 0 && next < current)
+        {
+            _logger.LogInformation(
+                "Skipping status change {From} -> {To} for {AppId} (would move backwards)",
+                app.Status, newStatus, app.Id);
+            return false;
+        }
+        return await _tracker.UpdateApplicationStatusAsync(app.Id, newStatus, note, ct);
+    }
+
     private DateTime CombineDateAndTime(DateTime? date, string? time)
     {
-        var baseDate = date ?? DateTime.UtcNow.AddDays(3);
+        // Fallback is date-only (no time-of-day) so a missing date never gets
+        // stamped with the mailbot's run clock — which would look like a real
+        // scheduled time. Normally the parser supplies the date from the email.
+        var baseDate = date ?? DateTime.UtcNow.Date.AddDays(3);
         if (date is null)
             _logger.LogWarning("No interview date provided, using fallback: {Date:yyyy-MM-dd}", baseDate);
 

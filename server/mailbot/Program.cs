@@ -1,3 +1,4 @@
+using Mailbot.Models;
 using Mailbot.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -59,8 +60,25 @@ try
     logger.LogInformation("Mailbot service started");
     logger.LogInformation("Current time: {Time}", DateTime.Now);
 
-    // Run sync immediately on start
-    var result = await orchestrator.RunSyncAsync();
+    // Modes:
+    //   (default)                              → daily last-24h sync
+    //   resync --company "X" [--title "Y"]     → reconcile one application from its full email history
+    SyncResult result;
+    if (args.Length > 0 && args[0].Equals("resync", StringComparison.OrdinalIgnoreCase))
+    {
+        var company = GetArg(args, "--company");
+        var title = GetArg(args, "--title");
+        if (string.IsNullOrWhiteSpace(company))
+        {
+            Console.Error.WriteLine("Usage: resync --company \"<name>\" [--title \"<role>\"]");
+            return 1;
+        }
+        result = await orchestrator.RunResyncAsync(company, title);
+    }
+    else
+    {
+        result = await orchestrator.RunSyncAsync();
+    }
 
     logger.LogInformation("Sync Result: {Result}",
         System.Text.Json.JsonSerializer.Serialize(result));
@@ -76,4 +94,11 @@ catch (Exception ex)
     Console.Error.WriteLine("Fatal error in Mailbot worker:");
     Console.Error.WriteLine(ex.ToString());
     return 1;
+}
+
+// Reads `--name value` from the CLI args (case-insensitive); null if absent.
+static string? GetArg(string[] args, string name)
+{
+    var i = Array.FindIndex(args, a => a.Equals(name, StringComparison.OrdinalIgnoreCase));
+    return i >= 0 && i + 1 < args.Length ? args[i + 1] : null;
 }

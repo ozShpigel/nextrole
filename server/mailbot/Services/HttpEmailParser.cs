@@ -33,7 +33,8 @@ public sealed class HttpEmailParser : IEmailParser
                 subject = email.Subject,
                 from = email.From,
                 body = email.Body,
-                knownCompanies
+                knownCompanies,
+                receivedAt = email.ReceivedAt
             };
 
             using var response = await _http.PostAsJsonAsync("/api/emails/parse", request, ct);

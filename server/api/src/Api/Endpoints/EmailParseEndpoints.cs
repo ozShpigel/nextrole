@@ -27,6 +27,7 @@ public static class EmailParseEndpoints
                     request.From ?? "",
                     request.Body ?? "",
                     request.KnownCompanies,
+                    request.ReceivedAt,
                     ct);
 
                 if (result is null)
@@ -53,4 +54,7 @@ public sealed record EmailParseRequest
     public string? From { get; init; }
     public string? Body { get; init; }
     public required List<string> KnownCompanies { get; init; }
+    // When the email was received; used as the reference date for resolving
+    // day-first / year-less / relative interview dates. Falls back to "now".
+    public DateTime? ReceivedAt { get; init; }
 }

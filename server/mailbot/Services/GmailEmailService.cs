@@ -126,16 +126,35 @@ public sealed class GmailEmailService : IGmailEmailService
     public async Task<List<EmailMessage>> GetEmailsFromLast24HoursAsync(CancellationToken ct = default)
     {
         var yesterday = DateTime.UtcNow.AddHours(-24);
-        var yesterdayFormatted = yesterday.ToString("yyyy/MM/dd");
-
         var effectiveQuery = string.IsNullOrWhiteSpace(_query)
-            ? $"after:{yesterdayFormatted}"
+            ? $"after:{yesterday:yyyy/MM/dd}"
             : _query;
 
-        _logger.LogInformation("Fetching emails with query: {Query}", effectiveQuery);
+        // The query is coarse (day granularity / label-based), so still enforce
+        // the precise 24h cutoff in code.
+        var emails = (await FetchByQueryAsync(effectiveQuery, ct))
+            .Where(e => e.ReceivedAt >= yesterday)
+            .ToList();
+
+        _logger.LogInformation("Found {Count} emails from last 24 hours", emails.Count);
+        return emails;
+    }
+
+    public async Task<List<EmailMessage>> GetEmailsByQueryAsync(string query, CancellationToken ct = default)
+    {
+        var emails = await FetchByQueryAsync(query, ct);
+        _logger.LogInformation("Found {Count} emails for query: {Query}", emails.Count, query);
+        return emails;
+    }
+
+    // Runs a Gmail query with paging and returns the parsed messages. No date
+    // filtering — callers apply any window they need.
+    private async Task<List<EmailMessage>> FetchByQueryAsync(string query, CancellationToken ct)
+    {
+        _logger.LogInformation("Fetching emails with query: {Query}", query);
 
         var request = _gmail.Users.Messages.List("me");
-        request.Q = effectiveQuery;
+        request.Q = query;
         request.MaxResults = 500;
 
         var emails = new List<EmailMessage>();
@@ -150,16 +169,12 @@ public sealed class GmailEmailService : IGmailEmailService
             foreach (var message in response.Messages)
             {
                 var fullMessage = await _gmail.Users.Messages.Get("me", message.Id).ExecuteAsync(ct);
-                var email = ParseGmailMessage(fullMessage);
-
-                if (email.ReceivedAt >= yesterday)
-                    emails.Add(email);
+                emails.Add(ParseGmailMessage(fullMessage));
             }
 
             request.PageToken = response.NextPageToken;
         } while (request.PageToken != null);
 
-        _logger.LogInformation("Found {Count} emails from last 24 hours", emails.Count);
         return emails;
     }
 

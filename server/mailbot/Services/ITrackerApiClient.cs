@@ -6,6 +6,8 @@ public interface ITrackerApiClient
 {
     /// <summary>Returns null if the Tracker API could not be reached (timeout, network, etc.). Empty list means success with no active applications.</summary>
     Task<List<TrackerApplication>?> GetActiveApplicationsAsync(CancellationToken ct = default);
+    /// <summary>All applications including terminal ones (Rejected/Withdrawn/Accepted). Used by re-sync, which may target any application. Null on transport failure.</summary>
+    Task<List<TrackerApplication>?> GetAllApplicationsAsync(CancellationToken ct = default);
     Task<bool> UpdateApplicationStatusAsync(Guid appId, string newStatus, string? note = null, CancellationToken ct = default);
     Task<bool> AddInterviewAsync(Guid appId, AddInterviewRequest interview, CancellationToken ct = default);
 }

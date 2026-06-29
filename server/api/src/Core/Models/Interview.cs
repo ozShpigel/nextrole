@@ -10,6 +10,8 @@ public sealed record Interview
     [BsonRepresentation(MongoDB.Bson.BsonType.String)]
     public required Guid ApplicationId { get; init; }
     public required DateTime ScheduledAt { get; init; }
+    // Optional end time (null when the email/source gives no end). Never inferred.
+    public DateTime? EndsAt { get; init; }
     [BsonRepresentation(MongoDB.Bson.BsonType.String)]
     public required InterviewType Type { get; init; }
     public string? Interviewer { get; init; }

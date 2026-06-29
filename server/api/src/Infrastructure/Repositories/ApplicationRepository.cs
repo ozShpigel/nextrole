@@ -74,10 +74,28 @@ public sealed class ApplicationRepository : IApplicationRepository
             .Include(a => a.CreatedAt)
             .Include(a => a.UpdatedAt);
 
-        return await _applications.Find(FilterDefinition<Application>.Empty)
+        var items = await _applications.Find(FilterDefinition<Application>.Empty)
             .SortByDescending(a => a.CreatedAt)
             .Project<ApplicationListItem>(projection)
             .ToListAsync(ct);
+
+        // Enrich with the soonest upcoming interview per application (one extra
+        // query over the small set of future, not-completed interviews).
+        var now = DateTime.UtcNow;
+        var upcoming = await _interviews
+            .Find(i => i.ScheduledAt >= now && !i.Completed)
+            .ToListAsync(ct);
+        if (upcoming.Count == 0) return items;
+
+        var nextByApp = upcoming
+            .GroupBy(i => i.ApplicationId)
+            .ToDictionary(g => g.Key, g => g.OrderBy(i => i.ScheduledAt).First());
+
+        return items
+            .Select(it => nextByApp.TryGetValue(it.Id, out var next)
+                ? it with { NextInterviewAt = next.ScheduledAt, NextInterviewEndsAt = next.EndsAt, NextInterviewer = next.Interviewer }
+                : it)
+            .ToList();
     }
 
     public async Task<List<Application>> GetByIdsAsync(IEnumerable<Guid> ids, CancellationToken ct = default)

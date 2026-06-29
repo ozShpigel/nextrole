@@ -100,6 +100,7 @@ public sealed class TrackerApiClient : ITrackerApiClient
                 {
                     applicationId = appId,
                     scheduledAt = interview.ScheduledAt,
+                    endsAt = interview.EndsAt,
                     type = interview.Type,
                     interviewer = interview.Interviewer,
                     topics = interview.Topics,

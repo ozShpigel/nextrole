@@ -196,27 +196,44 @@ public sealed class GmailEmailService : IGmailEmailService
         };
     }
 
+    // Collect ALL text parts (plain + html), decoding each and stripping HTML, then
+    // concatenate. Earlier this returned only the FIRST text part, so dates/times
+    // rendered inside ATS / calendar-invite HTML cards (e.g. eightfold "Meeting
+    // Agenda", Google Calendar) never reached the parser. Gathering everything makes
+    // those visible.
     private static string GetEmailBody(MessagePart payload)
     {
-        if (payload.Body?.Data != null)
+        var sb = new System.Text.StringBuilder();
+        CollectText(payload, sb);
+        var text = sb.ToString().Trim();
+        const int max = 50_000; // keep the parse request bounded
+        return text.Length > max ? text[..max] : text;
+    }
+
+    private static void CollectText(MessagePart? part, System.Text.StringBuilder sb)
+    {
+        if (part is null) return;
+
+        if (part.Body?.Data != null && part.MimeType is "text/plain" or "text/html")
         {
-            var bytes = Convert.FromBase64String(
-                payload.Body.Data.Replace('-', '+').Replace('_', '/'));
-            return System.Text.Encoding.UTF8.GetString(bytes);
+            var bytes = Convert.FromBase64String(part.Body.Data.Replace('-', '+').Replace('_', '/'));
+            var text = System.Text.Encoding.UTF8.GetString(bytes);
+            if (part.MimeType == "text/html") text = StripHtml(text);
+            if (!string.IsNullOrWhiteSpace(text)) sb.AppendLine(text);
         }
 
-        if (payload.Parts != null)
-        {
-            foreach (var part in payload.Parts)
-            {
-                if (part.MimeType is "text/plain" or "text/html")
-                {
-                    return GetEmailBody(part);
-                }
-            }
-        }
+        if (part.Parts != null)
+            foreach (var child in part.Parts) CollectText(child, sb);
+    }
 
-        return string.Empty;
+    private static string StripHtml(string html)
+    {
+        html = System.Text.RegularExpressions.Regex.Replace(
+            html, @"<(script|style)[^>]*>.*?</\1>", " ",
+            System.Text.RegularExpressions.RegexOptions.Singleline | System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        html = System.Text.RegularExpressions.Regex.Replace(html, @"<[^>]+>", " ");
+        html = System.Net.WebUtility.HtmlDecode(html);
+        return System.Text.RegularExpressions.Regex.Replace(html, @"\s+", " ").Trim();
     }
 
     private DateTime ParseEmailDate(string dateString)

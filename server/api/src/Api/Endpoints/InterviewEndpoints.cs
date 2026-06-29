@@ -38,6 +38,7 @@ public static class InterviewEndpoints
                     var merged = duplicate with
                     {
                         ScheduledAt = interview.ScheduledAt,
+                        EndsAt = interview.EndsAt ?? duplicate.EndsAt,
                         Interviewer = interview.Interviewer ?? duplicate.Interviewer,
                         Topics = interview.Topics ?? duplicate.Topics,
                     };

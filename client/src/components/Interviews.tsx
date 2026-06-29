@@ -1,5 +1,5 @@
 ﻿import { useState } from 'react';
-import { formatDateTime } from '../lib/format';
+import { formatDateTime, formatTime } from '../lib/format';
 import { useDeleteInterview, useAddInterview, useUpdateInterview } from '../lib/mutations';
 import { INTERVIEW_TYPES } from '../lib/tracker';
 import ConfirmDialog from './ConfirmDialog';
@@ -14,6 +14,7 @@ interface Interview {
   id: string;
   type: string;
   scheduledAt: string;
+  endsAt?: string | null;
   interviewer?: string;
   topics?: string;
   notes?: string;
@@ -57,7 +58,7 @@ export function InterviewList({ interviews, onEdit, onRefresh }: InterviewListPr
               <Button variant="destructive" size="sm" onClick={() => deleteInterview(i.id)}>Delete</Button>
             </div>
           </div>
-          <div className="text-[0.78rem] text-muted-foreground">{formatDateTime(i.scheduledAt)} {i.interviewer ? `| ${i.interviewer}` : ''}</div>
+          <div className="text-[0.78rem] text-muted-foreground">{formatDateTime(i.scheduledAt)}{i.endsAt ? `–${formatTime(i.endsAt)}` : ''} {i.interviewer ? `| ${i.interviewer}` : ''}</div>
           {i.topics && <div className="text-[0.84rem] text-foreground leading-[1.6] mt-4">Topics: {i.topics}</div>}
           {i.notes && <div className="text-[0.84rem] text-foreground leading-[1.6]">Notes: {i.notes}</div>}
           {i.feedback && <div className="text-[0.84rem] text-foreground leading-[1.6]">Feedback: {i.feedback}</div>}

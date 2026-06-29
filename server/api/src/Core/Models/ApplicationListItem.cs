@@ -13,4 +13,9 @@ public sealed record ApplicationListItem
     public string? MatchVerdict { get; init; }
     public DateTime CreatedAt { get; init; }
     public DateTime UpdatedAt { get; init; }
+    // Soonest upcoming (future, not-completed) interview, if any — surfaced on the
+    // list card. Null when there's no upcoming interview.
+    public DateTime? NextInterviewAt { get; init; }
+    public DateTime? NextInterviewEndsAt { get; init; }
+    public string? NextInterviewer { get; init; }
 }

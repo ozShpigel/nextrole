@@ -1,4 +1,4 @@
-﻿import { formatDateTime } from '../lib/format';
+﻿import { formatDateTime, formatTime } from '../lib/format';
 import { NOTE_CATEGORY_LABELS } from '../lib/tracker';
 import { StatusBadge } from './Status';
 
@@ -13,6 +13,7 @@ interface TimelineInterview {
   id: string;
   type: string;
   scheduledAt: string;
+  endsAt?: string | null;
   interviewer?: string;
   completed: boolean;
 }
@@ -54,7 +55,7 @@ export default function Timeline({ statusUpdates, interviews, notes }: TimelineP
             <div className="group flex gap-4 py-[0.85rem] border-b border-border items-start transition-colors last:border-b-0" key={`s-${s.timestamp}`}>
               <div className="w-[34px] h-[34px] rounded-[9px] flex items-center justify-center text-[0.8rem] shrink-0 transition-transform group-hover:scale-[1.08] bg-blue-50 text-blue-500">&#x1F4CA;</div>
               <div className="flex-1">
-                <div className="text-[0.84rem] mt-[0.15rem]"><StatusBadge status={s.fromStatus} /> &larr; <StatusBadge status={s.toStatus} /></div>
+                <div className="text-[0.84rem] mt-[0.15rem]"><StatusBadge status={s.fromStatus} /> &rarr; <StatusBadge status={s.toStatus} /></div>
                 {s.note && <div className="text-[0.84rem] mt-[0.15rem] text-muted-foreground">{s.note}</div>}
                 <div className="text-[0.73rem] text-muted-foreground">{formatDateTime(s.timestamp)}</div>
               </div>
@@ -68,7 +69,7 @@ export default function Timeline({ statusUpdates, interviews, notes }: TimelineP
               <div className="w-[34px] h-[34px] rounded-[9px] flex items-center justify-center text-[0.8rem] shrink-0 transition-transform group-hover:scale-[1.08] bg-emerald-50 text-emerald-600">&#x1F3A4;</div>
               <div className="flex-1">
                 <div className="text-[0.84rem] mt-[0.15rem]">Interview: {i.type} {i.interviewer ? `- ${i.interviewer}` : ''} {i.completed ? '✅' : ''}</div>
-                <div className="text-[0.73rem] text-muted-foreground">{formatDateTime(i.scheduledAt)}</div>
+                <div className="text-[0.73rem] text-muted-foreground">{formatDateTime(i.scheduledAt)}{i.endsAt ? `–${formatTime(i.endsAt)}` : ''}</div>
               </div>
             </div>
           );

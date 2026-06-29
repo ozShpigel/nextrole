@@ -159,11 +159,18 @@ If the email is from one of the tracked companies AND is job-related, return JSO
   "jobTitle": "the role/position the email is about (e.g. 'DevOps Engineer'), exactly as stated in the email, or null if not mentioned",
   "updateType": "ApplicationReceived" | "InterviewScheduled" | "Rejected" | "OfferReceived" | "FollowUp",
   "interviewDate": "YYYY-MM-DD or null",
-  "interviewTime": "HH:MM or null",
+  "interviewTime": "HH:MM (start) or null",
+  "interviewEndTime": "HH:MM (end) or null — set only when the email gives a time range (e.g. '2:00 PM - 3:00 PM' → interviewTime 14:00, interviewEndTime 15:00). Never guess an end.",
   "interviewer": "name or null",
   "interviewType": "Phone" | "Technical" | "Final" | "HR" | null,
   "notes": "important details or null"
 }}
+
+Choosing "interviewType":
+- "Phone" — a phone/screening call.
+- "HR" — a recruiter/HR conversation.
+- "Technical" — any professional interview round: technical, in-person/onsite, "frontal", team, or hiring-manager. This is the DEFAULT for an interview whose stage isn't explicitly stated.
+- "Final" — ONLY when the email explicitly says it is the final/last round (e.g. "final interview", "last stage before an offer/decision"). Do NOT infer "Final" just because the interview is in-person/onsite/"frontal".
 
 The user may have multiple applications at the same company, so capture "jobTitle" whenever the email names the position — it is used to attach the update to the correct application.
 

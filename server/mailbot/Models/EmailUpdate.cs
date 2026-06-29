@@ -7,6 +7,7 @@ public sealed record EmailUpdate
     public required string UpdateType { get; init; }
     public DateTime? InterviewDate { get; init; }
     public string? InterviewTime { get; init; }
+    public string? InterviewEndTime { get; init; }
     public string? Interviewer { get; init; }
     public string? InterviewType { get; init; }
     public string? Notes { get; init; }

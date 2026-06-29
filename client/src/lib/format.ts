@@ -12,6 +12,13 @@ export function formatDateTime(dateStr: string | null | undefined): string {
   return `${formatDate(dateStr)} ${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
 }
 
+export function formatTime(dateStr: string | null | undefined): string {
+  if (!dateStr) return '-';
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return '-';
+  return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
+}
+
 export function scoreColor(score: number | null | undefined, max?: number | null): string {
   if (score == null) return 'var(--muted-foreground)';
   const pct = max != null && max > 0 ? score / max : score / 100;

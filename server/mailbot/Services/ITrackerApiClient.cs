@@ -15,6 +15,7 @@ public interface ITrackerApiClient
 public sealed record AddInterviewRequest
 {
     public required DateTime ScheduledAt { get; init; }
+    public DateTime? EndsAt { get; init; }
     public required string Type { get; init; }
     public string? Interviewer { get; init; }
     public string? Topics { get; init; }

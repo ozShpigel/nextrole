@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApplications } from '../lib/queries';
 import { useDeleteApplication } from '../lib/mutations';
-import { formatDate, verdictLabel } from '../lib/format';
+import { formatDate, formatDateTime, formatTime, verdictLabel } from '../lib/format';
 import { StatusBadge } from './Status';
 import ConfirmDialog from './ConfirmDialog';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -16,6 +16,9 @@ interface Application {
   matchVerdict: string | null;
   createdAt: string;
   updatedAt?: string;
+  nextInterviewAt?: string | null;
+  nextInterviewEndsAt?: string | null;
+  nextInterviewer?: string | null;
 }
 
 // Editorial verdict tint (var(--ed-*) instead of the emerald/red of lib/format)
@@ -87,7 +90,7 @@ export default function ApplicationList() {
         <span>Status</span>
         <span>Days</span>
         <span>Verdict</span>
-        <span>Date</span>
+        <span>Next</span>
         <span></span>
       </div>
       {[...(apps as Application[])]
@@ -105,9 +108,18 @@ export default function ApplicationList() {
             <div><div className="ed-display font-semibold text-[var(--ed-ink)] text-[0.95rem]">{a.jobTitle}</div></div>
             <div className="text-[var(--ed-ink-soft)] text-[0.84rem]">{a.company}</div>
             <div><StatusBadge status={a.status} /></div>
-            <div className="text-[0.78rem] font-medium tabular-nums" style={{ color: daysColor }}>{days !== null ? `${days}d` : '-'}</div>
+            <div className="text-[0.78rem] font-medium tabular-nums" style={{ color: daysColor }} title={days !== null ? `${days} day${days === 1 ? '' : 's'} since last update` : 'No update recorded'}>{days !== null ? `${days}d` : '-'}</div>
             <div className="ed-display font-semibold text-[0.85rem]" style={{ color: edVerdictColor(a.matchVerdict) }}>{verdictLabel(a.matchVerdict)}{a.matchScore != null ? <span className="text-[var(--ed-ink-faint)] font-normal text-[0.72rem] ml-1">({a.matchScore})</span> : ''}</div>
-            <div className="text-[var(--ed-ink-faint)] text-[0.78rem] tabular-nums">{formatDate(a.createdAt)}</div>
+            {a.nextInterviewAt ? (
+              <div className="text-[var(--ed-accent)] text-[0.78rem] font-medium" title="Next interview">
+                <span className="tabular-nums">{formatDateTime(a.nextInterviewAt)}{a.nextInterviewEndsAt ? `–${formatTime(a.nextInterviewEndsAt)}` : ''}</span>
+                {a.nextInterviewer && <span className="block text-[0.72rem] text-[var(--ed-ink-soft)] font-normal">{a.nextInterviewer}</span>}
+              </div>
+            ) : (
+              <div className="text-[var(--ed-ink-faint)] text-[0.78rem] tabular-nums" title="Last updated">
+                {formatDate(a.updatedAt ?? a.createdAt)}
+              </div>
+            )}
             <div style={{ justifySelf: 'end' }}>
               <button
                 type="button"

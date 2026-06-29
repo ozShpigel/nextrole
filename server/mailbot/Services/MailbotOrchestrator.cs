@@ -117,8 +117,11 @@ public sealed class MailbotOrchestrator
                 return result;
             }
 
+            // Match on the CORE company name (strip a trailing " - <location>" on
+            // either side) so e.g. `--company "Applied Materials"` finds the stored
+            // "Applied Materials - Israel".
             var candidates = allApps
-                .Where(a => a.Company.Equals(company, StringComparison.OrdinalIgnoreCase))
+                .Where(a => CoreCompany(a.Company).Equals(CoreCompany(company), StringComparison.OrdinalIgnoreCase))
                 .Where(a => string.IsNullOrWhiteSpace(title)
                     || NormalizeTitle(a.JobTitle) == NormalizeTitle(title)
                     || NormalizeTitle(a.JobTitle).Contains(NormalizeTitle(title))
@@ -134,8 +137,14 @@ public sealed class MailbotOrchestrator
             }
 
             // Full label history for this company (no 24h limit), oldest → newest
-            // so later emails refine earlier ones.
-            var query = $"label:JobApplications \"{company}\"";
+            // so later emails refine earlier ones. Search by the CORE company name —
+            // strip a trailing " - <location>" suffix (e.g. "Applied Materials - Israel"
+            // → "Applied Materials") so the phrase actually appears in the emails.
+            // App matching still uses the full company name; the parser (told only this
+            // company) ignores any over-fetched mail.
+            var searchName = CoreCompany(company);
+            var query = $"label:JobApplications \"{searchName}\"";
+            _logger.LogInformation("Re-sync Gmail search term: '{Term}'", searchName);
             var emails = (await _gmail.GetEmailsByQueryAsync(query, ct))
                 .OrderBy(e => e.ReceivedAt)
                 .ToList();
@@ -148,7 +157,10 @@ public sealed class MailbotOrchestrator
                 return result;
             }
 
-            var (parsed, updated) = await ProcessEmailsAsync(emails, new List<string> { company }, candidates, result, ct);
+            // Tell the parser the candidates' ACTUAL stored company names (not the raw
+            // CLI arg) so the returned company matches the application in MatchApplication.
+            var companyNames = candidates.Select(a => a.Company).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            var (parsed, updated) = await ProcessEmailsAsync(emails, companyNames, candidates, result, ct);
             result.EmailsParsed = parsed;
             result.ApplicationsUpdated = updated;
             result.Success = true;
@@ -306,6 +318,11 @@ public sealed class MailbotOrchestrator
         return candidates[0];
     }
 
+    // Core company name with a trailing " - <location>" suffix removed
+    // (e.g. "Applied Materials - Israel" → "Applied Materials").
+    private static string CoreCompany(string company) =>
+        company.Split(" - ", StringSplitOptions.None)[0].Trim();
+
     private static string NormalizeTitle(string? title)
     {
         if (string.IsNullOrWhiteSpace(title)) return "";
@@ -326,15 +343,6 @@ public sealed class MailbotOrchestrator
                 return await SetStatusAsync(app, "Applied", "Email confirmation received", ct);
 
             case "InterviewScheduled":
-                var interviewAdded = await _tracker.AddInterviewAsync(app.Id, new AddInterviewRequest
-                {
-                    ScheduledAt = CombineDateAndTime(update.InterviewDate, update.InterviewTime),
-                    Type = update.InterviewType ?? "Unknown",
-                    Interviewer = update.Interviewer,
-                    Topics = update.Notes,
-                    Notes = "Auto-detected from email"
-                }, ct);
-
                 var newStatus = update.InterviewType?.ToLower() switch
                 {
                     "phone" or "hr" => "PhoneScreen",
@@ -342,6 +350,31 @@ public sealed class MailbotOrchestrator
                     "final" => "FinalRound",
                     _ => "PhoneScreen"
                 };
+
+                // Never invent a date: if the email had no parseable interview date,
+                // don't create a misleading dated interview — just advance the status
+                // (the email did say an interview was scheduled). The "Interview
+                // scheduled: X" status row still records it on the timeline.
+                if (update.InterviewDate is null)
+                {
+                    _logger.LogWarning(
+                        "InterviewScheduled for {AppId} ({Type}) had no date in the email — skipping the interview record; updating status only.",
+                        app.Id, update.InterviewType);
+                    return await SetStatusAsync(app, newStatus, $"Interview scheduled: {update.InterviewType}", ct);
+                }
+
+                var interviewAdded = await _tracker.AddInterviewAsync(app.Id, new AddInterviewRequest
+                {
+                    ScheduledAt = CombineDateAndTime(update.InterviewDate.Value, update.InterviewTime),
+                    // End time only when the email gives a range — never inferred.
+                    EndsAt = string.IsNullOrWhiteSpace(update.InterviewEndTime)
+                        ? null
+                        : CombineDateAndTime(update.InterviewDate.Value, update.InterviewEndTime),
+                    Type = update.InterviewType ?? "Unknown",
+                    Interviewer = update.Interviewer,
+                    Topics = update.Notes,
+                    Notes = "Auto-detected from email"
+                }, ct);
 
                 var statusUpdated = await SetStatusAsync(
                     app, newStatus, $"Interview scheduled: {update.InterviewType}", ct);
@@ -394,18 +427,14 @@ public sealed class MailbotOrchestrator
         return await _tracker.UpdateApplicationStatusAsync(app.Id, newStatus, note, ct);
     }
 
-    private DateTime CombineDateAndTime(DateTime? date, string? time)
+    // Combines the parsed interview date with an optional time. The date is always
+    // real (callers skip the interview entirely when no date was parsed — we never
+    // invent one). Returns the date at midnight when no/invalid time is given.
+    private static DateTime CombineDateAndTime(DateTime date, string? time)
     {
-        // Fallback is date-only (no time-of-day) so a missing date never gets
-        // stamped with the mailbot's run clock — which would look like a real
-        // scheduled time. Normally the parser supplies the date from the email.
-        var baseDate = date ?? DateTime.UtcNow.Date.AddDays(3);
-        if (date is null)
-            _logger.LogWarning("No interview date provided, using fallback: {Date:yyyy-MM-dd}", baseDate);
-
         if (string.IsNullOrWhiteSpace(time) || !TimeSpan.TryParse(time, out var timeSpan))
-            return baseDate;
+            return date.Date;
 
-        return baseDate.Date.Add(timeSpan);
+        return date.Date.Add(timeSpan);
     }
 }

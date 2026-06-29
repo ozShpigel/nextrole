@@ -99,6 +99,16 @@ public static class ApplicationEndpoints
                 if (existing is null) return Results.NotFound();
 
                 var oldStatus = existing.Status;
+
+                // Idempotency: a no-op transition (same status) must not append a
+                // timeline row. Lets the daily sync / re-sync re-process the same
+                // email without spamming duplicate "X ← X" status updates.
+                if (request.NewStatus == oldStatus)
+                {
+                    logger.LogInformation("Application {Id} status unchanged ({Status}) — skipping status update", id, oldStatus);
+                    return Results.Ok(existing);
+                }
+
                 var updated = existing with
                 {
                     Status = request.NewStatus,

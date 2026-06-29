@@ -60,20 +60,22 @@ try
     logger.LogInformation("Mailbot service started");
     logger.LogInformation("Current time: {Time}", DateTime.Now);
 
-    // Modes:
-    //   (default)                              → daily last-24h sync
-    //   resync --company "X" [--title "Y"]     → reconcile one application from its full email history
+    // Modes (re-sync reconciles from full email history; default is last-24h sync):
+    //   default                                  → daily last-24h sync
+    //   env  Mailbot__Resync=true                → re-sync (set Mailbot__ResyncCompany to scope,
+    //        [+ Mailbot__ResyncCompany / ...Title]  else all applications). Flip false to resume.
+    //   cli  resync --company "X" [--title "Y"]  → same, for local use
+    var resyncByEnv = bool.TryParse(builder.Configuration["Mailbot:Resync"], out var re) && re;
+    var resyncByCli = args.Length > 0 && args[0].Equals("resync", StringComparison.OrdinalIgnoreCase);
+    var company = GetArg(args, "--company") ?? builder.Configuration["Mailbot:ResyncCompany"];
+    var title = GetArg(args, "--title") ?? builder.Configuration["Mailbot:ResyncTitle"];
+
     SyncResult result;
-    if (args.Length > 0 && args[0].Equals("resync", StringComparison.OrdinalIgnoreCase))
+    if (resyncByEnv || resyncByCli)
     {
-        var company = GetArg(args, "--company");
-        var title = GetArg(args, "--title");
-        if (string.IsNullOrWhiteSpace(company))
-        {
-            Console.Error.WriteLine("Usage: resync --company \"<name>\" [--title \"<role>\"]");
-            return 1;
-        }
-        result = await orchestrator.RunResyncAsync(company, title);
+        result = string.IsNullOrWhiteSpace(company)
+            ? await orchestrator.RunResyncAllAsync()
+            : await orchestrator.RunResyncAsync(company, title);
     }
     else
     {

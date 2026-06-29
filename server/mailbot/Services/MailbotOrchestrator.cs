@@ -168,6 +168,48 @@ public sealed class MailbotOrchestrator
     }
 
     /// <summary>
+    /// Re-sync every application (each distinct company) from full email history.
+    /// Used by the env toggle when no specific company is given.
+    /// </summary>
+    public async Task<SyncResult> RunResyncAllAsync(CancellationToken ct = default)
+    {
+        var agg = new SyncResult { Success = true };
+
+        var allApps = await _tracker.GetAllApplicationsAsync(ct);
+        if (allApps is null)
+        {
+            const string msg = "Could not reach Application Tracker. Re-sync-all aborted.";
+            _logger.LogError("{Message}", msg);
+            agg.Errors.Add(msg);
+            agg.Success = false;
+            return agg;
+        }
+
+        var companies = allApps
+            .Select(a => a.Company)
+            .Where(c => !string.IsNullOrWhiteSpace(c))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        _logger.LogInformation("Re-sync ALL: {Count} compan(ies)", companies.Count);
+
+        foreach (var c in companies)
+        {
+            var r = await RunResyncAsync(c, null, ct);
+            agg.EmailsChecked += r.EmailsChecked;
+            agg.EmailsParsed += r.EmailsParsed;
+            agg.ApplicationsUpdated += r.ApplicationsUpdated;
+            agg.UpdatedApplications.AddRange(r.UpdatedApplications);
+            agg.Errors.AddRange(r.Errors);
+            if (!r.Success) agg.Success = false;
+        }
+
+        _logger.LogInformation("=== Re-sync ALL complete === Companies: {Companies}, Updated: {Updated}",
+            companies.Count, agg.ApplicationsUpdated);
+        return agg;
+    }
+
+    /// <summary>
     /// Parse each email, match it to one of the candidate applications, and apply
     /// the update. Shared by the daily sync and re-sync. `companies` is the filter
     /// list passed to the parser; `candidates` is the set the match is drawn from.

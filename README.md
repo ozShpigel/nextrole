@@ -164,13 +164,25 @@ needs only `MONGODB_CONNECTION_STRING`. Everything else is optional with sensibl
 
 ### Mailbot (.NET console, optional) & Frontend
 
+The mailbot reads its config from environment variables or a local `.env`
+(`server/mailbot/.env.example` template). It does **not** need an Anthropic key —
+email parsing happens in the API.
+
 | Variable | Service | Required | Description |
 |----------|---------|----------|-------------|
-| `Anthropic__ApiKey` | Mailbot | yes (if used) | Claude API key for email parsing |
-| `Gmail__CredentialsPath` | Mailbot | no | OAuth credentials file; **if absent, mailbot skips and exits cleanly** |
-| `Tracker__BaseUrl` | Mailbot | no (`http://localhost:5002`) | API URL for status updates |
+| `Tracker__BaseUrl` | Mailbot | no (`http://localhost:5002`) | API URL for updates. Point at the **private** API (DemoMode off) — a demo API 403s writes |
+| `Gmail__CredentialsPath` | Mailbot | no | OAuth client-secrets JSON; **if absent, mailbot skips and exits cleanly** |
+| `Gmail__Query` | Mailbot | no (`label:JobApplications newer_than:1d`) | Gmail search for the daily sync |
+| `Mailbot__Resync` | Mailbot | no (`false`) | `true` → next run re-syncs from full history instead of the daily 24h sync |
+| `Mailbot__ResyncCompany` / `Mailbot__ResyncTitle` | Mailbot | no | Scope re-sync to one company/role; if unset, re-sync all applications |
 | `API_URL` / `SCRAPER_URL` | Frontend (Nginx) | no | Upstream URLs for the reverse proxy |
 | `VITE_API_URL` / `VITE_SCRAPER_URL` | Frontend (build arg) | no | Direct-call URLs baked into the SPA (bypass nginx) |
+
+**Mailbot re-sync** (recover an interview/status beyond the 24h window): point
+`Tracker__BaseUrl` at your private API, then either pass CLI args —
+`dotnet run --project server/mailbot -- resync --company "Acme"` — or set
+`Mailbot__Resync=true` (+ optional `Mailbot__ResyncCompany`) and run it. Requires
+Gmail credentials; reconcile-only and idempotent.
 
 ## DEMO_MODE (public read-only demo)
 

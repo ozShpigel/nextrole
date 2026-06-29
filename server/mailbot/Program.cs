@@ -19,6 +19,28 @@ try
         ContentRootPath = exeDir
     });
 
+    // Local convenience: load a .env (KEY__SUB=value, mapped to KEY:SUB) from the
+    // working dir or the exe dir if present. Not used in production — Render injects
+    // real env vars. (`dotnet run --project server/mailbot` runs with cwd = the
+    // project dir, so server/mailbot/.env is picked up.)
+    foreach (var dir in new[] { Directory.GetCurrentDirectory(), exeDir })
+    {
+        var envPath = Path.Combine(dir, ".env");
+        if (!File.Exists(envPath)) continue;
+        var envVars = new Dictionary<string, string?>();
+        foreach (var line in File.ReadAllLines(envPath))
+        {
+            var trimmed = line.Trim();
+            if (trimmed.Length == 0 || trimmed.StartsWith('#')) continue;
+            var sep = trimmed.IndexOf('=');
+            if (sep <= 0) continue;
+            envVars[trimmed[..sep].Trim().Replace("__", ":")] = trimmed[(sep + 1)..].Trim();
+        }
+        builder.Configuration.AddInMemoryCollection(envVars);
+        Console.WriteLine($"Loaded .env from {envPath}");
+        break;
+    }
+
     // Logging
     builder.Logging.ClearProviders();
     builder.Logging.AddConsole();

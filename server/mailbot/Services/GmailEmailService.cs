@@ -21,6 +21,13 @@ public sealed class GmailEmailService : IGmailEmailService
     private readonly GmailService _gmail;
     private readonly ILogger<GmailEmailService> _logger;
     private readonly string? _query;
+    private readonly string _labelName;
+
+    // Read mail + manage filters. Reading messages needs GmailReadonly; creating/deleting
+    // filters needs GmailSettingsBasic. Adding settings.basic is a scope change — the cached
+    // OAuth token must be re-consented to both, else filter calls 403.
+    private static readonly string[] Scopes =
+        { GmailService.Scope.GmailReadonly, GmailService.Scope.GmailSettingsBasic };
 
     // Resolve the Gmail credentials path in order of preference:
     // 1. Explicit Gmail:CredentialsPath config (absolute or relative to content root)
@@ -95,7 +102,7 @@ public sealed class GmailEmailService : IGmailEmailService
                 var flow = new GoogleAuthorizationCodeFlow(new GoogleAuthorizationCodeFlow.Initializer
                 {
                     ClientSecrets = clientSecrets.Secrets,
-                    Scopes = new[] { GmailService.Scope.GmailReadonly }
+                    Scopes = Scopes
                 });
 
                 credential = new UserCredential(flow, "user", token);
@@ -106,7 +113,7 @@ public sealed class GmailEmailService : IGmailEmailService
 
                 credential = GoogleWebAuthorizationBroker.AuthorizeAsync(
                     clientSecrets.Secrets,
-                    new[] { GmailService.Scope.GmailReadonly },
+                    Scopes,
                     "user",
                     CancellationToken.None).Result;
             }
@@ -119,6 +126,7 @@ public sealed class GmailEmailService : IGmailEmailService
         });
 
         _query = config["Gmail:Query"];
+        _labelName = string.IsNullOrWhiteSpace(config["Gmail:Label"]) ? "JobApplications" : config["Gmail:Label"]!;
 
         _logger.LogInformation("Gmail service initialized");
     }
@@ -146,6 +154,73 @@ public sealed class GmailEmailService : IGmailEmailService
         _logger.LogInformation("Found {Count} emails for query: {Query}", emails.Count, query);
         return emails;
     }
+
+    public async Task<bool> EnsureJobApplicationsFilterAsync(IReadOnlyCollection<string> coreCompanies, CancellationToken ct = default)
+    {
+        if (coreCompanies.Count == 0)
+        {
+            _logger.LogInformation("No companies to filter on — skipping Gmail filter reconcile.");
+            return false;
+        }
+
+        // Resolve the label id. We never create the label here (keeps scopes minimal and
+        // avoids a surprise label) — if it's missing the user hasn't set up the label the
+        // whole flow relies on, so warn and skip.
+        var labels = await _gmail.Users.Labels.List("me").ExecuteAsync(ct);
+        var label = labels.Labels?.FirstOrDefault(l =>
+            string.Equals(l.Name, _labelName, StringComparison.OrdinalIgnoreCase));
+        if (label is null)
+        {
+            _logger.LogWarning(
+                "Gmail label '{Label}' not found — cannot manage its filter. Create the label in Gmail first.",
+                _labelName);
+            return false;
+        }
+
+        var desiredQuery = BuildFilterQuery(coreCompanies);
+
+        var existing = await _gmail.Users.Settings.Filters.List("me").ExecuteAsync(ct);
+        // Mailbot-managed = any filter whose action adds our label. The user should not keep
+        // a separate manual filter on this label; the mailbot owns it.
+        var managed = (existing.Filter ?? new List<Filter>())
+            .Where(f => f.Action?.AddLabelIds?.Contains(label.Id) == true)
+            .ToList();
+
+        if (managed.Count == 1 && string.Equals(managed[0].Criteria?.Query, desiredQuery, StringComparison.Ordinal))
+        {
+            _logger.LogInformation("Gmail filter already in sync ({Count} companies) — no change.", coreCompanies.Count);
+            return false;
+        }
+
+        foreach (var f in managed)
+        {
+            await _gmail.Users.Settings.Filters.Delete("me", f.Id).ExecuteAsync(ct);
+            _logger.LogInformation("Deleted stale Gmail filter {Id}", f.Id);
+        }
+
+        var created = await _gmail.Users.Settings.Filters.Create(new Filter
+        {
+            Criteria = new FilterCriteria { Query = desiredQuery },
+            Action = new FilterAction { AddLabelIds = new List<string> { label.Id } }
+        }, "me").ExecuteAsync(ct);
+
+        _logger.LogInformation(
+            "Created Gmail filter {Id} labeling {Count} companies as '{Label}': {Query}",
+            created.Id, coreCompanies.Count, _labelName, desiredQuery);
+        return true;
+    }
+
+    // Canonical filter query: distinct, trimmed company names, sorted case-insensitively,
+    // each quoted, joined with OR — e.g. "Acme" OR "Globex". Deterministic so the in-sync
+    // check above is a stable string compare. (Inner quotes are stripped to keep the query
+    // well-formed.)
+    internal static string BuildFilterQuery(IEnumerable<string> coreCompanies) =>
+        string.Join(" OR ", coreCompanies
+            .Where(c => !string.IsNullOrWhiteSpace(c))
+            .Select(c => c.Trim().Replace("\"", ""))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(c => c, StringComparer.OrdinalIgnoreCase)
+            .Select(c => $"\"{c}\""));
 
     // Runs a Gmail query with paging and returns the parsed messages. No date
     // filtering — callers apply any window they need.

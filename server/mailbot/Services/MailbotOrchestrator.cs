@@ -1,4 +1,5 @@
 using Mailbot.Models;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
 namespace Mailbot.Services;
@@ -16,17 +17,21 @@ public sealed class MailbotOrchestrator
     private readonly IEmailParser _parser;
     private readonly ITrackerApiClient _tracker;
     private readonly ILogger<MailbotOrchestrator> _logger;
+    private readonly bool _manageFilters;
 
     public MailbotOrchestrator(
         IGmailEmailService gmail,
         IEmailParser parser,
         ITrackerApiClient tracker,
+        IConfiguration config,
         ILogger<MailbotOrchestrator> logger)
     {
         _gmail = gmail;
         _parser = parser;
         _tracker = tracker;
         _logger = logger;
+        // Default on; flip Gmail:ManageFilters=false to disable filter reconcile.
+        _manageFilters = !bool.TryParse(config["Gmail:ManageFilters"], out var mf) || mf;
     }
 
     public async Task<SyncResult> RunSyncAsync(CancellationToken ct = default)
@@ -60,6 +65,11 @@ public sealed class MailbotOrchestrator
             var companies = activeApps.Select(a => a.Company).Distinct().ToList();
             _logger.LogInformation("Tracking {Count} companies: {Companies}",
                 companies.Count, string.Join(", ", companies));
+
+            // Step 1b: keep the Gmail filter in sync with the tracked companies so new
+            // companies' mail gets the JobApplications label. Non-fatal: a filter failure
+            // must not abort the email sync (the primary job).
+            await ReconcileFiltersAsync(companies, result, ct);
 
             // Step 2: Get emails from LAST 24 HOURS ONLY
             var emails = await _gmail.GetEmailsFromLast24HoursAsync(ct);
@@ -219,6 +229,51 @@ public sealed class MailbotOrchestrator
         _logger.LogInformation("=== Re-sync ALL complete === Companies: {Companies}, Updated: {Updated}",
             companies.Count, agg.ApplicationsUpdated);
         return agg;
+    }
+
+    /// <summary>
+    /// Standalone Gmail filter reconcile (no email sync) — handy for testing/manual runs.
+    /// Uses the active applications' companies, same as the daily sync.
+    /// </summary>
+    public async Task<SyncResult> RunReconcileFiltersAsync(CancellationToken ct = default)
+    {
+        var result = new SyncResult();
+        var activeApps = await _tracker.GetActiveApplicationsAsync(ct);
+        if (activeApps is null)
+        {
+            const string msg = "Could not reach Application Tracker. Filter reconcile aborted.";
+            _logger.LogError("{Message}", msg);
+            result.Errors.Add(msg);
+            result.Success = false;
+            return result;
+        }
+
+        var companies = activeApps.Select(a => a.Company).Distinct().ToList();
+        await ReconcileFiltersAsync(companies, result, ct);
+        result.Success = result.Errors.Count == 0;
+        return result;
+    }
+
+    // Ensure the Gmail JobApplications filter covers the given companies (by core name).
+    // Non-fatal by contract: failures are logged + recorded but never thrown, so the daily
+    // sync continues regardless.
+    private async Task ReconcileFiltersAsync(List<string> companies, SyncResult result, CancellationToken ct)
+    {
+        if (!_manageFilters) return;
+        try
+        {
+            var coreCompanies = companies
+                .Select(CoreCompany)
+                .Where(c => !string.IsNullOrWhiteSpace(c))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            await _gmail.EnsureJobApplicationsFilterAsync(coreCompanies, ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Gmail filter reconcile failed (non-fatal); continuing with sync");
+            result.Errors.Add($"Filter reconcile: {ex.Message}");
+        }
     }
 
     /// <summary>

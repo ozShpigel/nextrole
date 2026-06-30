@@ -381,6 +381,9 @@ public sealed class ClaudeClient : IClaudeClient
             MaxTokens = 1024,
             // Per-turn questions are high-frequency, low-difficulty — Haiku keeps
             // the back-and-forth fast and cheap; the debrief uses Sonnet.
+            // (Prompt caching was evaluated but doesn't engage for Haiku at this
+            // prompt size — Sonnet caches the same prompt, Haiku doesn't — so the
+            // turns run uncached.)
             Model = "claude-haiku-4-5-20251001",
             Temperature = 0.5m,
             Stream = false

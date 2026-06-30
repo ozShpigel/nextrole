@@ -5,6 +5,7 @@ import { useInterviewPrep, useInterviewPrepHistory } from '../lib/queries';
 import { useSaveInterviewPrep, useRestoreInterviewPrepHistory, useGeneratePresentationCues } from '../lib/mutations';
 import type { InterviewPrepResponse, InterviewPrepHistoryField, QaEntry } from '../lib/types';
 import { Skeleton } from '../components/ui/skeleton';
+import { AutoGrowTextarea } from '../components/AutoGrowTextarea';
 import {
   SaveResult,
   IntroTextarea,
@@ -100,8 +101,8 @@ function QaRubricEditor({ entries, onChange }: { entries: QaEntry[]; onChange: (
             onChange={(ev) => update(idx, { question: ev.target.value })}
             dir="auto"
           />
-          <textarea
-            className="w-full p-[0.75rem_0.95rem] border border-[var(--ed-rule)] text-[var(--ed-ink)] text-[0.88rem] resize-y outline-none leading-[1.7] whitespace-pre-wrap transition-all hover:border-[var(--ed-ink-faint)] focus:border-[var(--ed-accent)] bg-[var(--ed-paper)]"
+          <AutoGrowTextarea
+            className="w-full p-[0.75rem_0.95rem] border border-[var(--ed-rule)] text-[var(--ed-ink)] text-[0.88rem] outline-none leading-[1.7] whitespace-pre-wrap transition-all hover:border-[var(--ed-ink-faint)] focus:border-[var(--ed-accent)] bg-[var(--ed-paper)]"
             style={{ minHeight: '120px' }}
             placeholder="Your prepared answer / rubric for answering this question"
             value={e.answer}
@@ -140,7 +141,7 @@ function SectionHeader({ num, name, desc }: { num: string; name: string; desc: s
 /* Self-presentation field — full text  ⇄  keyword cues               */
 /* ------------------------------------------------------------------ */
 const PRESENTATION_TEXTAREA_CLASS =
-  'w-full p-[1rem_1.25rem] border border-[var(--ed-rule)] text-[var(--ed-ink)] text-[0.88rem] resize-y outline-none leading-[1.8] whitespace-pre-wrap transition-all hover:border-[var(--ed-ink-faint)] focus:border-[var(--ed-accent)] selection:bg-[var(--ed-accent)]/10 selection:text-[var(--ed-ink)] bg-[var(--ed-paper)]';
+  'w-full p-[1rem_1.25rem] border border-[var(--ed-rule)] text-[var(--ed-ink)] text-[0.88rem] outline-none leading-[1.8] whitespace-pre-wrap transition-all hover:border-[var(--ed-ink-faint)] focus:border-[var(--ed-accent)] selection:bg-[var(--ed-accent)]/10 selection:text-[var(--ed-ink)] bg-[var(--ed-paper)]';
 
 /* One cue line — split a leading "topic — keywords" so the topic reads bolder. */
 function CueLine({ text }: { text: string }) {
@@ -230,7 +231,7 @@ function PresentationField({ field, label, hint, value, savedValue, cachedCues, 
       <p className="text-[0.78rem] text-[var(--ed-ink-faint)] leading-[1.55] mb-2">{hint}</p>
 
       {mode === 'full' ? (
-        <textarea
+        <AutoGrowTextarea
           className={PRESENTATION_TEXTAREA_CLASS}
           style={{ minHeight: `${minHeight}px` }}
           value={value}

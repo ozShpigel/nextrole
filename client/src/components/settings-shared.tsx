@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Button } from './ui/button';
+import { AutoGrowTextarea } from './AutoGrowTextarea';
 import type { ProfileHistoryResponse, ProfileHistoryEntry } from '../lib/types';
 
 /* ------------------------------------------------------------------ */
@@ -47,8 +48,8 @@ export function IntroTextarea({ label, hint, value, onChange, minHeight }: { lab
         </span>
       </div>
       <p className="text-[0.78rem] text-muted-foreground leading-[1.55] mb-2">{hint}</p>
-      <textarea
-        className="w-full p-[1rem_1.25rem] border border-border rounded-lg text-foreground text-[0.88rem] resize-y outline-none leading-[1.8] whitespace-pre-wrap transition-all hover:border-muted-foreground/30 focus:border-ring focus:bg-white focus:shadow-[0_0_0_4px_rgba(0,0,0,0.04)] selection:bg-primary/10 selection:text-foreground"
+      <AutoGrowTextarea
+        className="w-full p-[1rem_1.25rem] border border-border rounded-lg text-foreground text-[0.88rem] outline-none leading-[1.8] whitespace-pre-wrap transition-all hover:border-muted-foreground/30 focus:border-ring focus:bg-white focus:shadow-[0_0_0_4px_rgba(0,0,0,0.04)] selection:bg-primary/10 selection:text-foreground"
         style={{ minHeight: `${minHeight}px`, background: 'var(--card)' }}
         value={value}
         onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => onChange(e.target.value)}

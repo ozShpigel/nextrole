@@ -10,6 +10,7 @@ class DiscoveryRun(BaseModel):
     criteria_name: str = ""
     # live:   pending | scraping | scoring | completed | failed
     # batch:  pending | scraping | parsing | awaiting_batch | finalizing | completed | failed
+    # either: cancelled (user aborted — terminal; see /runs/{id}/abort)
     status: str = "pending"
     mode: str = "live"  # "live" (synchronous, UI) | "batch" (async, cron)
     batch_id: str | None = None  # Anthropic batch id while status == awaiting_batch

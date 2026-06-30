@@ -1,4 +1,4 @@
-export type DiscoveryStatus = 'pending' | 'scraping' | 'scoring' | 'completed' | 'failed';
+export type DiscoveryStatus = 'pending' | 'scraping' | 'scoring' | 'completed' | 'failed' | 'cancelled';
 
 export type StatusClass = 'status-green' | 'status-red' | 'status-yellow' | 'status-dim';
 
@@ -8,13 +8,14 @@ export const STATUS_LABEL: Record<DiscoveryStatus, string> = {
   scoring: 'Scoring',
   completed: 'Completed',
   failed: 'Failed',
+  cancelled: 'Cancelled',
 };
 
 export function statusClass(status: DiscoveryStatus): StatusClass {
   if (status === 'completed') return 'status-green';
   if (status === 'failed') return 'status-red';
   if (status === 'scraping' || status === 'scoring') return 'status-yellow';
-  return 'status-dim';
+  return 'status-dim'; // pending + cancelled → neutral grey (cancel isn't an error)
 }
 
 // Editorial run-status tones (light/dark adaptive). Shared by the dot, the

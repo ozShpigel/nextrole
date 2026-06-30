@@ -210,7 +210,7 @@ export default function RunDetail() {
   );
   if (!run) return null;
 
-  const statusMap: Record<string, string> = { pending: 'Pending', scraping: 'Scraping jobs...', scoring: 'AI scoring...', completed: 'Completed', failed: 'Failed' };
+  const statusMap: Record<string, string> = { pending: 'Pending', scraping: 'Scraping jobs...', scoring: 'AI scoring...', completed: 'Completed', failed: 'Failed', cancelled: 'Cancelled' };
   const visibleJobs = jobs.filter((j) => !j.dismissed && !j.is_duplicate);
   const isRescorable = (j: DiscoveredJob): boolean => (j.description?.length || 0) >= 50;
   const isFailed = (j: DiscoveredJob): boolean =>
@@ -222,6 +222,7 @@ export default function RunDetail() {
 
   const statusTint = run.status === 'completed' ? 'var(--ed-yes)'
     : run.status === 'failed' ? 'var(--ed-no)'
+    : run.status === 'cancelled' ? 'var(--ed-ink-faint)'
     : 'var(--ed-gold)';
 
   const actionBtn = 'rounded-none border px-3 py-[0.4rem] text-[0.68rem] font-semibold uppercase tracking-[0.08em] transition-all disabled:opacity-50 disabled:pointer-events-none';

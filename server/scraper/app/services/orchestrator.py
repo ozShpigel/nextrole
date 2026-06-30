@@ -42,7 +42,7 @@ async def run_discovery(db: AsyncIOMotorDatabase, settings: Settings, criteria_i
         run.jobs_scraped = len(jobs)
         run.status = "scoring"
         await db.discovery_runs.update_one(
-            {"id": run.id},
+            {"id": run.id, "status": {"$ne": "cancelled"}},
             {"$set": {"status": "scoring", "jobs_scraped": len(jobs)}},
         )
 
@@ -180,7 +180,7 @@ async def run_discovery(db: AsyncIOMotorDatabase, settings: Settings, criteria_i
         run.status = "completed"
         run.completed_at = datetime.now(timezone.utc)
         await db.discovery_runs.update_one(
-            {"id": run.id},
+            {"id": run.id, "status": {"$ne": "cancelled"}},
             {"$set": {
                 "status": "completed",
                 "completed_at": run.completed_at,
@@ -197,7 +197,7 @@ async def run_discovery(db: AsyncIOMotorDatabase, settings: Settings, criteria_i
     except Exception as e:
         logger.error("Run %s failed: %s", run.id, e)
         await db.discovery_runs.update_one(
-            {"id": run.id},
+            {"id": run.id, "status": {"$ne": "cancelled"}},
             {"$set": {
                 "status": "failed",
                 "error": str(e),
@@ -238,7 +238,7 @@ async def run_discovery_batch(db: AsyncIOMotorDatabase, settings: Settings, crit
             None, scraper.scrape_for_criteria, criteria
         )
         await db.discovery_runs.update_one(
-            {"id": run.id}, {"$set": {"status": "parsing", "jobs_scraped": len(jobs)}})
+            {"id": run.id, "status": {"$ne": "cancelled"}}, {"$set": {"status": "parsing", "jobs_scraped": len(jobs)}})
 
         if not await tracker_client.warm_up_api(settings):
             raise RuntimeError("API unreachable after warm-up — aborting run")
@@ -311,7 +311,7 @@ async def run_discovery_batch(db: AsyncIOMotorDatabase, settings: Settings, crit
         await asyncio.gather(*[_parse_one(jd) for jd in jobs])
 
         if not items:
-            await db.discovery_runs.update_one({"id": run.id}, {"$set": {
+            await db.discovery_runs.update_one({"id": run.id, "status": {"$ne": "cancelled"}}, {"$set": {
                 "status": "completed",
                 "completed_at": datetime.now(timezone.utc),
                 "jobs_skipped_duplicate": skipped_dup,
@@ -323,7 +323,7 @@ async def run_discovery_batch(db: AsyncIOMotorDatabase, settings: Settings, crit
         if not batch_id:
             raise RuntimeError("Batch submit failed")
 
-        await db.discovery_runs.update_one({"id": run.id}, {"$set": {
+        await db.discovery_runs.update_one({"id": run.id, "status": {"$ne": "cancelled"}}, {"$set": {
             "status": "awaiting_batch",
             "batch_id": batch_id,
             "batch_submitted_at": datetime.now(timezone.utc),
@@ -333,7 +333,7 @@ async def run_discovery_batch(db: AsyncIOMotorDatabase, settings: Settings, crit
 
     except Exception as e:
         logger.error("Run %s (batch) failed: %s", run.id, e)
-        await db.discovery_runs.update_one({"id": run.id}, {"$set": {
+        await db.discovery_runs.update_one({"id": run.id, "status": {"$ne": "cancelled"}}, {"$set": {
             "status": "failed", "error": str(e), "completed_at": datetime.now(timezone.utc),
         }})
 

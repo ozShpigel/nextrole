@@ -14,10 +14,10 @@ const ED_PRIMARY = `${ED_BTN} border-[var(--ed-accent)] bg-[var(--ed-accent)] te
 const ED_DANGER = `${ED_BTN} border-[var(--ed-rule)] text-[var(--ed-no)] hover:border-[var(--ed-no)] hover:bg-[var(--ed-no)]/10`;
 
 const SCORE_DIMS: { key: keyof MockScores; label: string }[] = [
-  { key: 'structure', label: 'מבנה' },
-  { key: 'relevance', label: 'רלוונטיות' },
-  { key: 'specificity', label: 'קונקרטיות' },
-  { key: 'clarity', label: 'בהירות' },
+  { key: 'structure', label: 'Structure' },
+  { key: 'relevance', label: 'Relevance' },
+  { key: 'specificity', label: 'Specificity' },
+  { key: 'clarity', label: 'Clarity' },
 ];
 
 function scoreColor(n: number): string {
@@ -45,11 +45,11 @@ function SectionHeader({ title }: { title: string }) {
 /* ------------------------------------------------------------------ */
 function ScoreGrid({ scores }: { scores: MockScores }) {
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4" dir="rtl">
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
       {SCORE_DIMS.map(({ key, label }) => {
         const n = scores?.[key] ?? 0;
         return (
-          <div key={key} className="border border-[var(--ed-rule)] p-3 bg-[var(--ed-panel)] text-right">
+          <div key={key} className="border border-[var(--ed-rule)] p-3 bg-[var(--ed-panel)]">
             <div className="text-[0.72rem] text-[var(--ed-ink-faint)] mb-1">{label}</div>
             <div className="ed-display text-[1.4rem] font-bold tabular-nums leading-none" style={{ color: scoreColor(n) }}>
               {n}<span className="text-[0.8rem] text-[var(--ed-ink-faint)] font-normal"> / 5</span>
@@ -79,11 +79,11 @@ function DebriefView({ debrief, onAdopt, adopted }: {
       {debrief.highlights?.length > 0 && (
         <div>
           <h4 className="ed-display text-[0.95rem] font-semibold text-[var(--ed-ink)] mb-2 flex items-center gap-[0.4rem]">
-            <CheckCircle2 size={15} className="text-[var(--ed-yes)]" /> נקודות חוזק
+            <CheckCircle2 size={15} className="text-[var(--ed-yes)]" /> Strengths
           </h4>
           <ul className="flex flex-col gap-[0.4rem]">
             {debrief.highlights.map((h, i) => (
-              <li key={i} dir="rtl" className="text-[0.86rem] leading-[1.6] text-[var(--ed-ink)] text-right">• {h}</li>
+              <li key={i} dir="auto" className="text-[0.86rem] leading-[1.6] text-[var(--ed-ink)]">• {h}</li>
             ))}
           </ul>
         </div>
@@ -92,11 +92,11 @@ function DebriefView({ debrief, onAdopt, adopted }: {
       {debrief.improvements?.length > 0 && (
         <div>
           <h4 className="ed-display text-[0.95rem] font-semibold text-[var(--ed-ink)] mb-2 flex items-center gap-[0.4rem]">
-            <Sparkles size={15} className="text-[var(--ed-gold)]" /> לשיפור
+            <Sparkles size={15} className="text-[var(--ed-gold)]" /> To improve
           </h4>
           <ul className="flex flex-col gap-[0.4rem]">
             {debrief.improvements.map((h, i) => (
-              <li key={i} dir="rtl" className="text-[0.86rem] leading-[1.6] text-[var(--ed-ink)] text-right">• {h}</li>
+              <li key={i} dir="auto" className="text-[0.86rem] leading-[1.6] text-[var(--ed-ink)]">• {h}</li>
             ))}
           </ul>
         </div>
@@ -104,19 +104,19 @@ function DebriefView({ debrief, onAdopt, adopted }: {
 
       {debrief.rewrites?.length > 0 && (
         <div>
-          <h4 className="ed-display text-[0.95rem] font-semibold text-[var(--ed-ink)] mb-2">ניסוחים משופרים</h4>
+          <h4 className="ed-display text-[0.95rem] font-semibold text-[var(--ed-ink)] mb-2">Suggested rewrites</h4>
           <div className="flex flex-col gap-3">
             {debrief.rewrites.map((r, i) => {
               const state = adopted?.[i];
               return (
                 <div key={i} className="border border-[var(--ed-rule)] p-[0.9rem_1.1rem] bg-[var(--ed-panel)]">
-                  <p dir="rtl" className="text-[0.78rem] text-[var(--ed-ink-faint)] mb-1 text-right font-medium">{r.question}</p>
-                  <p dir="rtl" className="text-[0.86rem] leading-[1.7] text-[var(--ed-ink)] text-right whitespace-pre-wrap">{r.suggestedAnswer}</p>
+                  <p dir="auto" className="text-[0.78rem] text-[var(--ed-ink-faint)] mb-1 font-medium">{r.question}</p>
+                  <p dir="auto" className="text-[0.86rem] leading-[1.7] text-[var(--ed-ink)] whitespace-pre-wrap">{r.suggestedAnswer}</p>
                   {onAdopt && (
                     <div className="flex justify-end mt-2 pt-2 border-t border-dashed border-[var(--ed-rule)]">
                       {state === 'done' ? (
                         <span className="inline-flex items-center gap-[0.35rem] text-[0.74rem] text-[var(--ed-yes)] font-medium">
-                          <Check size={13} /> נוסף למאגר השאלות
+                          <Check size={13} /> Added to your Q&A bank
                         </span>
                       ) : (
                         <button
@@ -125,7 +125,7 @@ function DebriefView({ debrief, onAdopt, adopted }: {
                           disabled={state === 'pending'}
                           onClick={() => onAdopt(i, r.question, r.suggestedAnswer)}
                         >
-                          <Plus size={13} /> {state === 'pending' ? 'מוסיף…' : 'אמץ למאגר השאלות'}
+                          <Plus size={13} /> {state === 'pending' ? 'Adding…' : 'Adopt into Q&A bank'}
                         </button>
                       )}
                     </div>
@@ -149,7 +149,7 @@ function Transcript({ turns, dir }: { turns: MockTurn[]; dir: 'rtl' | 'ltr' }) {
       {turns.map((t, i) => (
         <div key={i} className={`flex flex-col ${t.role === 'candidate' ? 'items-start' : 'items-end'}`}>
           <span className="text-[0.66rem] uppercase tracking-[0.14em] text-[var(--ed-ink-faint)] mb-1 px-1">
-            {t.role === 'candidate' ? 'אתה' : t.isFollowUp ? 'מראיין · המשך' : 'מראיין'}
+            {t.role === 'candidate' ? 'You' : t.isFollowUp ? 'Interviewer · follow-up' : 'Interviewer'}
           </span>
           <div
             dir={dir}
@@ -243,7 +243,7 @@ function MicButton({ language, disabled, onText, getBase, onListeningChange, onE
   }
 
   function start() {
-    if (!SR) { onError('הדפדפן לא תומך בזיהוי דיבור — נסה Chrome או Edge'); return; }
+    if (!SR) { onError('Speech recognition is not supported in this browser — try Chrome or Edge'); return; }
     baseRef.current = getBase();
     committedRef.current = '';
     interimRef.current = '';
@@ -271,11 +271,11 @@ function MicButton({ language, disabled, onText, getBase, onListeningChange, onE
     rec.onerror = (e: any) => {
       const err = e?.error;
       if (err === 'not-allowed' || err === 'service-not-allowed') {
-        onError('אין הרשאת מיקרופון — אפשר גישה למיקרופון בדפדפן');
+        onError('No microphone permission — allow microphone access in your browser');
         stop();
       } else if (err !== 'no-speech' && err !== 'aborted') {
         // no-speech / aborted are benign (a pause, or our own stop); onend handles them.
-        onError('שגיאת זיהוי דיבור: ' + (err ?? 'unknown'));
+        onError('Speech recognition error: ' + (err ?? 'unknown'));
         stop();
       }
     };
@@ -304,7 +304,7 @@ function MicButton({ language, disabled, onText, getBase, onListeningChange, onE
     } catch {
       recRef.current = null;
       wantListeningRef.current = false;
-      onError('לא ניתן להפעיל את המיקרופון');
+      onError('Could not start the microphone');
     }
   }
 
@@ -312,7 +312,7 @@ function MicButton({ language, disabled, onText, getBase, onListeningChange, onE
     <button
       type="button"
       disabled={disabled || !supported}
-      title={supported ? (listening ? 'עצור הקלטה' : 'דבר במקום להקליד') : 'זיהוי דיבור לא נתמך בדפדפן זה'}
+      title={supported ? (listening ? 'Stop recording' : 'Speak instead of typing') : 'Speech recognition not supported in this browser'}
       aria-label={listening ? 'Stop dictation' : 'Start dictation'}
       onClick={() => (listening ? stop() : start())}
       className={`${listening ? ED_PRIMARY : ED_GHOST} shrink-0 px-2 ${listening ? 'animate-pulse' : ''}`}
@@ -435,7 +435,7 @@ export default function MockInterviewPage() {
       setAdopted((p) => ({ ...p, [idx]: 'done' }));
     } catch {
       setAdopted((p) => { const n = { ...p }; delete n[idx]; return n; });
-      setError('לא ניתן היה להוסיף למאגר השאלות');
+      setError('Could not add to your Q&A bank');
     }
   }
 
@@ -462,10 +462,10 @@ export default function MockInterviewPage() {
             <span>Vol. III · Practice</span>
             <span className="hidden sm:block text-[var(--ed-accent)]">Turn-by-turn rehearsal</span>
           </div>
-          <h1 className="ed-display font-black text-[clamp(2.4rem,6vw,4rem)] leading-[0.92] tracking-[-0.02em] text-[var(--ed-ink)] pt-4">ראיון <span className="italic font-medium text-[var(--ed-accent)]">אימון</span></h1>
+          <h1 className="ed-display font-black text-[clamp(2.4rem,6vw,4rem)] leading-[0.92] tracking-[-0.02em] text-[var(--ed-ink)] pt-4">Mock <span className="italic font-medium text-[var(--ed-accent)]">Interview</span></h1>
           <p className="mt-3 max-w-[560px] text-[0.95rem] leading-[1.6] text-[var(--ed-ink-soft)]">
-            תרגול ראיון אינטראקטיבי — Claude מראיין אותך שאלה-שאלה, נותן רמזי משוב קצרים, ובסיום מספק סיכום מנוקד עם ניסוחים משופרים.
-            {bound && jobTitle && <> מותאם למשרה <span className="font-semibold text-[var(--ed-ink)]">{jobTitle}</span>{company && <> ב־{company}</>}.</>}
+            An interactive interview rehearsal — Claude interviews you one question at a time, gives short feedback nudges, and ends with a scored summary and suggested rewrites.
+            {bound && jobTitle && <> Tailored to the <span className="font-semibold text-[var(--ed-ink)]">{jobTitle}</span> role{company && <> at {company}</>}.</>}
           </p>
           <div className="mt-5 border-t-[3px] border-double border-[var(--ed-rule-strong)]" />
         </header>
@@ -490,10 +490,10 @@ export default function MockInterviewPage() {
           <div>
             <div className="flex items-center justify-between mb-4">
               <span className="text-[0.78rem] text-[var(--ed-ink-faint)]">
-                {persona === 'technical' ? 'ראיון טכני' : 'ראיון HR'} · תשובות: {answersGiven}
+                {persona === 'technical' ? 'Technical interview' : 'HR interview'} · Answers: {answersGiven}
               </span>
               <button type="button" className={ED_GHOST} onClick={finishAndDebrief} disabled={answersGiven === 0}>
-                סיים וקבל סיכום
+                End &amp; debrief
               </button>
             </div>
 
@@ -501,7 +501,7 @@ export default function MockInterviewPage() {
 
             {turn.isPending && (
               <div className="flex items-center gap-2 text-[0.82rem] text-[var(--ed-ink-faint)] mt-4 justify-end">
-                <RefreshCw size={14} className="animate-spin" /> המראיין חושב…
+                <RefreshCw size={14} className="animate-spin" /> Interviewer is thinking…
               </div>
             )}
 
@@ -509,8 +509,8 @@ export default function MockInterviewPage() {
 
             {finished ? (
               <div className="mt-6 border-t border-dashed border-[var(--ed-rule)] pt-5 text-center">
-                <p className="text-[0.88rem] text-[var(--ed-ink-soft)] mb-3">הראיון הסתיים. מוכן לסיכום?</p>
-                <button type="button" className={`${ED_PRIMARY} inline-flex items-center gap-[0.4rem]`} onClick={finishAndDebrief}><Sparkles size={15} /> קבל סיכום וניתוח</button>
+                <p className="text-[0.88rem] text-[var(--ed-ink-soft)] mb-3">The interview is over. Ready for your summary?</p>
+                <button type="button" className={`${ED_PRIMARY} inline-flex items-center gap-[0.4rem]`} onClick={finishAndDebrief}><Sparkles size={15} /> Get summary &amp; analysis</button>
               </div>
             ) : (
               <div className="mt-5 sticky bottom-4">
@@ -519,7 +519,7 @@ export default function MockInterviewPage() {
                     dir={dir}
                     className="flex-1 bg-transparent resize-none outline-none text-[0.9rem] leading-[1.6] px-2 py-1 max-h-[200px] text-[var(--ed-ink)]"
                     style={{ minHeight: '44px' }}
-                    placeholder="הקלד את תשובתך…"
+                    placeholder="Type your answer…"
                     value={draft}
                     onChange={(e) => { if (!dictating) setDraft(e.target.value); }}
                     readOnly={dictating}
@@ -536,10 +536,10 @@ export default function MockInterviewPage() {
                     controlRef={micCtrlRef}
                   />
                   <button type="button" className={`${ED_PRIMARY} inline-flex items-center gap-[0.35rem] shrink-0`} onClick={sendAnswer} disabled={!draft.trim() || turn.isPending}>
-                    <Send size={14} /> שלח
+                    <Send size={14} /> Send
                   </button>
                 </div>
-                <p className="text-[0.68rem] text-[var(--ed-ink-faint)] mt-1 px-2 text-center">⌘/Ctrl + Enter לשליחה · 🎤 דבר במקום להקליד</p>
+                <p className="text-[0.68rem] text-[var(--ed-ink-faint)] mt-1 px-2 text-center">⌘/Ctrl + Enter to send · 🎤 speak instead of typing</p>
               </div>
             )}
           </div>
@@ -547,17 +547,17 @@ export default function MockInterviewPage() {
 
         {phase === 'debrief' && (
           <div>
-            <button type="button" className={`${ED_GHOST} inline-flex items-center gap-[0.35rem] mb-4`} onClick={reset}><ArrowLeft size={14} /> ראיון חדש</button>
+            <button type="button" className={`${ED_GHOST} inline-flex items-center gap-[0.35rem] mb-4`} onClick={reset}><ArrowLeft size={14} /> New interview</button>
             {debrief.isPending || !debriefData ? (
               <div className="flex items-center gap-2 text-[0.86rem] text-[var(--ed-ink-faint)] py-10 justify-center">
-                <RefreshCw size={16} className="animate-spin" /> מנתח את הראיון ומכין סיכום…
+                <RefreshCw size={16} className="animate-spin" /> Analyzing the interview and preparing your summary…
               </div>
             ) : (
               <>
                 <DebriefView debrief={debriefData} onAdopt={doAdopt} adopted={adopted} />
                 <div className="mt-8 flex justify-center gap-3">
-                  <button type="button" className={`${ED_GHOST} inline-flex items-center gap-[0.4rem]`} onClick={reset}><RefreshCw size={14} /> תרגל שוב</button>
-                  <Link to="/interview-prep" className={ED_PRIMARY}>חזרה להכנה לראיון</Link>
+                  <button type="button" className={`${ED_GHOST} inline-flex items-center gap-[0.4rem]`} onClick={reset}><RefreshCw size={14} /> Practice again</button>
+                  <Link to="/interview-prep" className={ED_PRIMARY}>Back to interview prep</Link>
                 </div>
               </>
             )}
@@ -591,19 +591,19 @@ function SetupView({
     <div className="flex flex-col gap-8">
       <div className="border border-[var(--ed-rule)] p-6">
         <Choice
-          label="סוג הראיון"
-          options={[{ v: 'hr', l: 'ראיון HR / מגייס' }, { v: 'technical', l: 'ראיון טכני' }]}
+          label="Interview type"
+          options={[{ v: 'hr', l: 'HR / recruiter' }, { v: 'technical', l: 'Technical' }]}
           value={persona}
           onChange={(v) => setPersona(v as MockPersona)}
         />
         <Choice
-          label="שפת הראיון"
-          options={[{ v: 'he', l: 'עברית' }, { v: 'en', l: 'English' }]}
+          label="Interview language"
+          options={[{ v: 'he', l: 'Hebrew' }, { v: 'en', l: 'English' }]}
           value={language}
           onChange={(v) => setLanguage(v as MockLanguage)}
         />
         <div className="mb-1">
-          <div className="text-[0.7rem] text-[var(--ed-ink-faint)] tracking-[0.14em] uppercase font-semibold mb-2">מספר שאלות</div>
+          <div className="text-[0.7rem] text-[var(--ed-ink-faint)] tracking-[0.14em] uppercase font-semibold mb-2">Number of questions</div>
           <div className="inline-flex border border-[var(--ed-rule)] overflow-hidden">
             {[4, 6, 8, 10].map((n) => (
               <button
@@ -619,18 +619,18 @@ function SetupView({
         </div>
         <div className="mt-6 pt-5 border-t border-dashed border-[var(--ed-rule)] flex justify-end">
           <button type="button" className={`${ED_PRIMARY} inline-flex items-center gap-[0.45rem] px-5 py-[0.6rem] text-[0.74rem]`} onClick={onStart} disabled={starting}>
-            {starting ? <><RefreshCw size={15} className="animate-spin" /> מתחיל…</> : <><MessageSquare size={15} /> התחל ראיון</>}
+            {starting ? <><RefreshCw size={15} className="animate-spin" /> Starting…</> : <><MessageSquare size={15} /> Start interview</>}
           </button>
         </div>
       </div>
 
       {/* Past sessions */}
       <div>
-        <SectionHeader title="היסטוריית ראיונות" />
+        <SectionHeader title="Past sessions" />
         {sessions.isLoading ? (
           <Skeleton className="h-16 w-full" />
         ) : items.length === 0 ? (
-          <p className="text-[0.82rem] text-[var(--ed-ink-faint)] italic">עוד לא תרגלת ראיון. ראיון שתסיים יישמר כאן לצורך מעקב והשוואה.</p>
+          <p className="text-[0.82rem] text-[var(--ed-ink-faint)] italic">No practice sessions yet. Completed interviews are saved here for tracking and comparison.</p>
         ) : (
           <div className="flex flex-col gap-2">
             {items.map((s) => <SessionRow key={s.id} s={s} onReview={onReview} />)}
@@ -673,9 +673,9 @@ function SessionRow({ s, onReview }: { s: MockSessionListItem; onReview: (id: st
   const when = new Date(s.createdAt).toLocaleDateString(undefined, { dateStyle: 'medium' });
   return (
     <div className="flex items-center justify-between gap-3 border border-[var(--ed-rule)] p-[0.7rem_1rem] bg-[var(--ed-panel)] hover:border-[var(--ed-ink)]/40 transition-colors">
-      <button type="button" onClick={() => onReview(s.id)} className="flex-1 text-right min-w-0">
+      <button type="button" onClick={() => onReview(s.id)} className="flex-1 text-left min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-[0.84rem] font-medium text-[var(--ed-ink)]">{s.persona === 'technical' ? 'טכני' : 'HR'}</span>
+          <span className="text-[0.84rem] font-medium text-[var(--ed-ink)]">{s.persona === 'technical' ? 'Technical' : 'HR'}</span>
           {s.jobTitle && <span className="text-[0.78rem] text-[var(--ed-ink-faint)] truncate">· {s.jobTitle}</span>}
           <span className="text-[0.72rem] text-[var(--ed-ink-faint)]">· {when}</span>
         </div>
@@ -683,7 +683,7 @@ function SessionRow({ s, onReview }: { s: MockSessionListItem; onReview: (id: st
       {avg !== null && (
         <span className="ed-display text-[0.82rem] font-bold tabular-nums shrink-0" style={{ color: scoreColor(avg) }}>{avg} / 5</span>
       )}
-      <button type="button" className={`${ED_DANGER} h-7 w-7 p-0 inline-flex items-center justify-center shrink-0`} aria-label="מחק" onClick={() => del.mutate(s.id)}>
+      <button type="button" className={`${ED_DANGER} h-7 w-7 p-0 inline-flex items-center justify-center shrink-0`} aria-label="Delete" onClick={() => del.mutate(s.id)}>
         <Trash2 size={14} />
       </button>
     </div>
@@ -699,14 +699,14 @@ function ReviewView({ sessionId, onBack }: { sessionId: string; onBack: () => vo
 
   return (
     <div>
-      <button type="button" className={`${ED_GHOST} inline-flex items-center gap-[0.35rem] mb-4`} onClick={onBack}><ArrowLeft size={14} /> חזרה</button>
+      <button type="button" className={`${ED_GHOST} inline-flex items-center gap-[0.35rem] mb-4`} onClick={onBack}><ArrowLeft size={14} /> Back</button>
       {q.isLoading || !q.data ? (
         <Skeleton className="h-40 w-full" />
       ) : (
         <div className="flex flex-col gap-8">
           {q.data.debrief && <DebriefView debrief={q.data.debrief} />}
           <div>
-            <SectionHeader title="תמלול הראיון" />
+            <SectionHeader title="Interview transcript" />
             <Transcript turns={q.data.turns} dir={dir} />
           </div>
         </div>

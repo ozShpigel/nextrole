@@ -41,6 +41,26 @@ const EMPTY_PROFILE: StructuredProfile = {
   strengths: [], coreValues: [], rawExperienceText: '',
 };
 
+// Curated quick-add presets for the chip inputs — generic, role-agnostic
+// starting points the user can tap instead of typing. Not exhaustive; free
+// typing still works for anything not listed.
+const SKILL_SUGGESTIONS: Record<keyof SkillGroups, string[]> = {
+  languages: ['TypeScript', 'JavaScript', 'Python', 'C#', 'Go', 'Java', 'SQL', 'Rust', 'Kotlin', 'Swift'],
+  frameworks: ['React', 'Next.js', 'Node.js', '.NET', 'Vue', 'Angular', 'Express', 'FastAPI', 'Spring', 'Django'],
+  infrastructure: ['AWS', 'Docker', 'Kubernetes', 'GCP', 'Azure', 'Terraform', 'CI/CD', 'Linux'],
+  databases: ['PostgreSQL', 'MongoDB', 'MySQL', 'Redis', 'Elasticsearch', 'SQLite', 'DynamoDB'],
+  other: ['REST APIs', 'GraphQL', 'Microservices', 'gRPC', 'Kafka', 'Agile/Scrum', 'TDD', 'System Design'],
+};
+const STRENGTH_SUGGESTIONS = [
+  'Complexity reduction', 'Reliability mindset', 'Understanding-to-enablement', 'Automation leverage',
+  'End-to-end ownership', 'Persistent depth', 'Sustainable delivery', 'Trade-off thinking',
+];
+const VALUE_SUGGESTIONS = [
+  'Clarity over complexity', 'Reliability over shortcuts', 'Ownership and accountability',
+  'Perseverance and follow-through', 'Honesty and transparency', 'Continuous growth',
+  'Enabling others', 'Respect for focus', 'Sustainability over heroics', 'Pragmatism over perfection',
+];
+
 const lines = (s: string): string[] => s.split('\n').map((l) => l.trim()).filter(Boolean);
 const csv = (s: string): string[] => s.split(',').map((l) => l.trim()).filter(Boolean);
 const toLines = (a: string[]): string => (a ?? []).join('\n');
@@ -300,7 +320,7 @@ export default function SettingsPage() {
         </FieldGroup>
 
         {/* Skills */}
-        <FieldGroup title="Skills" desc="Comma-separated, grouped.">
+        <FieldGroup title="Skills" desc="Grouped by category. Type a skill and press Enter to add it.">
           <div className="grid grid-cols-2 gap-3 max-sm:grid-cols-1">
             {([
               ['languages', 'Languages'],
@@ -311,10 +331,12 @@ export default function SettingsPage() {
             ] as const).map(([key, label]) => (
               <label key={key} className="flex flex-col gap-[0.4rem]">
                 <span className={FIELD_LABEL}>{label}</span>
-                <input
-                  className={FIELD_INPUT}
-                  value={toCsv(profile.skills[key])}
-                  onChange={(e) => patchSkills({ [key]: csv(e.target.value) } as Partial<SkillGroups>)}
+                <ChipInput
+                  value={profile.skills[key]}
+                  onChange={(v) => patchSkills({ [key]: v } as Partial<SkillGroups>)}
+                  placeholder={`Add ${label.toLowerCase()}…`}
+                  ariaLabel={`Add ${label.toLowerCase()}`}
+                  suggestions={SKILL_SUGGESTIONS[key]}
                 />
               </label>
             ))}
@@ -322,25 +344,23 @@ export default function SettingsPage() {
         </FieldGroup>
 
         {/* Manual: strengths + core values */}
-        <FieldGroup title="Strengths" desc="Manual — one per line. (Not auto-extracted.)">
-          <textarea
-            className={`${EDITOR_CLS} min-h-[96px]`}
-            value={toLines(profile.strengths)}
-            onChange={(e) => patch({ strengths: lines(e.target.value) })}
+        <FieldGroup title="Strengths" desc="Manual — add one at a time (Enter to add). Not auto-extracted.">
+          <ChipInput
+            value={profile.strengths}
+            onChange={(v) => patch({ strengths: v })}
             placeholder="e.g. Clear written communication"
-            dir="auto"
-            spellCheck={false}
+            ariaLabel="Add a strength"
+            suggestions={STRENGTH_SUGGESTIONS}
           />
         </FieldGroup>
 
-        <FieldGroup title="Core values" desc="Manual — one per line. (Not auto-extracted.)">
-          <textarea
-            className={`${EDITOR_CLS} min-h-[96px]`}
-            value={toLines(profile.coreValues)}
-            onChange={(e) => patch({ coreValues: lines(e.target.value) })}
+        <FieldGroup title="Core values" desc="Manual — add one at a time (Enter to add). Not auto-extracted.">
+          <ChipInput
+            value={profile.coreValues}
+            onChange={(v) => patch({ coreValues: v })}
             placeholder="e.g. Sustainable pace over short-term heroics"
-            dir="auto"
-            spellCheck={false}
+            ariaLabel="Add a core value"
+            suggestions={VALUE_SUGGESTIONS}
           />
         </FieldGroup>
 

@@ -134,8 +134,11 @@ export function CriteriaSection({ criteria, onEdit, onDelete, onRun, onNew }: Cr
 const TITLE_SUGGESTIONS = [
   'Software Engineer', 'Senior Software Engineer', 'Full Stack Developer',
   'Backend Developer', 'Frontend Developer', 'DevOps Engineer',
-  'DevOps Automation Engineer', 'Platform Engineer', 'Cloud Engineer',
-  'Internal Tools Engineer', 'AI Engineer', 'ML Engineer',
+  'DevOps Automation Engineer', 'Platform Engineer', 'Platform Developer',
+  'Cloud Engineer', 'Internal Tools Engineer', 'DevEx',
+  'Senior .NET Backend Engineer (Infrastructure-Oriented)', 'SRE',
+  'AI Engineer', 'ML Engineer', 'AI Platform', 'AI DevOps Engineer',
+  'AI Infrastructure', 'AI Engineering',
   'Data Engineer', 'Data Scientist', 'Product Manager',
   'QA Engineer', 'Mobile Developer', 'Solutions Architect',
 ];

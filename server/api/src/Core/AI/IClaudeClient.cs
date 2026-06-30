@@ -28,6 +28,10 @@ public interface IClaudeClient
     // into the structured NormalizedProfile (extraction only, no scoring).
     Task<ApplicationTracker.Core.Profile.NormalizedProfile> NormalizeProfileAsync(string text, CancellationToken cancellationToken = default);
 
+    // Same normalization, but from an uploaded PDF résumé handed to Claude as a
+    // native document content block (no text extraction).
+    Task<ApplicationTracker.Core.Profile.NormalizedProfile> NormalizeProfileFromPdfAsync(byte[] pdfBytes, CancellationToken cancellationToken = default);
+
     // Generates a personalized "why do you want to work here?" interview answer
     // (one Hebrew paragraph) from the application's company/job context plus the
     // user's profile and interview-prep self-presentation.

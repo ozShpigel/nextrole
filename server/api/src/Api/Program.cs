@@ -115,7 +115,8 @@ if (demoMode)
     var analysisAllowlist = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
     {
         "/api/match", "/api/match/parse", "/api/match/batch",
-        "/api/match/profile/normalize", "/api/mock-interview/turn",
+        "/api/match/profile/normalize", "/api/match/profile/normalize-file",
+        "/api/mock-interview/turn",
         "/api/mock-interview/debrief", "/api/emails/parse",
     };
     app.Use(async (ctx, next) =>

@@ -301,13 +301,50 @@ public sealed class ClaudeClient : IClaudeClient
 
         // The candidate's own pasted text — wrapped in XML and labelled as data,
         // consistent with the project's system/user separation convention.
-        var userMessage = $"<candidate_text>\n{text.Trim()}\n</candidate_text>";
+        var userMessage = new Message(RoleType.User, $"<candidate_text>\n{text.Trim()}\n</candidate_text>");
+        return await NormalizeProfileCoreAsync(userMessage, cancellationToken);
+    }
+
+    public async Task<NormalizedProfile> NormalizeProfileFromPdfAsync(byte[] pdfBytes, CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Normalizing profile from PDF résumé ({Bytes} bytes)", pdfBytes.Length);
+
+        // Hand the PDF straight to Claude as a native document content block (no
+        // text extraction) plus a short framing text — same system prompt and
+        // parsing tail as the pasted-text path.
+        var userMessage = new Message
+        {
+            Role = RoleType.User,
+            Content = new List<ContentBase>
+            {
+                new DocumentContent
+                {
+                    Source = new DocumentSource
+                    {
+                        Type = SourceType.base64,
+                        MediaType = "application/pdf",
+                        Data = Convert.ToBase64String(pdfBytes),
+                    },
+                },
+                new TextContent
+                {
+                    Text = "<candidate_text>\nThe candidate's résumé is the attached PDF document. Extract per your instructions.\n</candidate_text>",
+                },
+            },
+        };
+        return await NormalizeProfileCoreAsync(userMessage, cancellationToken);
+    }
+
+    // Shared normalize call + parse: the user Message differs (pasted text vs PDF
+    // document block) but the system prompt, model/config, and JSON tail are the same.
+    private async Task<NormalizedProfile> NormalizeProfileCoreAsync(Message userMessage, CancellationToken cancellationToken)
+    {
         var cfg = _scoring.Analyst;
 
         var parameters = new MessageParameters
         {
             System = new List<SystemMessage> { new(PromptSeeds.NormalizeProfile) },
-            Messages = new List<Message> { new(RoleType.User, userMessage) },
+            Messages = new List<Message> { userMessage },
             MaxTokens = 4096,
             Model = cfg.Model,
             Temperature = cfg.Temperature,

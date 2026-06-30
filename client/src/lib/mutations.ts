@@ -138,6 +138,21 @@ export function useNormalizeProfile() {
   });
 }
 
+// Same normalization, but from an uploaded résumé file (PDF or TXT). The API
+// extracts summary/experience/skills; the client merges + the user saves.
+export function useNormalizeProfileFile() {
+  return useMutation({
+    mutationFn: (file: File) => {
+      const fd = new FormData();
+      fd.append('file', file);
+      return matchApi('/profile/normalize-file', {
+        method: 'POST',
+        body: fd,
+      }) as Promise<NormalizedProfile>;
+    },
+  });
+}
+
 export function useRestoreHistory() {
   const queryClient = useQueryClient();
   return useMutation({

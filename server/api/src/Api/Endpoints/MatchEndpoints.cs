@@ -214,6 +214,64 @@ public static class MatchEndpoints
         .WithName("NormalizeProfile")
         .WithSummary("Normalize pasted free-text experience/skills into structured profile fields");
 
+        // Same normalization, but from an uploaded résumé file. PDF is handed to
+        // Claude as a native document block; TXT reuses the free-text path.
+        app.MapPost("/api/match/profile/normalize-file", async (
+            IFormFile file,
+            ApplicationTracker.Core.AI.IClaudeClient claude,
+            ILogger<Program> logger,
+            CancellationToken ct) =>
+        {
+            if (file is null || file.Length == 0)
+                return Results.BadRequest(new { error = "a résumé file is required" });
+            if (file.Length > 10 * 1024 * 1024)
+                return Results.BadRequest(new { error = "file exceeds maximum size of 10 MB" });
+
+            var name = file.FileName ?? "";
+            var isPdf = file.ContentType == "application/pdf" || name.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase);
+            var isTxt = file.ContentType == "text/plain" || name.EndsWith(".txt", StringComparison.OrdinalIgnoreCase);
+            if (!isPdf && !isTxt)
+                return Results.BadRequest(new { error = "unsupported file type (PDF or TXT only)" });
+
+            try
+            {
+                ApplicationTracker.Core.Profile.NormalizedProfile normalized;
+                if (isPdf)
+                {
+                    using var ms = new MemoryStream();
+                    await file.CopyToAsync(ms, ct);
+                    normalized = await claude.NormalizeProfileFromPdfAsync(ms.ToArray(), ct);
+                }
+                else
+                {
+                    using var reader = new StreamReader(file.OpenReadStream());
+                    var text = await reader.ReadToEndAsync(ct);
+                    if (string.IsNullOrWhiteSpace(text))
+                        return Results.BadRequest(new { error = "the file is empty" });
+                    if (text.Length > 50_000)
+                        text = text[..50_000];
+                    normalized = await claude.NormalizeProfileAsync(text, ct);
+                }
+                return Results.Ok(normalized);
+            }
+            catch (InvalidOperationException ex) when (ex.Message.Contains("ApiKey"))
+            {
+                logger.LogError(ex, "Anthropic API key not configured");
+                return Results.Problem(
+                    detail: "Anthropic API key is not configured. Please set Anthropic:ApiKey in configuration.",
+                    statusCode: 500);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Failed to normalize profile from uploaded file");
+                return Results.Problem("An internal error occurred.", statusCode: 500);
+            }
+        })
+        .DisableAntiforgery()
+        .RequireRateLimiting("match")
+        .WithName("NormalizeProfileFile")
+        .WithSummary("Normalize an uploaded résumé (PDF or TXT) into structured profile fields");
+
         app.MapGet("/api/match/profile/history/{field}", async (
             string field,
             IProfileProvider provider,

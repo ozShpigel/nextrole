@@ -32,8 +32,11 @@ export async function api(path: string, options: ApiOptions = {}) {
 export async function matchApi(path: string, options: ApiOptions = {}) {
   const { headers, ...fetchOptions } = options;
   const url = API_BASE ? `${API_BASE}/api/match${path}` : `/api/match${path}`;
+  // For FormData uploads, let the browser set Content-Type (with the multipart
+  // boundary) — forcing application/json would break the request.
+  const isForm = fetchOptions.body instanceof FormData;
   const res = await fetch(url, {
-    headers: { 'Content-Type': 'application/json', ...headers },
+    headers: isForm ? { ...headers } : { 'Content-Type': 'application/json', ...headers },
     ...fetchOptions,
   });
   if (!res.ok) {

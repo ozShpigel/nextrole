@@ -1,4 +1,5 @@
 import { screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { renderWithRouter } from '../test/render';
 import { matchApi } from '../lib/api';
 import SettingsPage from './SettingsPage';
@@ -58,6 +59,37 @@ describe('SettingsPage', () => {
     expect(screen.queryByText('Analysis Config')).not.toBeInTheDocument();
 
     expect(screen.queryByRole('status', { name: /loading settings/i })).not.toBeInTheDocument();
+  });
+
+  it('parses an uploaded résumé into the experience fields', async () => {
+    const normalized = {
+      summary: 'Parsed from résumé.',
+      seniority: 'Staff',
+      domains: ['ai'],
+      experience: [{ title: 'Parsed Role', company: 'NewCo', dates: '2020–2024', highlights: ['Did things'] }],
+      skills: { languages: ['Rust'], frameworks: [], infrastructure: [], databases: [], other: [] },
+    };
+    // GET /profile loads the page; POST /profile/normalize-file returns the parsed profile.
+    vi.mocked(matchApi).mockImplementation((path: string) =>
+      Promise.resolve(path === '/profile/normalize-file' ? normalized : mockProfileResponse) as never,
+    );
+
+    renderWithRouter(<SettingsPage />);
+    await waitFor(() => expect(screen.getByText('Professional Profile')).toBeInTheDocument());
+
+    const file = new File(['resume bytes'], 'resume.pdf', { type: 'application/pdf' });
+    const input = screen.getByTestId('resume-file-input') as HTMLInputElement;
+    await userEvent.upload(input, file);
+
+    // The upload posts to the file endpoint with a FormData body…
+    await waitFor(() =>
+      expect(vi.mocked(matchApi)).toHaveBeenCalledWith(
+        '/profile/normalize-file',
+        expect.objectContaining({ method: 'POST', body: expect.any(FormData) }),
+      ),
+    );
+    // …and the parsed experience populates the form.
+    expect(await screen.findByDisplayValue('Parsed Role')).toBeInTheDocument();
   });
 
   it('shows error state when API fails', async () => {

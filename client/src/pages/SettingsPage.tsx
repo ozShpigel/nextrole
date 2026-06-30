@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useProfile, useProfileHistory } from '../lib/queries';
-import { useSaveProfile, useRestoreHistory, useNormalizeProfile } from '../lib/mutations';
+import { useSaveProfile, useRestoreHistory, useNormalizeProfile, useNormalizeProfileFile } from '../lib/mutations';
 import type {
   ProfileResponse, StructuredProfile, ExperienceItem, SkillGroups, NormalizedProfile, HistoryField,
 } from '../lib/types';
 import { Skeleton } from '../components/ui/skeleton';
+import { ChipInput } from '../components/ChipInput';
 import { SaveResult, HistoryDropdown, type SaveResultData } from '../components/settings-shared';
 
 // Editorial button — broadsheet stamp on the --ed-* palette.
@@ -71,6 +72,8 @@ export default function SettingsPage() {
   const profileQuery = useProfile();
   const saveProfileMutation = useSaveProfile();
   const normalizeMutation = useNormalizeProfile();
+  const normalizeFileMutation = useNormalizeProfileFile();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [initialized, setInitialized] = useState(false);
 
   function applyProfileData(data: ProfileResponse): void {
@@ -115,6 +118,18 @@ export default function SettingsPage() {
     patch({ experience: profile.experience.filter((_, idx) => idx !== i) });
   }
 
+  // Merge the extracted experience/skills; keep manual strengths/values + the raw paste.
+  function applyNormalized(n: NormalizedProfile): void {
+    setProfile((prev) => ({
+      ...prev,
+      summary: n.summary ?? '',
+      seniority: n.seniority ?? '',
+      domains: n.domains ?? [],
+      experience: n.experience ?? [],
+      skills: { ...EMPTY_SKILLS, ...(n.skills ?? {}) },
+    }));
+  }
+
   async function normalize(): Promise<void> {
     setNormalizeError(null);
     setResult(null);
@@ -123,18 +138,22 @@ export default function SettingsPage() {
       return;
     }
     try {
-      const n = await normalizeMutation.mutateAsync(profile.rawExperienceText) as NormalizedProfile;
-      // Merge the extracted experience/skills; keep manual strengths/values + the raw paste.
-      setProfile((prev) => ({
-        ...prev,
-        summary: n.summary ?? '',
-        seniority: n.seniority ?? '',
-        domains: n.domains ?? [],
-        experience: n.experience ?? [],
-        skills: { ...EMPTY_SKILLS, ...(n.skills ?? {}) },
-      }));
+      applyNormalized(await normalizeMutation.mutateAsync(profile.rawExperienceText) as NormalizedProfile);
     } catch (e) {
       setNormalizeError(`Normalization failed: ${(e as Error).message}`);
+    }
+  }
+
+  async function onResumeFile(e: React.ChangeEvent<HTMLInputElement>): Promise<void> {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // allow re-selecting the same file
+    if (!file) return;
+    setNormalizeError(null);
+    setResult(null);
+    try {
+      applyNormalized(await normalizeFileMutation.mutateAsync(file) as NormalizedProfile);
+    } catch (err) {
+      setNormalizeError(`Couldn't parse résumé: ${(err as Error).message}`);
     }
   }
 
@@ -193,16 +212,30 @@ export default function SettingsPage() {
           right={<MetaPill>{lastUpdated ? `Updated ${new Date(lastUpdated).toLocaleDateString('en-US')}` : 'Source: sample'}</MetaPill>}
         />
 
-        {/* Experience & skills — paste + normalize */}
+        {/* Experience & skills — upload a résumé, or paste + normalize */}
         <FieldGroup
           title="Experience & skills"
-          desc="Paste your background as free text, then Normalize to structure it. Review and edit the result below."
+          desc="Upload your résumé (PDF or TXT) to fill Summary & Experience automatically, or paste your background and Normalize. Review and edit the result below."
         >
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".pdf,.txt,application/pdf,text/plain"
+            onChange={onResumeFile}
+            className="hidden"
+            data-testid="resume-file-input"
+          />
+          <div className="flex items-center gap-3 mb-3 flex-wrap">
+            <Button size="sm" variant="secondary" onClick={() => fileInputRef.current?.click()} disabled={normalizeFileMutation.isPending}>
+              {normalizeFileMutation.isPending ? 'Parsing résumé…' : 'Upload résumé'}
+            </Button>
+            <span className={META_TEXT}>PDF or TXT — fills Summary & Experience below</span>
+          </div>
           <textarea
             className={`${EDITOR_CLS} min-h-[160px]`}
             value={profile.rawExperienceText}
             onChange={(e) => patch({ rawExperienceText: e.target.value })}
-            placeholder="Paste your roles, accomplishments, and skills…"
+            placeholder="…or paste your roles, accomplishments, and skills here"
             dir="auto"
             spellCheck={false}
           />

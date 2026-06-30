@@ -12,6 +12,7 @@
 - [Screenshots](#screenshots)
 - [Architecture](#architecture)
 - [Features](#features)
+- [System design](#system-design)
 - [The AI scoring pipeline](#the-ai-scoring-pipeline)
 - [Tech stack](#tech-stack)
 - [Getting started](#getting-started)
@@ -106,6 +107,100 @@ flowchart TD
 - **Mock interview** — Interactive, turn-by-turn AI interview practice with an HR or technical persona, live follow-ups, and a scored debrief whose rewrites can be adopted back into your prep rubric.
 - **Email sync (mailbot)** — Detects interview invites, rejections, and offers from Gmail and updates the tracker automatically — idempotently.
 - **Résumé upload** — Drop in a PDF or TXT résumé to auto-normalize your profile (PDFs are handed to Claude natively, no extraction library).
+
+---
+
+## System design
+
+The flow of the app's core engines. The top-level [Architecture](#architecture) shows *which* services exist; these show *how* each feature moves data through them. Every Claude call lives in the API; dashed nodes are external systems.
+
+### Job discovery & AI scoring
+
+Scrape → enrich → score → auto-save. The **live** path scores synchronously; the **batch** path defers the expensive evaluator call to Anthropic's Message Batches API (50% cheaper) and finalizes on the next cron run.
+
+```mermaid
+flowchart TD
+    trigger(["UI 'Discover now' · or cron"]) --> scrape
+
+    subgraph scraper["Scraper · FastAPI"]
+        scrape["Scrape LinkedIn / Indeed<br/>(JobSpy) → dedup"]
+        enrich["Enrich: company news (RSS)<br/>+ Glassdoor (DuckDuckGo)"]
+        scrape --> enrich
+    end
+
+    subgraph apicore["API · scoring (only caller of Claude)"]
+        analyst["Analyst · Haiku<br/>raw posting → ParsedJob"]
+        evaluator["Evaluator · Sonnet + extended thinking<br/>→ score · verdict · sub-breakdown"]
+        analyst --> evaluator
+    end
+
+    enrich -->|"live: POST /match"| analyst
+    enrich -.->|"batch: parse live, defer eval"| batch["Anthropic Message<br/>Batches API −50%"]
+    evaluator --> gate{"score ≥<br/>min_score_to_save?"}
+    batch -.->|"next cron: finalize"| gate
+    gate -->|yes| tracker[("Tracker · MongoDB")]
+    gate -->|no| drop["discard"]
+
+    claude["Claude API"]
+    analyst --> claude
+    evaluator --> claude
+
+    classDef ext fill:#374151,stroke:#6b7280,color:#e5e7eb,stroke-dasharray:4 3;
+    class claude,tracker,batch ext;
+```
+
+### Mock interview (stateless turn engine)
+
+The client holds the whole transcript and **replays it every turn** — the server keeps no session state. Trusted context (profile, prep) goes in the system prompt; untrusted data (job context, the transcript) is XML-wrapped in the user message. Cheap Haiku per turn, Sonnet once for the debrief.
+
+```mermaid
+flowchart TD
+    user([User]) --> tx
+
+    subgraph client["Client · /practice-interview"]
+        tx["transcript[] held client-side<br/>(stateless server — replayed each turn)"]
+    end
+
+    subgraph req["API builds one request per call"]
+        sys["SYSTEM · trusted<br/>seed · persona · language · target<br/>profile · self-presentation · rubric questions"]
+        usr["USER · untrusted, XML-wrapped<br/>job_context (bound mode) · transcript"]
+    end
+
+    tx -->|"POST /turn — replays full transcript"| req
+    req --> haiku["Claude Haiku · per turn"]
+    haiku -->|"{nudge, nextQuestion, done}"| tx
+    tx -->|"POST /debrief — once, at end"| req
+    req --> sonnet["Claude Sonnet · debrief"]
+    sonnet -->|"scores · highlights · rewrites"| db[("mockInterviewSessions")]
+    sonnet -.->|"adopt a rewrite"| prep[("interview-prep Q&A rubric")]
+
+    classDef ext fill:#374151,stroke:#6b7280,color:#e5e7eb,stroke-dasharray:4 3;
+    class haiku,sonnet,db,prep ext;
+```
+
+### Email sync (Mailbot)
+
+A one-shot cron process: pull active applications, parse the last 24 h of Gmail with Claude, and apply status/interview updates — matched by company + title, idempotent, and never moving an application backwards.
+
+```mermaid
+flowchart LR
+    cron(["Cron · one-shot"]) --> mb
+
+    subgraph mb["Mailbot · .NET console"]
+        pull["Pull active apps from API"]
+        fetch["Fetch last-24h Gmail<br/>label:JobApplications"]
+        pull --> fetch
+    end
+
+    fetch -->|"POST /emails/parse"| parse["API · Claude email parser<br/>→ status · interview · dates"]
+    parse --> match{"match by<br/>company + title"}
+    match -->|"idempotent · no-regress guard"| update[("Tracker: status + interviews")]
+    parse --> claude["Claude API"]
+    fetch --- gmail["Gmail API"]
+
+    classDef ext fill:#374151,stroke:#6b7280,color:#e5e7eb,stroke-dasharray:4 3;
+    class claude,update,gmail ext;
+```
 
 ---
 

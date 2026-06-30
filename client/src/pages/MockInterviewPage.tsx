@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, type MutableRefObject } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { Send, RefreshCw, CheckCircle2, Sparkles, MessageSquare, ArrowLeft, Trash2, Plus, Check, Mic } from 'lucide-react';
 import { useMockSessions, useMockSession } from '../lib/queries';
@@ -175,61 +175,97 @@ function Transcript({ turns, dir }: { turns: MockTurn[]; dir: 'rtl' | 'ltr' }) {
 /* ------------------------------------------------------------------ */
 /* Push-to-talk mic (browser Web Speech API)                          */
 /* ------------------------------------------------------------------ */
-/* Toggle dictation: click to start, speak, click to stop. Recognized
-   final text is appended to the answer via onText; the user still edits
-   and sends. Uses the browser's built-in recognizer (Chrome/Edge) — no
-   backend, no cost. Unsupported browsers (Firefox) get a disabled button. */
-function MicButton({ language, disabled, onText, onInterim, onListeningChange, onError }: {
+type MicControl = { cancel: () => void };
+
+/* Dictation: click to start, speak, click to stop. The FULL recognized text
+   (already-finalized words + the live in-flight tail) is pushed via onText,
+   which REPLACES the draft — so the box always mirrors what's been heard and
+   nothing is left half-committed. The accumulation survives Chrome's periodic
+   auto-restart, and the un-finalized tail is flushed on every session end, so
+   long answers aren't clipped. `controlRef.cancel()` lets the send path stop and
+   discard cleanly. Uses the browser's built-in recognizer (Chrome/Edge); other
+   browsers get a disabled button. */
+function MicButton({ language, disabled, onText, getBase, onListeningChange, onError, controlRef }: {
   language: MockLanguage;
   disabled: boolean;
   onText: (text: string) => void;
-  onInterim: (text: string) => void;
+  getBase: () => string;
   onListeningChange: (listening: boolean) => void;
   onError: (message: string) => void;
+  controlRef: MutableRefObject<MicControl | null>;
 }) {
   const [listening, setListening] = useState(false);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const recRef = useRef<any>(null);
-  // Tracks whether the user still intends to dictate, so onend can tell an
-  // intentional stop apart from Chrome's periodic auto-stop (and restart).
-  const wantListeningRef = useRef(false);
+  const wantListeningRef = useRef(false); // user still intends to dictate
+  const baseRef = useRef('');             // text present before dictation began
+  const committedRef = useRef('');        // finalized dictation, this span
+  const interimRef = useRef('');          // current un-finalized words
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const SR = typeof window !== 'undefined' ? ((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition) : undefined;
   const supported = !!SR;
 
+  // The complete text to show: typed base + everything dictated so far.
+  function buildFull(): string {
+    const dictated = `${committedRef.current} ${interimRef.current}`.trim().replace(/\s+/g, ' ');
+    const base = baseRef.current;
+    if (!dictated) return base;
+    return base ? `${base.replace(/\s+$/, '')} ${dictated}` : dictated;
+  }
+
   // Stop recognition if the component unmounts mid-listen.
   useEffect(() => () => { wantListeningRef.current = false; try { recRef.current?.stop(); } catch { /* ignore */ } }, []);
 
-  // Let the parent lock the textarea / clear the preview as listening toggles.
+  // Let the parent lock the textarea while the mic is live.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { onListeningChange(listening); }, [listening]);
+
+  // Expose an imperative cancel for the send path: stop and discard the
+  // accumulation so a late onend can't re-emit the previous answer's text.
+  function cancel() {
+    wantListeningRef.current = false;
+    const rec = recRef.current;
+    recRef.current = null; // makes any late onresult/onend a no-op (guarded below)
+    baseRef.current = committedRef.current = interimRef.current = '';
+    try { rec?.stop(); } catch { /* ignore */ }
+    setListening(false);
+  }
+  useEffect(() => {
+    controlRef.current = { cancel };
+    return () => { controlRef.current = null; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function stop() {
     wantListeningRef.current = false;
     try { recRef.current?.stop(); } catch { /* ignore */ }
-    recRef.current = null;
-    onInterim('');
-    setListening(false);
+    // onend finalizes the tail, emits the full text, and flips listening off.
   }
 
   function start() {
     if (!SR) { onError('הדפדפן לא תומך בזיהוי דיבור — נסה Chrome או Edge'); return; }
+    baseRef.current = getBase();
+    committedRef.current = '';
+    interimRef.current = '';
     const rec = new SR();
     rec.lang = language === 'he' ? 'he-IL' : 'en-US';
     rec.continuous = true;
     rec.interimResults = true;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     rec.onresult = (e: any) => {
-      let finalText = '';
+      if (recRef.current !== rec) return; // ignore events after cancel()
       let interimText = '';
       for (let i = e.resultIndex; i < e.results.length; i++) {
-        const seg = e.results[i][0].transcript;
-        if (e.results[i].isFinal) finalText += seg;
-        else interimText += seg;
+        const seg: string = e.results[i][0].transcript ?? '';
+        if (e.results[i].isFinal) {
+          const s = seg.trim();
+          if (s) committedRef.current = committedRef.current ? `${committedRef.current} ${s}` : s;
+        } else {
+          interimText += seg;
+        }
       }
-      const trimmed = finalText.trim();
-      if (trimmed) onText(trimmed);
-      // Surface the in-flight words live; cleared once they finalize into draft.
-      onInterim(interimText.trim());
+      interimRef.current = interimText.trim();
+      onText(buildFull());
     };
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     rec.onerror = (e: any) => {
@@ -237,29 +273,37 @@ function MicButton({ language, disabled, onText, onInterim, onListeningChange, o
       if (err === 'not-allowed' || err === 'service-not-allowed') {
         onError('אין הרשאת מיקרופון — אפשר גישה למיקרופון בדפדפן');
         stop();
-      } else if (err === 'no-speech' || err === 'aborted') {
-        // Benign — a pause, or our own stop(). onend decides whether to restart.
-      } else {
+      } else if (err !== 'no-speech' && err !== 'aborted') {
+        // no-speech / aborted are benign (a pause, or our own stop); onend handles them.
         onError('שגיאת זיהוי דיבור: ' + (err ?? 'unknown'));
         stop();
       }
     };
-    // Chrome ends recognition periodically (on silence or after a long
-    // utterance) even with continuous=true. While the user is still dictating,
-    // restart so long answers aren't cut off mid-sentence.
+    // Chrome ends recognition periodically (on silence / after a long utterance)
+    // even with continuous=true. Flush the un-finalized tail into committed so a
+    // restart never drops it, then restart while the user is still dictating.
     rec.onend = () => {
+      if (recRef.current !== rec) return; // canceled
+      if (interimRef.current) {
+        committedRef.current = committedRef.current ? `${committedRef.current} ${interimRef.current}` : interimRef.current;
+        interimRef.current = '';
+      }
+      onText(buildFull());
       if (wantListeningRef.current) {
         try { rec.start(); } catch { wantListeningRef.current = false; setListening(false); }
       } else {
         setListening(false);
       }
     };
+    // Register before start() so the guards above accept the first events.
+    recRef.current = rec;
+    wantListeningRef.current = true;
     try {
       rec.start();
-      recRef.current = rec;
-      wantListeningRef.current = true;
       setListening(true);
     } catch {
+      recRef.current = null;
+      wantListeningRef.current = false;
       onError('לא ניתן להפעיל את המיקרופון');
     }
   }
@@ -295,10 +339,10 @@ export default function MockInterviewPage() {
   const [transcript, setTranscript] = useState<MockTurn[]>([]);
   const [finished, setFinished] = useState(false);
   const [draft, setDraft] = useState('');
-  // Live dictation: `interim` is the not-yet-finalized speech shown faintly in
-  // the box as you speak; `dictating` locks manual edits while the mic is live.
-  const [interim, setInterim] = useState('');
+  // `draft` holds the full answer including live dictation. `dictating` locks
+  // manual edits while the mic is live; micCtrlRef lets send() cancel cleanly.
   const [dictating, setDictating] = useState(false);
+  const micCtrlRef = useRef<MicControl | null>(null);
   const [debriefData, setDebriefData] = useState<MockDebrief | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reviewId, setReviewId] = useState<string | null>(null);
@@ -316,15 +360,6 @@ export default function MockInterviewPage() {
     scrollRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, [transcript, turn.isPending]);
 
-  // When dictation stops, any pending interim has already been finalized into
-  // the draft (mic stop() flushes it) — drop the transient preview.
-  useEffect(() => {
-    if (!dictating) setInterim('');
-  }, [dictating]);
-
-  // Text shown in the box: committed draft + the live (un-finalized) words.
-  const liveValue = interim ? `${draft}${draft && !/\s$/.test(draft) ? ' ' : ''}${interim}` : draft;
-
   function wireTurns(turns: MockTurn[]) {
     return turns.map((t) => ({ role: t.role, text: t.text, nudge: t.nudge, isFollowUp: t.isFollowUp }));
   }
@@ -336,6 +371,8 @@ export default function MockInterviewPage() {
     setFinished(false);
     setDebriefData(null);
     setAdopted({});
+    setDraft('');
+    setDictating(false);
     try {
       const res = await turn.mutateAsync({ persona, language, questionTarget, applicationId, transcript: [] });
       setTranscript([{ role: 'interviewer', text: res.nextQuestion, isFollowUp: false }]);
@@ -348,6 +385,8 @@ export default function MockInterviewPage() {
   async function sendAnswer() {
     const answer = draft.trim();
     if (!answer || turn.isPending) return;
+    // Stop & discard any live dictation so the next question starts clean.
+    micCtrlRef.current?.cancel();
     setError(null);
     const withAnswer: MockTurn[] = [...transcript, { role: 'candidate', text: answer }];
     setTranscript(withAnswer);
@@ -401,6 +440,7 @@ export default function MockInterviewPage() {
   }
 
   function reset() {
+    micCtrlRef.current?.cancel();
     setPhase('setup');
     setTranscript([]);
     setDebriefData(null);
@@ -408,6 +448,8 @@ export default function MockInterviewPage() {
     setError(null);
     setReviewId(null);
     setAdopted({});
+    setDraft('');
+    setDictating(false);
   }
 
   const answersGiven = transcript.filter((t) => t.role === 'candidate').length;
@@ -478,7 +520,7 @@ export default function MockInterviewPage() {
                     className="flex-1 bg-transparent resize-none outline-none text-[0.9rem] leading-[1.6] px-2 py-1 max-h-[200px] text-[var(--ed-ink)]"
                     style={{ minHeight: '44px' }}
                     placeholder="הקלד את תשובתך…"
-                    value={liveValue}
+                    value={draft}
                     onChange={(e) => { if (!dictating) setDraft(e.target.value); }}
                     readOnly={dictating}
                     onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); sendAnswer(); } }}
@@ -487,10 +529,11 @@ export default function MockInterviewPage() {
                   <MicButton
                     language={language}
                     disabled={turn.isPending}
-                    onText={(t) => setDraft((d) => (d ? d + ' ' : '') + t)}
-                    onInterim={setInterim}
+                    onText={setDraft}
+                    getBase={() => draft}
                     onListeningChange={setDictating}
                     onError={setError}
+                    controlRef={micCtrlRef}
                   />
                   <button type="button" className={`${ED_PRIMARY} inline-flex items-center gap-[0.35rem] shrink-0`} onClick={sendAnswer} disabled={!draft.trim() || turn.isPending}>
                     <Send size={14} /> שלח

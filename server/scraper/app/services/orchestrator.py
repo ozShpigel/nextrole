@@ -131,13 +131,12 @@ async def run_discovery(db: AsyncIOMotorDatabase, settings: Settings, criteria_i
                     await db.discovered_jobs.insert_one(disc_job.model_dump())
                     run.jobs_scored += 1
 
-                    qualifies_by_score = (
-                        score is not None
-                        and score >= criteria.min_score_to_save
-                        and bool(should_apply)
-                    )
-                    qualifies_by_verdict = verdict in ("STRONG_YES", "YES")
-                    if qualifies_by_score or qualifies_by_verdict:
+                    # Single, predictable rule: auto-save iff score meets the
+                    # threshold. verdict/should_apply are display-only signals
+                    # (verdict is just the score in bands, so adding it here only
+                    # muddied the threshold). The slider is the source of truth.
+                    qualifies = score is not None and score >= criteria.min_score_to_save
+                    if qualifies:
                         analysis_json = json.dumps(match_response, ensure_ascii=False)
                         saved = await tracker_client.save_to_tracker(
                             settings=settings,
@@ -389,8 +388,8 @@ async def finalize_batches(db: AsyncIOMotorDatabase, settings: Settings):
             }})
             scored += 1
 
-            qualifies = verdict in ("STRONG_YES", "YES") or (
-                score is not None and score >= min_score and bool(should_apply))
+            # Score-only threshold (see live path) — single source of truth.
+            qualifies = score is not None and score >= min_score
             if qualifies:
                 saved_ok = await tracker_client.save_to_tracker(
                     settings=settings,

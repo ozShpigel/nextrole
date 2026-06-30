@@ -14,10 +14,6 @@ vi.mock('react-router-dom', async () => {
   return { ...actual, useParams: () => ({ runId: 'run-1' }) };
 });
 
-vi.mock('../components/Snapshots', () => ({
-  SnapshotsModal: () => <div data-testid="snapshots-modal" />,
-}));
-
 const mockRun = {
   id: 'run-1',
   criteria_name: 'React Developer Search',
@@ -412,32 +408,6 @@ describe('RunDetailPage - Failed Scoring Banner', () => {
       expect(screen.getByText('Processing... the page will update automatically')).toBeInTheDocument();
     });
     expect(screen.queryByRole('button', { name: 'Rescore All Failed' })).not.toBeInTheDocument();
-  });
-});
-
-describe('RunDetailPage - Claude Calls Button', () => {
-  it('shows button for jobs with snapshot data', async () => {
-    renderWithJobs([makeJob({
-      evaluator_snapshot_input: 'Some input',
-      evaluator_snapshot_output: 'Some output',
-    })]);
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Claude Calls' })).toBeInTheDocument();
-    });
-  });
-
-  it('hides button for jobs without snapshot data', async () => {
-    renderWithJobs([makeJob({
-      title: 'No Snapshot',
-      evaluator_snapshot_input: null,
-      evaluator_snapshot_output: null,
-      analyst_snapshot_input: null,
-      analyst_snapshot_output: null,
-    })]);
-    await waitFor(() => {
-      expect(screen.getByText('No Snapshot')).toBeInTheDocument();
-    });
-    expect(screen.queryByRole('button', { name: 'Claude Calls' })).not.toBeInTheDocument();
   });
 });
 

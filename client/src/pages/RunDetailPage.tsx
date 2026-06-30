@@ -3,7 +3,6 @@ import { useParams, Link } from 'react-router-dom';
 import { useRunDetail, useRunJobs } from '../lib/queries';
 import { useSaveJob, useDismissJob, useRescoreJob } from '../lib/mutations';
 import { VERDICT_LABELS } from '../lib/scoring';
-import { SnapshotsModal } from '../components/Snapshots';
 import { Skeleton } from '@/components/ui/skeleton';
 
 interface GlassdoorData {
@@ -128,7 +127,6 @@ export default function RunDetail() {
   // --- UI state ---
   const [rescoringIds, setRescoringIds] = useState<Set<string>>(() => new Set());
   const [bulkRescoring, setBulkRescoring] = useState<boolean>(false);
-  const [snapshotsJob, setSnapshotsJob] = useState<DiscoveredJob | null>(null);
   const [openBreakdownIds, setOpenBreakdownIds] = useState<Set<string>>(() => new Set());
 
   function toggleBreakdown(id: string): void {
@@ -334,9 +332,6 @@ export default function RunDetail() {
                         {openBreakdownIds.has(j.id) ? 'Hide Breakdown' : 'Score Breakdown'}
                       </button>
                     )}
-                    {(j.evaluator_snapshot_input || j.analyst_snapshot_input) && (
-                      <button type="button" className={ghostBtn} onClick={() => setSnapshotsJob(j)}>Claude Calls</button>
-                    )}
                     {!j.saved_to_tracker && j.verdict && j.verdict !== 'MATCH_FAILED' && j.verdict !== 'INSUFFICIENT_DATA' && (
                       <button type="button" className={`${actionBtn} border-[var(--ed-accent)] bg-[var(--ed-accent)] text-[var(--ed-paper)] hover:bg-[var(--ed-accent-deep)]`} onClick={() => saveJob(j.id)}>Save to Tracker</button>
                     )}
@@ -454,18 +449,6 @@ export default function RunDetail() {
         </div>
       )}
 
-      {snapshotsJob && (
-        <SnapshotsModal
-          title={`${snapshotsJob.title} · ${snapshotsJob.company}`}
-          snapshots={{
-            analystInput:    snapshotsJob.analyst_snapshot_input,
-            analystOutput:   snapshotsJob.analyst_snapshot_output,
-            evaluatorInput:  snapshotsJob.evaluator_snapshot_input,
-            evaluatorOutput: snapshotsJob.evaluator_snapshot_output,
-          }}
-          onClose={() => setSnapshotsJob(null)}
-        />
-      )}
       </div>
     </div>
   );

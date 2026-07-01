@@ -314,7 +314,7 @@ python -m venv .venv
 dotnet run --project server/mailbot
 
 # Build the whole .NET solution
-dotnet build job-application-platform.sln
+dotnet build nextrole.sln
 ```
 
 ---
@@ -365,7 +365,7 @@ The mailbot reads config from env vars or a local `.env`. It does **not** need a
 ## Project structure
 
 ```
-job-application-platform/
+nextrole/
 ├── client/              # React 19 + Vite SPA
 ├── server/
 │   ├── api/             # ASP.NET Core 10 — AI scoring + tracking

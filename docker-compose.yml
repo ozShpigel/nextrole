@@ -8,7 +8,7 @@ services:
     environment:
       - Anthropic__ApiKey=${ANTHROPIC_API_KEY}
       - MongoDB__ConnectionString=${MONGODB_CONNECTION_STRING}
-      - MongoDB__Database=${JOBMATCH_MONGO_DB:-jobmatch}
+      - MongoDB__ProfileDatabase=${JOBMATCH_MONGO_DB:-jobmatch}
       # Read-only scoring config & prompts (Options pattern). Optional overrides —
       # unset = appsettings.json "Scoring" / PromptSeeds.cs defaults. Examples:
       #   - Scoring__MinScoreToSave=75

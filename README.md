@@ -332,7 +332,7 @@ The Mongo connection string and the Anthropic key are read **only** from the env
 | `MongoDB__ConnectionString` | **yes** | — | MongoDB connection string |
 | `Anthropic__ApiKey` | **yes** | — | Claude API key |
 | `MongoDB__DatabaseName` | no | `job-tracker` | Application-tracking DB |
-| `MongoDB__Database` / `MongoDB__ProfileDatabase` | no | `jobmatch` | Profile/scoring DB |
+| `MongoDB__ProfileDatabase` | no | `jobmatch` | Profile/scoring DB |
 | `CorsOrigins` | no | `""` (none) | Comma-separated allowed browser origins; `*` for dev |
 | `Scoring__*`, `Prompts__Analyzer`, `Prompts__Evaluator` | no | see `appsettings.json` / `PromptSeeds.cs` | Read-only scoring config & prompt overrides |
 

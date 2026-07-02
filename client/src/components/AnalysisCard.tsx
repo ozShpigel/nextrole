@@ -86,7 +86,7 @@ interface Recommendation {
   redFlags?: string[];
 }
 
-interface CompanyNewsAnalysis {
+interface SignalAnalysis {
   greenSignals?: string[];
   redSignals?: string[];
   summary?: string;
@@ -97,7 +97,8 @@ interface MatchAnalysis {
   verdict: string;
   breakdown?: Record<string, DimensionData>;
   recommendation?: Recommendation;
-  companyNewsAnalysis?: CompanyNewsAnalysis;
+  companyNewsAnalysis?: SignalAnalysis;
+  employeeReviewsAnalysis?: SignalAnalysis;
   honestAssessment?: string;
 }
 
@@ -256,6 +257,17 @@ export default function AnalysisCard({ matchAnalysisJson }: AnalysisCardProps) {
               <SignalRows green={a.companyNewsAnalysis.greenSignals} red={a.companyNewsAnalysis.redSignals} />
               {a.companyNewsAnalysis.summary && (
                 <p dir="rtl" className="text-[0.84rem] text-[var(--ed-ink-soft)] leading-[1.6] mt-2 text-right">{a.companyNewsAnalysis.summary}</p>
+              )}
+            </div>
+          )}
+
+          {/* Employee reviews analysis */}
+          {a.employeeReviewsAnalysis && (a.employeeReviewsAnalysis.greenSignals?.length || a.employeeReviewsAnalysis.redSignals?.length) && (
+            <div className="mt-6 pt-4 border-t border-[var(--ed-rule)]">
+              <h4 className="ed-display text-[1rem] font-semibold text-[var(--ed-ink)] mb-3">Employee Review Signals</h4>
+              <SignalRows green={a.employeeReviewsAnalysis.greenSignals} red={a.employeeReviewsAnalysis.redSignals} />
+              {a.employeeReviewsAnalysis.summary && (
+                <p dir="rtl" className="text-[0.84rem] text-[var(--ed-ink-soft)] leading-[1.6] mt-2 text-right">{a.employeeReviewsAnalysis.summary}</p>
               )}
             </div>
           )}

@@ -5,11 +5,30 @@ import { useSaveJob, useDismissJob, useRescoreJob } from '../lib/mutations';
 import { VERDICT_LABELS } from '../lib/scoring';
 import { Skeleton } from '@/components/ui/skeleton';
 
+interface GlassdoorSubRatings {
+  workLifeBalance?: number;
+  cultureAndValues?: number;
+  careerOpportunities?: number;
+  seniorManagement?: number;
+  compensationAndBenefits?: number;
+}
+
 interface GlassdoorData {
-  rating: number;
+  rating?: number | null;
   reviewCount?: number;
   url?: string;
+  subRatings?: GlassdoorSubRatings;
+  recommendPercent?: number;
+  snippets?: string[];
 }
+
+const SUB_RATING_LABELS: [keyof GlassdoorSubRatings, string][] = [
+  ['workLifeBalance', 'WLB'],
+  ['cultureAndValues', 'Culture'],
+  ['careerOpportunities', 'Career'],
+  ['seniorManagement', 'Mgmt'],
+  ['compensationAndBenefits', 'Comp'],
+];
 
 interface NewsItem {
   title: string;
@@ -291,13 +310,29 @@ export default function RunDetail() {
                       <>
                         <span className="w-[3px] h-[3px] rounded-full bg-[var(--ed-rule)]" />
                         <span className="inline-flex items-center gap-[0.35rem] normal-case tracking-normal text-[0.72rem]">
-                          <span className="font-semibold" style={{ color: edScoreColor(j.glassdoor_data.rating, 5) }}>{j.glassdoor_data.rating.toFixed(1)} / 5</span>
+                          {j.glassdoor_data.rating != null && (
+                            <span className="font-semibold" style={{ color: edScoreColor(j.glassdoor_data.rating, 5) }}>{j.glassdoor_data.rating.toFixed(1)} / 5</span>
+                          )}
                           {j.glassdoor_data.reviewCount && <span className="text-[var(--ed-ink-faint)]">({j.glassdoor_data.reviewCount.toLocaleString()} reviews)</span>}
+                          {j.glassdoor_data.recommendPercent != null && (
+                            <span className="text-[var(--ed-ink-soft)]">· {j.glassdoor_data.recommendPercent}% recommend</span>
+                          )}
                           {j.glassdoor_data.url && <a href={j.glassdoor_data.url} target="_blank" rel="noopener noreferrer" className="text-[var(--ed-accent)] hover:opacity-75">Glassdoor</a>}
                         </span>
                       </>
                     )}
                   </div>
+
+                  {j.glassdoor_data?.subRatings && (
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[0.72rem] text-[var(--ed-ink-faint)] mb-2">
+                      {SUB_RATING_LABELS.map(([key, label]) => {
+                        const v = j.glassdoor_data?.subRatings?.[key];
+                        return v != null ? (
+                          <span key={key}>{label} <span className="font-semibold tabular-nums" style={{ color: edScoreColor(v, 5) }}>{v.toFixed(1)}</span></span>
+                        ) : null;
+                      })}
+                    </div>
+                  )}
 
                   <h3 className="ed-display font-semibold text-[clamp(1.45rem,2.6vw,2.05rem)] leading-[1.04] tracking-[-0.018em] text-[var(--ed-ink)] mb-3">{j.title}</h3>
 

@@ -435,11 +435,30 @@ function WhyWorkHereBlock({ appId, initialAnswer }: { appId: string; initialAnsw
   );
 }
 
+interface GlassdoorSubRatings {
+  workLifeBalance?: number;
+  cultureAndValues?: number;
+  careerOpportunities?: number;
+  seniorManagement?: number;
+  compensationAndBenefits?: number;
+}
+
 interface GlassdoorData {
-  rating: number;
+  rating?: number | null;
   reviewCount?: number;
   url?: string;
+  subRatings?: GlassdoorSubRatings;
+  recommendPercent?: number;
+  snippets?: string[];
 }
+
+const SUB_RATING_LABELS: [keyof GlassdoorSubRatings, string][] = [
+  ['workLifeBalance', 'Work-life'],
+  ['cultureAndValues', 'Culture'],
+  ['careerOpportunities', 'Career'],
+  ['seniorManagement', 'Management'],
+  ['compensationAndBenefits', 'Compensation'],
+];
 
 interface NewsItem {
   title: string;
@@ -459,16 +478,33 @@ function CompanyEnrichment({ companyNewsJson, glassdoorDataJson }: { companyNews
       <SectionHead title="Company Info" />
 
       {glassdoor && (
-        <div className="flex items-center gap-[0.45rem] mb-3">
-          <span className="text-[0.84rem] font-semibold" style={{
-            color: glassdoor.rating >= 4.0 ? 'var(--ed-yes)'
-                 : glassdoor.rating >= 3.0 ? 'var(--ed-gold)'
-                 : 'var(--ed-no)'
-          }}>
-            Glassdoor {glassdoor.rating.toFixed(1)} / 5
-          </span>
-          {glassdoor.reviewCount && <span className="text-[0.75rem] text-[var(--ed-ink-faint)]">({glassdoor.reviewCount.toLocaleString()} reviews)</span>}
-          {glassdoor.url && <a href={glassdoor.url} target="_blank" rel="noopener noreferrer" className="text-[0.75rem] text-[var(--ed-accent)] hover:opacity-75">View</a>}
+        <div className="mb-3">
+          <div className="flex items-center gap-[0.45rem]">
+            {glassdoor.rating != null && (
+              <span className="text-[0.84rem] font-semibold" style={{
+                color: glassdoor.rating >= 4.0 ? 'var(--ed-yes)'
+                     : glassdoor.rating >= 3.0 ? 'var(--ed-gold)'
+                     : 'var(--ed-no)'
+              }}>
+                Glassdoor {glassdoor.rating.toFixed(1)} / 5
+              </span>
+            )}
+            {glassdoor.reviewCount && <span className="text-[0.75rem] text-[var(--ed-ink-faint)]">({glassdoor.reviewCount.toLocaleString()} reviews)</span>}
+            {glassdoor.recommendPercent != null && <span className="text-[0.75rem] text-[var(--ed-ink-soft)]">· {glassdoor.recommendPercent}% recommend</span>}
+            {glassdoor.url && <a href={glassdoor.url} target="_blank" rel="noopener noreferrer" className="text-[0.75rem] text-[var(--ed-accent)] hover:opacity-75">View</a>}
+          </div>
+          {glassdoor.subRatings && (
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[0.75rem] text-[var(--ed-ink-faint)] mt-1">
+              {SUB_RATING_LABELS.map(([key, label]) => {
+                const v = glassdoor?.subRatings?.[key];
+                return v != null ? (
+                  <span key={key}>{label} <span className="font-semibold tabular-nums" style={{
+                    color: v >= 4.0 ? 'var(--ed-yes)' : v >= 3.0 ? 'var(--ed-gold)' : 'var(--ed-no)'
+                  }}>{v.toFixed(1)}</span></span>
+                ) : null;
+              })}
+            </div>
+          )}
         </div>
       )}
 

@@ -183,6 +183,46 @@ describe('RunDetailPage - Glassdoor Data', () => {
     expect(screen.queryByText('/ 5')).not.toBeInTheDocument();
     expect(screen.queryByText('reviews')).not.toBeInTheDocument();
   });
+
+  it('displays sub-ratings and recommend percent from deep payload', async () => {
+    renderWithJobs([makeJob({
+      glassdoor_data: {
+        rating: 4.0,
+        reviewCount: 2168,
+        url: 'https://glassdoor.com/wix',
+        subRatings: { workLifeBalance: 4.2, cultureAndValues: 4.2, careerOpportunities: 3.7 },
+        recommendPercent: 82,
+      },
+    })]);
+    await waitFor(() => {
+      expect(screen.getByText('4.0 / 5')).toBeInTheDocument();
+    });
+    expect(screen.getByText('· 82% recommend')).toBeInTheDocument();
+    expect(screen.getByText('WLB')).toBeInTheDocument();
+    expect(screen.getByText('Culture')).toBeInTheDocument();
+    expect(screen.getByText('Career')).toBeInTheDocument();
+    expect(screen.getByText('3.7')).toBeInTheDocument();
+    // absent categories are not rendered
+    expect(screen.queryByText('Mgmt')).not.toBeInTheDocument();
+    expect(screen.queryByText('Comp')).not.toBeInTheDocument();
+  });
+
+  it('renders deep payload without an overall rating without crashing', async () => {
+    renderWithJobs([makeJob({
+      title: 'Deep Only Job',
+      glassdoor_data: {
+        subRatings: { workLifeBalance: 2.8 },
+        recommendPercent: 45,
+      },
+    })]);
+    await waitFor(() => {
+      expect(screen.getByText('Deep Only Job')).toBeInTheDocument();
+    });
+    expect(screen.queryByText(/\/ 5/)).not.toBeInTheDocument();
+    expect(screen.getByText('· 45% recommend')).toBeInTheDocument();
+    expect(screen.getByText('WLB')).toBeInTheDocument();
+    expect(screen.getByText('2.8')).toBeInTheDocument();
+  });
 });
 
 describe('RunDetailPage - Company News', () => {

@@ -73,6 +73,24 @@ def test_parse_reviews_no_match_returns_empty():
     assert _parse_reviews("<p>Totally unrelated search results.</p>") == {}
 
 
+def test_parse_reviews_ddg_bolded_query_terms():
+    # DDG wraps query terms in <b> tags; de-tagging must not leave
+    # multi-space runs that break the phrase regexes (real-probe regression).
+    html = (
+        "82% of Wix employees would recommend working there to a friend based on "
+        "<b>Glassdoor</b> <b>reviews</b>. Employees also rated <b>Wix</b> 4.2 out of 5 "
+        "for <b>work</b> <b>life</b> <b>balance</b>, 4.2 for culture and values and "
+        "3.7 for career opportunities."
+    )
+    result = _parse_reviews(html)
+    assert result["subRatings"]["workLifeBalance"] == 4.2
+    assert result["recommendPercent"] == 82
+    # And the strip guard still prevents the bolded sub-rating sentence from
+    # being read as an overall rating.
+    stripped = _SUB_RATING_RE.sub(" ", _clean_text(html))
+    assert _parse_rating_text(stripped, html) is None
+
+
 def test_review_count_from_based_on_sentence():
     text = _clean_text(WIX_STYLE_HTML)
     assert glassdoor_client._parse_review_count(text) == 2168

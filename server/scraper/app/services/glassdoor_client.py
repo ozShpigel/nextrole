@@ -58,7 +58,9 @@ async def _search_ddg(query: str) -> str | None:
 
 
 def _clean_text(html: str) -> str:
-    return unescape(re.sub(r"<[^>]+>", " ", html))
+    # Collapse whitespace: DDG bolds query terms (<b>work</b> <b>life</b>),
+    # so de-tagging leaves runs of spaces that break phrase regexes.
+    return re.sub(r"\s+", " ", unescape(re.sub(r"<[^>]+>", " ", html)))
 
 
 def _parse_review_count(text: str) -> int | None:

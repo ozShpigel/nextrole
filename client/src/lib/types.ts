@@ -64,6 +64,7 @@ export interface MatchResponse {
   recommendation?: { shouldApply?: boolean; [key: string]: unknown };
   honestAssessment?: string;
   companyNewsAnalysis?: { greenSignals?: string[]; redSignals?: string[]; summary?: string } | null;
+  employeeReviewsAnalysis?: { greenSignals?: string[]; redSignals?: string[]; summary?: string } | null;
   analystSnapshotInput?: string | null;
   analystSnapshotOutput?: string | null;
   evaluatorSnapshotInput?: string | null;

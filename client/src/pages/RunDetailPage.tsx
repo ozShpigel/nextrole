@@ -40,6 +40,8 @@ interface ScoreComponent {
   score: number | null;
   maxScore: number;
   reason?: string;
+  // Server-enforced employee-review adjustment: score = base + delta
+  reviewAdjustment?: { base?: number | null; delta?: number | null } | null;
 }
 
 interface DimensionData {
@@ -457,6 +459,15 @@ export default function RunDetail() {
                                   <span className="text-[0.8rem] font-medium text-[var(--ed-ink)]">{c.name}</span>
                                   <span className="shrink-0 ed-display text-[0.78rem] font-semibold tabular-nums" style={{ color: edScoreColor(c.score, c.maxScore) }}>{c.score}/{c.maxScore}</span>
                                 </div>
+                                {c.reviewAdjustment?.base != null && c.reviewAdjustment.delta != null && c.reviewAdjustment.delta !== 0 && (
+                                  <span className="text-[0.7rem] text-[var(--ed-ink-faint)] tabular-nums">
+                                    base {c.reviewAdjustment.base}{' '}
+                                    <span className="font-semibold" style={{ color: c.reviewAdjustment.delta > 0 ? 'var(--ed-yes)' : 'var(--ed-no)' }}>
+                                      {c.reviewAdjustment.delta > 0 ? '+' : '−'}{Math.abs(c.reviewAdjustment.delta)}
+                                    </span>{' '}
+                                    from employee reviews
+                                  </span>
+                                )}
                                 {c.reason && <span className="text-[0.76rem] text-[var(--ed-ink-soft)] leading-[1.5] text-right" dir="rtl">{c.reason}</span>}
                               </div>
                             ))}

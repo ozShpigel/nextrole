@@ -304,6 +304,33 @@ describe('RunDetailPage - Signals (green/red flags) in breakdown panel', () => {
     expect(screen.getByText('Legacy tech stack')).toBeInTheDocument();
   });
 
+  it('shows the enforced review adjustment arithmetic on adjusted components', async () => {
+    const user = userEvent.setup();
+    renderWithJobs([makeJob({
+      match_analysis: {
+        breakdown: {
+          sustainabilityPaceFit: {
+            score: 8,
+            maxScore: 35,
+            components: [
+              { name: 'Pace & Workload', score: 8, maxScore: 20, reason: 'סיבה', reviewAdjustment: { base: 11, delta: -3 } },
+              { name: 'Long-term Risk', score: 9, maxScore: 15, reason: 'סיבה' },
+            ],
+          },
+        },
+      },
+    })]);
+    await waitFor(() => {
+      expect(screen.getByText('Score Breakdown')).toBeInTheDocument();
+    });
+    await user.click(screen.getByText('Score Breakdown'));
+    expect(screen.getByText(/from employee reviews/)).toBeInTheDocument();
+    expect(screen.getByText(/base 11/)).toBeInTheDocument();
+    expect(screen.getByText('−3')).toBeInTheDocument();
+    // Only the adjusted component carries the annotation
+    expect(screen.getAllByText(/from employee reviews/)).toHaveLength(1);
+  });
+
   it('shows both green and red flags in the Signals section once opened', async () => {
     const user = userEvent.setup();
     renderWithJobs([makeJob({

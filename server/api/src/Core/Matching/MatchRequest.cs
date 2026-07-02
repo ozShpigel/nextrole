@@ -20,9 +20,24 @@ public sealed record MatchRequest
 
 public sealed record GlassdoorData
 {
-    public double Rating { get; init; }
+    // Optional: deep review aggregates can exist without an overall rating
+    public double? Rating { get; init; }
     public int? ReviewCount { get; init; }
     public string? Url { get; init; }
+
+    // Employee-review aggregates parsed from search snippets (all optional)
+    public GlassdoorSubRatings? SubRatings { get; init; }
+    public int? RecommendPercent { get; init; }
+    public List<string>? Snippets { get; init; }
+}
+
+public sealed record GlassdoorSubRatings
+{
+    public double? WorkLifeBalance { get; init; }
+    public double? CultureAndValues { get; init; }
+    public double? CareerOpportunities { get; init; }
+    public double? SeniorManagement { get; init; }
+    public double? CompensationAndBenefits { get; init; }
 }
 
 public sealed record CompanyNewsItem

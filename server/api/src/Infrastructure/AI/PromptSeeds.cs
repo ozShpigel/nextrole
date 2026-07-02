@@ -378,6 +378,14 @@ Sub-components:
 
 When scoring, weigh the candidate's explicitly stated strengths and core values (from the profile) as supporting evidence, applied to whatever this specific role requires. Judge transferability fairly: skills in an adjacent language or tool are partial credit, not an automatic gap — but weight what the job actually asks for, without a thumb on the scale for any particular stack.
 
+### Role-level match (hard rule for System Design)
+
+Compare the level the role demands with the level the candidate has DEMONSTRABLY operated at — judged by scope actually owned in the profile (systems designed end-to-end, cross-team technical decisions, formal architecture ownership), not by titles or aspirations.
+
+- When the role demands a level the candidate has never demonstrably operated at — e.g. an **Architect / Staff / Principal** role for a profile showing senior-engineer scope without formal architecture ownership, or a **people-management** role (Team Lead / Engineering Manager) for a profile with no management experience — **System Design is CAPPED at the "transferable concepts" band (4–7)**. Having designed services *within* a team is transferable concepts, not alignment, when the role demands owning architecture *across* teams.
+- The level gap MUST be stated in the System Design `reason` and appear in `recommendation.redFlags`.
+- This works on demonstrated scope, not words: a profile showing architecture-level ownership counts even without the title; conversely, a plain seniority prefix ("Senior Software Engineer") is NOT a level gap for an experienced engineer — this rule targets genuine role-kind jumps, not years-of-experience arithmetic.
+
 ---
 
 ## 2. Cultural & Operational Fit (0–30)

@@ -30,6 +30,19 @@ public sealed record ScoreComponent
     public int? Score { get; init; }
     public int? MaxScore { get; init; }
     public string Reason { get; init; } = "";
+
+    // Present only when employee-review evidence moved this component's score.
+    // The server recomputes Score = Base + Delta with Delta clamped to the
+    // evidence-volume cap — the model's own arithmetic is advisory.
+    public ReviewAdjustment? ReviewAdjustment { get; init; }
+}
+
+public sealed record ReviewAdjustment
+{
+    // Component score as if the <employee_reviews> block did not exist
+    public int? Base { get; init; }
+    // Signed adjustment attributed to review evidence
+    public int? Delta { get; init; }
 }
 
 public sealed record TechnicalFitScore

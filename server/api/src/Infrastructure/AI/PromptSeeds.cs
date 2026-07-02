@@ -427,18 +427,34 @@ Review evidence must NEVER touch **Technical Fit** (either component) or **Role 
 - Sub-rating ≥ 4.0 → positive evidence; ≤ 3.0 → negative evidence; between → neutral, context only
 - `recommendToFriendPercent` ≥ 75 → positive; ≤ 50 → negative; between → neutral
 
-## Conservative weighting (hard caps per affected sub-component)
+## Mandatory two-step procedure (hard caps per affected sub-component)
 
-Scale the adjustment by evidence volume (`reviewCount`):
+Review evidence is a bounded ADJUSTMENT, never the basis of a score. In your thinking, follow these two steps in order:
+
+1. **Base score first**: score every sub-component using ONLY the candidate profile and the parsed job — exactly as if the `<employee_reviews>` block did not exist. Write down these base scores.
+2. **Bounded adjustment**: adjust ONLY the three eligible sub-components (Pace & Workload, Engineering Maturity & Stability, Long-term Risk) away from their base score, by AT MOST the cap below. Every other sub-component keeps its base score untouched.
+
+Caps scale with evidence volume (`reviewCount`):
 - `reviewCount` missing or < 50 → at most ±1 point
 - 50–199 → at most ±2 points
 - ≥ 200 → at most ±3 points
 
+The cap is absolute: even catastrophic review scores (e.g. work-life balance 2.0, recommend 30%) may move an eligible component by no more than the cap. A final score outside `base ± cap` for an eligible component — or any change at all to a non-eligible component — is a broken output, equivalent to violating the sum invariants.
+
+When review evidence moved a sub-component's score, that component MUST carry a `reviewAdjustment` object in the output:
+
+```
+"reviewAdjustment": { "base": <step-1 score>, "delta": <signed adjustment within the cap> }
+```
+
+The server independently recomputes `score` = `base` + `delta` (with `delta` clamped to the cap) — a dishonest `base` or an oversized `delta` is discarded, so report the true review-free base and keep the delta within the cap. Components without review influence omit `reviewAdjustment` entirely.
+
 Rules:
 - Explicit statements in the job description ALWAYS outweigh review aggregates. If the JD explicitly states a signal (e.g. a clearly relaxed, sustainable pace), reviews may temper the component within the caps but must not override the explicit statement's direction.
 - Adjustments stay within each sub-component's defined range.
-- When review evidence moved a sub-component's score, its `reason` sentence MUST say so.
+- When review evidence moved a sub-component's score, its `reason` sentence MUST mention the review evidence.
 - The invariants still hold after adjustments: each dimension `score` = sum of its components; `overallScore` = sum of the three dimensions.
+- Severe review signals belong in `employeeReviewsAnalysis.redSignals` and `recommendation.redFlags` (in full force — no cap on the narrative), not in score swings beyond the cap.
 
 ---
 
@@ -463,7 +479,7 @@ Return exactly this JSON schema, nothing else (no markdown fences, no commentary
       "score": number, "maxScore": 30,
       "components": [
         { "name": "Role Clarity & Ownership", "score": number, "maxScore": 15, "reason": "one concise sentence, minimal words" },
-        { "name": "Engineering Maturity & Stability", "score": number, "maxScore": 15, "reason": "one concise sentence, minimal words" }
+        { "name": "Engineering Maturity & Stability", "score": number, "maxScore": 15, "reason": "one concise sentence, minimal words", "reviewAdjustment": { "base": number, "delta": number } }
       ],
       "strengths": ["string"],
       "concerns": ["string"]
@@ -471,8 +487,8 @@ Return exactly this JSON schema, nothing else (no markdown fences, no commentary
     "sustainabilityPaceFit": {
       "score": number, "maxScore": 35,
       "components": [
-        { "name": "Pace & Workload", "score": number, "maxScore": 20, "reason": "one concise sentence, minimal words" },
-        { "name": "Long-term Risk", "score": number, "maxScore": 15, "reason": "one concise sentence, minimal words" }
+        { "name": "Pace & Workload", "score": number, "maxScore": 20, "reason": "one concise sentence, minimal words", "reviewAdjustment": { "base": number, "delta": number } },
+        { "name": "Long-term Risk", "score": number, "maxScore": 15, "reason": "one concise sentence, minimal words", "reviewAdjustment": { "base": number, "delta": number } }
       ],
       "positiveSignals": ["string"],
       "concerns": ["string"]
@@ -499,6 +515,8 @@ Return exactly this JSON schema, nothing else (no markdown fences, no commentary
 }
 
 Include `companyNewsAnalysis` ONLY when the user message contained a `<company_news>` block, and `employeeReviewsAnalysis` ONLY when it contained an `<employee_reviews>` block — omit each field entirely otherwise. Both blocks' free text MUST be in Hebrew, second person, per the language rules above.
+
+The `reviewAdjustment` field is shown on the three review-eligible components above; include it ONLY on a component whose score was actually moved by `<employee_reviews>` evidence (omit it everywhere else, and always when the block is absent).
 
 ---
 

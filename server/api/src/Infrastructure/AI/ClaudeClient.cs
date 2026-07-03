@@ -295,6 +295,43 @@ public sealed class ClaudeClient : IClaudeClient
         public string[]? Cues { get; init; }
     }
 
+    public async Task<TitleTriageResponse> TriageTitlesAsync(TitleTriageRequest request, CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Triaging {Count} scraped titles against intent '{Intent}'",
+            request.Titles.Count, request.SearchIntent);
+
+        var titlesJson = JsonSerializer.Serialize(
+            request.Titles.Select(t => new { t.Index, t.Title, t.Company }),
+            new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+
+        // Titles come from external job boards — untrusted, XML-wrapped as data.
+        var userMessage =
+            $"<search_intent>\n{request.SearchIntent.Trim()}\n</search_intent>\n\n" +
+            $"<scraped_titles>\n{titlesJson}\n</scraped_titles>";
+
+        var parameters = new MessageParameters
+        {
+            System = new List<SystemMessage> { new(PromptSeeds.TitleTriage) },
+            Messages = new List<Message> { new(RoleType.User, userMessage) },
+            MaxTokens = 2000,
+            Model = _scoring.Analyst.Model,
+            Temperature = 0.2m,
+            Stream = false
+        };
+
+        var response = await _client.Messages.GetClaudeMessageAsync(parameters, cancellationToken);
+        var content = response.Message?.ToString()?.Trim()
+            ?? throw new InvalidOperationException("Empty response from Claude API");
+
+        var json = ExtractJson(content);
+        var parsed = JsonSerializer.Deserialize<TitleTriageResponse>(json, CaseInsensitive)
+            ?? throw new InvalidOperationException("Could not parse title triage response");
+
+        _logger.LogInformation("Title triage: {Kept}/{Total} kept",
+            parsed.Results.Count(r => r.Relevant), request.Titles.Count);
+        return parsed;
+    }
+
     public async Task<NormalizedProfile> NormalizeProfileAsync(string text, CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Normalizing profile free-text ({Length} chars)", text.Length);

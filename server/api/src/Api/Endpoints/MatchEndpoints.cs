@@ -83,6 +83,36 @@ public static class MatchEndpoints
         .WithName("ParseJob")
         .WithSummary("Analyst-only parse (batch path, stage 1)");
 
+        // Title triage: one Haiku call per discovery run, before any scoring.
+        // Scraper-internal like /api/match/parse — called once per run, so no
+        // rate limiting. Flags clearly off-target titles (job-board padding);
+        // the scraper fails open (keeps everything) when this call errors.
+        app.MapPost("/api/match/title-triage", async (
+            [FromBody] TitleTriageRequest request,
+            ApplicationTracker.Core.AI.IClaudeClient claude,
+            ILogger<Program> logger,
+            CancellationToken ct) =>
+        {
+            if (string.IsNullOrWhiteSpace(request?.SearchIntent))
+                return Results.BadRequest(new { error = "SearchIntent is required" });
+            if (request.Titles is null || request.Titles.Count == 0)
+                return Results.BadRequest(new { error = "at least one title is required" });
+            if (request.Titles.Count > 200)
+                return Results.BadRequest(new { error = "too many titles (max 200)" });
+            try
+            {
+                var result = await claude.TriageTitlesAsync(request, ct);
+                return Results.Ok(result);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Error triaging titles");
+                return Results.Problem(detail: "An error occurred while triaging titles", statusCode: 500);
+            }
+        })
+        .WithName("TriageTitles")
+        .WithSummary("Filter scraped job titles by search-intent relevance (one Haiku call per run)");
+
         // Stage 2: submit all parsed jobs as one evaluator batch. Returns the
         // Anthropic batch id to store on the discovery run.
         app.MapPost("/api/match/batch", async (

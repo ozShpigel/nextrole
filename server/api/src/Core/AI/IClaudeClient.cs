@@ -21,6 +21,11 @@ public interface IClaudeClient
     Task<string> SubmitEvaluationBatchAsync(IReadOnlyList<EvaluationBatchItem> items, CancellationToken cancellationToken = default);
     Task<EvaluationBatchResult> GetEvaluationBatchAsync(string batchId, CancellationToken cancellationToken = default);
 
+    // One cheap Haiku call per discovery run: flags scraped titles that are
+    // clearly off-target for the search intent, so the scraper skips
+    // enrichment + scoring for them (lean-permissive — uncertain titles pass).
+    Task<TitleTriageResponse> TriageTitlesAsync(TitleTriageRequest request, CancellationToken cancellationToken = default);
+
     Task<EmailParseResult?> ParseEmailAsync(string subject, string from, string body, List<string> knownCompanies, DateTime? referenceDate = null, CancellationToken cancellationToken = default);
     Task<string> SummarizeCompanyAsync(string companyName, CancellationToken cancellationToken = default);
 

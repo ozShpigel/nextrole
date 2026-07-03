@@ -88,6 +88,8 @@ interface DiscoveredJob {
   saved_to_tracker: boolean;
   dismissed: boolean;
   is_duplicate: boolean;
+  triaged_out?: boolean;
+  triage_reason?: string | null;
   evaluator_snapshot_input?: string;
   evaluator_snapshot_output?: string;
   analyst_snapshot_input?: string;
@@ -102,6 +104,7 @@ interface Run {
   jobs_scored: number;
   jobs_saved: number;
   jobs_skipped_duplicate: number;
+  jobs_triaged_out?: number;
   error?: string;
 }
 
@@ -230,7 +233,8 @@ export default function RunDetail() {
   if (!run) return null;
 
   const statusMap: Record<string, string> = { pending: 'Pending', scraping: 'Scraping jobs...', scoring: 'AI scoring...', completed: 'Completed', failed: 'Failed', cancelled: 'Cancelled' };
-  const visibleJobs = jobs.filter((j) => !j.dismissed && !j.is_duplicate);
+  const visibleJobs = jobs.filter((j) => !j.dismissed && !j.is_duplicate && !j.triaged_out);
+  const triagedJobs = jobs.filter((j) => j.triaged_out && !j.dismissed);
   const isRescorable = (j: DiscoveredJob): boolean => (j.description?.length || 0) >= 50;
   const isFailed = (j: DiscoveredJob): boolean =>
     j.score == null && (
@@ -265,6 +269,7 @@ export default function RunDetail() {
           <span>Scored: {run.jobs_scored}</span>
           <span>Saved: {run.jobs_saved}</span>
           <span>Duplicates: {run.jobs_skipped_duplicate}</span>
+          {(run.jobs_triaged_out ?? 0) > 0 && <span>Filtered: {run.jobs_triaged_out}</span>}
         </div>
         {isActive && <div className="mt-4 p-3 bg-[var(--ed-panel)] text-[var(--ed-ink-soft)] text-[0.88rem] border border-[var(--ed-rule)]">Processing... the page will update automatically</div>}
         {run.error && <div className="mt-4 p-3 bg-[var(--ed-no)]/10 text-[var(--ed-no)] text-[0.88rem] border border-[var(--ed-no)]/30">{run.error}</div>}
@@ -493,6 +498,26 @@ export default function RunDetail() {
             );
           })}
         </div>
+      )}
+
+      {/* Off-target titles dropped by AI triage before scoring */}
+      {triagedJobs.length > 0 && (
+        <details className="mt-10 border-t border-[var(--ed-rule-strong)] pt-4">
+          <summary className="cursor-pointer list-none text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-[var(--ed-ink-faint)] transition-colors hover:text-[var(--ed-ink)]">
+            Filtered before scoring ({triagedJobs.length}) — off-target for this search
+          </summary>
+          <div className="mt-4 flex flex-col gap-[0.55rem]">
+            {triagedJobs.map((j) => (
+              <div key={j.id} className="flex items-baseline gap-3 flex-wrap text-[0.84rem]">
+                <span className="font-medium text-[var(--ed-ink-soft)]">{j.title}</span>
+                <span className="text-[var(--ed-ink-faint)]">{j.company}</span>
+                {j.triage_reason && (
+                  <span className="text-[0.76rem] text-[var(--ed-ink-faint)]" dir="auto">{j.triage_reason}</span>
+                )}
+              </div>
+            ))}
+          </div>
+        </details>
       )}
 
       </div>

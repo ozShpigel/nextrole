@@ -114,7 +114,7 @@ if (demoMode)
     // on "/api/match" would wrongly allow PUT /api/match/profile).
     var analysisAllowlist = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
     {
-        "/api/match", "/api/match/parse", "/api/match/batch",
+        "/api/match", "/api/match/parse", "/api/match/batch", "/api/match/title-triage",
         "/api/match/profile/normalize", "/api/match/profile/normalize-file",
         "/api/mock-interview/turn",
         "/api/mock-interview/debrief", "/api/emails/parse",

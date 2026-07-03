@@ -53,8 +53,21 @@ async def run_discovery(db: AsyncIOMotorDatabase, settings: Settings, criteria_i
         if not await tracker_client.warm_up_api(settings):
             raise RuntimeError("API unreachable after warm-up — aborting run")
 
-        # Prefetch company news and Glassdoor ratings in parallel for all unique companies.
-        all_companies = [j["company"] for j in jobs if j.get("company")]
+        # Title triage: one Haiku call flags clearly off-target titles
+        # (job-board search padding) so they skip enrichment + scoring.
+        # Fails open — on any error every job is kept.
+        triage = await match_client.triage_titles(
+            settings, ", ".join(criteria.job_titles), jobs
+        ) or {}
+
+        def _is_relevant(idx: int) -> bool:
+            t = triage.get(idx)
+            return t is None or t["relevant"]
+
+        # Prefetch company news and Glassdoor ratings in parallel for all unique
+        # companies (triaged-out jobs excluded — they are never enriched).
+        all_companies = [j["company"] for i, j in enumerate(jobs)
+                         if j.get("company") and _is_relevant(i)]
         news_cache, glassdoor_cache = await asyncio.gather(
             news_client.prefetch_company_news(all_companies),
             glassdoor_client.prefetch_glassdoor_ratings(all_companies),
@@ -80,6 +93,16 @@ async def run_discovery(db: AsyncIOMotorDatabase, settings: Settings, criteria_i
                         "date_posted": job_data.get("date_posted"),
                         "site": job_data.get("site", "linkedin"),
                     }
+
+                    if not _is_relevant(i):
+                        disc_job = DiscoveredJob(
+                            **base_job,
+                            triaged_out=True,
+                            triage_reason=(triage.get(i) or {}).get("reason"),
+                        )
+                        await db.discovered_jobs.insert_one(disc_job.model_dump())
+                        run.jobs_triaged_out += 1
+                        return
 
                     is_dup = await tracker_client.check_duplicate(settings, company, title)
                     if is_dup:
@@ -168,6 +191,7 @@ async def run_discovery(db: AsyncIOMotorDatabase, settings: Settings, criteria_i
                             "jobs_scored": run.jobs_scored,
                             "jobs_saved": run.jobs_saved,
                             "jobs_skipped_duplicate": run.jobs_skipped_duplicate,
+                            "jobs_triaged_out": run.jobs_triaged_out,
                         }},
                     )
 
@@ -186,11 +210,13 @@ async def run_discovery(db: AsyncIOMotorDatabase, settings: Settings, criteria_i
                 "jobs_scored": run.jobs_scored,
                 "jobs_saved": run.jobs_saved,
                 "jobs_skipped_duplicate": run.jobs_skipped_duplicate,
+                "jobs_triaged_out": run.jobs_triaged_out,
             }},
         )
         logger.info(
-            "Run %s completed: %d scraped, %d scored, %d saved, %d duplicates",
-            run.id, run.jobs_scraped, run.jobs_scored, run.jobs_saved, run.jobs_skipped_duplicate,
+            "Run %s completed: %d scraped, %d scored, %d saved, %d duplicates, %d triaged out",
+            run.id, run.jobs_scraped, run.jobs_scored, run.jobs_saved,
+            run.jobs_skipped_duplicate, run.jobs_triaged_out,
         )
 
     except Exception as e:
@@ -242,7 +268,17 @@ async def run_discovery_batch(db: AsyncIOMotorDatabase, settings: Settings, crit
         if not await tracker_client.warm_up_api(settings):
             raise RuntimeError("API unreachable after warm-up — aborting run")
 
-        all_companies = [j["company"] for j in jobs if j.get("company")]
+        # Title triage — same gate as the live path, fails open on error.
+        triage = await match_client.triage_titles(
+            settings, ", ".join(criteria.job_titles), jobs
+        ) or {}
+
+        def _is_relevant(idx: int) -> bool:
+            t = triage.get(idx)
+            return t is None or t["relevant"]
+
+        all_companies = [j["company"] for i, j in enumerate(jobs)
+                         if j.get("company") and _is_relevant(i)]
         news_cache, glassdoor_cache = await asyncio.gather(
             news_client.prefetch_company_news(all_companies),
             glassdoor_client.prefetch_glassdoor_ratings(all_companies),
@@ -251,9 +287,10 @@ async def run_discovery_batch(db: AsyncIOMotorDatabase, settings: Settings, crit
         sem = asyncio.Semaphore(5)
         items: list[dict] = []
         skipped_dup = 0
+        triaged_out = 0
 
-        async def _parse_one(job_data: dict):
-            nonlocal skipped_dup
+        async def _parse_one(i: int, job_data: dict):
+            nonlocal skipped_dup, triaged_out
             async with sem:
                 try:
                     title = job_data["title"]
@@ -269,6 +306,15 @@ async def run_discovery_batch(db: AsyncIOMotorDatabase, settings: Settings, crit
                         "date_posted": job_data.get("date_posted"),
                         "site": job_data.get("site", "linkedin"),
                     }
+
+                    if not _is_relevant(i):
+                        await db.discovered_jobs.insert_one(DiscoveredJob(
+                            **base_job,
+                            triaged_out=True,
+                            triage_reason=(triage.get(i) or {}).get("reason"),
+                        ).model_dump())
+                        triaged_out += 1
+                        return
 
                     if await tracker_client.check_duplicate(settings, company, title):
                         await db.discovered_jobs.insert_one(DiscoveredJob(**base_job, is_duplicate=True).model_dump())
@@ -307,13 +353,14 @@ async def run_discovery_batch(db: AsyncIOMotorDatabase, settings: Settings, crit
                 except Exception as e:
                     logger.error("Batch parse error for '%s': %s", job_data.get("title"), e)
 
-        await asyncio.gather(*[_parse_one(jd) for jd in jobs])
+        await asyncio.gather(*[_parse_one(i, jd) for i, jd in enumerate(jobs)])
 
         if not items:
             await db.discovery_runs.update_one({"id": run.id, "status": {"$ne": "cancelled"}}, {"$set": {
                 "status": "completed",
                 "completed_at": datetime.now(timezone.utc),
                 "jobs_skipped_duplicate": skipped_dup,
+                "jobs_triaged_out": triaged_out,
             }})
             logger.info("Run %s (batch): nothing to score", run.id)
             return
@@ -327,6 +374,7 @@ async def run_discovery_batch(db: AsyncIOMotorDatabase, settings: Settings, crit
             "batch_id": batch_id,
             "batch_submitted_at": datetime.now(timezone.utc),
             "jobs_skipped_duplicate": skipped_dup,
+            "jobs_triaged_out": triaged_out,
         }})
         logger.info("Run %s (batch): submitted %d jobs as batch %s", run.id, len(items), batch_id)
 

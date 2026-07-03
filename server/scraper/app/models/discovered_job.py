@@ -36,4 +36,8 @@ class DiscoveredJob(BaseModel):
     is_duplicate: bool = False
     saved_to_tracker: bool = False
     dismissed: bool = False
+    # Title triage: dropped before scoring as clearly off-target for the
+    # search intent (one Haiku call per run; never scored or enriched).
+    triaged_out: bool = False
+    triage_reason: str | None = None
     discovered_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

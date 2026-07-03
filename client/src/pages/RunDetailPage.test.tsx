@@ -274,6 +274,39 @@ describe('RunDetailPage - Honest Assessment', () => {
   });
 });
 
+describe('RunDetailPage - AI title triage', () => {
+  it('hides triaged-out jobs from the scored list and shows them in the filtered section', async () => {
+    renderWithJobs([
+      makeJob({ title: 'Developer Experience Engineer' }),
+      makeJob({
+        title: 'QA Automation Engineer',
+        score: null,
+        verdict: null,
+        triaged_out: true,
+        triage_reason: 'תפקיד QA, לא רלוונטי לחיפוש',
+      }),
+    ], { jobs_triaged_out: 1 });
+    await waitFor(() => {
+      expect(screen.getByText('Developer Experience Engineer')).toBeInTheDocument();
+    });
+    // Not rendered as a scored job card, only inside the filtered section
+    expect(screen.getByText(/Filtered before scoring \(1\)/)).toBeInTheDocument();
+    expect(screen.getByText('QA Automation Engineer')).toBeInTheDocument();
+    expect(screen.getByText('תפקיד QA, לא רלוונטי לחיפוש')).toBeInTheDocument();
+    // Masthead counter
+    expect(screen.getByText('Filtered: 1')).toBeInTheDocument();
+  });
+
+  it('shows no filtered section when nothing was triaged out', async () => {
+    renderWithJobs([makeJob()]);
+    await waitFor(() => {
+      expect(screen.getByText('Backend Engineer')).toBeInTheDocument();
+    });
+    expect(screen.queryByText(/Filtered before scoring/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/^Filtered:/)).not.toBeInTheDocument();
+  });
+});
+
 describe('RunDetailPage - Signals (green/red flags) in breakdown panel', () => {
   it('hides flags on the card until the Score Breakdown panel is opened', async () => {
     const user = userEvent.setup();

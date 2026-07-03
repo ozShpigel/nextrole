@@ -78,6 +78,50 @@ async def score_job(
     return MatchResult("api_error", None)
 
 
+async def triage_titles(
+    settings: Settings,
+    search_intent: str,
+    jobs: list[dict],
+) -> dict[int, dict] | None:
+    """One Haiku call per run: flags scraped titles that are clearly off-target
+    for the search intent (job-board padding), before any enrichment/scoring.
+
+    Returns {job_index: {"relevant": bool, "reason": str | None}}, or None on
+    any failure — the caller MUST fail open (keep every job) on None."""
+    if not search_intent or not jobs:
+        return None
+    titles = [
+        {"index": i, "title": j.get("title") or "", "company": j.get("company") or None}
+        for i, j in enumerate(jobs)
+    ]
+    resp = await _request_with_retry(
+        "POST",
+        f"{settings.api_base_url}/api/match/title-triage",
+        timeout=120.0,
+        operation="title-triage",
+        retry_on_timeout=False,
+        json={"searchIntent": search_intent, "titles": titles},
+    )
+    if resp is None or resp.status_code != 200:
+        logger.warning("Title triage failed (%s) — keeping all jobs",
+                       resp.status_code if resp is not None else "no response")
+        return None
+    try:
+        results = (resp.json() or {}).get("results") or []
+        triage = {
+            r["index"]: {"relevant": bool(r.get("relevant", True)), "reason": r.get("reason")}
+            for r in results
+            if isinstance(r.get("index"), int)
+        }
+    except Exception as e:
+        logger.warning("Title triage response unparseable (%s) — keeping all jobs", e)
+        return None
+    dropped = sum(1 for v in triage.values() if not v["relevant"])
+    logger.info("Title triage: %d/%d titles kept for intent '%s'",
+                len(jobs) - dropped, len(jobs), search_intent)
+    return triage
+
+
 # ── Batch path (cron) ───────────────────────────────────────────────────────
 
 async def parse_job(

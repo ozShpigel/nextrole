@@ -21,4 +21,5 @@ class DiscoveryRun(BaseModel):
     jobs_scored: int = 0
     jobs_saved: int = 0
     jobs_skipped_duplicate: int = 0
+    jobs_triaged_out: int = 0  # dropped by AI title triage before scoring
     error: str | None = None

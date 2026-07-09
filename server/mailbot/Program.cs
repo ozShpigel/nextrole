@@ -82,24 +82,19 @@ try
     logger.LogInformation("Mailbot service started");
     logger.LogInformation("Current time: {Time}", DateTime.Now);
 
-    // Modes (re-sync reconciles from full email history; default is last-24h sync):
-    //   default                                  → daily last-24h sync (also reconciles the Gmail filter)
+    // Modes (re-sync reconciles from full email history; default is the recent-window sync):
+    //   default                                  → daily sync: recent mail (Gmail:LookbackDays,
+    //                                              default 3d) searched by tracked-company names
     //   env  Mailbot__Resync=true                → re-sync (set Mailbot__ResyncCompany to scope,
     //        [+ Mailbot__ResyncCompany / ...Title]  else all applications). Flip false to resume.
     //   cli  resync --company "X" [--title "Y"]  → same, for local use
-    //   cli  reconcile-filters                   → only reconcile the Gmail filter (no email sync)
     var resyncByEnv = bool.TryParse(builder.Configuration["Mailbot:Resync"], out var re) && re;
     var resyncByCli = args.Length > 0 && args[0].Equals("resync", StringComparison.OrdinalIgnoreCase);
-    var reconcileByCli = args.Length > 0 && args[0].Equals("reconcile-filters", StringComparison.OrdinalIgnoreCase);
     var company = GetArg(args, "--company") ?? builder.Configuration["Mailbot:ResyncCompany"];
     var title = GetArg(args, "--title") ?? builder.Configuration["Mailbot:ResyncTitle"];
 
     SyncResult result;
-    if (reconcileByCli)
-    {
-        result = await orchestrator.RunReconcileFiltersAsync();
-    }
-    else if (resyncByEnv || resyncByCli)
+    if (resyncByEnv || resyncByCli)
     {
         result = string.IsNullOrWhiteSpace(company)
             ? await orchestrator.RunResyncAllAsync()

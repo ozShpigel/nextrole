@@ -21,13 +21,11 @@ public sealed class GmailEmailService : IGmailEmailService
     private readonly GmailService _gmail;
     private readonly ILogger<GmailEmailService> _logger;
     private readonly string? _query;
-    private readonly string _labelName;
+    private readonly int _lookbackDays;
 
-    // Read mail + manage filters. Reading messages needs GmailReadonly; creating/deleting
-    // filters needs GmailSettingsBasic. Adding settings.basic is a scope change — the cached
-    // OAuth token must be re-consented to both, else filter calls 403.
-    private static readonly string[] Scopes =
-        { GmailService.Scope.GmailReadonly, GmailService.Scope.GmailSettingsBasic };
+    // Read-only: the mailbot only searches and reads mail. (Tokens consented with
+    // broader scopes keep working — a superset is fine.)
+    private static readonly string[] Scopes = { GmailService.Scope.GmailReadonly };
 
     // Resolve the Gmail credentials path in order of preference:
     // 1. Explicit Gmail:CredentialsPath config (absolute or relative to content root)
@@ -126,25 +124,32 @@ public sealed class GmailEmailService : IGmailEmailService
         });
 
         _query = config["Gmail:Query"];
-        _labelName = string.IsNullOrWhiteSpace(config["Gmail:Label"]) ? "JobApplications" : config["Gmail:Label"]!;
+        _lookbackDays = int.TryParse(config["Gmail:LookbackDays"], out var days) && days > 0 ? days : 3;
 
         _logger.LogInformation("Gmail service initialized");
     }
 
-    public async Task<List<EmailMessage>> GetEmailsFromLast24HoursAsync(CancellationToken ct = default)
+    // Daily sync: search recent mail directly by the tracked companies' names.
+    // Search is retroactive by nature, so a company added to the tracker today is
+    // found against the whole window immediately — no label/filter dependency.
+    // The window (default 3d) overlaps previous runs on purpose: re-processing is
+    // idempotent, and the slack covers "applied Friday, tracked Sunday".
+    public async Task<List<EmailMessage>> GetEmailsForCompaniesAsync(IReadOnlyCollection<string> coreCompanies, CancellationToken ct = default)
     {
-        var yesterday = DateTime.UtcNow.AddHours(-24);
+        if (coreCompanies.Count == 0)
+        {
+            _logger.LogInformation("No companies to search for — skipping Gmail fetch.");
+            return new List<EmailMessage>();
+        }
+
+        // Gmail:Query, when set, overrides the built query verbatim (ops escape hatch).
         var effectiveQuery = string.IsNullOrWhiteSpace(_query)
-            ? $"after:{yesterday:yyyy/MM/dd}"
+            ? $"newer_than:{_lookbackDays}d ({BuildCompanyNamesQuery(coreCompanies)})"
             : _query;
 
-        // The query is coarse (day granularity / label-based), so still enforce
-        // the precise 24h cutoff in code.
-        var emails = (await FetchByQueryAsync(effectiveQuery, ct))
-            .Where(e => e.ReceivedAt >= yesterday)
-            .ToList();
-
-        _logger.LogInformation("Found {Count} emails from last 24 hours", emails.Count);
+        var emails = await FetchByQueryAsync(effectiveQuery, ct);
+        _logger.LogInformation("Found {Count} emails in the last {Days}d for {Companies} companies",
+            emails.Count, _lookbackDays, coreCompanies.Count);
         return emails;
     }
 
@@ -155,66 +160,10 @@ public sealed class GmailEmailService : IGmailEmailService
         return emails;
     }
 
-    public async Task<bool> EnsureJobApplicationsFilterAsync(IReadOnlyCollection<string> coreCompanies, CancellationToken ct = default)
-    {
-        if (coreCompanies.Count == 0)
-        {
-            _logger.LogInformation("No companies to filter on — skipping Gmail filter reconcile.");
-            return false;
-        }
-
-        // Resolve the label id. We never create the label here (keeps scopes minimal and
-        // avoids a surprise label) — if it's missing the user hasn't set up the label the
-        // whole flow relies on, so warn and skip.
-        var labels = await _gmail.Users.Labels.List("me").ExecuteAsync(ct);
-        var label = labels.Labels?.FirstOrDefault(l =>
-            string.Equals(l.Name, _labelName, StringComparison.OrdinalIgnoreCase));
-        if (label is null)
-        {
-            _logger.LogWarning(
-                "Gmail label '{Label}' not found — cannot manage its filter. Create the label in Gmail first.",
-                _labelName);
-            return false;
-        }
-
-        var desiredQuery = BuildFilterQuery(coreCompanies);
-
-        var existing = await _gmail.Users.Settings.Filters.List("me").ExecuteAsync(ct);
-        // Mailbot-managed = any filter whose action adds our label. The user should not keep
-        // a separate manual filter on this label; the mailbot owns it.
-        var managed = (existing.Filter ?? new List<Filter>())
-            .Where(f => f.Action?.AddLabelIds?.Contains(label.Id) == true)
-            .ToList();
-
-        if (managed.Count == 1 && string.Equals(managed[0].Criteria?.Query, desiredQuery, StringComparison.Ordinal))
-        {
-            _logger.LogInformation("Gmail filter already in sync ({Count} companies) — no change.", coreCompanies.Count);
-            return false;
-        }
-
-        foreach (var f in managed)
-        {
-            await _gmail.Users.Settings.Filters.Delete("me", f.Id).ExecuteAsync(ct);
-            _logger.LogInformation("Deleted stale Gmail filter {Id}", f.Id);
-        }
-
-        var created = await _gmail.Users.Settings.Filters.Create(new Filter
-        {
-            Criteria = new FilterCriteria { Query = desiredQuery },
-            Action = new FilterAction { AddLabelIds = new List<string> { label.Id } }
-        }, "me").ExecuteAsync(ct);
-
-        _logger.LogInformation(
-            "Created Gmail filter {Id} labeling {Count} companies as '{Label}': {Query}",
-            created.Id, coreCompanies.Count, _labelName, desiredQuery);
-        return true;
-    }
-
-    // Canonical filter query: distinct, trimmed company names, sorted case-insensitively,
-    // each quoted, joined with OR — e.g. "Acme" OR "Globex". Deterministic so the in-sync
-    // check above is a stable string compare. (Inner quotes are stripped to keep the query
-    // well-formed.)
-    internal static string BuildFilterQuery(IEnumerable<string> coreCompanies) =>
+    // Canonical company-names query: distinct, trimmed names, sorted case-insensitively,
+    // each quoted, joined with OR — e.g. "Acme" OR "Globex". (Inner quotes are stripped
+    // to keep the query well-formed.)
+    internal static string BuildCompanyNamesQuery(IEnumerable<string> coreCompanies) =>
         string.Join(" OR ", coreCompanies
             .Where(c => !string.IsNullOrWhiteSpace(c))
             .Select(c => c.Trim().Replace("\"", ""))

@@ -4,7 +4,10 @@ from pydantic import BaseModel, Field
 class SearchRequest(BaseModel):
     """Filters for the on-demand semantic job search."""
     limit: int = Field(default=10, ge=1, le=15)
-    days_back: int = Field(default=14, ge=1, le=45)
+    # Filters on discovered_at (collection date), not the board's posting date
+    # (date_posted is an unreliable free-text string). With 24-48h ingest
+    # windows, collected ~= posted within a day or two.
+    days_back: int = Field(default=3, ge=1, le=45)
     # Free-text substring match applied AFTER $vectorSearch (jobspy locations
     # are free text; Atlas vector filters are equality/range only).
     location: str | None = None

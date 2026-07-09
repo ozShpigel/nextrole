@@ -19,6 +19,7 @@ export default defineConfig({
   server: {
     proxy: {
       '/api/discovery': 'http://localhost:8000',
+      '/api/search': 'http://localhost:8000', // semantic search lives on the scraper
       '/api': 'http://localhost:5002',
     },
   },

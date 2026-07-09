@@ -76,6 +76,9 @@ export function useSaveJob() {
       discoveryApi(`/jobs/${jobId}/save`, { method: 'POST' }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['discovery'] });
+      // The save creates a tracker application — without this, a recently
+      // cached tracker list (staleTime 30s) keeps hiding the new entry.
+      queryClient.invalidateQueries({ queryKey: ['applications'] });
     },
   });
 }

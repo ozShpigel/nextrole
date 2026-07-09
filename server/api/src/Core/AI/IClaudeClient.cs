@@ -15,11 +15,10 @@ public interface IClaudeClient
     // variants above delegate to these with the configured prompt/config.
     Task<(ParsedJob Parsed, ClaudeCallSnapshot Snapshot)> ParseJobDescriptionAsync(string jobDescription, string analystPrompt, RoleScoringConfig analystConfig, CancellationToken cancellationToken = default);
     Task<(MatchResponse Response, ClaudeCallSnapshot Snapshot)> EvaluateMatchAsync(string profile, ParsedJob parsedJob, string evaluatorPrompt, RoleScoringConfig evaluatorConfig, List<CompanyNewsItem>? companyNews = null, GlassdoorData? glassdoorData = null, CancellationToken cancellationToken = default);
-    // Batch evaluation (50% cheaper, async). Submit returns an Anthropic batch id;
-    // poll returns processing status and — once ended — one result line per CustomId.
-    // Used by the cron-driven discovery path; the live path stays synchronous.
-    Task<string> SubmitEvaluationBatchAsync(IReadOnlyList<EvaluationBatchItem> items, CancellationToken cancellationToken = default);
-    Task<EvaluationBatchResult> GetEvaluationBatchAsync(string batchId, CancellationToken cancellationToken = default);
+
+    // RAG search path: ONE Sonnet call ranking the top-N vector-search hits as
+    // a career-advisor brief. The profile is loaded server-side.
+    Task<AdvisorResponse> AdviseAsync(IReadOnlyList<AdvisorJobInput> jobs, CancellationToken cancellationToken = default);
 
     // One cheap Haiku call per discovery run: flags scraped titles that are
     // clearly off-target for the search intent, so the scraper skips

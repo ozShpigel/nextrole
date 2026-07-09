@@ -71,6 +71,54 @@ export interface MatchResponse {
   evaluatorSnapshotOutput?: string | null;
 }
 
+// Semantic search (RAG) — POST /api/search on the scraper: the profile is
+// embedded and matched against stored jobs via Atlas $vectorSearch, then one
+// Claude call ranks the top-N as a career-advisor brief. Nothing is persisted.
+export interface SemanticSearchRequest {
+  limit: number;
+  days_back: number;
+  location?: string | null;
+  is_remote?: boolean | null;
+  job_levels?: string[] | null;
+  sites?: string[] | null;
+}
+
+// A $vectorSearch hit — a discovered_jobs doc (snake_case, embedding stripped).
+export interface SearchHit {
+  id: string;
+  title: string;
+  company: string;
+  location?: string | null;
+  description?: string | null;
+  job_url?: string | null;
+  date_posted?: string | null;
+  site?: string;
+  job_level?: string | null;
+  is_remote?: boolean | null;
+  similarity?: number;
+  saved_to_tracker?: boolean;
+  is_duplicate?: boolean;
+}
+
+export interface AdvisorJobBrief {
+  jobId: string;
+  rank: number;
+  verdict: 'apply' | 'maybe' | 'skip' | string;
+  rationale: string; // Hebrew
+  greenFlags: string[];
+  redFlags: string[];
+}
+
+export interface AdvisorBrief {
+  overallRecommendation: string; // Hebrew
+  rankings: AdvisorJobBrief[];
+}
+
+export interface SemanticSearchResponse {
+  jobs: SearchHit[];
+  advisor: AdvisorBrief | null;
+}
+
 // Version history. The structured profile is versioned under the 'profile' field.
 export type HistoryField = 'profile';
 

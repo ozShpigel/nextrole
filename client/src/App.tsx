@@ -18,6 +18,7 @@ const triggerClass = (active: boolean): string =>
 type NavChild = { to: string; label: string };
 
 const FIND_GROUP: NavChild[] = [
+  { to: '/search', label: 'Search Matches' },
   { to: '/discovery', label: 'Discovery' },
   { to: '/score', label: 'Score a Job' },
 ];

@@ -52,6 +52,8 @@ def scrape_for_criteria(criteria: SearchCriteria) -> list[dict]:
                         "job_url": url,
                         "date_posted": str(row.get("date_posted", "")) if row.get("date_posted") else None,
                         "site": str(row.get("site", "linkedin")),
+                        "job_level": str(row.get("job_level")) if row.get("job_level") else None,
+                        "is_remote": bool(row.get("is_remote")) if row.get("is_remote") is not None else None,
                     })
                     new_count += 1
 

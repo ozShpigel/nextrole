@@ -41,6 +41,10 @@ public sealed record ScoringConfig
     // only generated tokens are billed.
     public RoleScoringConfig Evaluator { get; init; } = new() { MaxTokens = 8192 };
 
+    // Advisor: ONE Sonnet call ranking the top-N vector-search hits (RAG search
+    // path). 8192 like the Evaluator — the brief covers up to 15 jobs.
+    public RoleScoringConfig Advisor { get; init; } = new() { MaxTokens = 8192 };
+
     public int MinScoreToSave { get; init; } = 70;
 
     public VerdictBands VerdictBands { get; init; } = new();

@@ -62,7 +62,7 @@ describe('RunsTimeline - Run Cards', () => {
 
   it.each([
     { status: 'scraping', label: 'Scraping' },
-    { status: 'scoring', label: 'Scoring' },
+    { status: 'embedding', label: 'Embedding' },
     { status: 'pending', label: 'Pending' },
   ])('$status run shows abort button', ({ status }) => {
     renderWithRouter(

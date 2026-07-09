@@ -16,8 +16,17 @@ class DiscoveredJob(BaseModel):
     job_url: str | None = None
     date_posted: str | None = None
     site: str = "linkedin"
-    # From JobMatchService (rich MatchResponse is stored in match_analysis;
-    # score/verdict/should_apply are copied out for sorting/filtering).
+    job_level: str | None = None  # jobspy "job_level" (LinkedIn-populated; null elsewhere)
+    is_remote: bool | None = None  # jobspy "is_remote"
+    # Semantic search: OpenAI embedding of the job text (title/company/location/
+    # level/description). None = embedding failed or job was triaged out — the
+    # doc is simply invisible to $vectorSearch.
+    job_embedding: list[float] | None = None
+    embedding_model: str | None = None
+    # Historic fields — per-job scoring was retired in favor of on-demand vector
+    # search + a single advisor call; kept so pre-migration docs still render.
+    # (rich MatchResponse is stored in match_analysis; score/verdict/should_apply
+    # are copied out for sorting/filtering).
     score: int | None = None
     verdict: str | None = None
     should_apply: bool | None = None

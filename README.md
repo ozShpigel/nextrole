@@ -345,6 +345,8 @@ The Mongo connection string and the Anthropic key are read **only** from the env
 | `API_BASE_URL` | no | `http://localhost:5002` | Unified API URL (triage, advisor, dedup, save) |
 | `CORS_ORIGINS` | no | `*` | Comma-separated allowed browser origins |
 
+**Scheduled ingest (Render Cron Job).** Discovery can run daily without the UI: create a Render **Cron Job** service from this repo — Docker runtime, Dockerfile `server/scraper/Dockerfile`, schedule `0 5 * * *`, command `python -m app.cli run-all` — with the scraper env vars above (`CORS_ORIGINS` not needed; point `API_BASE_URL` at your deployed API). `run-all` ingests every criteria with `is_active=true` sequentially, ensures the retention TTL index, and exits non-zero when no criteria are active so failed runs are visible in Render's history.
+
 ### Mailbot (.NET console, optional) & Frontend
 
 The mailbot reads config from env vars or a local `.env`. It does **not** need an Anthropic key — email parsing happens in the API.

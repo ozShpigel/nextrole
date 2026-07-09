@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 
 from app.config import Settings
+from app.indexes import ensure_ttl_index
 from app.schemas.criteria import CreateCriteriaRequest, UpdateCriteriaRequest
 from app.schemas.search import SearchRequest
 from app.models.search_criteria import SearchCriteria
@@ -60,18 +61,7 @@ async def lifespan(app: FastAPI):
             reconciled.modified_count,
         )
 
-    # Retention: purge discovered jobs after 45 days so the M0 tier (512MB)
-    # never fills up. Safe — jobs saved to the tracker are full copies in the
-    # tracker DB. NOTE: the first sweep bulk-deletes everything already older
-    # than 45 days. create_index is idempotent for an identical spec.
-    try:
-        await db.discovered_jobs.create_index(
-            "discovered_at",
-            expireAfterSeconds=45 * 24 * 3600,
-            name="ttl_discovered_at_45d",
-        )
-    except Exception as e:
-        logger.warning("TTL index ensure failed (continuing): %s", e)
+    await ensure_ttl_index(db)
 
     yield
     if db_client:

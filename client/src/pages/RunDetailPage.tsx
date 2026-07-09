@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useRunDetail, useRunJobs } from '../lib/queries';
-import { useSaveJob, useDismissJob, useRescoreJob } from '../lib/mutations';
+import { useSaveJob, useDismissJob } from '../lib/mutations';
+import { ACTIVE_RUN_STATUSES } from '../lib/discovery';
 import { VERDICT_LABELS } from '../lib/scoring';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -78,6 +79,7 @@ interface DiscoveredJob {
   title: string;
   company: string;
   location?: string;
+  job_level?: string | null;
   description?: string;
   score: number | null;
   verdict: string | null;
@@ -101,6 +103,9 @@ interface Run {
   criteria_name: string;
   status: string;
   jobs_scraped: number;
+  jobs_embedded?: number;
+  jobs_embed_failed?: number;
+  // Historic counters — per-job scoring was retired for the RAG search flow.
   jobs_scored: number;
   jobs_saved: number;
   jobs_skipped_duplicate: number;
@@ -138,7 +143,7 @@ export default function RunDetail() {
   // --- React Query hooks ---
   const runQuery = useRunDetail(runId!);
   const run = runQuery.data as Run | undefined;
-  const isActive = run?.status === 'pending' || run?.status === 'scraping' || run?.status === 'scoring';
+  const isActive = run != null && ACTIVE_RUN_STATUSES.includes(run.status);
 
   const jobsQuery = useRunJobs(runId!, isActive ?? false);
   const jobs = (jobsQuery.data as DiscoveredJob[] | undefined) ?? [];
@@ -146,11 +151,8 @@ export default function RunDetail() {
   // --- Mutation hooks ---
   const saveJobMutation = useSaveJob();
   const dismissJobMutation = useDismissJob();
-  const rescoreJobMutation = useRescoreJob();
 
   // --- UI state ---
-  const [rescoringIds, setRescoringIds] = useState<Set<string>>(() => new Set());
-  const [bulkRescoring, setBulkRescoring] = useState<boolean>(false);
   const [openBreakdownIds, setOpenBreakdownIds] = useState<Set<string>>(() => new Set());
 
   function toggleBreakdown(id: string): void {
@@ -184,38 +186,6 @@ export default function RunDetail() {
     }
   }
 
-  async function rescoreJob(job: DiscoveredJob): Promise<void> {
-    if (job.score != null && !confirm('Rescore? The current score will be replaced.')) return;
-    setRescoringIds((prev) => new Set(prev).add(job.id));
-    try {
-      await rescoreJobMutation.mutateAsync(job.id);
-    } catch (e) {
-      alert('Rescoring failed: ' + (e as Error).message);
-    } finally {
-      setRescoringIds((prev) => {
-        const next = new Set(prev);
-        next.delete(job.id);
-        return next;
-      });
-    }
-  }
-
-  async function rescoreAllFailed(): Promise<void> {
-    const failed = visibleJobs.filter(isFailed);
-    if (failed.length === 0) return;
-    if (!confirm(`Rescore ${failed.length} failed jobs?`)) return;
-    setBulkRescoring(true);
-    for (const j of failed) {
-      try {
-        await rescoreJobMutation.mutateAsync(j.id);
-      } catch (e) {
-        alert(`Rescoring stopped: ${(e as Error).message}`);
-        break;
-      }
-    }
-    setBulkRescoring(false);
-  }
-
   if (loading) return (
     <div className="editorial editorial-grain min-h-screen">
       <div className="relative z-[1] max-w-[1040px] mx-auto px-8 pt-12 pb-20 animate-in fade-in slide-in-from-bottom-1 duration-500 max-[640px]:px-5 max-[640px]:pt-8 max-[640px]:pb-14">
@@ -232,16 +202,11 @@ export default function RunDetail() {
   );
   if (!run) return null;
 
-  const statusMap: Record<string, string> = { pending: 'Pending', scraping: 'Scraping jobs...', scoring: 'AI scoring...', completed: 'Completed', failed: 'Failed', cancelled: 'Cancelled' };
+  const statusMap: Record<string, string> = { pending: 'Pending', scraping: 'Scraping jobs...', embedding: 'Embedding...', completed: 'Completed', failed: 'Failed', cancelled: 'Cancelled' };
   const visibleJobs = jobs.filter((j) => !j.dismissed && !j.is_duplicate && !j.triaged_out);
   const triagedJobs = jobs.filter((j) => j.triaged_out && !j.dismissed);
-  const isRescorable = (j: DiscoveredJob): boolean => (j.description?.length || 0) >= 50;
-  const isFailed = (j: DiscoveredJob): boolean =>
-    j.score == null && (
-      j.verdict === 'MATCH_FAILED' ||
-      (j.verdict === 'INSUFFICIENT_DATA' && (j.description?.length || 0) >= 50)
-    );
-  const failedCount = visibleJobs.filter(isFailed).length;
+  // Historic runs carry per-job scores; ingest-only runs don't.
+  const hasScores = visibleJobs.some((j) => j.score != null);
 
   const statusTint = run.status === 'completed' ? 'var(--ed-yes)'
     : run.status === 'failed' ? 'var(--ed-no)'
@@ -266,32 +231,21 @@ export default function RunDetail() {
         <h2 className="ed-display font-black text-[clamp(2rem,5vw,3.4rem)] leading-[0.95] tracking-[-0.02em] text-[var(--ed-ink)] pt-4 mb-4">{run.criteria_name}</h2>
         <div className="flex gap-7 flex-wrap items-baseline text-[0.8rem] font-medium text-[var(--ed-ink-soft)] tabular-nums border-t border-[var(--ed-rule-strong)] pt-3">
           <span>Scraped: {run.jobs_scraped}</span>
-          <span>Scored: {run.jobs_scored}</span>
-          <span>Saved: {run.jobs_saved}</span>
+          {run.jobs_embedded != null && <span>Embedded: {run.jobs_embedded}</span>}
+          {(run.jobs_embed_failed ?? 0) > 0 && <span className="text-[var(--ed-no)]">Embed failed: {run.jobs_embed_failed}</span>}
+          {run.jobs_scored > 0 && <span>Scored: {run.jobs_scored}</span>}
+          {run.jobs_saved > 0 && <span>Saved: {run.jobs_saved}</span>}
           <span>Duplicates: {run.jobs_skipped_duplicate}</span>
           {(run.jobs_triaged_out ?? 0) > 0 && <span>Filtered: {run.jobs_triaged_out}</span>}
         </div>
         {isActive && <div className="mt-4 p-3 bg-[var(--ed-panel)] text-[var(--ed-ink-soft)] text-[0.88rem] border border-[var(--ed-rule)]">Processing... the page will update automatically</div>}
         {run.error && <div className="mt-4 p-3 bg-[var(--ed-no)]/10 text-[var(--ed-no)] text-[0.88rem] border border-[var(--ed-no)]/30">{run.error}</div>}
-        {!isActive && failedCount > 0 && (
-          <div className="mt-4 p-[0.85rem_1rem] bg-[var(--ed-no)]/[0.06] border border-[var(--ed-no)]/30 flex items-center justify-between gap-4 text-[var(--ed-no)] text-[0.88rem]">
-            <span>{failedCount} jobs failed scoring — you can retry</span>
-            <button
-              type="button"
-              onClick={rescoreAllFailed}
-              disabled={bulkRescoring}
-              className="shrink-0 rounded-none border border-[var(--ed-no)] px-3 py-[0.4rem] text-[0.68rem] font-semibold uppercase tracking-[0.08em] text-[var(--ed-no)] transition-all hover:bg-[var(--ed-no)] hover:text-[var(--ed-paper)] disabled:opacity-50"
-            >
-              {bulkRescoring ? 'Rescoring...' : 'Rescore All Failed'}
-            </button>
-          </div>
-        )}
       </header>
 
       {/* Feed header */}
       <div className="flex items-baseline justify-between gap-3 mb-1">
-        <span className="ed-display italic font-semibold text-[1.5rem] tracking-[-0.01em] text-[var(--ed-ink)]">Scored roles</span>
-        <span className="text-[0.6rem] font-semibold uppercase tracking-[0.2em] text-[var(--ed-ink-faint)]">Analyst + Evaluator</span>
+        <span className="ed-display italic font-semibold text-[1.5rem] tracking-[-0.01em] text-[var(--ed-ink)]">{hasScores ? 'Scored roles' : 'Collected roles'}</span>
+        <span className="text-[0.6rem] font-semibold uppercase tracking-[0.2em] text-[var(--ed-ink-faint)]">{hasScores ? 'Analyst + Evaluator' : 'Rank them on the Search page'}</span>
       </div>
 
       {visibleJobs.length === 0 && !isActive ? (
@@ -364,17 +318,12 @@ export default function RunDetail() {
 
                   <div className="flex gap-2 items-center mt-4 flex-wrap">
                     {j.job_url && <a href={j.job_url} target="_blank" rel="noopener noreferrer" className={ghostBtn}>View Job</a>}
-                    {isRescorable(j) && (
-                      <button type="button" className={ghostBtn} onClick={() => rescoreJob(j)} disabled={rescoringIds.has(j.id) || bulkRescoring}>
-                        {rescoringIds.has(j.id) ? 'Scoring...' : 'Rescore'}
-                      </button>
-                    )}
                     {breakdown && (
                       <button type="button" className={ghostBtn} onClick={() => toggleBreakdown(j.id)}>
                         {openBreakdownIds.has(j.id) ? 'Hide Breakdown' : 'Score Breakdown'}
                       </button>
                     )}
-                    {!j.saved_to_tracker && j.verdict && j.verdict !== 'MATCH_FAILED' && j.verdict !== 'INSUFFICIENT_DATA' && (
+                    {!j.saved_to_tracker && j.verdict !== 'MATCH_FAILED' && j.verdict !== 'INSUFFICIENT_DATA' && (
                       <button type="button" className={`${actionBtn} border-[var(--ed-accent)] bg-[var(--ed-accent)] text-[var(--ed-paper)] hover:bg-[var(--ed-accent-deep)]`} onClick={() => saveJob(j.id)}>Save to Tracker</button>
                     )}
                     {j.saved_to_tracker && <span className="text-[0.66rem] font-semibold uppercase tracking-[0.08em] text-[var(--ed-yes)] py-[0.35rem] px-[0.7rem] border border-[var(--ed-yes)]/40">Saved</span>}
@@ -384,10 +333,15 @@ export default function RunDetail() {
 
                 {/* score column */}
                 <aside className="border-l border-[var(--ed-rule)] pl-6 max-[820px]:border-l-0 max-[820px]:border-t max-[820px]:border-[var(--ed-rule)] max-[820px]:pl-0 max-[820px]:pt-5">
-                  <div className="text-[0.58rem] font-bold uppercase tracking-[0.2em] inline-flex items-center gap-[0.45rem] mb-2" style={{ color: verdictColor(j.verdict) }}>
-                    <span className="w-[7px] h-[7px] rounded-full" style={{ background: verdictColor(j.verdict) }} />
-                    {verdictLabel}
-                  </div>
+                  {(j.verdict || j.score != null) && (
+                    <div className="text-[0.58rem] font-bold uppercase tracking-[0.2em] inline-flex items-center gap-[0.45rem] mb-2" style={{ color: verdictColor(j.verdict) }}>
+                      <span className="w-[7px] h-[7px] rounded-full" style={{ background: verdictColor(j.verdict) }} />
+                      {verdictLabel}
+                    </div>
+                  )}
+                  {j.job_level && (
+                    <div className="text-[0.62rem] font-semibold uppercase tracking-[0.14em] text-[var(--ed-ink-faint)] mb-2">{j.job_level}</div>
+                  )}
                   {j.score != null && (
                     <div className="ed-display font-black text-[3.6rem] leading-[0.8] tracking-[-0.03em] tabular-nums flex items-baseline gap-1 text-[var(--ed-ink)]">
                       {j.score}<span className="text-[0.95rem] font-normal text-[var(--ed-ink-faint)]">/100</span>
@@ -504,7 +458,7 @@ export default function RunDetail() {
       {triagedJobs.length > 0 && (
         <details className="mt-10 border-t border-[var(--ed-rule-strong)] pt-4">
           <summary className="cursor-pointer list-none text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-[var(--ed-ink-faint)] transition-colors hover:text-[var(--ed-ink)]">
-            Filtered before scoring ({triagedJobs.length}) — off-target for this search
+            Filtered by title triage ({triagedJobs.length}) — off-target for this search
           </summary>
           <div className="mt-4 flex flex-col gap-[0.55rem]">
             {triagedJobs.map((j) => (

@@ -143,12 +143,12 @@ describe('RunDetailPage - Verdict Display', () => {
     expect(screen.getByText('Insufficient Data', { exact: true })).toBeInTheDocument();
   });
 
-  it('null verdict and null score shows dash', async () => {
+  it('null verdict and null score hides the verdict row (ingest-only job)', async () => {
     renderWithJobs([makeJob({ title: 'Unscored Job', score: null, verdict: null })]);
     await waitFor(() => {
       expect(screen.getByText('Unscored Job')).toBeInTheDocument();
     });
-    expect(screen.getByText('-', { exact: true })).toBeInTheDocument();
+    expect(screen.queryByText('-', { exact: true })).not.toBeInTheDocument();
   });
 });
 
@@ -290,7 +290,7 @@ describe('RunDetailPage - AI title triage', () => {
       expect(screen.getByText('Developer Experience Engineer')).toBeInTheDocument();
     });
     // Not rendered as a scored job card, only inside the filtered section
-    expect(screen.getByText(/Filtered before scoring \(1\)/)).toBeInTheDocument();
+    expect(screen.getByText(/Filtered by title triage \(1\)/)).toBeInTheDocument();
     expect(screen.getByText('QA Automation Engineer')).toBeInTheDocument();
     expect(screen.getByText('תפקיד QA, לא רלוונטי לחיפוש')).toBeInTheDocument();
     // Masthead counter
@@ -302,7 +302,7 @@ describe('RunDetailPage - AI title triage', () => {
     await waitFor(() => {
       expect(screen.getByText('Backend Engineer')).toBeInTheDocument();
     });
-    expect(screen.queryByText(/Filtered before scoring/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Filtered by title triage/)).not.toBeInTheDocument();
     expect(screen.queryByText(/^Filtered:/)).not.toBeInTheDocument();
   });
 });
@@ -396,23 +396,6 @@ describe('RunDetailPage - Action Buttons', () => {
     expect(link).toHaveAttribute('target', '_blank');
   });
 
-  it('shows Rescore button for jobs with long description', async () => {
-    renderWithJobs([makeJob({
-      description: 'A '.repeat(30) + 'long description over 50 chars for rescore eligibility.',
-    })]);
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Rescore' })).toBeInTheDocument();
-    });
-  });
-
-  it('hides Rescore button for jobs with short description', async () => {
-    renderWithJobs([makeJob({ title: 'Short Job', description: 'Too short' })]);
-    await waitFor(() => {
-      expect(screen.getByText('Short Job')).toBeInTheDocument();
-    });
-    expect(screen.queryByRole('button', { name: 'Rescore' })).not.toBeInTheDocument();
-  });
-
   it('shows Save to Tracker for scored unsaved jobs', async () => {
     renderWithJobs([makeJob({ score: 80, saved_to_tracker: false })]);
     await waitFor(() => {
@@ -478,36 +461,12 @@ describe('RunDetailPage - Hidden Jobs', () => {
   });
 });
 
-describe('RunDetailPage - Failed Scoring Banner', () => {
-  it('shows rescore all failed banner when there are failed jobs', async () => {
-    renderWithJobs([
-      makeJob({ score: 80, verdict: 'YES' }),
-      makeJob({ score: null, verdict: 'MATCH_FAILED', description: 'A '.repeat(30) + 'long enough.' }),
-      makeJob({ score: null, verdict: 'MATCH_FAILED', description: 'A '.repeat(30) + 'another long.' }),
-    ]);
-    await waitFor(() => {
-      expect(screen.getByText(/2 jobs failed scoring/)).toBeInTheDocument();
-    });
-    expect(screen.getByRole('button', { name: 'Rescore All Failed' })).toBeInTheDocument();
-  });
-
-  it('hides banner when no jobs failed', async () => {
-    renderWithJobs([makeJob({ score: 80, verdict: 'YES' })]);
-    await waitFor(() => {
-      expect(screen.getByText('Backend Engineer')).toBeInTheDocument();
-    });
-    expect(screen.queryByRole('button', { name: 'Rescore All Failed' })).not.toBeInTheDocument();
-  });
-
-  it('hides banner during active runs', async () => {
-    renderWithJobs(
-      [makeJob({ score: null, verdict: 'MATCH_FAILED', description: 'A '.repeat(30) + 'long enough.' })],
-      { status: 'scoring' },
-    );
+describe('RunDetailPage - Active Run Banner', () => {
+  it('shows the processing banner while embedding', async () => {
+    renderWithJobs([makeJob()], { status: 'embedding' });
     await waitFor(() => {
       expect(screen.getByText('Processing... the page will update automatically')).toBeInTheDocument();
     });
-    expect(screen.queryByRole('button', { name: 'Rescore All Failed' })).not.toBeInTheDocument();
   });
 });
 

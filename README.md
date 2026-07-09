@@ -27,7 +27,7 @@
 
 If you're skimming for the engineering, two things are worth a closer look:
 
-- **A two-model scoring pipeline** with a cost-aware async batch mode — see [The AI scoring pipeline](#the-ai-scoring-pipeline).
+- **A RAG matching engine** — jobs are embedded at ingest, MongoDB Atlas `$vectorSearch` does the semantic matching against your profile, and Claude runs **once per search** as a career advisor over the top-N — see [Job discovery & semantic search](#job-discovery--semantic-search).
 - **Prompt-injection defense** — untrusted external data (job descriptions, scraped news, raw emails) is always XML-wrapped and kept out of the system prompt.
 
 ---
@@ -73,17 +73,18 @@ flowchart TD
     client -->|REST| api
     client -->|discovery| scraper
 
-    scraper -->|"delegate scoring (HTTP)"| api
+    scraper -->|"delegate AI: triage + advisor (HTTP)"| api
     scraper -->|scrape| boards
+    scraper -->|embeddings| openai["OpenAI API<br/>(text-embedding-3-small)"]
     mailbot -->|"parse email + updates (HTTP)"| api
 
     api --> claude
     api --> mongo
-    scraper --> mongo
+    scraper -->|"store + $vectorSearch"| mongo
     mailbot --> gmail
 
     classDef ext fill:#374151,stroke:#6b7280,color:#e5e7eb,stroke-dasharray:4 3;
-    class claude,mongo,boards,gmail ext;
+    class claude,mongo,boards,gmail,openai ext;
 ```
 
 ### Services
@@ -91,7 +92,7 @@ flowchart TD
 | Service | Stack | Port (dev / Docker) | Purpose |
 |---------|-------|---------------------|---------|
 | **API** | ASP.NET Core 10 (Minimal APIs) | `5002` | Unified backend and **the only service that calls Claude**: AI job scoring, application/interview/note/status tracking, profile, interview prep, mock interview, email parsing |
-| **Scraper** | Python FastAPI | `8000` / `5137` | Scrape LinkedIn/Indeed via JobSpy, enrich with company news + Glassdoor, delegate scoring to the API, auto-save matches |
+| **Scraper** | Python FastAPI | `8000` / `5137` | Scrape LinkedIn/Indeed via JobSpy, embed jobs (OpenAI), serve semantic search via Atlas `$vectorSearch`, enrich the top hits with news + Glassdoor, delegate AI (triage, advisor) to the API |
 | **Mailbot** | .NET 10 Console | — | One-shot (cron): fetch Gmail, parse with Claude (via API), push status/interview updates. Not a long-running service |
 | **Client** | React 19 + Vite 6 | `5173` / `3000` | English LTR SPA with the custom *Editorial Broadsheet* theme; Nginx reverse proxy in production |
 
@@ -99,9 +100,10 @@ flowchart TD
 
 ## Features
 
+- **Semantic job search (RAG)** — Your profile is embedded and matched against every collected job by meaning via MongoDB Atlas Vector Search; one Claude "career advisor" call ranks the top results with an apply/maybe/skip verdict, Hebrew rationale, and a comparative recommendation. (`/search`)
+- **Automated job discovery** — Define search criteria (titles, locations, preferences) and let the system scrape LinkedIn/Indeed, filter off-target titles with AI triage, and embed everything for search. Runs from the UI or a cron (`python -m app.cli run`).
 - **AI job matching** — Paste any job description and get a detailed compatibility score with strengths, concerns, a sub-component breakdown, and an honest verdict — powered by Claude. (`/score`)
-- **Automated job discovery** — Define search criteria (titles, locations, values, preferences) and let the system scrape LinkedIn/Indeed, enrich each result, score it with AI, and auto-save qualifying matches above a configurable threshold. Live or scheduled batch runs.
-- **Company enrichment** — Auto-fetched Google News headlines and Glassdoor ratings feed the evaluator; on-demand AI company summaries and a personalized "why work here?" answer on each application.
+- **Company enrichment** — Google News headlines and Glassdoor ratings fetched for the top search hits feed the advisor; on-demand AI company summaries and a personalized "why work here?" answer on each application.
 - **Application tracking** — Full lifecycle: applications, interviews, notes, status updates, an upcoming-interview column, and a statistics dashboard.
 - **Interview prep** — Author self-presentations and a Q&A rubric; toggle prose into AI-distilled keyword cues for rehearsal from memory.
 - **Mock interview** — Interactive, turn-by-turn AI interview practice with an HR or technical persona, live follow-ups, and a scored debrief whose rewrites can be adopted back into your prep rubric.
@@ -114,39 +116,37 @@ flowchart TD
 
 The flow of the app's core engines. The top-level [Architecture](#architecture) shows *which* services exist; these show *how* each feature moves data through them. Every Claude call lives in the API; dashed nodes are external systems.
 
-### Job discovery & AI scoring
+### Job discovery & semantic search
 
-Scrape → enrich → score → auto-save. The **live** path scores synchronously; the **batch** path defers the expensive evaluator call to Anthropic's Message Batches API (50% cheaper) and finalizes on the next cron run.
+Two decoupled halves. **Ingest** (per discovery run): scrape → AI title triage → embed → store. **Search** (on demand): the DB does the semantic matching, and Claude runs **once** over the top-N as a career advisor — instead of two Claude calls per scraped job.
 
 ```mermaid
 flowchart TD
     trigger(["UI 'Discover now' · or cron"]) --> scrape
 
-    subgraph scraper["Scraper · FastAPI"]
+    subgraph ingest["Scraper · ingest (per run)"]
         scrape["Scrape LinkedIn / Indeed<br/>(JobSpy) → dedup"]
-        enrich["Enrich: company news (RSS)<br/>+ Glassdoor (DuckDuckGo)"]
-        scrape --> enrich
+        triage["AI title triage<br/>(one Haiku call, via API)"]
+        embed["Embed job text<br/>OpenAI text-embedding-3-small"]
+        scrape --> triage --> embed
     end
 
-    subgraph apicore["API · scoring (only caller of Claude)"]
-        analyst["Analyst · Haiku<br/>raw posting → ParsedJob"]
-        evaluator["Evaluator · Sonnet + extended thinking<br/>→ score · verdict · sub-breakdown"]
-        analyst --> evaluator
+    embed --> jobs[("discovered_jobs<br/>+ 1536-dim vectors · 45d TTL")]
+
+    search(["UI '/search' + filters"]) --> vs
+    subgraph query["Scraper · search (on demand)"]
+        vs["$vectorSearch<br/>profile embedding vs jobs"]
+        enrich["Enrich top-N only:<br/>news (RSS) + Glassdoor (DDG)"]
+        vs --> enrich
     end
+    jobs --> vs
 
-    enrich -->|"live: POST /match"| analyst
-    enrich -.->|"batch: parse live, defer eval"| batch["Anthropic Message<br/>Batches API −50%"]
-    evaluator --> gate{"score ≥<br/>min_score_to_save?"}
-    batch -.->|"next cron: finalize"| gate
-    gate -->|yes| tracker[("Tracker · MongoDB")]
-    gate -->|no| drop["discard"]
-
-    claude["Claude API"]
-    analyst --> claude
-    evaluator --> claude
+    enrich -->|"POST /api/match/advise"| advisor["Advisor · Sonnet · ONE call<br/>→ ranked brief: apply/maybe/skip"]
+    advisor --> claude["Claude API"]
+    advisor --> results["Ranked results<br/>+ save to tracker"]
 
     classDef ext fill:#374151,stroke:#6b7280,color:#e5e7eb,stroke-dasharray:4 3;
-    class claude,tracker,batch ext;
+    class claude,jobs ext;
 ```
 
 ### Mock interview (stateless turn engine)
@@ -206,7 +206,7 @@ flowchart LR
 
 ## The AI scoring pipeline
 
-Each job scoring is **two Claude API calls**, both with generic, candidate-agnostic prompts — all candidate-specific signal comes from the injected professional profile:
+Used by the manual **Score a Job** page (`/score`) — discovery matching moved to the [semantic search](#job-discovery--semantic-search) flow. Each job scoring is **two Claude API calls**, both with generic, candidate-agnostic prompts — all candidate-specific signal comes from the injected professional profile:
 
 1. **Analyst (Claude Haiku)** — a generic job-description parser: raw posting → structured `ParsedJob` JSON.
 2. **Evaluator (Claude Sonnet, extended thinking)** — scores fit and returns a structured verdict.
@@ -219,15 +219,13 @@ Each job scoring is **two Claude API calls**, both with generic, candidate-agnos
 | Engineering Execution Fit | 30 | Practices / Role Clarity + Engineering Maturity |
 | Sustainability & Pace Fit | 35 | Work-Life + Communication/Pace + Growth/Risk |
 
-**Verdicts:** `STRONG_YES` · `YES` · `MAYBE` · `NO` · `STRONG_NO` · `INSUFFICIENT_DATA`. A job auto-saves to the tracker iff its score clears a single configurable threshold (`min_score_to_save`).
+**Verdicts:** `STRONG_YES` · `YES` · `MAYBE` · `NO` · `STRONG_NO` · `INSUFFICIENT_DATA`.
 
 **Engineering details worth noting:**
 
 - **The profile is the only user-editable input;** prompts and scoring config are read-only server configuration (the .NET Options pattern, overridable per-deploy via env vars — no runtime editing). Experience and skills are LLM-normalized from pasted free text or an uploaded résumé; strengths and core values stay manual.
-- **`live` vs `batch` modes.** The live path scores synchronously. The batch path runs the analyst live but submits evaluator calls to the **Message Batches API** and finalizes on the next cron firing — driven by a single collect-then-submit cron, with a dedicated `pending → scraping → parsing → awaiting_batch → finalizing → completed` status machine and an orphan-reconciler that survives restarts.
-- **Resilience.** The evaluator response is streamed (keeps the connection alive on long generations) with prompt caching on the static system prompt; the JSON layer has lenient deserializers, fence/brace extraction, comment stripping, and an auto-retry "return ONLY JSON" nudge.
-- **Parallelism.** Up to 5 jobs scored concurrently via an `asyncio.Semaphore`.
-- **Cooperative cancellation.** Aborting a run lands a terminal `cancelled` status; every orchestrator status write is guarded so the in-flight task can't resurrect a cancelled run.
+- **Resilience.** The evaluator response is streamed (keeps the connection alive on long generations) with prompt caching on the static system prompt; the JSON layer has lenient deserializers, fence/brace extraction, comment stripping, and an auto-retry "return ONLY JSON" nudge. The search **advisor** call reuses the same machinery.
+- **Cancellation.** Aborting a discovery run lands a terminal `cancelled` status; every orchestrator status write is guarded so the in-flight task can't resurrect a cancelled run.
 
 ---
 
@@ -235,14 +233,15 @@ Each job scoring is **two Claude API calls**, both with generic, candidate-agnos
 
 **Backend (.NET)**
 - ASP.NET Core 10 — Minimal APIs
-- Anthropic SDK for .NET (Claude integration: streaming, extended thinking, prompt caching, Message Batches, native PDF documents)
+- Anthropic SDK for .NET (Claude integration: streaming, extended thinking, prompt caching, native PDF documents)
 - MongoDB Driver v3
 - Google Gmail API (mailbot)
 
 **Backend (Python)**
 - FastAPI + Uvicorn
 - `python-jobspy` (LinkedIn/Indeed scraping)
-- Motor (async MongoDB driver)
+- Motor (async MongoDB driver) + Atlas Vector Search (`$vectorSearch`)
+- OpenAI SDK (`text-embedding-3-small` embeddings)
 - pydantic-settings
 
 **Frontend**
@@ -334,16 +333,16 @@ The Mongo connection string and the Anthropic key are read **only** from the env
 | `MongoDB__DatabaseName` | no | `job-tracker` | Application-tracking DB |
 | `MongoDB__ProfileDatabase` | no | `jobmatch` | Profile/scoring DB |
 | `CorsOrigins` | no | `""` (none) | Comma-separated allowed browser origins; `*` for dev |
-| `Scoring__*`, `Prompts__Analyzer`, `Prompts__Evaluator` | no | see `appsettings.json` / `PromptSeeds.cs` | Read-only scoring config & prompt overrides |
+| `Scoring__*`, `Prompts__Analyzer`, `Prompts__Evaluator`, `Prompts__Advisor` | no | see `appsettings.json` / `PromptSeeds.cs` | Read-only scoring/advisor config & prompt overrides |
 
 ### Scraper (Python FastAPI)
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `MONGODB_CONNECTION_STRING` | **yes** | — | MongoDB connection string |
+| `OPENAI_API_KEY` | **yes** | — | OpenAI key for job/profile embeddings (`text-embedding-3-small`) |
 | `MONGODB_DATABASE_NAME` | no | `job-tracker` | Database name |
-| `API_BASE_URL` | no | `http://localhost:5002` | Unified API URL (scoring, dedup, save) |
-| `CRON_SECRET` | no | `""` (no guard) | Shared secret for cron-triggered endpoints |
+| `API_BASE_URL` | no | `http://localhost:5002` | Unified API URL (triage, advisor, dedup, save) |
 | `CORS_ORIGINS` | no | `*` | Comma-separated allowed browser origins |
 
 ### Mailbot (.NET console, optional) & Frontend

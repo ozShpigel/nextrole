@@ -1,18 +1,18 @@
 import json
 import logging
 from contextlib import asynccontextmanager
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 import certifi
-from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException
+from fastapi import BackgroundTasks, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 
 from app.config import Settings
 from app.schemas.criteria import CreateCriteriaRequest, UpdateCriteriaRequest
+from app.schemas.search import SearchRequest
 from app.models.search_criteria import SearchCriteria
-from app.services import glassdoor_client, match_client, news_client, orchestrator, tracker_client
-from app.utils.match_utils import extract_flat
+from app.services import orchestrator, search, tracker_client
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -30,13 +30,6 @@ db_client: AsyncIOMotorClient | None = None
 db = None
 
 
-def require_cron_secret(x_cron_key: str | None = Header(default=None)) -> None:
-    """Guard cron-triggered endpoints. No-op when `cron_secret` is unset
-    (dev/local); otherwise the X-Cron-Key header must match."""
-    if settings.cron_secret and x_cron_key != settings.cron_secret:
-        raise HTTPException(401, "Invalid or missing X-Cron-Key")
-
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global db_client, db
@@ -49,11 +42,12 @@ async def lifespan(app: FastAPI):
     # process. Render free-tier restarts (deploys, idle eviction, OOM) leave
     # in-process phases frozen forever, showing up as phantom "in-progress"
     # rows. Single-instance service, so on startup any in-process phase is
-    # orphaned. NOTE: `awaiting_batch` is deliberately excluded — that run is
-    # parked on a server-side Anthropic batch (id persisted), legitimately
-    # spans restarts, and the next finalize cycle picks it up.
+    # orphaned. (scoring/parsing/finalizing/awaiting_batch are retired batch-era
+    # statuses — included so any leftover row from before the RAG migration is
+    # also cleaned up.)
     reconciled = await db.discovery_runs.update_many(
-        {"status": {"$in": ["pending", "scraping", "parsing", "scoring", "finalizing"]}},
+        {"status": {"$in": ["pending", "scraping", "embedding",
+                            "parsing", "scoring", "finalizing", "awaiting_batch"]}},
         {"$set": {
             "status": "failed",
             "error": "Run orphaned — scraper restarted before completion",
@@ -66,20 +60,18 @@ async def lifespan(app: FastAPI):
             reconciled.modified_count,
         )
 
-    # Safety net: an Anthropic batch expires at 24h. If a run is still
-    # awaiting_batch well past that, the batch is dead — fail it so it doesn't
-    # linger forever.
-    stale_cutoff = datetime.now(timezone.utc) - timedelta(hours=26)
-    stale = await db.discovery_runs.update_many(
-        {"status": "awaiting_batch", "batch_submitted_at": {"$lt": stale_cutoff}},
-        {"$set": {
-            "status": "failed",
-            "error": "Batch expired (>24h) before results were collected",
-            "completed_at": datetime.now(timezone.utc),
-        }},
-    )
-    if stale.modified_count:
-        logger.warning("Failed %d stale awaiting_batch run(s) past batch expiry", stale.modified_count)
+    # Retention: purge discovered jobs after 45 days so the M0 tier (512MB)
+    # never fills up. Safe — jobs saved to the tracker are full copies in the
+    # tracker DB. NOTE: the first sweep bulk-deletes everything already older
+    # than 45 days. create_index is idempotent for an identical spec.
+    try:
+        await db.discovered_jobs.create_index(
+            "discovered_at",
+            expireAfterSeconds=45 * 24 * 3600,
+            name="ttl_discovered_at_45d",
+        )
+    except Exception as e:
+        logger.warning("TTL index ensure failed (continuing): %s", e)
 
     yield
     if db_client:
@@ -91,12 +83,20 @@ app = FastAPI(title="Scraper Service", lifespan=lifespan)
 
 
 # DEMO_MODE — public demo instance: block every write (criteria/run/job
-# mutations) so visitors can't pollute shared data. All scraper mutations are
-# writes/triggers (none are pure analysis), so blocking by method is enough.
-# GETs (health, list/get runs/jobs/criteria) still work. Off by default.
+# mutations) so visitors can't pollute shared data. GETs (health, list/get
+# runs/jobs/criteria) still work. Off by default. Exact-path allowlist for
+# POSTs that are pure analysis (no persistence) — mirrors the API's
+# analysisAllowlist in Program.cs.
+DEMO_ANALYSIS_ALLOWLIST = {"/api/search"}
+
+
 @app.middleware("http")
 async def demo_guard(request, call_next):
-    if settings.demo_mode and request.method in ("POST", "PUT", "PATCH", "DELETE"):
+    if (
+        settings.demo_mode
+        and request.method in ("POST", "PUT", "PATCH", "DELETE")
+        and request.url.path.rstrip("/") not in DEMO_ANALYSIS_ALLOWLIST
+    ):
         from fastapi.responses import JSONResponse
         return JSONResponse(status_code=403, content={"error": "This is a read-only demo."})
     return await call_next(request)
@@ -172,51 +172,15 @@ async def delete_criteria(criteria_id: str):
 # ---------------------------------------------------------------------------
 
 @app.post("/api/discovery/run/{criteria_id}", status_code=202)
-async def trigger_run(criteria_id: str, background_tasks: BackgroundTasks, mode: str = "live"):
-    doc = await db.search_criteria.find_one({"id": criteria_id})
-    if not doc:
-        raise HTTPException(404, "Criteria not found")
-    if mode not in ("live", "batch"):
-        raise HTTPException(400, "mode must be 'live' or 'batch'")
-    from app.models.discovery_run import DiscoveryRun
-    run = DiscoveryRun(criteria_id=criteria_id, criteria_name=doc.get("name", ""), mode=mode)
-    await db.discovery_runs.insert_one(run.model_dump())
-    task = orchestrator.run_discovery_batch if mode == "batch" else orchestrator.run_discovery
-    background_tasks.add_task(task, db, settings, criteria_id, run.id)
-    return {"status": "started", "criteria_id": criteria_id, "run_id": run.id, "mode": mode}
-
-
-@app.post("/api/discovery/finalize-batches", status_code=202)
-async def finalize_batches_endpoint(
-    background_tasks: BackgroundTasks, _: None = Depends(require_cron_secret)
-):
-    """Collect-only: poll every awaiting_batch run and finalize the ready ones.
-    Idempotent — safe to call any time."""
-    background_tasks.add_task(orchestrator.finalize_batches, db, settings)
-    return {"status": "finalizing"}
-
-
-@app.post("/api/discovery/run-batch-cycle/{criteria_id}", status_code=202)
-async def run_batch_cycle(
-    criteria_id: str,
-    background_tasks: BackgroundTasks,
-    _: None = Depends(require_cron_secret),
-):
-    """One-cron entry point (collect-then-submit): finalize the previous run's
-    batch (long done by the next firing), then submit a fresh batch run."""
+async def trigger_run(criteria_id: str, background_tasks: BackgroundTasks):
     doc = await db.search_criteria.find_one({"id": criteria_id})
     if not doc:
         raise HTTPException(404, "Criteria not found")
     from app.models.discovery_run import DiscoveryRun
-    run = DiscoveryRun(criteria_id=criteria_id, criteria_name=doc.get("name", ""), mode="batch")
+    run = DiscoveryRun(criteria_id=criteria_id, criteria_name=doc.get("name", ""))
     await db.discovery_runs.insert_one(run.model_dump())
-
-    async def _cycle():
-        await orchestrator.finalize_batches(db, settings)
-        await orchestrator.run_discovery_batch(db, settings, criteria_id, run.id)
-
-    background_tasks.add_task(_cycle)
-    return {"status": "started", "criteria_id": criteria_id, "run_id": run.id, "mode": "batch"}
+    background_tasks.add_task(orchestrator.run_discovery, db, settings, criteria_id, run.id)
+    return {"status": "started", "criteria_id": criteria_id, "run_id": run.id}
 
 
 @app.get("/api/discovery/runs")
@@ -254,7 +218,7 @@ async def abort_run(run_id: str):
     # writes are guarded with `status != cancelled`, so a still-alive zombie
     # task can no longer resurrect the row back to scoring/completed/failed.
     result = await db.discovery_runs.update_one(
-        {"id": run_id, "status": {"$in": ["pending", "scraping", "scoring", "parsing"]}},
+        {"id": run_id, "status": {"$in": ["pending", "scraping", "embedding"]}},
         {"$set": {
             "status": "cancelled",
             "error": "Aborted by user",
@@ -267,66 +231,21 @@ async def abort_run(run_id: str):
 
 
 # ---------------------------------------------------------------------------
-# Discovered Jobs Actions
+# Semantic Search (RAG)
 # ---------------------------------------------------------------------------
 
-@app.post("/api/discovery/jobs/{job_id}/rescore")
-async def rescore_job(job_id: str):
-    """Re-run match scoring on a single job — overwrites any existing score.
+@app.post("/api/search")
+async def search_endpoint(req: SearchRequest):
+    """On-demand semantic job search: the user's profile is embedded and
+    matched against stored jobs via Atlas $vectorSearch (hard filters applied
+    in-index), then ONE Claude call ranks the top-N as a career-advisor brief.
+    Read-only analysis — nothing is persisted."""
+    return await search.search_jobs(db, settings, req)
 
-    Originally a retry for MATCH_FAILED, now also used to iterate on the
-    Evaluator prompt: re-running the same job reveals how prompt changes
-    move the score. The existing result is replaced in place.
-    """
-    doc = await db.discovered_jobs.find_one({"id": job_id})
-    if not doc:
-        raise HTTPException(404, "Job not found")
 
-    company_news = await news_client.fetch_company_news(doc["company"]) or None
-    glassdoor_data = await glassdoor_client.fetch_glassdoor_rating(doc["company"])
-
-    result = await match_client.score_job(
-        settings=settings,
-        title=doc["title"],
-        company=doc["company"],
-        location=doc.get("location"),
-        description=doc.get("description"),
-        date_posted=doc.get("date_posted"),
-        site=doc.get("site", "linkedin"),
-        company_news=company_news,
-        glassdoor_data=glassdoor_data,
-    )
-
-    if result.status == "too_short":
-        # Edge case — wouldn't normally hit this path since we already
-        # returned MATCH_FAILED above, but stay defensive.
-        await db.discovered_jobs.update_one(
-            {"id": job_id},
-            {"$set": {"verdict": "INSUFFICIENT_DATA"}},
-        )
-        return {"status": "insufficient_data"}
-
-    if result.status == "api_error":
-        raise HTTPException(503, "API still unreachable — try again in a moment")
-
-    score, verdict, should_apply = extract_flat(result.data)
-    await db.discovered_jobs.update_one(
-        {"id": job_id},
-        {"$set": {
-            "score": score,
-            "verdict": verdict,
-            "should_apply": should_apply,
-            "match_analysis": result.data,
-            "company_news": company_news,
-            "glassdoor_data": glassdoor_data,
-            "analyst_snapshot_input": result.data.get("analystSnapshotInput"),
-            "analyst_snapshot_output": result.data.get("analystSnapshotOutput"),
-            "evaluator_snapshot_input": result.data.get("evaluatorSnapshotInput"),
-            "evaluator_snapshot_output": result.data.get("evaluatorSnapshotOutput"),
-        }},
-    )
-    return {"status": "ok", "score": score, "verdict": verdict}
-
+# ---------------------------------------------------------------------------
+# Discovered Jobs Actions
+# ---------------------------------------------------------------------------
 
 @app.post("/api/discovery/jobs/{job_id}/save")
 async def save_job(job_id: str):

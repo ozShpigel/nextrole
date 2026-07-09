@@ -2,7 +2,6 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using Anthropic.SDK;
-using Anthropic.SDK.Batches;
 using Anthropic.SDK.Messaging;
 using ApplicationTracker.Core.AI;
 using ApplicationTracker.Core.Email;
@@ -119,6 +118,8 @@ public sealed class ClaudeClient : IClaudeClient
         string.IsNullOrWhiteSpace(_prompts.Analyzer) ? PromptSeeds.Analyst : _prompts.Analyzer;
     private string EvaluatorPrompt =>
         string.IsNullOrWhiteSpace(_prompts.Evaluator) ? PromptSeeds.Evaluator : _prompts.Evaluator;
+    private string AdvisorPrompt =>
+        string.IsNullOrWhiteSpace(_prompts.Advisor) ? PromptSeeds.Advisor : _prompts.Advisor;
 
     public Task<(ParsedJob Parsed, ClaudeCallSnapshot Snapshot)> ParseJobDescriptionAsync(string jobDescription, CancellationToken cancellationToken = default)
         => ParseJobDescriptionAsync(jobDescription, AnalystPrompt, _scoring.Analyst, cancellationToken);
@@ -578,92 +579,18 @@ public sealed class ClaudeClient : IClaudeClient
         return p;
     }
 
-    public async Task<string> SubmitEvaluationBatchAsync(IReadOnlyList<EvaluationBatchItem> items, CancellationToken cancellationToken = default)
+    // RAG search path: one call ranks the top-N vector-search hits. Streaming,
+    // prompt-cached system, and the JSON-repair retry all come from CallClaudeAsync.
+    public async Task<AdvisorResponse> AdviseAsync(IReadOnlyList<AdvisorJobInput> jobs, CancellationToken cancellationToken = default)
     {
+        _logger.LogInformation("Advising over {Count} vector-search hits", jobs.Count);
+
         var profile = await _profileProvider.GetProfileAsync(cancellationToken);
-        var evaluatorPrompt = EvaluatorPrompt;
-        var cfg = _scoring.Evaluator;
+        var (systemPrompt, userMessage) = _promptBuilder.BuildAdvisorPrompt(profile, jobs, AdvisorPrompt);
 
-        var requests = new List<BatchRequest>(items.Count);
-        foreach (var item in items)
-        {
-            var (system, user) = _promptBuilder.BuildEvaluationPrompt(
-                profile, item.ParsedJob, evaluatorPrompt, item.CompanyNews, item.GlassdoorData);
-            // Batch results are not streamed — build with stream:false.
-            var parameters = BuildParameters(system, user, cfg, stream: false);
-            requests.Add(new BatchRequest { CustomId = item.CustomId, MessageParameters = parameters });
-        }
-
-        var resp = await _client.Batches.CreateBatchAsync(requests, cancellationToken);
-        _logger.LogInformation("Submitted evaluation batch {BatchId} ({Count} requests)", resp.Id, requests.Count);
-        return resp.Id;
-    }
-
-    public async Task<EvaluationBatchResult> GetEvaluationBatchAsync(string batchId, CancellationToken cancellationToken = default)
-    {
-        var status = await _client.Batches.RetrieveBatchStatusAsync(batchId, cancellationToken);
-        var processing = Convert.ToString(status.ProcessingStatus) ?? "";
-        if (!string.Equals(processing, "ended", StringComparison.OrdinalIgnoreCase))
-        {
-            _logger.LogInformation("Batch {BatchId} not ready — status={Status}", batchId, processing);
-            return new EvaluationBatchResult { Status = processing };
-        }
-
-        var lines = new List<EvaluationBatchLine>();
-        await foreach (var raw in _client.Batches.RetrieveBatchResultsJsonlAsync(batchId, cancellationToken))
-        {
-            if (string.IsNullOrWhiteSpace(raw)) continue;
-            lines.Add(ParseBatchLine(raw));
-        }
-        var ok = lines.Count(l => l.Response != null);
-        _logger.LogInformation("Batch {BatchId} ended: {Ok}/{Total} parsed ok", batchId, ok, lines.Count);
-        return new EvaluationBatchResult { Status = processing, Lines = lines };
-    }
-
-    // Parses one line of the documented batch-results JSONL:
-    //   {"custom_id":"...","result":{"type":"succeeded","message":{"content":[{"type":"text","text":"..."}]}}}
-    //   {"custom_id":"...","result":{"type":"errored"|"expired"|"canceled","error":{...}}}
-    private EvaluationBatchLine ParseBatchLine(string raw)
-    {
-        string customId = "";
-        try
-        {
-            using var doc = JsonDocument.Parse(raw);
-            var root = doc.RootElement;
-            customId = root.GetProperty("custom_id").GetString() ?? "";
-            var result = root.GetProperty("result");
-            var type = result.TryGetProperty("type", out var t) ? t.GetString() : null;
-
-            if (type == "succeeded" && result.TryGetProperty("message", out var msg)
-                && msg.TryGetProperty("content", out var content) && content.ValueKind == JsonValueKind.Array)
-            {
-                var sb = new System.Text.StringBuilder();
-                foreach (var block in content.EnumerateArray())
-                    if (block.TryGetProperty("type", out var bt) && bt.GetString() == "text"
-                        && block.TryGetProperty("text", out var txt))
-                        sb.Append(txt.GetString());
-                var rawText = sb.ToString();
-                try
-                {
-                    var json = ExtractJson(rawText);
-                    var mr = JsonSerializer.Deserialize<MatchResponse>(json, CaseInsensitive)
-                        ?? throw new InvalidOperationException("null MatchResponse");
-                    return new EvaluationBatchLine { CustomId = customId, Response = mr, RawOutput = rawText };
-                }
-                catch (Exception ex)
-                {
-                    return new EvaluationBatchLine { CustomId = customId, RawOutput = rawText, Error = "parse: " + ex.Message };
-                }
-            }
-
-            var err = type ?? "unknown";
-            if (result.TryGetProperty("error", out var e)) err = e.ToString();
-            return new EvaluationBatchLine { CustomId = customId, Error = err };
-        }
-        catch (Exception ex)
-        {
-            return new EvaluationBatchLine { CustomId = customId, Error = "line: " + ex.Message };
-        }
+        var (result, _) = await CallClaudeAsync<AdvisorResponse>(systemPrompt, userMessage, _scoring.Advisor, "advise", cancellationToken);
+        _logger.LogInformation("Advisor brief completed: {Rankings} rankings", result.Rankings.Count);
+        return result;
     }
 
     private async Task<(T Result, ClaudeCallSnapshot Snapshot)> CallClaudeAsync<T>(

@@ -50,6 +50,25 @@ export async function matchApi(path: string, options: ApiOptions = {}) {
   return res.json();
 }
 
+// Scraper-hosted endpoints outside the /api/discovery prefix (semantic search).
+export async function scraperApi(path: string, options: ApiOptions = {}) {
+  const { headers, ...fetchOptions } = options;
+  const url = SCRAPER_BASE ? `${SCRAPER_BASE}/api${path}` : `/api${path}`;
+  const res = await fetch(url, {
+    headers: { 'Content-Type': 'application/json', ...headers },
+    ...fetchOptions,
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    const err: ApiError = new Error(
+      res.status === 403 ? DEMO_BLOCKED_MSG : (data.detail || data.error || `HTTP ${res.status}`));
+    err.status = res.status;
+    err.data = data;
+    throw err;
+  }
+  return res.json();
+}
+
 export async function discoveryApi(path: string, options: ApiOptions = {}) {
   const { headers, ...fetchOptions } = options;
   const url = SCRAPER_BASE ? `${SCRAPER_BASE}/api/discovery${path}` : `/api/discovery${path}`;

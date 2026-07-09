@@ -48,43 +48,48 @@ public static class MatchEndpoints
         .WithName("AnalyzeJobMatch")
         .WithSummary("Analyze job match");
 
-        // ── Batch scoring path (cron-driven discovery) ──────────────────────────
-        // Internal, scraper-to-API endpoints — not rate-limited like /api/match,
-        // since the parse stage is called once per scraped job (well over 10/min).
-
-        // Stage 1: analyst-only parse. Scraper calls this live per job, then sends
-        // the parsed jobs to /api/match/batch.
-        app.MapPost("/api/match/parse", async (
-            [FromBody] MatchRequest request,
-            IJobMatchService jobMatchService,
+        // RAG search path: ONE Sonnet call ranks the top-N $vectorSearch hits as
+        // a career-advisor brief. The profile is loaded server-side — the scraper
+        // only sends the job postings (untrusted, XML-wrapped in the prompt).
+        app.MapPost("/api/match/advise", async (
+            [FromBody] AdviseRequest request,
+            ApplicationTracker.Core.AI.IClaudeClient claude,
             ILogger<Program> logger,
             CancellationToken ct) =>
         {
-            if (string.IsNullOrWhiteSpace(request?.JobDescription))
-                return Results.BadRequest(new { error = "JobDescription is required" });
-            if (request.JobDescription.Length > 50_000)
-                return Results.BadRequest(new { error = "JobDescription exceeds maximum length of 50,000 characters" });
+            if (request?.Jobs is not { Count: > 0 })
+                return Results.BadRequest(new { error = "at least one job is required" });
+            if (request.Jobs.Count > 15)
+                return Results.BadRequest(new { error = "too many jobs (max 15)" });
+            if (request.Jobs.Any(j => string.IsNullOrWhiteSpace(j.Id)))
+                return Results.BadRequest(new { error = "every job needs an id" });
+            if (request.Jobs.Any(j => j.Description is { Length: > 50_000 }))
+                return Results.BadRequest(new { error = "a job description exceeds maximum length of 50,000 characters" });
+
             try
             {
-                var (parsed, snap) = await jobMatchService.ParseAsync(request, ct);
-                return Results.Ok(new
-                {
-                    parsed,
-                    analystSnapshotInput = snap.Input,
-                    analystSnapshotOutput = snap.Output,
-                });
+                var brief = await claude.AdviseAsync(request.Jobs, ct);
+                return Results.Ok(brief);
+            }
+            catch (InvalidOperationException ex) when (ex.Message.Contains("ApiKey"))
+            {
+                logger.LogError(ex, "Anthropic API key not configured");
+                return Results.Problem(
+                    detail: "Anthropic API key is not configured. Please set Anthropic:ApiKey in configuration.",
+                    statusCode: 500);
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "Error parsing job (batch path)");
-                return Results.Problem(detail: "An error occurred while parsing the job", statusCode: 500);
+                logger.LogError(ex, "Error generating advisor brief");
+                return Results.Problem(detail: "An error occurred while generating the advisor brief", statusCode: 500);
             }
         })
-        .WithName("ParseJob")
-        .WithSummary("Analyst-only parse (batch path, stage 1)");
+        .RequireRateLimiting("match")
+        .WithName("AdviseJobs")
+        .WithSummary("Rank top-N vector-search hits as a career-advisor brief (one Sonnet call)");
 
-        // Title triage: one Haiku call per discovery run, before any scoring.
-        // Scraper-internal like /api/match/parse — called once per run, so no
+        // Title triage: one Haiku call per discovery run, before any embedding.
+        // Scraper-internal — called once per run, so no
         // rate limiting. Flags clearly off-target titles (job-board padding);
         // the scraper fails open (keeps everything) when this call errors.
         app.MapPost("/api/match/title-triage", async (
@@ -112,52 +117,6 @@ public static class MatchEndpoints
         })
         .WithName("TriageTitles")
         .WithSummary("Filter scraped job titles by search-intent relevance (one Haiku call per run)");
-
-        // Stage 2: submit all parsed jobs as one evaluator batch. Returns the
-        // Anthropic batch id to store on the discovery run.
-        app.MapPost("/api/match/batch", async (
-            [FromBody] List<EvaluationBatchItem> items,
-            IJobMatchService jobMatchService,
-            ILogger<Program> logger,
-            CancellationToken ct) =>
-        {
-            if (items is null || items.Count == 0)
-                return Results.BadRequest(new { error = "at least one item is required" });
-            try
-            {
-                var batchId = await jobMatchService.SubmitEvaluationBatchAsync(items, ct);
-                return Results.Ok(new { batchId });
-            }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, "Error submitting evaluation batch");
-                return Results.Problem(detail: "An error occurred while submitting the batch", statusCode: 500);
-            }
-        })
-        .WithName("SubmitEvaluationBatch")
-        .WithSummary("Submit evaluator batch (batch path, stage 2)");
-
-        // Stage 3: poll + collect. Returns status; once ended, one corrected
-        // result line per CustomId (verdict-band/shouldApply already applied).
-        app.MapGet("/api/match/batch/{batchId}", async (
-            string batchId,
-            IJobMatchService jobMatchService,
-            ILogger<Program> logger,
-            CancellationToken ct) =>
-        {
-            try
-            {
-                var result = await jobMatchService.GetEvaluationBatchAsync(batchId, ct);
-                return Results.Ok(result);
-            }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, "Error retrieving evaluation batch {BatchId}", batchId);
-                return Results.Problem(detail: "An error occurred while retrieving the batch", statusCode: 500);
-            }
-        })
-        .WithName("GetEvaluationBatch")
-        .WithSummary("Poll/collect evaluator batch (batch path, stage 3)");
 
         static object ToProfileResponse(ProfileDocument doc) => new
         {

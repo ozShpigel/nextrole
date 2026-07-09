@@ -58,8 +58,8 @@ public sealed class JobMatchService : IJobMatchService
 
     // Analyst pass only. Always run even when the caller pre-supplies
     // title/company — without it the Evaluator scores on vibes alone. The
-    // scraper's canonical title/company override the Analyst's inference.
-    public async Task<(ParsedJob Parsed, ClaudeCallSnapshot Snapshot)> ParseAsync(MatchRequest request, CancellationToken cancellationToken = default)
+    // caller's canonical title/company override the Analyst's inference.
+    private async Task<(ParsedJob Parsed, ClaudeCallSnapshot Snapshot)> ParseAsync(MatchRequest request, CancellationToken cancellationToken = default)
     {
         var (parsed, snap) = await _claudeClient.ParseJobDescriptionAsync(request.JobDescription, cancellationToken);
         var parsedJob = parsed with
@@ -69,24 +69,6 @@ public sealed class JobMatchService : IJobMatchService
             RawDescription = request.JobDescription
         };
         return (parsedJob, snap);
-    }
-
-    public Task<string> SubmitEvaluationBatchAsync(IReadOnlyList<EvaluationBatchItem> items, CancellationToken cancellationToken = default)
-        => _claudeClient.SubmitEvaluationBatchAsync(items, cancellationToken);
-
-    public async Task<EvaluationBatchResult> GetEvaluationBatchAsync(string batchId, CancellationToken cancellationToken = default)
-    {
-        var result = await _claudeClient.GetEvaluationBatchAsync(batchId, cancellationToken);
-        if (!result.Ended) return result;
-
-        // Apply the same verdict-band / shouldApply correction the live path does,
-        // so batch results are identical to what AnalyzeMatchAsync would produce.
-        // The original request items (and their reviewCount) aren't retained at
-        // poll time, so review adjustments get the loosest cap as a backstop.
-        var lines = result.Lines
-            .Select(l => l.Response is null ? l : l with { Response = Correct(l.Response, _scoring, MaxReviewCap) })
-            .ToList();
-        return result with { Lines = lines };
     }
 
     // Re-derive verdict from the numeric score (authoritative bands) and recompute
@@ -100,14 +82,12 @@ public sealed class JobMatchService : IJobMatchService
         return r with { Verdict = verdict, Recommendation = rec! };
     }
 
-    private const int MaxReviewCap = 3;
-
     // Evidence-volume cap from the EMPLOYEE REVIEW EVIDENCE prompt section.
     private static int ReviewCap(int? reviewCount) => reviewCount switch
     {
         null or < 50 => 1,
         < 200 => 2,
-        _ => MaxReviewCap
+        _ => 3
     };
 
     // Only these sub-components may be moved by employee-review evidence

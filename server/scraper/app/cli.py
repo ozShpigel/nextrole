@@ -1,12 +1,11 @@
-"""One-shot CLI entrypoint for cron-driven batch discovery.
+"""One-shot CLI entrypoint for cron-driven ingest runs.
 
 Unlike the FastAPI endpoints (which kick work into BackgroundTasks on the
-long-running web service), this runs the batch cycle to completion in its own
-process and exits — the mailbot pattern. Run it as a Render Cron Job using the
-scraper image:
+long-running web service), this runs a discovery ingest (scrape -> triage ->
+embed -> store) to completion in its own process and exits — the mailbot
+pattern. Run it as a Render Cron Job using the scraper image:
 
-    python -m app.cli run-batch-cycle <criteria_id>   # collect-then-submit
-    python -m app.cli finalize                         # collect-only
+    python -m app.cli run <criteria_id>
 
 Because nothing is exposed over HTTP, no X-Cron-Key guard is needed and there's
 no free-tier idle-eviction race: the container lives exactly as long as the work.
@@ -36,39 +35,25 @@ async def _with_db(coro_factory):
         client.close()
 
 
-async def _run_batch_cycle(criteria_id: str):
-    async def _cycle(db, settings):
-        logger.info("Batch cycle: finalizing any ready batches first")
-        await orchestrator.finalize_batches(db, settings)
-        logger.info("Batch cycle: submitting fresh batch for criteria %s", criteria_id)
-        await orchestrator.run_discovery_batch(db, settings, criteria_id)
-        logger.info("Batch cycle done")
-    await _with_db(_cycle)
-
-
-async def _finalize():
-    async def _f(db, settings):
-        logger.info("Finalize-only: collecting ready batches")
-        await orchestrator.finalize_batches(db, settings)
-        logger.info("Finalize done")
-    await _with_db(_f)
+async def _run(criteria_id: str):
+    async def _r(db, settings):
+        logger.info("Ingest run for criteria %s", criteria_id)
+        await orchestrator.run_discovery(db, settings, criteria_id)
+        logger.info("Ingest run done")
+    await _with_db(_r)
 
 
 def main():
-    parser = argparse.ArgumentParser(prog="app.cli", description="Batch discovery cron entrypoint")
+    parser = argparse.ArgumentParser(prog="app.cli", description="Discovery ingest cron entrypoint")
     sub = parser.add_subparsers(dest="command", required=True)
 
-    cycle = sub.add_parser("run-batch-cycle", help="Collect prior batch, then submit a new one")
-    cycle.add_argument("criteria_id", help="SearchCriteria id to run")
-
-    sub.add_parser("finalize", help="Collect-only: finalize any ready batches")
+    run = sub.add_parser("run", help="Scrape, triage, embed, and store jobs for a criteria")
+    run.add_argument("criteria_id", help="SearchCriteria id to run")
 
     args = parser.parse_args()
 
-    if args.command == "run-batch-cycle":
-        asyncio.run(_run_batch_cycle(args.criteria_id))
-    elif args.command == "finalize":
-        asyncio.run(_finalize())
+    if args.command == "run":
+        asyncio.run(_run(args.criteria_id))
     else:  # pragma: no cover — argparse enforces a valid command
         parser.print_help()
         sys.exit(1)

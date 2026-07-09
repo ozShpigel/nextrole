@@ -1,11 +1,14 @@
-export type DiscoveryStatus = 'pending' | 'scraping' | 'scoring' | 'completed' | 'failed' | 'cancelled';
+export type DiscoveryStatus = 'pending' | 'scraping' | 'embedding' | 'completed' | 'failed' | 'cancelled';
+
+// Statuses that mean a run is still in flight (drives polling + abort button).
+export const ACTIVE_RUN_STATUSES: string[] = ['pending', 'scraping', 'embedding'];
 
 export type StatusClass = 'status-green' | 'status-red' | 'status-yellow' | 'status-dim';
 
 export const STATUS_LABEL: Record<DiscoveryStatus, string> = {
   pending: 'Pending',
   scraping: 'Scraping',
-  scoring: 'Scoring',
+  embedding: 'Embedding',
   completed: 'Completed',
   failed: 'Failed',
   cancelled: 'Cancelled',
@@ -14,7 +17,7 @@ export const STATUS_LABEL: Record<DiscoveryStatus, string> = {
 export function statusClass(status: DiscoveryStatus): StatusClass {
   if (status === 'completed') return 'status-green';
   if (status === 'failed') return 'status-red';
-  if (status === 'scraping' || status === 'scoring') return 'status-yellow';
+  if (status === 'scraping' || status === 'embedding') return 'status-yellow';
   return 'status-dim'; // pending + cancelled → neutral grey (cancel isn't an error)
 }
 

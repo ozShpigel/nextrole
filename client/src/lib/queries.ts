@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { api, matchApi, discoveryApi } from './api';
+import { ACTIVE_RUN_STATUSES } from './discovery';
 import type {
   ProfileResponse,
   ProfileHistoryResponse,
@@ -36,9 +37,7 @@ export function useDiscoveryRuns(enabled: boolean) {
     refetchInterval: (query) => {
       const data = query.state.data as Array<{ status: string }> | undefined;
       if (!data) return false;
-      const hasActive = data.some((run) =>
-        ['pending', 'scraping', 'scoring'].includes(run.status),
-      );
+      const hasActive = data.some((run) => ACTIVE_RUN_STATUSES.includes(run.status));
       return hasActive ? 5000 : false;
     },
   });
@@ -51,7 +50,7 @@ export function useRunDetail(runId: string) {
     refetchInterval: (query) => {
       const data = query.state.data as { status: string } | undefined;
       if (!data) return false;
-      const isActive = ['pending', 'scraping', 'scoring'].includes(data.status);
+      const isActive = ACTIVE_RUN_STATUSES.includes(data.status);
       return isActive ? 5000 : false;
     },
   });

@@ -1,11 +1,13 @@
 import { useNavigate } from 'react-router-dom';
-import { statusClass, statusDotColors, statusBadgeColors, statusTone, STATUS_LABEL, type DiscoveryStatus, type StatusClass } from '../lib/discovery';
+import { statusClass, statusDotColors, statusBadgeColors, statusTone, STATUS_LABEL, ACTIVE_RUN_STATUSES, type DiscoveryStatus, type StatusClass } from '../lib/discovery';
 
 interface DiscoveryRun {
   id: string;
   status: DiscoveryStatus;
   criteria_name: string;
   jobs_scraped: number;
+  jobs_embedded?: number;
+  // Historic counters — per-job scoring was retired for the RAG search flow.
   jobs_scored: number;
   jobs_saved: number;
   jobs_skipped_duplicate: number;
@@ -30,7 +32,7 @@ function Figure({ value, label }: { value: number; label: string }) {
 function DiscoveryDetail({ run, index, onAbort }: DiscoveryDetailProps) {
   const navigate = useNavigate();
   const sCls: StatusClass = statusClass(run.status);
-  const isActive = run.status === 'scraping' || run.status === 'scoring' || run.status === 'pending';
+  const isActive = ACTIVE_RUN_STATUSES.includes(run.status);
   const num = String(index + 1).padStart(2, '0');
 
   return (
@@ -58,8 +60,9 @@ function DiscoveryDetail({ run, index, onAbort }: DiscoveryDetailProps) {
       </div>
       <div className="flex items-center gap-[1.1rem] text-[0.78rem] pl-[calc(1.05rem+0.75rem)] flex-wrap max-[640px]:gap-3 max-[640px]:pl-0">
         <Figure value={run.jobs_scraped} label="scraped" />
-        <Figure value={run.jobs_scored} label="scored" />
-        <Figure value={run.jobs_saved} label="saved" />
+        {run.jobs_embedded != null && <Figure value={run.jobs_embedded} label="embedded" />}
+        {run.jobs_scored > 0 && <Figure value={run.jobs_scored} label="scored" />}
+        {run.jobs_saved > 0 && <Figure value={run.jobs_saved} label="saved" />}
         <Figure value={run.jobs_skipped_duplicate} label="duplicates" />
         <span className="ml-auto text-[0.7rem] text-[var(--ed-ink-faint)] tabular-nums max-[640px]:ml-0">
           {new Date(run.started_at).toLocaleString('en-US')}

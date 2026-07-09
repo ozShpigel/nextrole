@@ -188,7 +188,7 @@ flowchart LR
 
     subgraph mb["Mailbot · .NET console"]
         pull["Pull active apps from API"]
-        fetch["Fetch last-24h Gmail<br/>label:JobApplications"]
+        fetch["Fetch recent Gmail (3d)<br/>by tracked-company names"]
         pull --> fetch
     end
 
@@ -355,7 +355,8 @@ The mailbot reads config from env vars or a local `.env`. It does **not** need a
 |----------|---------|----------|-------------|
 | `Tracker__BaseUrl` | Mailbot | no (`http://localhost:5002`) | API URL the mailbot posts updates to |
 | `Gmail__CredentialsPath` | Mailbot | no | OAuth client-secrets JSON; **if absent, mailbot skips and exits cleanly** |
-| `Gmail__Query` | Mailbot | no (`label:JobApplications newer_than:1d`) | Gmail search for the daily sync |
+| `Gmail__LookbackDays` | Mailbot | no (`3`) | Daily-sync search window; the query is built from tracked-company names |
+| `Gmail__Query` | Mailbot | no (built automatically) | Optional verbatim override of the daily-sync Gmail query |
 | `Mailbot__Resync` | Mailbot | no (`false`) | `true` → next run re-syncs from full history instead of the daily 24h sync |
 | `Mailbot__ResyncCompany` / `Mailbot__ResyncTitle` | Mailbot | no | Scope re-sync to one company/role; if unset, re-sync all |
 | `API_URL` / `SCRAPER_URL` | Frontend (Nginx) | no | Upstream URLs for the reverse proxy |

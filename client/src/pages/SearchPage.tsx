@@ -31,7 +31,7 @@ interface RankedResult {
 
 export default function SearchPage() {
   const [limit, setLimit] = useState(10);
-  const [daysBack, setDaysBack] = useState(14);
+  const [daysBack, setDaysBack] = useState(3);
   const [location, setLocation] = useState('');
   const [remoteOnly, setRemoteOnly] = useState(false);
   const [levels, setLevels] = useState<Set<string>>(() => new Set());
@@ -128,14 +128,14 @@ export default function SearchPage() {
               />
             </div>
             <div className="flex flex-col gap-[0.45rem]">
-              <Label htmlFor="search-days" className={fieldLabel}>Posted within (days)</Label>
+              <Label htmlFor="search-days" className={fieldLabel}>Collected within (days)</Label>
               <Input
                 id="search-days"
                 type="number"
                 min={1}
                 max={45}
                 value={daysBack}
-                onChange={(e) => setDaysBack(Math.max(1, Math.min(45, Number(e.target.value) || 14)))}
+                onChange={(e) => setDaysBack(Math.max(1, Math.min(45, Number(e.target.value) || 3)))}
                 className="rounded-none border-[var(--ed-rule)] bg-transparent text-[var(--ed-ink)]"
               />
             </div>

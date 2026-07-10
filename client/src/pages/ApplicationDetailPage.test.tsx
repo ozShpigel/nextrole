@@ -20,9 +20,6 @@ vi.mock('../components/Status', () => ({
 vi.mock('../components/CollapsibleSection', () => ({
   default: ({ title, children }: any) => <div data-testid="collapsible">{title}{children}</div>,
 }));
-vi.mock('../components/Snapshots', () => ({
-  SnapshotsCard: () => <div data-testid="snapshots-card" />,
-}));
 vi.mock('../components/AnalysisCard', () => ({
   default: () => <div data-testid="analysis-card" />,
 }));

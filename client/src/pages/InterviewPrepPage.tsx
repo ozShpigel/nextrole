@@ -396,7 +396,7 @@ export default function InterviewPrepPage() {
     <div className="relative z-[1] max-w-[960px] mx-auto px-8 pt-12 pb-20 animate-in fade-in slide-in-from-bottom-1 duration-500 max-[640px]:px-5 max-[640px]:pt-8 max-[640px]:pb-14">
       <header className="mb-9">
         <div className="flex items-baseline justify-between gap-4 pb-[10px] border-b border-[var(--ed-rule)] text-[0.62rem] font-semibold uppercase tracking-[0.22em] text-[var(--ed-ink-faint)]">
-          <span>Vol. III · Interview Prep</span>
+          <span>Interview Prep</span>
           <span className="hidden sm:block text-[var(--ed-accent)]">Rehearse with intent</span>
         </div>
         <h1 className="ed-display font-black text-[clamp(2.4rem,6vw,4rem)] leading-[0.92] tracking-[-0.02em] text-[var(--ed-ink)] pt-4">

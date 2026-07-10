@@ -36,7 +36,7 @@ export default function TrackerPage() {
         {/* Masthead */}
         <header className="mb-7">
           <div className="flex items-baseline justify-between gap-4 pb-[10px] border-b border-[var(--ed-rule)] text-[0.62rem] font-semibold uppercase tracking-[0.22em] text-[var(--ed-ink-faint)]">
-            <span>Vol. III · Tracker</span>
+            <span>Tracker</span>
             <span className="tabular-nums">{TODAY}</span>
           </div>
           <h1 className="ed-display font-black text-[clamp(2.4rem,6vw,4rem)] leading-[0.92] tracking-[-0.02em] text-[var(--ed-ink)] pt-4">

@@ -65,23 +65,12 @@ export default function Landing() {
   return (
     <div className="editorial editorial-grain relative min-h-[calc(100vh-56px)] flex flex-col items-center p-[clamp(1.5rem,3.5vw,3rem)_clamp(1.25rem,4vw,3rem)_2rem] overflow-x-clip">
 
-      {/* Editorial crop marks at viewport corners */}
-      <div className="fixed inset-0 pointer-events-none z-[1]" aria-hidden="true">
-        <span className={`absolute w-7 h-7 top-[18px] left-[18px] border-t border-l border-[var(--ed-rule-strong)] transition-opacity duration-[1200ms] ease-in-out delay-700 max-sm:w-5 max-sm:h-5 max-sm:top-3 max-sm:left-3 ${loaded ? 'opacity-50' : 'opacity-0'}`} />
-        <span className={`absolute w-7 h-7 top-[18px] right-[18px] border-t border-r border-[var(--ed-rule-strong)] transition-opacity duration-[1200ms] ease-in-out delay-700 max-sm:w-5 max-sm:h-5 max-sm:top-3 max-sm:right-3 ${loaded ? 'opacity-50' : 'opacity-0'}`} />
-        <span className={`absolute w-7 h-7 bottom-[18px] left-[18px] border-b border-l border-[var(--ed-rule-strong)] transition-opacity duration-[1200ms] ease-in-out delay-700 max-sm:w-5 max-sm:h-5 max-sm:bottom-3 max-sm:left-3 ${loaded ? 'opacity-50' : 'opacity-0'}`} />
-        <span className={`absolute w-7 h-7 bottom-[18px] right-[18px] border-b border-r border-[var(--ed-rule-strong)] transition-opacity duration-[1200ms] ease-in-out delay-700 max-sm:w-5 max-sm:h-5 max-sm:bottom-3 max-sm:right-3 ${loaded ? 'opacity-50' : 'opacity-0'}`} />
-      </div>
-
       {/* Masthead */}
       <header
         className={`relative z-[2] text-center mt-[clamp(2rem,7vh,5rem)] mb-[3.25rem] transition-[opacity,transform] duration-1000 ${loaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-[18px]'}`}
         style={{ transitionTimingFunction: 'ease, cubic-bezier(0.22, 1, 0.36, 1)' }}
       >
         <h1 className="m-0 font-normal leading-none">
-          <span className="block text-[clamp(0.78rem,1.3vw,0.95rem)] tracking-[0.45em] uppercase text-[var(--ed-accent)] font-semibold mb-[clamp(1rem,2vw,1.5rem)] px-[0.6em]">
-            — Platform —
-          </span>
           <span className="ed-display inline-flex gap-[clamp(0.5rem,1.3vw,1.1rem)] items-baseline font-black text-[clamp(3.2rem,8.5vw,6.4rem)] leading-[0.9] tracking-[-0.035em] max-md:flex-col max-md:gap-[0.3rem] max-md:items-center">
             <span className="inline-block text-[var(--ed-ink)]">Next</span>
             <span className="inline-block italic font-medium text-[var(--ed-accent)]">Role</span>

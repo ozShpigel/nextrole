@@ -100,7 +100,7 @@ export default function SearchPage() {
 
         <header className="mb-9 relative">
           <div className="flex items-baseline justify-between gap-4 pb-[10px] border-b border-[var(--ed-rule)] text-[0.62rem] font-semibold uppercase tracking-[0.22em] text-[var(--ed-ink-faint)]">
-            <span>Vol. III · Search</span>
+            <span>Search</span>
             <span className="hidden sm:block text-[var(--ed-accent)]">Semantic · Profile-matched</span>
           </div>
           <h1 className="ed-display font-black text-[clamp(2.4rem,6vw,4rem)] leading-[0.92] tracking-[-0.02em] text-[var(--ed-ink)] pt-4">

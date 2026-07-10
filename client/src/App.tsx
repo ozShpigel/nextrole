@@ -17,7 +17,7 @@ const triggerClass = (active: boolean): string =>
 
 type NavChild = { to: string; label: string };
 
-const FIND_GROUP: NavChild[] = [
+const JOBS_GROUP: NavChild[] = [
   { to: '/search', label: 'Search Matches' },
   { to: '/discovery', label: 'Discovery' },
   { to: '/score', label: 'Score a Job' },
@@ -68,7 +68,7 @@ export default function App() {
           <NavLink to="/" className="font-serif font-bold text-[0.95rem] text-foreground tracking-[0.02em] transition-opacity hover:opacity-75">NextRole</NavLink>
           <div className="flex items-center gap-[0.15rem]">
             <NavLink to="/" end className={navLinkClass}>Home</NavLink>
-            <NavGroup label="Find" items={FIND_GROUP} />
+            <NavGroup label="Jobs" items={JOBS_GROUP} />
             <NavLink to="/tracker" className={navLinkClass}>Tracker</NavLink>
             <NavGroup label="Interview" items={INTERVIEW_GROUP} />
             <NavLink to="/settings" className={navLinkClass}>Settings</NavLink>

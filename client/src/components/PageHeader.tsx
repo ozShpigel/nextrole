@@ -13,7 +13,7 @@ export default function PageHeader({ onNewCriteria }: PageHeaderProps) {
     <header className="relative mb-9 pt-2">
       {/* dateline / running head */}
       <div className="flex items-baseline justify-between gap-4 pb-[10px] border-b border-[var(--ed-rule)] text-[0.62rem] font-semibold uppercase tracking-[0.22em] text-[var(--ed-ink-faint)]">
-        <span>Vol. III · Discovery</span>
+        <span>Discovery</span>
         <span className="text-[var(--ed-accent)] hidden sm:block">Curated &amp; scored against your profile</span>
         <span className="tabular-nums">{TODAY}</span>
       </div>

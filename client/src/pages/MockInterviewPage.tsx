@@ -459,7 +459,7 @@ export default function MockInterviewPage() {
       <div className="relative z-[1] max-w-[960px] mx-auto px-8 pt-12 pb-20 max-[640px]:px-5 max-[640px]:pt-8 max-[640px]:pb-14">
         <header className="mb-9">
           <div className="flex items-baseline justify-between gap-4 pb-[10px] border-b border-[var(--ed-rule)] text-[0.62rem] font-semibold uppercase tracking-[0.22em] text-[var(--ed-ink-faint)]">
-            <span>Vol. III · Practice</span>
+            <span>Practice</span>
             <span className="hidden sm:block text-[var(--ed-accent)]">Turn-by-turn rehearsal</span>
           </div>
           <h1 className="ed-display font-black text-[clamp(2.4rem,6vw,4rem)] leading-[0.92] tracking-[-0.02em] text-[var(--ed-ink)] pt-4">Mock <span className="italic font-medium text-[var(--ed-accent)]">Interview</span></h1>

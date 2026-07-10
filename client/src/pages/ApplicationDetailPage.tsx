@@ -6,7 +6,6 @@ import { useApplicationDetail } from '../lib/queries';
 import { useDeleteApplication, useUpdateSalary, useGenerateCompanySummary, useGenerateWhyWorkHere } from '../lib/mutations';
 import { StatusBadge, StatusModal } from '../components/Status';
 import CollapsibleSection from '../components/CollapsibleSection';
-import { SnapshotsCard } from '../components/Snapshots';
 import AnalysisCard from '../components/AnalysisCard';
 import Timeline from '../components/Timeline';
 import { InterviewList, InterviewModal } from '../components/Interviews';
@@ -201,18 +200,6 @@ export default function ApplicationDetail() {
         {/* Company summary & enrichment data */}
         <CompanySummaryBlock appId={app.id} initialSummary={app.companySummary} />
         <CompanyEnrichment companyNewsJson={app.companyNews} glassdoorDataJson={app.glassdoorData} />
-
-        {/* Raw Claude call artifacts */}
-        {(app.analystSnapshotInput || app.evaluatorSnapshotInput) && (
-          <CollapsibleSection title="Raw Claude Calls" defaultOpen={false}>
-            <SnapshotsCard snapshots={{
-              analystInput:    app.analystSnapshotInput,
-              analystOutput:   app.analystSnapshotOutput,
-              evaluatorInput:  app.evaluatorSnapshotInput,
-              evaluatorOutput: app.evaluatorSnapshotOutput,
-            }} />
-          </CollapsibleSection>
-        )}
 
         {/* Timeline */}
         <section className="mb-9">

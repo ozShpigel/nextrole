@@ -204,7 +204,7 @@ export default function SettingsPage() {
 
       <header className="mb-14 relative">
         <div className="flex items-baseline justify-between gap-4 pb-[10px] border-b border-[var(--ed-rule)] text-[0.62rem] font-semibold uppercase tracking-[0.22em] text-[var(--ed-ink-faint)]">
-          <span>Vol. III · The Standards Desk</span>
+          <span>The Standards Desk</span>
           <span className="hidden sm:block text-[var(--ed-accent)]">Your candidate profile</span>
         </div>
         <h1 className="ed-display font-black text-[clamp(2.6rem,6.5vw,4.4rem)] leading-[0.9] tracking-[-0.022em] text-[var(--ed-ink)] pt-4">
@@ -443,7 +443,7 @@ function SettingsLoadingSkeleton() {
     <div className="editorial editorial-grain min-h-screen">
     <div className="relative z-[1] max-w-[960px] mx-auto px-8 pt-14 pb-32 animate-in fade-in slide-in-from-bottom-1 duration-500 max-sm:px-5" role="status" aria-live="polite" aria-label="Loading settings">
       <header className="mb-12 relative" aria-hidden="true">
-        <div className="pb-[10px] border-b border-[var(--ed-rule)] text-[0.62rem] font-semibold uppercase tracking-[0.22em] text-[var(--ed-ink-faint)]">Vol. III · The Standards Desk</div>
+        <div className="pb-[10px] border-b border-[var(--ed-rule)] text-[0.62rem] font-semibold uppercase tracking-[0.22em] text-[var(--ed-ink-faint)]">The Standards Desk</div>
         <h1 className="ed-display text-[clamp(2.6rem,6.5vw,4.4rem)] font-black text-[var(--ed-ink)] leading-[0.9] pt-4 mb-4 tracking-[-0.022em] animate-in fade-in duration-300">
           Settings
         </h1>

@@ -50,18 +50,20 @@ try
     builder.Services.AddSingleton<MailbotOrchestrator>();
 
     var trackerUrl = builder.Configuration["Tracker:BaseUrl"] ?? "http://localhost:5002";
+    // Shared secret for a privately *hosted* tracker (its ApiKey env var). Unset for
+    // local/private-network instances that don't gate requests.
+    var trackerApiKey = builder.Configuration["Tracker:ApiKey"];
 
-    builder.Services.AddHttpClient<IEmailParser, HttpEmailParser>(client =>
+    void ConfigureTrackerClient(HttpClient client)
     {
         client.BaseAddress = new Uri(trackerUrl);
         client.Timeout = TimeSpan.FromSeconds(120);
-    });
+        if (!string.IsNullOrEmpty(trackerApiKey))
+            client.DefaultRequestHeaders.Add("X-Api-Key", trackerApiKey);
+    }
 
-    builder.Services.AddHttpClient<ITrackerApiClient, TrackerApiClient>(client =>
-    {
-        client.BaseAddress = new Uri(trackerUrl);
-        client.Timeout = TimeSpan.FromSeconds(120);
-    });
+    builder.Services.AddHttpClient<IEmailParser, HttpEmailParser>(ConfigureTrackerClient);
+    builder.Services.AddHttpClient<ITrackerApiClient, TrackerApiClient>(ConfigureTrackerClient);
 
     var host = builder.Build();
 
@@ -81,6 +83,24 @@ try
 
     logger.LogInformation("Mailbot service started");
     logger.LogInformation("Current time: {Time}", DateTime.Now);
+
+    // Fail fast when pointed at a demo instance: demo mode rejects all tracker
+    // writes (403), so syncing against it is always a misconfiguration. Exit
+    // non-zero so a scheduled run fails visibly instead of "succeeding" against
+    // fictional seeded data. Unreachable/unknown (null) falls through — the sync
+    // itself will surface transport errors.
+    var trackerApi = host.Services.GetRequiredService<ITrackerApiClient>();
+    if (await trackerApi.GetDemoModeAsync() == true)
+    {
+        // Direct stderr as well as ILogger: this one-shot exits immediately, and
+        // the buffered console logger may not flush in time.
+        logger.LogError("Tracker at {Url} is a DEMO instance — aborting", trackerUrl);
+        Console.Error.WriteLine(
+            $"Tracker at {trackerUrl} reports demoMode=true — its tracker is read-only, " +
+            "so this sync could never write anything. Point Tracker__BaseUrl at the " +
+            "private instance. Aborting.");
+        return 1;
+    }
 
     // Modes (re-sync reconciles from full email history; default is the recent-window sync):
     //   default                                  → daily sync: recent mail (Gmail:LookbackDays,

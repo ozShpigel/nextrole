@@ -170,7 +170,9 @@ public sealed class ClaudeClient : IClaudeClient
             System = new List<SystemMessage> { new(systemPrompt) },
             Messages = new List<Message> { new(RoleType.User, userMessage) },
             MaxTokens = 512,
-            Model = "claude-sonnet-4-6",
+            // Simple structured extraction — Haiku handles it at ~1/3 the cost of
+            // Sonnet, and the daily 3d-lookback re-parses every email ~3 times.
+            Model = "claude-haiku-4-5-20251001",
             Temperature = 0.3m,
             Stream = false
         };

@@ -67,6 +67,21 @@ public sealed class TrackerApiClient : ITrackerApiClient
             ?? new List<TrackerApplication>();
     }
 
+    public async Task<bool?> GetDemoModeAsync(CancellationToken ct = default)
+    {
+        using var response = await SendWithRetryAsync(
+            () => _http.GetAsync("/api/config", ct),
+            "GetDemoModeAsync",
+            ct);
+
+        if (response is null || !response.IsSuccessStatusCode) return null;
+
+        var config = await response.Content.ReadFromJsonAsync<ClientConfig>(cancellationToken: ct);
+        return config?.DemoMode;
+    }
+
+    private sealed record ClientConfig(bool DemoMode);
+
     public async Task<bool> UpdateApplicationStatusAsync(Guid appId, string newStatus, string? note = null, CancellationToken ct = default)
     {
         using var response = await SendWithRetryAsync(

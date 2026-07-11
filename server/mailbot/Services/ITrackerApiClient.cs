@@ -8,6 +8,8 @@ public interface ITrackerApiClient
     Task<List<TrackerApplication>?> GetActiveApplicationsAsync(CancellationToken ct = default);
     /// <summary>All applications including terminal ones (Rejected/Withdrawn/Accepted). Used by re-sync, which may target any application. Null on transport failure.</summary>
     Task<List<TrackerApplication>?> GetAllApplicationsAsync(CancellationToken ct = default);
+    /// <summary>Reads the instance's demoMode flag from GET /api/config. Null if unreachable/unparseable.</summary>
+    Task<bool?> GetDemoModeAsync(CancellationToken ct = default);
     Task<bool> UpdateApplicationStatusAsync(Guid appId, string newStatus, string? note = null, CancellationToken ct = default);
     Task<bool> AddInterviewAsync(Guid appId, AddInterviewRequest interview, CancellationToken ct = default);
 }

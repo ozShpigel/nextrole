@@ -114,6 +114,37 @@ No **Mailbot** on the demo — it writes to the tracker, which demo mode blocks.
   banner. `GET https://<public-api>/api/config` returns `{"demoMode": true}`.
 - Your **private** instance is unchanged: real connection string, `DemoMode` unset.
 
+## Optional: hosting the PRIVATE instance too (for a cloud mailbot cron)
+
+The mailbot writes to the tracker, so it can't run against the demo — it checks
+`GET /api/config` at startup and **aborts (exit 1) if the instance reports
+`demoMode: true`**, making the misconfiguration fail visibly. To run the mailbot
+as a cloud cron you need a hosted *private* API. NextRole has no auth, so a
+publicly reachable private instance must be gated with the shared-secret API key:
+
+**Private API service** (same image as the demo, different env):
+
+```
+MongoDB__ConnectionString = <your REAL connection string>
+Anthropic__ApiKey         = <your key>
+ApiKey                    = <long random secret>   # e.g. `openssl rand -hex 32`
+```
+
+With `ApiKey` set, every request must carry a matching `X-Api-Key` header or it
+gets 401. `/health` (Render health checks) and `/api/config` (demo-flag probe)
+stay open. Do **not** set `ApiKey` on the demo instance — the demo stays public,
+protected by `DemoMode` + its isolated fictional DB instead.
+
+**Mailbot cron job**:
+
+```
+Tracker__BaseUrl = https://<your-private-api-host>
+Tracker__ApiKey  = <the same secret>
+Gmail__CredentialsPath / token secret files as before
+```
+
+Don't set `Gmail__Query` — the mailbot builds the company-names query itself.
+
 ## Gotchas
 
 - **Forgetting the scraper.** Both the API *and* the scraper must point at the demo

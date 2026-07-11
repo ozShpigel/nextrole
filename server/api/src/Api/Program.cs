@@ -103,6 +103,37 @@ catch (Exception ex)
 app.UseCors();
 app.UseRateLimiter();
 
+// Optional shared-secret gate for a privately *hosted* instance (no auth otherwise —
+// single-tenant by design): when ApiKey is set, every request must carry a matching
+// X-Api-Key header. The demo and local instances leave it unset. /health stays open
+// for Render health checks; /api/config only reveals demoMode.
+var apiKeySecret = builder.Configuration["ApiKey"];
+if (!string.IsNullOrEmpty(apiKeySecret))
+{
+    var expectedKey = System.Text.Encoding.UTF8.GetBytes(apiKeySecret);
+    var openPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+    {
+        "/health", "/api/config",
+    };
+    app.Use(async (ctx, next) =>
+    {
+        if (HttpMethods.IsOptions(ctx.Request.Method) || openPaths.Contains(ctx.Request.Path.Value ?? ""))
+        {
+            await next();
+            return;
+        }
+        var provided = System.Text.Encoding.UTF8.GetBytes(ctx.Request.Headers["X-Api-Key"].ToString());
+        if (!System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(provided, expectedKey))
+        {
+            ctx.Response.StatusCode = StatusCodes.Status401Unauthorized;
+            await ctx.Response.WriteAsJsonAsync(new { error = "Missing or invalid API key." });
+            return;
+        }
+        await next();
+    });
+    startupLogger.LogInformation("API key auth enabled — requests require X-Api-Key");
+}
+
 // DEMO_MODE — for the public demo instance: the job tracker is read-only.
 // AI analyses (non-persisting) stay enabled; every other write returns 403, so
 // visitors can explore the seeded fictional data without polluting it. Off by

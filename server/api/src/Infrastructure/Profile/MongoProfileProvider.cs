@@ -250,6 +250,89 @@ public sealed class MongoProfileProvider : IProfileProvider
             await UpsertProfileAsync(FromBson(value), cancellationToken);
     }
 
+    // ── HyDE search query ───────────────────────────────────────────────────
+    // Stored under the `search_query` sub-object on the same singleton doc.
+    // Tied to the profile's updated_at rather than dropped on save (profile
+    // writes shouldn't need to know about it): a mismatch just reads as stale.
+
+    private const string SearchQueryKey = "search_query";
+
+    public async Task<IReadOnlyList<ApplicationTracker.Core.Matching.SearchQueryFacet>?> GetSearchQueryAsync(CancellationToken cancellationToken = default)
+    {
+        var filter = Builders<BsonDocument>.Filter.Eq("id", DocId);
+        var doc = await _collection.Find(filter).FirstOrDefaultAsync(cancellationToken);
+        if (doc is null || !doc.Contains(SearchQueryKey) || !doc[SearchQueryKey].IsBsonDocument)
+            return null;
+
+        var sub = doc[SearchQueryKey].AsBsonDocument;
+        // Pre-facet cache docs stored a single `content` string — no `facets`
+        // array reads as a miss and regenerates in the new shape.
+        if (!sub.Contains("facets") || !sub["facets"].IsBsonArray)
+            return null;
+
+        var facets = new List<ApplicationTracker.Core.Matching.SearchQueryFacet>();
+        foreach (var item in sub["facets"].AsBsonArray)
+        {
+            if (!item.IsBsonDocument) continue;
+            var d = item.AsBsonDocument;
+            var posting = d.Contains("posting") && d["posting"].IsString ? d["posting"].AsString : "";
+            if (string.IsNullOrWhiteSpace(posting)) continue;
+            facets.Add(new ApplicationTracker.Core.Matching.SearchQueryFacet
+            {
+                Name = d.Contains("name") && d["name"].IsString ? d["name"].AsString : $"facet-{facets.Count + 1}",
+                Posting = posting,
+            });
+        }
+        if (facets.Count == 0)
+            return null;
+
+        DateTime? profileUpdatedAt = doc.Contains("updated_at") && doc["updated_at"].IsValidDateTime
+            ? doc["updated_at"].ToUniversalTime()
+            : null;
+        DateTime? generatedFor = sub.Contains("profile_updated_at") && sub["profile_updated_at"].IsValidDateTime
+            ? sub["profile_updated_at"].ToUniversalTime()
+            : null;
+        // Stale when the profile was saved after the facets were generated.
+        if (profileUpdatedAt != generatedFor)
+            return null;
+
+        return facets;
+    }
+
+    public async Task SetSearchQueryAsync(IReadOnlyList<ApplicationTracker.Core.Matching.SearchQueryFacet> facets, CancellationToken cancellationToken = default)
+    {
+        var filter = Builders<BsonDocument>.Filter.Eq("id", DocId);
+        // Ensure the base profile doc exists (also seeds updated_at).
+        var existing = await _collection.Find(filter).FirstOrDefaultAsync(cancellationToken);
+        if (existing is null)
+        {
+            await GetProfileDocumentAsync(cancellationToken);
+            existing = await _collection.Find(filter).FirstOrDefaultAsync(cancellationToken);
+        }
+
+        var profileUpdatedAt = existing != null && existing.Contains("updated_at") && existing["updated_at"].IsValidDateTime
+            ? existing["updated_at"]
+            : (BsonValue)BsonNull.Value;
+
+        var sub = new BsonDocument
+        {
+            ["facets"] = new BsonArray(facets.Select(f => new BsonDocument
+            {
+                ["name"] = f.Name,
+                ["posting"] = f.Posting,
+            })),
+            ["profile_updated_at"] = profileUpdatedAt,
+            ["generated_at"] = DateTime.UtcNow,
+        };
+        // Single-key $set — siblings (content, interview_prep, history) are
+        // left intact.
+        var update = Builders<BsonDocument>.Update.Set(SearchQueryKey, sub);
+        await _collection.UpdateOneAsync(
+            filter, update, new UpdateOptions { IsUpsert = true }, cancellationToken);
+
+        _logger.LogInformation("Persisted {Count} HyDE search-query facet(s)", facets.Count);
+    }
+
     // ── Interview prep ──────────────────────────────────────────────────────
     // Stored under the `interview_prep` sub-object on the same singleton doc,
     // with version history under `history_interview_prep`. Writes use a partial

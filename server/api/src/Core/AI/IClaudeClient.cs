@@ -25,6 +25,12 @@ public interface IClaudeClient
     // enrichment + scoring for them (lean-permissive — uncertain titles pass).
     Task<TitleTriageResponse> TriageTitlesAsync(TitleTriageRequest request, CancellationToken cancellationToken = default);
 
+    // HyDE query generator: rewrites the candidate profile as the ideal job
+    // posting(s) it matches — one per distinct role facet (1-3). The scraper
+    // embeds each posting as its own vector-search query and rank-fuses the
+    // results, so secondary facets aren't averaged away into one centroid.
+    Task<List<SearchQueryFacet>> GenerateIdealPostingsAsync(string profile, CancellationToken cancellationToken = default);
+
     Task<EmailParseResult?> ParseEmailAsync(string subject, string from, string body, List<string> knownCompanies, DateTime? referenceDate = null, CancellationToken cancellationToken = default);
     Task<string> SummarizeCompanyAsync(string companyName, CancellationToken cancellationToken = default);
 

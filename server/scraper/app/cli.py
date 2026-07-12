@@ -14,6 +14,7 @@ no free-tier idle-eviction race: the container lives exactly as long as the work
 import argparse
 import asyncio
 import logging
+import random
 import sys
 
 import certifi
@@ -57,8 +58,13 @@ async def _run_all():
             sys.exit(1)
         logger.info("run-all: %d active criteria", len(criteria))
         # Sequential on purpose: keeps LinkedIn request bursts serialized
-        # (same IP) instead of stacking scrapes concurrently.
-        for c in criteria:
+        # (same IP) instead of stacking scrapes concurrently. The pause between
+        # criteria complements the per-search pacing in scrape_for_criteria.
+        for i, c in enumerate(criteria):
+            if i > 0:
+                pause = random.uniform(30, 60)
+                logger.info("run-all: pausing %.0fs before next criteria", pause)
+                await asyncio.sleep(pause)
             logger.info("run-all: ingesting '%s' (%s)", c.get("name", "?"), c["id"])
             await orchestrator.run_discovery(db, settings, c["id"])
         logger.info("run-all: done (%d criteria)", len(criteria))

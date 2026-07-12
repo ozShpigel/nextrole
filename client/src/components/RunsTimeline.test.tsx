@@ -92,13 +92,92 @@ describe('RunsTimeline - Run Cards', () => {
     expect(screen.getByText('Newer Run')).toBeInTheDocument();
   });
 
-  it('run card shows timestamp', () => {
+  it('run card shows a start time, with the date carried by the day header', () => {
     renderWithRouter(
       <RunsTimeline
         runs={[makeRun({ started_at: new Date('2026-05-01T14:30:00Z').toISOString() })]}
         onAbort={noop}
       />,
     );
-    expect(screen.getByText(/\d{1,2}\/\d{1,2}\/\d{4}/)).toBeInTheDocument();
+    expect(screen.getByText(/^\d{2}:\d{2}$/)).toBeInTheDocument();
+    expect(screen.getByText('1 May 2026')).toBeInTheDocument();
+  });
+});
+
+describe('RunsTimeline - Throttle visibility', () => {
+  it('warns when searches failed or came back empty', () => {
+    renderWithRouter(
+      <RunsTimeline
+        runs={[makeRun({ searches_total: 12, searches_failed: 5, searches_empty: 2 })]}
+        onAbort={noop}
+      />,
+    );
+    expect(screen.getByText(/7 of 12 searches returned nothing — possibly rate-limited/)).toBeInTheDocument();
+  });
+
+  it('shows no warning on a healthy run', () => {
+    renderWithRouter(
+      <RunsTimeline
+        runs={[makeRun({ searches_total: 12, searches_failed: 0, searches_empty: 3 })]}
+        onAbort={noop}
+      />,
+    );
+    expect(screen.queryByText(/rate-limited/)).not.toBeInTheDocument();
+  });
+
+  it('warns when every search came back empty even without failures', () => {
+    renderWithRouter(
+      <RunsTimeline
+        runs={[makeRun({ searches_total: 6, searches_failed: 0, searches_empty: 6 })]}
+        onAbort={noop}
+      />,
+    );
+    expect(screen.getByText(/6 of 6 searches returned nothing/)).toBeInTheDocument();
+  });
+});
+
+describe('RunsTimeline - Day grouping', () => {
+  const daysAgo = (n: number, hour = 9) => {
+    const d = new Date();
+    d.setDate(d.getDate() - n);
+    d.setHours(hour, 0, 0, 0);
+    return d.toISOString();
+  };
+
+  it('groups runs under Today / Yesterday headers', () => {
+    renderWithRouter(
+      <RunsTimeline
+        runs={[
+          makeRun({ criteria_name: 'Run A', started_at: daysAgo(0) }),
+          makeRun({ criteria_name: 'Run B', started_at: daysAgo(1) }),
+        ]}
+        onAbort={noop}
+      />,
+    );
+    expect(screen.getByText('Today')).toBeInTheDocument();
+    expect(screen.getByText('Yesterday')).toBeInTheDocument();
+  });
+
+  it('folds day groups beyond the newest two into a collapsed Earlier details', () => {
+    renderWithRouter(
+      <RunsTimeline
+        runs={[
+          makeRun({ criteria_name: 'Run A', started_at: daysAgo(0) }),
+          makeRun({ criteria_name: 'Run B', started_at: daysAgo(1) }),
+          makeRun({ criteria_name: 'Run C', started_at: daysAgo(3) }),
+          makeRun({ criteria_name: 'Run D', started_at: daysAgo(4) }),
+        ]}
+        onAbort={noop}
+      />,
+    );
+    const summary = screen.getByText('Earlier');
+    expect(summary).toBeInTheDocument();
+    expect(screen.getByText('· 2 runs')).toBeInTheDocument();
+    const details = summary.closest('details')!;
+    expect(details.open).toBe(false);
+    // Old runs live inside the collapsed group, not the visible list.
+    expect(details).toContainElement(screen.getByText('Run C'));
+    expect(details).toContainElement(screen.getByText('Run D'));
+    expect(details).not.toContainElement(screen.getByText('Run A'));
   });
 });

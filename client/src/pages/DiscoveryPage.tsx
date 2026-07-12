@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import ConfirmDialog from '../components/ConfirmDialog';
 import { useDiscoveryHealth, useDiscoveryCriteria, useDiscoveryRuns } from '../lib/queries';
 import { useTriggerRun, useDeleteCriteria, useAbortRun } from '../lib/mutations';
@@ -20,7 +21,6 @@ interface Criteria {
   hours_old: number;
   country: string;
   is_remote: boolean | null;
-  min_score_to_save: number;
 }
 
 export default function DiscoveryPage() {
@@ -124,6 +124,20 @@ export default function DiscoveryPage() {
 
       <PageHeader onNewCriteria={() => openForm()} />
       <StatStrip criteriaCount={criteria.length} runsCount={runs.length} lastRun={lastRun} />
+
+      {/* Discovery only collects — the payoff lives on the Search page. */}
+      <div className="flex items-center justify-between gap-4 flex-wrap border border-[var(--ed-rule)] bg-[var(--ed-panel)]/40 px-4 py-3 mb-9 text-[0.84rem]">
+        <span className="text-[var(--ed-ink-soft)]">
+          Runs collect and embed jobs into the pool — matching against your profile happens on the Search page.
+        </span>
+        <Link
+          to="/search"
+          className="shrink-0 text-[0.72rem] font-semibold uppercase tracking-[0.1em] text-[var(--ed-accent)] hover:text-[var(--ed-accent-deep)] transition-colors"
+        >
+          Search your matches →
+        </Link>
+      </div>
+
       {error && <ErrorBanner error={error.message} onRetry={() => healthQuery.refetch()} />}
 
       {showForm && (

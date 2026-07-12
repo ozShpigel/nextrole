@@ -219,7 +219,9 @@ RULES
 - LEAN PERMISSIVE: when uncertain, mark relevant=true. A wrongly-kept job merely costs one scoring call; a wrongly-dropped job loses a real opportunity.
 - Mark relevant=false ONLY when the title clearly belongs to a different role family than the search intent (e.g. intent "DevEx" → "QA Automation Engineer" is off-target, while "Platform Engineer" or "Developer Productivity Engineer" is plausibly relevant).
 - Expand abbreviations and synonyms in both directions (e.g. "DevEx" ≈ Developer Experience ≈ Developer Productivity ≈ Internal Tools / Platform; "SRE" ≈ Site Reliability).
-- Seniority prefixes (Senior/Staff/Lead) never make a title off-target by themselves.
+- Seniority prefixes (Senior/Staff) and hands-on IC-plus titles ("Tech Lead", "Lead Engineer", "Team Lead") never make a title off-target by themselves.
+- People-MANAGEMENT titles are their own role family: "Team Leader", "Engineering Manager", "Head of", "Director", "VP" and similar are off-target UNLESS the search intent itself includes management titles. Judge by scope, not domain. "Team Lead" (without the -er) is a hands-on IC-plus title — NOT management. Worked examples for an IC intent: "DevOps Team Leader" → off-target (management); "DevEx Team Lead" → relevant (IC-plus, keep); "Engineering Manager" → off-target.
+- Titles may be in any language (Hebrew is common). Translate mentally and judge by the same rules — an unfamiliar language is NOT "uncertain" and never a reason to keep (e.g. intent "Platform Engineer" → "מהנדס תכן מכני" is off-target exactly like "Mechanical Design Engineer").
 
 OUTPUT — return ONLY this JSON, nothing else (no markdown fences):
 { "results": [ { "index": <int>, "relevant": <bool>, "reason": "<short Hebrew phrase explaining why it is off-target; include ONLY when relevant=false>" } ] }

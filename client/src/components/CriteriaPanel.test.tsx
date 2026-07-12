@@ -21,7 +21,6 @@ function makeCriteria(overrides = {}) {
     hours_old: 72,
     country: 'Israel',
     is_remote: null,
-    min_score_to_save: 70,
     ...overrides,
   };
 }
@@ -70,7 +69,6 @@ describe('CriteriaCard - Display', () => {
       job_titles: ['ML Engineer', 'Data Scientist'],
       locations: ['Haifa', 'Remote'],
       site_names: ['linkedin', 'indeed'],
-      min_score_to_save: 85,
     });
     renderWithRouter(
       <CriteriaCard criteria={criteria} index={0} onEdit={noop} onDelete={noop} onRun={noop} />,
@@ -80,8 +78,8 @@ describe('CriteriaCard - Display', () => {
     expect(screen.getByText('Data Scientist')).toBeInTheDocument();
     expect(screen.getByText('Haifa · Remote')).toBeInTheDocument();
     expect(screen.getByText('linkedin · indeed')).toBeInTheDocument();
-    expect(screen.getByText('85')).toBeInTheDocument();
-    expect(screen.getByText('/100')).toBeInTheDocument();
+    // The min-score threshold meter was removed with the vestigial field.
+    expect(screen.queryByText('Threshold')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Edit' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Delete' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Run Search →' })).toBeInTheDocument();
@@ -118,6 +116,28 @@ describe('CriteriaForm - Validation', () => {
     await user.type(screen.getByPlaceholderText('e.g. "Senior Backend .NET"'), 'My Search');
     await user.type(screen.getByPlaceholderText(/Senior Backend Engineer/), 'Software Engineer');
     expect(screen.getByRole('button', { name: 'Create' })).toBeEnabled();
+  });
+});
+
+describe('CriteriaForm - Search budget', () => {
+  it('shows the live titles × locations search count', async () => {
+    const user = userEvent.setup();
+    renderWithRouter(<CriteriaForm onSave={noop} onCancel={noop} />);
+    await user.type(screen.getByPlaceholderText(/Senior Backend Engineer/), 'A{enter}B{enter}C');
+    await user.type(screen.getByPlaceholderText(/Tel Aviv/), 'Tel Aviv{enter}Remote');
+    expect(screen.getByText('6 searches per run')).toBeInTheDocument();
+  });
+
+  it('disables Create and warns when titles × locations exceeds the budget', async () => {
+    const user = userEvent.setup();
+    renderWithRouter(<CriteriaForm onSave={noop} onCancel={noop} />);
+    await user.type(screen.getByPlaceholderText('e.g. "Senior Backend .NET"'), 'Big Search');
+    // 7 titles × 2 locations = 14 searches > 12
+    await user.type(screen.getByPlaceholderText(/Senior Backend Engineer/), 'A{enter}B{enter}C{enter}D{enter}E{enter}F{enter}G');
+    await user.type(screen.getByPlaceholderText(/Tel Aviv/), 'Tel Aviv{enter}Remote');
+    expect(screen.getByText('14 searches per run')).toBeInTheDocument();
+    expect(screen.getByText(/over the limit/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Create' })).toBeDisabled();
   });
 });
 

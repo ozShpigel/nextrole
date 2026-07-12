@@ -92,6 +92,8 @@ interface DiscoveredJob {
   is_duplicate: boolean;
   triaged_out?: boolean;
   triage_reason?: string | null;
+  // False when the embedding chunk failed — stored, but invisible to $vectorSearch.
+  embedded?: boolean;
   evaluator_snapshot_input?: string;
   evaluator_snapshot_output?: string;
   analyst_snapshot_input?: string;
@@ -205,6 +207,12 @@ export default function RunDetail() {
   const statusMap: Record<string, string> = { pending: 'Pending', scraping: 'Scraping jobs...', embedding: 'Embedding...', completed: 'Completed', failed: 'Failed', cancelled: 'Cancelled' };
   const visibleJobs = jobs.filter((j) => !j.dismissed && !j.is_duplicate && !j.triaged_out);
   const triagedJobs = jobs.filter((j) => j.triaged_out && !j.dismissed);
+  // Relevant jobs whose embedding chunk failed — stored but invisible to
+  // Search. Gated on the run counter so pre-RAG historic runs (no embeddings
+  // at all, by design) don't render a misleading fold.
+  const notEmbeddedJobs = (run.jobs_embed_failed ?? 0) > 0
+    ? jobs.filter((j) => j.embedded === false && !j.triaged_out && !j.dismissed)
+    : [];
   // Historic runs carry per-job scores; ingest-only runs don't.
   const hasScores = visibleJobs.some((j) => j.score != null);
 
@@ -452,6 +460,29 @@ export default function RunDetail() {
             );
           })}
         </div>
+      )}
+
+      {/* Embedding accidents — a failed OpenAI chunk stores jobs without a
+          vector, so they can never surface on the Search page. */}
+      {notEmbeddedJobs.length > 0 && (
+        <details className="mt-10 border-t border-[var(--ed-rule-strong)] pt-4">
+          <summary className="cursor-pointer list-none text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-[var(--ed-gold)] transition-colors hover:text-[var(--ed-ink)]">
+            Not embedded ({notEmbeddedJobs.length}) — stored without a search vector, invisible to Search
+          </summary>
+          <div className="mt-4 flex flex-col gap-[0.55rem]">
+            {notEmbeddedJobs.map((j) => (
+              <div key={j.id} className="flex items-baseline gap-3 flex-wrap text-[0.84rem]">
+                <span className="font-medium text-[var(--ed-ink-soft)]">{j.title}</span>
+                <span className="text-[var(--ed-ink-faint)]">{j.company}</span>
+                {j.job_url && (
+                  <a href={j.job_url} target="_blank" rel="noreferrer" className="text-[0.76rem] text-[var(--ed-accent)] hover:text-[var(--ed-accent-deep)]" onClick={(e) => e.stopPropagation()}>
+                    View posting ↗
+                  </a>
+                )}
+              </div>
+            ))}
+          </div>
+        </details>
       )}
 
       {/* Off-target titles dropped by AI triage before scoring */}

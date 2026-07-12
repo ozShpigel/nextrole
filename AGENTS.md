@@ -4,12 +4,12 @@ NextRole is a single-user job application platform that automates the job hunt e
 
 ## Stack & structure
 
-| Path | What | Local port |
-|---|---|---|
-| `/client` | React + Vite + shadcn/ui + Tailwind v4 (TypeScript, Bun) | :5173 |
-| `/server/api` | ASP.NET Core (C#) — **all Claude/Anthropic calls live here** | :5002 |
-| `/server/scraper` | Python FastAPI — scraping, embeddings, vector search | :8000 |
-| `/server/mailbot` | .NET console app — one-shot Gmail sync (cron), not a service | — |
+| Path | What |
+|---|---|
+| `/client` | React + Vite + shadcn/ui + Tailwind v4 (TypeScript, Bun) |
+| `/server/api` | ASP.NET Core (C#) — **all Claude/Anthropic calls live here** |
+| `/server/scraper` | Python FastAPI — scraping, embeddings, vector search |
+| `/server/mailbot` | .NET console app — one-shot Gmail sync (cron), not a service |
 
 Database: MongoDB Atlas (+ Atlas Vector Search index `jobs_vector_index`).
 
@@ -22,7 +22,9 @@ cd server/api/src/Api && dotnet run # ASP.NET Core on :5002
 
 ```powershell
 # Scraper — Python FastAPI on :8000 (PowerShell for venv activation)
-cd server/scraper; .\.venv\Scripts\python.exe -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+cd server/scraper
+.\.venv\Scripts\python.exe -m uvicorn app.main:app `
+  --host 0.0.0.0 --port 8000 --reload
 ```
 
 ## Hard conventions

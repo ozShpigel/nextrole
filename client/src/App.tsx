@@ -1,4 +1,5 @@
-import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { useEffect } from 'react';
+import { NavLink, Outlet, useLocation, useNavigate, useNavigationType } from 'react-router-dom';
 import { Sun, Moon, ChevronDown } from 'lucide-react';
 import { useTheme } from './lib/theme';
 import { useConfig } from './lib/queries';
@@ -53,6 +54,19 @@ function NavGroup({ label, items }: { label: string; items: NavChild[] }) {
   );
 }
 
+/* BrowserRouter keeps the window scroll offset across navigations, so opening
+ * a page from deep in a long list (e.g. tracker → application detail) landed
+ * mid-page. Reset to top on forward navigations only — POP (browser back)
+ * is left alone. */
+function ScrollToTop() {
+  const { pathname } = useLocation();
+  const navigationType = useNavigationType();
+  useEffect(() => {
+    if (navigationType !== 'POP') window.scrollTo(0, 0);
+  }, [pathname, navigationType]);
+  return null;
+}
+
 export default function App() {
   const { theme, toggleTheme } = useTheme();
   const { data: config } = useConfig();
@@ -82,6 +96,7 @@ export default function App() {
           </div>
         </div>
       </nav>
+      <ScrollToTop />
       <Outlet />
     </div>
   );

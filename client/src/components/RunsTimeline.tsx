@@ -11,6 +11,11 @@ interface DiscoveryRun {
   jobs_scored: number;
   jobs_saved: number;
   jobs_skipped_duplicate: number;
+  // Per-search outcomes — a blocked/rate-limited run otherwise looks like a
+  // quiet job market (jobspy swallows 429s and just returns fewer rows).
+  searches_total?: number;
+  searches_failed?: number;
+  searches_empty?: number;
   started_at: string;
 }
 
@@ -34,6 +39,12 @@ function DiscoveryDetail({ run, index, onAbort }: DiscoveryDetailProps) {
   const sCls: StatusClass = statusClass(run.status);
   const isActive = ACTIVE_RUN_STATUSES.includes(run.status);
   const num = String(index + 1).padStart(2, '0');
+  const total = run.searches_total ?? 0;
+  const noResult = (run.searches_failed ?? 0) + (run.searches_empty ?? 0);
+  // Failed searches, or every search coming back empty, smell like a
+  // rate-limit block rather than a quiet job market.
+  const throttleSuspect = !isActive && total > 0
+    && ((run.searches_failed ?? 0) > 0 || noResult === total);
 
   return (
     <div
@@ -64,10 +75,15 @@ function DiscoveryDetail({ run, index, onAbort }: DiscoveryDetailProps) {
         {run.jobs_scored > 0 && <Figure value={run.jobs_scored} label="scored" />}
         {run.jobs_saved > 0 && <Figure value={run.jobs_saved} label="saved" />}
         <Figure value={run.jobs_skipped_duplicate} label="duplicates" />
-        <span className="ml-auto text-[0.7rem] text-[var(--ed-ink-faint)] tabular-nums max-[640px]:ml-0">
-          {new Date(run.started_at).toLocaleString('en-US')}
+        <span className="ml-auto text-[0.7rem] text-[var(--ed-ink-faint)] tabular-nums max-[640px]:ml-0" title={new Date(run.started_at).toLocaleString('en-GB')}>
+          {new Date(run.started_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
         </span>
       </div>
+      {throttleSuspect && (
+        <div className="mt-1 pl-[calc(1.05rem+0.75rem)] text-[0.74rem] text-[var(--ed-gold)] max-[640px]:pl-0">
+          ⚠ {noResult} of {total} searches returned nothing — possibly rate-limited by the job board
+        </div>
+      )}
     </div>
   );
 }
@@ -75,6 +91,43 @@ function DiscoveryDetail({ run, index, onAbort }: DiscoveryDetailProps) {
 interface RunsTimelineProps {
   runs: DiscoveryRun[];
   onAbort: (id: string, e: React.MouseEvent) => void;
+}
+
+// Most recent day-groups shown expanded; older days fold into "Earlier".
+const VISIBLE_DAY_GROUPS = 2;
+
+function dayLabel(iso: string): string {
+  const d = new Date(iso);
+  const startOfDay = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const diff = Math.round((startOfDay(new Date()) - startOfDay(d)) / 86400000);
+  if (diff === 0) return 'Today';
+  if (diff === 1) return 'Yesterday';
+  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+}
+
+type DayGroup = { key: string; label: string; runs: DiscoveryRun[] };
+
+// Group by local calendar day, preserving the incoming newest-first order.
+function groupByDay(runs: DiscoveryRun[]): DayGroup[] {
+  const groups: DayGroup[] = [];
+  for (const run of runs) {
+    const d = new Date(run.started_at);
+    const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+    const last = groups[groups.length - 1];
+    if (last && last.key === key) last.runs.push(run);
+    else groups.push({ key, label: dayLabel(run.started_at), runs: [run] });
+  }
+  return groups;
+}
+
+function DayHeader({ label, count }: { label: string; count: number }) {
+  return (
+    <div className="flex items-baseline gap-[0.6rem] mt-5 mb-1">
+      <span className="text-[0.64rem] uppercase tracking-[0.22em] font-semibold text-[var(--ed-ink-faint)]">{label}</span>
+      <span className="text-[0.64rem] text-[var(--ed-ink-faint)]/70 tabular-nums">· {count}</span>
+      <span className="flex-1 border-t border-[var(--ed-rule)] self-center" aria-hidden="true" />
+    </div>
+  );
 }
 
 export function RunsTimeline({ runs, onAbort }: RunsTimelineProps) {
@@ -95,12 +148,40 @@ export function RunsTimeline({ runs, onAbort }: RunsTimelineProps) {
           </div>
         </div>
       ) : (
-        <div>
-          {runs.map((r, i) => (
-            <DiscoveryDetail key={r.id} run={r} index={i} onAbort={onAbort} />
-          ))}
-        </div>
+        <RunDayGroups runs={runs} onAbort={onAbort} />
       )}
     </section>
+  );
+}
+
+function RunDayGroups({ runs, onAbort }: RunsTimelineProps) {
+  const groups = groupByDay(runs);
+  const visible = groups.slice(0, VISIBLE_DAY_GROUPS);
+  const earlier = groups.slice(VISIBLE_DAY_GROUPS);
+  const earlierCount = earlier.reduce((n, g) => n + g.runs.length, 0);
+  // Row numbering stays continuous across groups (newest = 01).
+  let index = 0;
+
+  const renderGroup = (g: DayGroup) => (
+    <div key={g.key}>
+      <DayHeader label={g.label} count={g.runs.length} />
+      {g.runs.map((r) => <DiscoveryDetail key={r.id} run={r} index={index++} onAbort={onAbort} />)}
+    </div>
+  );
+
+  return (
+    <div>
+      {visible.map(renderGroup)}
+      {earlier.length > 0 && (
+        <details className="mt-5 group">
+          <summary className="cursor-pointer list-none inline-flex items-baseline gap-[0.6rem] py-[0.5rem] text-[var(--ed-ink-faint)] hover:text-[var(--ed-ink-soft)] transition-colors">
+            <span aria-hidden="true" className="text-[0.8rem] leading-none transition-transform group-open:rotate-90">▸</span>
+            <span className="text-[0.66rem] uppercase tracking-[0.24em] font-semibold">Earlier</span>
+            <span className="text-[0.66rem] text-[var(--ed-ink-faint)]/70 tabular-nums">· {earlierCount} runs</span>
+          </summary>
+          {earlier.map(renderGroup)}
+        </details>
+      )}
+    </div>
   );
 }

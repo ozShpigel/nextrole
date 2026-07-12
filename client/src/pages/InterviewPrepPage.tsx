@@ -83,7 +83,10 @@ function SectionNav() {
       aria-label="Page sections"
       className="sticky top-14 z-40 -mx-8 px-8 max-[640px]:-mx-5 max-[640px]:px-5 mb-10 border-b border-[var(--ed-rule)] bg-[var(--ed-paper)]/90 backdrop-blur-[8px]"
     >
-      <div className="flex items-center gap-6 max-[640px]:gap-4 overflow-x-auto">
+      {/* No overflow-x-auto here: it forces overflow-y to auto too, and the 1px
+          underline overhang then spawns a vertical scrollbar (arrow buttons on
+          Windows). The row wraps on narrow screens instead. */}
+      <div className="flex items-center gap-6 max-[640px]:gap-4 flex-wrap">
         {SECTIONS.map((s) => {
           const isActive = active === s.id;
           return (

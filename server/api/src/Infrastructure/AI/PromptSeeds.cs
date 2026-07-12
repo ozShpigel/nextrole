@@ -167,8 +167,8 @@ If the email is from one of the tracked companies AND is job-related, return JSO
 }}
 
 Choosing "interviewType":
-- "Phone" — a phone/screening call.
-- "HR" — a recruiter/HR conversation.
+- "HR" — a recruiter/HR/talent-acquisition conversation. Takes precedence over "Phone": a phone call whose interviewer is a recruiter/TA/HR person is "HR", not "Phone".
+- "Phone" — a phone/screening call where the interviewer's role is unknown or not HR.
 - "Technical" — any professional interview round: technical, in-person/onsite, "frontal", team, or hiring-manager. This is the DEFAULT for an interview whose stage isn't explicitly stated.
 - "Final" — ONLY when the email explicitly says it is the final/last round (e.g. "final interview", "last stage before an offer/decision"). Do NOT infer "Final" just because the interview is in-person/onsite/"frontal".
 

@@ -1,4 +1,5 @@
 using Mailbot.Models;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
 namespace Mailbot.Services;
@@ -16,17 +17,32 @@ public sealed class MailbotOrchestrator
     private readonly IEmailParser _parser;
     private readonly ITrackerApiClient _tracker;
     private readonly ILogger<MailbotOrchestrator> _logger;
+    private readonly TimeZoneInfo _emailTimeZone;
 
     public MailbotOrchestrator(
         IGmailEmailService gmail,
         IEmailParser parser,
         ITrackerApiClient tracker,
+        IConfiguration config,
         ILogger<MailbotOrchestrator> logger)
     {
         _gmail = gmail;
         _parser = parser;
         _tracker = tracker;
         _logger = logger;
+
+        // Timezone the emails' wall-clock times are written in (the candidate's
+        // locale, not the server's — the prod cron runs in UTC).
+        var tzId = config["Mailbot:TimeZone"] ?? "Asia/Jerusalem";
+        try
+        {
+            _emailTimeZone = TimeZoneInfo.FindSystemTimeZoneById(tzId);
+        }
+        catch (TimeZoneNotFoundException)
+        {
+            _logger.LogWarning("Timezone '{TzId}' not found — falling back to server-local time", tzId);
+            _emailTimeZone = TimeZoneInfo.Local;
+        }
     }
 
     public async Task<SyncResult> RunSyncAsync(CancellationToken ct = default)
@@ -436,11 +452,16 @@ public sealed class MailbotOrchestrator
     // Combines the parsed interview date with an optional time. The date is always
     // real (callers skip the interview entirely when no date was parsed — we never
     // invent one). Returns the date at midnight when no/invalid time is given.
-    private static DateTime CombineDateAndTime(DateTime date, string? time)
+    // Email times are wall-clock in the sender's timezone (Mailbot:TimeZone,
+    // default Asia/Jerusalem) — the process itself may run in UTC (Render cron),
+    // so convert explicitly instead of trusting server-local time. Without this,
+    // "14:30" from an email was stored as 14:30 UTC and displayed as 17:30.
+    private DateTime CombineDateAndTime(DateTime date, string? time)
     {
-        if (string.IsNullOrWhiteSpace(time) || !TimeSpan.TryParse(time, out var timeSpan))
-            return date.Date;
-
-        return date.Date.Add(timeSpan);
+        var wallClock = string.IsNullOrWhiteSpace(time) || !TimeSpan.TryParse(time, out var timeSpan)
+            ? date.Date
+            : date.Date.Add(timeSpan);
+        return TimeZoneInfo.ConvertTimeToUtc(
+            DateTime.SpecifyKind(wallClock, DateTimeKind.Unspecified), _emailTimeZone);
     }
 }

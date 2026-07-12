@@ -37,14 +37,23 @@ async def run_discovery(db: AsyncIOMotorDatabase, settings: Settings, criteria_i
 
     try:
         logger.info("Run %s: scraping for criteria '%s'", run.id, criteria.name)
-        jobs = await asyncio.get_running_loop().run_in_executor(
+        jobs, search_stats = await asyncio.get_running_loop().run_in_executor(
             None, scraper.scrape_for_criteria, criteria
         )
 
         run.jobs_scraped = len(jobs)
+        run.searches_total = search_stats["searches_total"]
+        run.searches_failed = search_stats["searches_failed"]
+        run.searches_empty = search_stats["searches_empty"]
         await db.discovery_runs.update_one(
             {"id": run.id, "status": {"$ne": "cancelled"}},
-            {"$set": {"status": "embedding", "jobs_scraped": len(jobs)}},
+            {"$set": {
+                "status": "embedding",
+                "jobs_scraped": len(jobs),
+                "searches_total": run.searches_total,
+                "searches_failed": run.searches_failed,
+                "searches_empty": run.searches_empty,
+            }},
         )
 
         # Wake the API before triage/duplicate checks. On Render free tier the

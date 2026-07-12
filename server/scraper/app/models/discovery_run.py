@@ -20,6 +20,11 @@ class DiscoveryRun(BaseModel):
     jobs_embed_failed: int = 0
     jobs_skipped_duplicate: int = 0
     jobs_triaged_out: int = 0  # dropped by AI title triage before embedding
+    # Per-search outcomes — throttling visibility. jobspy swallows rate-limit
+    # errors, so failed/empty searches are the only signal a run was blocked.
+    searches_total: int = 0
+    searches_failed: int = 0
+    searches_empty: int = 0
     # Historic counters — per-job scoring/auto-save were retired; kept so
     # pre-migration run rows still render.
     jobs_scored: int = 0

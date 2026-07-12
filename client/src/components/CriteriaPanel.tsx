@@ -16,7 +16,6 @@ interface Criteria {
   hours_old: number;
   country: string;
   is_remote: boolean | null;
-  min_score_to_save: number;
 }
 
 interface CriteriaCardProps {
@@ -62,16 +61,6 @@ export function CriteriaCard({ criteria, index, onEdit, onDelete, onRun }: Crite
           <span className="text-[var(--ed-ink-faint)] tracking-[0.08em] text-[0.64rem] uppercase font-semibold">Sites</span>
           <span className="text-[var(--ed-ink)] font-medium min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">{criteria.site_names.join(' · ')}</span>
         </div>
-      </div>
-
-      <div className="flex items-center gap-[0.6rem] mb-[1.1rem]">
-        <span className="text-[0.64rem] text-[var(--ed-ink-faint)] tracking-[0.1em] uppercase font-semibold shrink-0">Threshold</span>
-        <span className="relative flex-1 h-[3px] bg-[var(--ed-rule)] overflow-hidden">
-          <span className="ed-fill bg-[var(--ed-ink)]" style={{ ['--p' as string]: criteria.min_score_to_save / 100 }} />
-        </span>
-        <span className="ed-display font-semibold text-[0.95rem] text-[var(--ed-ink)] tabular-nums shrink-0">
-          {criteria.min_score_to_save}<small className="text-[0.6rem] text-[var(--ed-ink-faint)] font-medium tracking-[0.06em] ml-[0.15rem]">/100</small>
-        </span>
       </div>
 
       <button
@@ -154,6 +143,11 @@ const AVAILABLE_SITES = [
   { value: 'indeed', label: 'Indeed' },
 ];
 
+// Mirrors MAX_SEARCHES_PER_RUN in the scraper's schemas/criteria.py — each
+// title × location pair is one job-board search per run; more than this in a
+// tight burst risks a LinkedIn rate-limit block.
+const MAX_SEARCHES_PER_RUN = 12;
+
 const HOURS_OLD_OPTIONS = [
   { value: 24, label: '24 hours' },
   { value: 48, label: '48 hours' },
@@ -213,7 +207,6 @@ export function CriteriaForm({ initial, onSave, onCancel }: CriteriaFormProps) {
   const [hoursOld, setHoursOld] = useState(initial?.hours_old || 72);
   const [country, setCountry] = useState(initial?.country || 'Israel');
   const [isRemote, setIsRemote] = useState<boolean | null>(initial?.is_remote ?? null);
-  const [minScore, setMinScore] = useState(initial?.min_score_to_save || 70);
   const saveCriteria = useSaveCriteria();
 
   function addLine(setter: React.Dispatch<React.SetStateAction<string>>, current: string, value: string) {
@@ -227,9 +220,14 @@ export function CriteriaForm({ initial, onSave, onCancel }: CriteriaFormProps) {
     );
   }
 
+  const titleCount = titlesText.split('\n').map(s => s.trim()).filter(Boolean).length;
+  const locationCount = Math.max(1, locationsText.split('\n').map(s => s.trim()).filter(Boolean).length);
+  const searchesPerRun = titleCount * locationCount;
+  const overSearchBudget = searchesPerRun > MAX_SEARCHES_PER_RUN;
+
   function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!name.trim() || !titlesText.trim()) return;
+    if (!name.trim() || !titlesText.trim() || overSearchBudget) return;
 
     const payload = {
       name: name.trim(),
@@ -240,7 +238,6 @@ export function CriteriaForm({ initial, onSave, onCancel }: CriteriaFormProps) {
       hours_old: hoursOld,
       country,
       is_remote: isRemote,
-      min_score_to_save: minScore,
     };
 
     saveCriteria.mutate(
@@ -281,6 +278,16 @@ export function CriteriaForm({ initial, onSave, onCancel }: CriteriaFormProps) {
           />
         </div>
       </div>
+
+      {/* Every title × location pair is a separate job-board search per run —
+          make the cost of adding a line visible before the cap bites. */}
+      {titleCount > 0 && (
+        <p className={`mb-4 -mt-1 text-[0.78rem] ${overSearchBudget ? 'text-destructive font-medium' : 'text-muted-foreground'}`}>
+          {titleCount} title{titleCount === 1 ? '' : 's'} × {locationCount} location{locationCount === 1 ? '' : 's'} ={' '}
+          <strong>{searchesPerRun} searches per run</strong> (limit {MAX_SEARCHES_PER_RUN})
+          {overSearchBudget && ' — over the limit; trim titles/locations or split into separate criteria.'}
+        </p>
+      )}
 
       <div className="mb-4">
         <Label>Sites</Label>
@@ -345,13 +352,8 @@ export function CriteriaForm({ initial, onSave, onCancel }: CriteriaFormProps) {
         </div>
       </div>
 
-      <div className="mb-4">
-        <Label>Min Score to Save</Label>
-        <Input type="number" className="max-w-[120px]" value={minScore} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setMinScore(Number(e.target.value))} min={0} max={100} />
-      </div>
-
       <div className="flex gap-2 pt-2">
-        <Button type="submit" disabled={saveCriteria.isPending || !name.trim() || !titlesText.trim() || selectedSites.length === 0}>
+        <Button type="submit" disabled={saveCriteria.isPending || !name.trim() || !titlesText.trim() || selectedSites.length === 0 || overSearchBudget}>
           {saveCriteria.isPending ? 'Saving...' : (initial ? 'Update' : 'Create')}
         </Button>
         <Button variant="outline" type="button" onClick={onCancel}>Cancel</Button>

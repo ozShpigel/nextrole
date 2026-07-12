@@ -393,7 +393,7 @@ function WhyWorkHereBlock({ appId, initialAnswer }: { appId: string; initialAnsw
   return (
     <section className="mb-9">
       <SectionHead
-        title="למה לעבוד כאן?"
+        title="Why Work Here?"
         action={
           <button type="button" className={ED_GHOST} onClick={generate} disabled={loading}>
             {loading ? 'Generating...' : answer ? 'Regenerate' : 'Generate'}

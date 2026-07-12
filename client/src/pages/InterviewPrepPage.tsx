@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Trash2, Plus, ArrowUp, ArrowDown, ListChecks, AlignLeft, RefreshCw, MessageSquare } from 'lucide-react';
+import { ListChecks, AlignLeft, RefreshCw, MessageSquare } from 'lucide-react';
 import { useInterviewPrep, useInterviewPrepHistory } from '../lib/queries';
 import { useSaveInterviewPrep, useRestoreInterviewPrepHistory, useGeneratePresentationCues } from '../lib/mutations';
 import type { InterviewPrepResponse, InterviewPrepHistoryField, QaEntry } from '../lib/types';
 import { Skeleton } from '../components/ui/skeleton';
 import { AutoGrowTextarea } from '../components/AutoGrowTextarea';
+import { QaRubricAccordion } from '../components/QaRubricAccordion';
 import {
   SaveResult,
   IntroTextarea,
@@ -31,93 +32,78 @@ function HistoryButton({ field, onRestored }: { field: InterviewPrepHistoryField
 }
 
 /* ------------------------------------------------------------------ */
-/* Q&A rubric editor                                                  */
+/* Sticky section nav + scroll-spy                                    */
 /* ------------------------------------------------------------------ */
-function QaRubricEditor({ entries, onChange }: { entries: QaEntry[]; onChange: (next: QaEntry[]) => void }) {
-  function update(idx: number, patch: Partial<QaEntry>): void {
-    onChange(entries.map((e, i) => (i === idx ? { ...e, ...patch } : e)));
-  }
-  function remove(idx: number): void {
-    onChange(entries.filter((_, i) => i !== idx));
-  }
-  function move(idx: number, dir: -1 | 1): void {
-    const target = idx + dir;
-    if (target < 0 || target >= entries.length) return;
-    const next = [...entries];
-    [next[idx], next[target]] = [next[target], next[idx]];
-    onChange(next);
-  }
-  function add(): void {
-    onChange([...entries, { question: '', answer: '' }]);
-  }
+const SECTIONS = [
+  { id: 'prep-section-01', num: '01', label: 'Self-presentation' },
+  { id: 'prep-section-02', num: '02', label: 'Question rubric' },
+  { id: 'prep-section-03', num: '03', label: 'Projects' },
+];
 
-  const iconBtn = 'h-7 w-7 p-0 inline-flex items-center justify-center rounded-none text-[var(--ed-ink-soft)] transition-colors hover:text-[var(--ed-ink)] disabled:opacity-40 disabled:pointer-events-none';
+// Offset below the global nav (h-14) + this page's own sticky bar.
+const SCROLLSPY_OFFSET = 112;
+
+/* Active = the last section whose top has scrolled past the offset. A plain
+ * rAF-throttled scroll listener beats IntersectionObserver here: only three
+ * elements, each far taller than the viewport. Tolerates zero-rects (jsdom)
+ * by defaulting to the first section. */
+function useActiveSection(ids: string[], offset: number): string {
+  const [active, setActive] = useState(ids[0]);
+  useEffect(() => {
+    let raf = 0;
+    function measure(): void {
+      raf = 0;
+      let current = ids[0];
+      for (const id of ids) {
+        const rect = document.getElementById(id)?.getBoundingClientRect();
+        if (rect && rect.height > 0 && rect.top <= offset + 8) current = id;
+      }
+      setActive((prev) => (prev === current ? prev : current));
+    }
+    function onScroll(): void {
+      if (!raf) raf = requestAnimationFrame(measure);
+    }
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onScroll);
+    measure();
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      window.removeEventListener('resize', onScroll);
+      if (raf) cancelAnimationFrame(raf);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ids.join(','), offset]);
+  return active;
+}
+
+function SectionNav() {
+  const active = useActiveSection(SECTIONS.map((s) => s.id), SCROLLSPY_OFFSET);
   return (
-    <div className="flex flex-col gap-4">
-      {entries.length === 0 && (
-        <p className="text-[0.82rem] text-[var(--ed-ink-faint)] italic">
-          No questions yet. Add prepared answers to common interview questions like "Where do you see yourself in 5 years?".
-        </p>
-      )}
-      {entries.map((e, idx) => (
-        <div key={idx} className="border border-[var(--ed-rule)] p-[1rem_1.15rem] bg-[var(--ed-panel)] relative">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[0.7rem] text-[var(--ed-ink-faint)] tracking-[0.14em] uppercase font-semibold">
-              Question {idx + 1}
-            </span>
-            <div className="flex items-center gap-1">
-              <button
-                type="button"
-                onClick={() => move(idx, -1)}
-                disabled={idx === 0}
-                aria-label="Move up"
-                className={iconBtn}
-              >
-                <ArrowUp size={14} />
-              </button>
-              <button
-                type="button"
-                onClick={() => move(idx, 1)}
-                disabled={idx === entries.length - 1}
-                aria-label="Move down"
-                className={iconBtn}
-              >
-                <ArrowDown size={14} />
-              </button>
-              <button
-                type="button"
-                onClick={() => remove(idx)}
-                aria-label="Remove question"
-                className={`${iconBtn} hover:text-[var(--ed-no)]`}
-              >
-                <Trash2 size={14} />
-              </button>
-            </div>
-          </div>
-          <input
-            className="w-full mb-2 p-[0.6rem_0.85rem] border border-[var(--ed-rule)] text-[var(--ed-ink)] text-[0.88rem] font-medium outline-none transition-all hover:border-[var(--ed-ink-faint)] focus:border-[var(--ed-accent)] bg-[var(--ed-paper)]"
-            placeholder="Question (e.g. Where do you see yourself in 5 years?)"
-            value={e.question}
-            onChange={(ev) => update(idx, { question: ev.target.value })}
-            dir="auto"
-          />
-          <AutoGrowTextarea
-            className="w-full p-[0.75rem_0.95rem] border border-[var(--ed-rule)] text-[var(--ed-ink)] text-[0.88rem] outline-none leading-[1.7] whitespace-pre-wrap transition-all hover:border-[var(--ed-ink-faint)] focus:border-[var(--ed-accent)] bg-[var(--ed-paper)]"
-            style={{ minHeight: '120px' }}
-            placeholder="Your prepared answer / rubric for answering this question"
-            value={e.answer}
-            onChange={(ev) => update(idx, { answer: ev.target.value })}
-            dir="auto"
-            spellCheck={false}
-          />
-        </div>
-      ))}
-      <div>
-        <button type="button" onClick={add} className={`${ED_GHOST} inline-flex items-center gap-[0.4rem]`}>
-          <Plus size={14} /> Add question
-        </button>
+    <nav
+      aria-label="Page sections"
+      className="sticky top-14 z-40 -mx-8 px-8 max-[640px]:-mx-5 max-[640px]:px-5 mb-10 border-b border-[var(--ed-rule)] bg-[var(--ed-paper)]/90 backdrop-blur-[8px]"
+    >
+      <div className="flex items-center gap-6 max-[640px]:gap-4 overflow-x-auto">
+        {SECTIONS.map((s) => {
+          const isActive = active === s.id;
+          return (
+            <button
+              key={s.id}
+              type="button"
+              onClick={() => document.getElementById(s.id)?.scrollIntoView({ behavior: 'smooth' })}
+              className={`shrink-0 py-[0.65rem] -mb-px border-b-2 text-[0.66rem] font-semibold uppercase tracking-[0.14em] transition-colors ${
+                isActive
+                  ? 'border-[var(--ed-accent)] text-[var(--ed-accent)]'
+                  : 'border-transparent text-[var(--ed-ink-faint)] hover:text-[var(--ed-ink)]'
+              }`}
+            >
+              <span className="mr-[0.4rem] tabular-nums opacity-60">{s.num}</span>
+              {s.label}
+            </button>
+          );
+        })}
       </div>
-    </div>
+    </nav>
   );
 }
 
@@ -413,6 +399,8 @@ export default function InterviewPrepPage() {
         <div className="mt-5 border-t-[3px] border-double border-[var(--ed-rule-strong)]" />
       </header>
 
+      <SectionNav />
+
       {error && (
         <div className="mb-8">
           <SaveResult result={{ type: 'error', message: `Failed to load: ${error}` }} />
@@ -420,7 +408,7 @@ export default function InterviewPrepPage() {
       )}
 
       {/* 01 — Self-presentation */}
-      <section className="mb-16">
+      <section id="prep-section-01" className="mb-16 scroll-mt-[7.5rem]">
         <SectionHeader
           num="01"
           name="Self-presentation"
@@ -462,13 +450,13 @@ export default function InterviewPrepPage() {
       </section>
 
       {/* 02 — Popular questions rubric */}
-      <section className="mb-16">
+      <section id="prep-section-02" className="mb-16 scroll-mt-[7.5rem]">
         <SectionHeader
           num="02"
           name="Question rubric"
-          desc="Prepared answers to popular interview questions. Add, edit, reorder, or remove entries — each question pairs with your go-to answer."
+          desc="Prepared answers to popular interview questions. Click a question to read your answer; group related questions under a topic (e.g. a project) and tag who asks them to filter fast."
         />
-        <QaRubricEditor entries={qa} onChange={(next) => { setQa(next); setQaResult(null); }} />
+        <QaRubricAccordion entries={qa} onChange={(next) => { setQa(next); setQaResult(null); }} />
         <div className="flex justify-end items-center gap-[0.6rem] mt-5 pt-[1.1rem] border-t border-dashed border-[var(--ed-rule)]">
           <HistoryButton field="qa_rubric" onRestored={applyData} />
           {isQaDirty && (
@@ -484,7 +472,7 @@ export default function InterviewPrepPage() {
       </section>
 
       {/* 03 — Project presentations */}
-      <section className="mb-16">
+      <section id="prep-section-03" className="mb-16 scroll-mt-[7.5rem]">
         <SectionHeader
           num="03"
           name="Project presentations"

@@ -211,7 +211,13 @@ public static class MockInterviewEndpoints
             {
                 var prep = await provider.GetInterviewPrepAsync(ct);
                 var rubric = prep.QaRubric.ToList();
-                rubric.Add(new QaEntry { Question = request.Question.Trim(), Answer = request.Answer.Trim() });
+                rubric.Add(new QaEntry
+                {
+                    Question = request.Question.Trim(),
+                    Answer = request.Answer.Trim(),
+                    Categories = request.Categories ?? new List<string>(),
+                    Topic = request.Topic ?? "",
+                });
                 await provider.UpsertInterviewPrepAsync(null, null, null, null, rubric, ct);
                 return Results.Ok(new { adopted = true, count = rubric.Count });
             }

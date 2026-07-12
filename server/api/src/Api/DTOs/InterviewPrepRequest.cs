@@ -42,4 +42,12 @@ public sealed record QaEntryDto
 
     [JsonPropertyName("answer")]
     public string Answer { get; init; } = "";
+
+    // Fixed set (HR / Technical / Behavioral); server drops unknown values.
+    [JsonPropertyName("categories")]
+    public List<string>? Categories { get; init; }
+
+    // Free-text grouping label; empty/null = ungrouped.
+    [JsonPropertyName("topic")]
+    public string? Topic { get; init; }
 }

@@ -40,6 +40,10 @@ public sealed class MongoProfileProvider : IProfileProvider
     private const string InterviewPrepHistoryKey = "history_interview_prep";
     private const int QaRubricMaxEntries = 200;
     private const int InterviewPrepMaxFieldLength = 50_000;
+    private const int QaTopicMaxLength = 200;
+    // Fixed interviewer-type taxonomy; unknown values are dropped on save so the
+    // client can trust round-tripped data.
+    private static readonly string[] AllowedQaCategories = { "HR", "Technical", "Behavioral" };
     private static readonly string[] InterviewPrepStringFields =
     {
         "self_presentation_hr", "self_presentation_technical",
@@ -494,10 +498,18 @@ public sealed class MongoProfileProvider : IProfileProvider
         {
             if (!item.IsBsonDocument) continue;
             var d = item.AsBsonDocument;
+            var categories = new List<string>();
+            if (d.Contains("categories") && d["categories"].IsBsonArray)
+            {
+                foreach (var c in d["categories"].AsBsonArray)
+                    if (c.IsString) categories.Add(c.AsString);
+            }
             list.Add(new QaEntry
             {
                 Question = d.Contains("question") && d["question"].IsString ? d["question"].AsString : "",
                 Answer = d.Contains("answer") && d["answer"].IsString ? d["answer"].AsString : "",
+                Categories = categories,
+                Topic = d.Contains("topic") && d["topic"].IsString ? d["topic"].AsString : "",
             });
         }
         return list;
@@ -516,8 +528,29 @@ public sealed class MongoProfileProvider : IProfileProvider
                 throw new ArgumentException($"qa_rubric entry exceeds maximum length of {InterviewPrepMaxFieldLength} characters");
             if (arr.Count >= QaRubricMaxEntries)
                 throw new ArgumentException($"qa_rubric exceeds maximum of {QaRubricMaxEntries} entries");
-            arr.Add(new BsonDocument { ["question"] = question, ["answer"] = answer });
+            var topic = (e.Topic ?? "").Trim();
+            if (topic.Length > QaTopicMaxLength)
+                throw new ArgumentException($"qa_rubric topic exceeds maximum length of {QaTopicMaxLength} characters");
+            arr.Add(new BsonDocument
+            {
+                ["question"] = question,
+                ["answer"] = answer,
+                ["categories"] = NormalizeCategories(e.Categories),
+                ["topic"] = topic,
+            });
         }
+        return arr;
+    }
+
+    // Trim, match case-insensitively against the fixed set, emit canonical
+    // casing, drop unknowns, de-dupe (preserving AllowedQaCategories order).
+    private static BsonArray NormalizeCategories(IReadOnlyList<string>? categories)
+    {
+        var arr = new BsonArray();
+        if (categories is null) return arr;
+        foreach (var allowed in AllowedQaCategories)
+            if (categories.Any(c => string.Equals(c?.Trim(), allowed, StringComparison.OrdinalIgnoreCase)))
+                arr.Add(allowed);
         return arr;
     }
 

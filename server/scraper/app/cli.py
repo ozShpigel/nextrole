@@ -7,6 +7,7 @@ pattern. Run it as a Render Cron Job using the scraper image:
 
     python -m app.cli run-all             # every is_active criteria (cron)
     python -m app.cli run <criteria_id>   # one specific criteria
+    python -m app.cli eval-recall         # golden-set retrieval recall report
 
 Because nothing is exposed over HTTP, no X-Cron-Key guard is needed and there's
 no free-tier idle-eviction race: the container lives exactly as long as the work.
@@ -22,7 +23,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 
 from app.config import Settings
 from app.indexes import ensure_ttl_index
-from app.services import orchestrator
+from app.services import orchestrator, recall_eval
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("cli")
@@ -71,6 +72,13 @@ async def _run_all():
     await _with_db(_r)
 
 
+async def _eval_recall(ks: tuple[int, ...], tracker_db: str | None):
+    async def _r(db, settings):
+        report = await recall_eval.run_eval(db, settings, ks=ks, tracker_db=tracker_db)
+        print(report)
+    await _with_db(_r)
+
+
 def main():
     parser = argparse.ArgumentParser(prog="app.cli", description="Discovery ingest cron entrypoint")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -80,12 +88,25 @@ def main():
 
     sub.add_parser("run-all", help="Run every criteria with is_active=true, sequentially")
 
+    ev = sub.add_parser(
+        "eval-recall",
+        help="Golden-set retrieval recall: where do tracker-saved jobs rank in vector search?")
+    ev.add_argument(
+        "--k", default=",".join(str(k) for k in recall_eval.DEFAULT_KS),
+        help="comma-separated recall@K cutoffs (default: %(default)s)")
+    ev.add_argument(
+        "--tracker-db", default=None,
+        help="tracker DB name when it differs from the scraper DB")
+
     args = parser.parse_args()
 
     if args.command == "run":
         asyncio.run(_run(args.criteria_id))
     elif args.command == "run-all":
         asyncio.run(_run_all())
+    elif args.command == "eval-recall":
+        ks = tuple(int(k) for k in args.k.split(",") if k.strip())
+        asyncio.run(_eval_recall(ks or recall_eval.DEFAULT_KS, args.tracker_db))
     else:  # pragma: no cover — argparse enforces a valid command
         parser.print_help()
         sys.exit(1)

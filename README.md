@@ -1,278 +1,75 @@
 # NextRole
 
-**An AI-powered, end-to-end job-search platform** — it discovers job listings, scores each one against your professional profile with Claude, monitors your inbox for application updates, and tracks every role from discovery through interviews to final outcome. Built as a four-service monorepo (C#, Python, React) and deployed to production on Render.
+**NextRole** is an AI-powered platform that runs your job hunt end-to-end: it discovers listings from LinkedIn and Indeed, matches them to your professional profile *by meaning*, watches your inbox for replies, and tracks every role from first application to final outcome — with Claude working as analyst, career advisor, and interview coach along the way.
 
-> Single-tenant by design: one user, no authentication (intentional — it's meant to run as your private tool against your own database).
+Built as a four-service monorepo (C#, Python, React), deployed to production on Render.
 
----
-
-## Table of Contents
-
-- [Highlights](#highlights)
-- [Screenshots](#screenshots)
-- [Architecture](#architecture)
-- [Features](#features)
-- [System design](#system-design)
-- [The AI scoring pipeline](#the-ai-scoring-pipeline)
-- [Tech stack](#tech-stack)
-- [Getting started](#getting-started)
-- [Environment variables](#environment-variables)
-- [Project structure](#project-structure)
-- [Testing](#testing)
-- [Deployment & CI/CD](#deployment--cicd)
+> **Single-tenant by design** — one user, no login. NextRole is your private tool, running against your own database.
 
 ---
 
-## Highlights
+## Highlighted Features
 
-If you're skimming for the engineering, two things are worth a closer look:
-
-- **A RAG matching engine** — jobs are embedded at ingest, MongoDB Atlas `$vectorSearch` does the semantic matching against your profile, and Claude runs **once per search** as a career advisor over the top-N — see [Job discovery & semantic search](#job-discovery--semantic-search).
-- **Prompt-injection defense** — untrusted external data (job descriptions, scraped news, raw emails) is always XML-wrapped and kept out of the system prompt.
-
----
-
-## Screenshots
-
-A custom **Editorial Broadsheet** theme — warm paper, hairline rules, a Fraunces display serif. The chrome is English LTR; AI-generated content (Hebrew analyses, interview text) renders right-to-left.
-
-| Landing | Job discovery |
-|:---:|:---:|
-| ![NextRole landing page](docs/screenshots/home.png) | ![Job discovery & search criteria](docs/screenshots/discovery.png) |
-
-| AI job scoring | Application tracker |
-|:---:|:---:|
-| ![AI job scoring with bilingual analysis](docs/screenshots/job-scoring.png) | ![Application tracker](docs/screenshots/tracker.png) |
-
-Every scored job breaks down across the three weighted dimensions:
-
-![Score breakdown — Technical / Execution / Sustainability](docs/screenshots/score-breakdown.png)
+1. **Semantic job search (RAG)**: Every collected job is matched against your profile *by meaning* via MongoDB Atlas Vector Search, and a single Claude "career advisor" call ranks the results with apply/maybe/skip verdicts. [Details](#job-discovery--semantic-search)
+2. **Automated job discovery**: Define search criteria once — the system scrapes LinkedIn/Indeed, drops off-target titles with AI triage, and embeds everything for search, from the UI or a daily cron.
+3. **AI job scoring**: Paste any job description and get a weighted compatibility score with a sub-component breakdown and an honest verdict. [Details](docs/scoring-and-search.md)
+4. **Email sync**: The mailbot detects interview invites, rejections, and offers in Gmail and updates the tracker automatically — idempotent, and it never moves an application backwards. [Details](#email-sync-mailbot)
+5. **Interview practice**: Author self-presentations and a Q&A rubric, rehearse from AI-distilled keyword cues, then run turn-by-turn mock interviews whose debrief feeds back into your prep. [Details](#mock-interview-stateless-turn-engine)
+6. **Résumé upload**: Drop in a PDF and your profile is normalized automatically — the PDF goes to Claude natively, no extraction library.
+7. **Prompt-injection defense**: Untrusted external data — job descriptions, scraped news, raw emails — is always XML-wrapped in the user message and kept out of the system prompt.
 
 ---
 
 ## Architecture
 
-Four loosely-coupled services communicate over HTTP, fronted by a single-page React app behind an Nginx reverse proxy. **All Claude/Anthropic calls live exclusively in the API** — the scraper and mailbot delegate AI work to it over HTTP, keeping the API key and prompt logic in one place.
+NextRole consists of four loosely-coupled services, communicating over HTTP:
 
-The diagram shows how the services connect; the table below carries the detail.
+1. **Client** — the React single-page app: discovery, semantic search, scoring, interview prep, and the application tracker in one dashboard, behind an Nginx reverse proxy in production.
+2. **API** — the unified backend and **the only service that calls Claude**: job scoring, the search advisor, email parsing, profile normalization, and all tracking data. Keeping every AI call here keeps the API key and prompt logic in one place.
+3. **Scraper** — the ingest & search engine: scrapes LinkedIn/Indeed, filters titles with AI triage, embeds jobs, and serves semantic matching via MongoDB Atlas `$vectorSearch` — delegating its AI needs to the API.
+4. **Mailbot** — a one-shot cron process (not a service): reads Gmail, has the API parse each email with Claude, and applies status/interview updates to the tracker.
 
-```mermaid
-flowchart TD
-    user([User / browser])
-    client["Client<br/>React 19 + Vite"]
-    api["API<br/>ASP.NET Core 10"]
-    scraper["Scraper<br/>Python FastAPI"]
-    mailbot["Mailbot<br/>.NET Console · cron"]
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/architecture-dark.svg">
+  <img alt="NextRole architecture — the Client on top; the Scraper, API, and Mailbot services in the middle with the API as the AI hub; external providers (job boards, OpenAI, MongoDB Atlas, Claude, Gmail) along the bottom" src="docs/images/architecture-light.svg">
+</picture>
 
-    claude["Claude API<br/>(Anthropic)"]
-    mongo[("MongoDB Atlas")]
-    boards["LinkedIn / Indeed<br/>(via JobSpy)"]
-    gmail["Gmail API"]
+**The life of a job** ties the parts together: the scraper discovers it, AI triage checks the title is on-target, its text is embedded, and it lands in `discovered_jobs` (a 1536-dim vector, 45-day TTL). When you search, your profile is embedded too, `$vectorSearch` surfaces the closest jobs, and **one** Claude *advisor* call ranks the top-N with apply/maybe/skip verdicts. Saving a result copies it into the tracker database — and from there the mailbot keeps its status current from your inbox.
 
-    user --> client
-    client -->|REST| api
-    client -->|discovery| scraper
-
-    scraper -->|"delegate AI: triage + advisor (HTTP)"| api
-    scraper -->|scrape| boards
-    scraper -->|embeddings| openai["OpenAI API<br/>(text-embedding-3-small)"]
-    mailbot -->|"parse email + updates (HTTP)"| api
-
-    api --> claude
-    api --> mongo
-    scraper -->|"store + $vectorSearch"| mongo
-    mailbot --> gmail
-
-    classDef ext fill:#374151,stroke:#6b7280,color:#e5e7eb,stroke-dasharray:4 3;
-    class claude,mongo,boards,gmail,openai ext;
-```
-
-### Services
-
-| Service | Stack | Port (dev / Docker) | Purpose |
-|---------|-------|---------------------|---------|
-| **API** | ASP.NET Core 10 (Minimal APIs) | `5002` | Unified backend and **the only service that calls Claude**: AI job scoring, application/interview/note/status tracking, profile, interview prep, mock interview, email parsing |
-| **Scraper** | Python FastAPI | `8000` / `5137` | Scrape LinkedIn/Indeed via JobSpy, embed jobs (OpenAI), serve semantic search via Atlas `$vectorSearch`, enrich the top hits with news + Glassdoor, delegate AI (triage, advisor) to the API |
-| **Mailbot** | .NET 10 Console | — | One-shot (cron): fetch Gmail, parse with Claude (via API), push status/interview updates. Not a long-running service |
-| **Client** | React 19 + Vite 6 | `5173` / `3000` | English LTR SPA with the custom *Editorial Broadsheet* theme; Nginx reverse proxy in production |
-
----
-
-## Features
-
-- **Semantic job search (RAG)** — Your profile is embedded and matched against every collected job by meaning via MongoDB Atlas Vector Search; one Claude "career advisor" call ranks the top results with an apply/maybe/skip verdict, Hebrew rationale, and a comparative recommendation. (`/search`)
-- **Automated job discovery** — Define search criteria (titles, locations, preferences) and let the system scrape LinkedIn/Indeed, filter off-target titles with AI triage, and embed everything for search. Runs from the UI or a cron (`python -m app.cli run`).
-- **AI job matching** — Paste any job description and get a detailed compatibility score with strengths, concerns, a sub-component breakdown, and an honest verdict — powered by Claude. (`/score`)
-- **Company enrichment** — Google News headlines and Glassdoor ratings fetched for the top search hits feed the advisor; on-demand AI company summaries and a personalized "why work here?" answer on each application.
-- **Application tracking** — Full lifecycle: applications, interviews, notes, status updates, an upcoming-interview column, and a statistics dashboard.
-- **Interview prep** — Author self-presentations and a Q&A rubric; toggle prose into AI-distilled keyword cues for rehearsal from memory.
-- **Mock interview** — Interactive, turn-by-turn AI interview practice with an HR or technical persona, live follow-ups, and a scored debrief whose rewrites can be adopted back into your prep rubric.
-- **Email sync (mailbot)** — Detects interview invites, rejections, and offers from Gmail and updates the tracker automatically — idempotently.
-- **Résumé upload** — Drop in a PDF or TXT résumé to auto-normalize your profile (PDFs are handed to Claude natively, no extraction library).
-
----
-
-## System design
-
-The flow of the app's core engines. The top-level [Architecture](#architecture) shows *which* services exist; these show *how* each feature moves data through them. Every Claude call lives in the API; dashed nodes are external systems.
+The diagrams below break the three core engines down — *how* each feature moves data through the services (dashed nodes are external systems).
 
 ### Job discovery & semantic search
 
 Two decoupled halves. **Ingest** (per discovery run): scrape → AI title triage → embed → store. **Search** (on demand): the DB does the semantic matching, and Claude runs **once** over the top-N as a career advisor — instead of two Claude calls per scraped job.
 
-```mermaid
-flowchart TD
-    trigger(["UI 'Discover now' · or cron"]) --> scrape
-
-    subgraph ingest["Scraper · ingest (per run)"]
-        scrape["Scrape LinkedIn / Indeed<br/>(JobSpy) → dedup"]
-        triage["AI title triage<br/>(one Haiku call, via API)"]
-        embed["Embed job text<br/>OpenAI text-embedding-3-small"]
-        scrape --> triage --> embed
-    end
-
-    embed --> jobs[("discovered_jobs<br/>+ 1536-dim vectors · 45d TTL")]
-
-    search(["UI '/search' + filters"]) --> vs
-    subgraph query["Scraper · search (on demand)"]
-        vs["$vectorSearch<br/>profile embedding vs jobs"]
-        enrich["Enrich top-N only:<br/>news (RSS) + Glassdoor (DDG)"]
-        vs --> enrich
-    end
-    jobs --> vs
-
-    enrich -->|"POST /api/match/advise"| advisor["Advisor · Sonnet · ONE call<br/>→ ranked brief: apply/maybe/skip"]
-    advisor --> claude["Claude API"]
-    advisor --> results["Ranked results<br/>+ save to tracker"]
-
-    classDef ext fill:#374151,stroke:#6b7280,color:#e5e7eb,stroke-dasharray:4 3;
-    class claude,jobs ext;
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/flow-search-dark.svg">
+  <img alt="Discovery & search flow — an ingest lane (scrape, AI title triage, embed) feeding the discovered_jobs vector store, and an on-demand search lane (vector search, top-N enrichment, one Claude advisor call) producing a ranked brief" src="docs/images/flow-search-light.svg">
+</picture>
 
 ### Mock interview (stateless turn engine)
 
 The client holds the whole transcript and **replays it every turn** — the server keeps no session state. Trusted context (profile, prep) goes in the system prompt; untrusted data (job context, the transcript) is XML-wrapped in the user message. Cheap Haiku per turn, Sonnet once for the debrief.
 
-```mermaid
-flowchart TD
-    user([User]) --> tx
-
-    subgraph client["Client · /practice-interview"]
-        tx["transcript[] held client-side<br/>(stateless server — replayed each turn)"]
-    end
-
-    subgraph req["API builds one request per call"]
-        sys["SYSTEM · trusted<br/>seed · persona · language · target<br/>profile · self-presentation · rubric questions"]
-        usr["USER · untrusted, XML-wrapped<br/>job_context (bound mode) · transcript"]
-    end
-
-    tx -->|"POST /turn — replays full transcript"| req
-    req --> haiku["Claude Haiku · per turn"]
-    haiku -->|"{nudge, nextQuestion, done}"| tx
-    tx -->|"POST /debrief — once, at end"| req
-    req --> sonnet["Claude Sonnet · debrief"]
-    sonnet -->|"scores · highlights · rewrites"| db[("mockInterviewSessions")]
-    sonnet -.->|"adopt a rewrite"| prep[("interview-prep Q&A rubric")]
-
-    classDef ext fill:#374151,stroke:#6b7280,color:#e5e7eb,stroke-dasharray:4 3;
-    class haiku,sonnet,db,prep ext;
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/flow-mock-interview-dark.svg">
+  <img alt="Mock interview flow — the client replays the transcript each turn to the API, which builds one request per call with a trusted SYSTEM block (profile, prep) and an untrusted XML-wrapped USER block (answers, job context); Haiku answers each turn, Sonnet writes the debrief, and rewrites can be adopted into the prep rubric" src="docs/images/flow-mock-interview-light.svg">
+</picture>
 
 ### Email sync (Mailbot)
 
 A one-shot cron process: pull active applications, parse the last 24 h of Gmail with Claude, and apply status/interview updates — matched by company + title, idempotent, and never moving an application backwards.
 
-```mermaid
-flowchart LR
-    cron(["Cron · one-shot"]) --> mb
-
-    subgraph mb["Mailbot · .NET console"]
-        pull["Pull active apps from API"]
-        fetch["Fetch recent Gmail (3d)<br/>by tracked-company names"]
-        pull --> fetch
-    end
-
-    fetch -->|"POST /emails/parse"| parse["API · Claude email parser<br/>→ status · interview · dates"]
-    parse --> match{"match by<br/>company + title"}
-    match -->|"idempotent · no-regress guard"| update[("Tracker: status + interviews")]
-    parse --> claude["Claude API"]
-    fetch --- gmail["Gmail API"]
-
-    classDef ext fill:#374151,stroke:#6b7280,color:#e5e7eb,stroke-dasharray:4 3;
-    class claude,update,gmail ext;
-```
-
----
-
-## The AI scoring pipeline
-
-Used by the manual **Score a Job** page (`/score`) — discovery matching moved to the [semantic search](#job-discovery--semantic-search) flow. Each job scoring is **two Claude API calls**, both with generic, candidate-agnostic prompts — all candidate-specific signal comes from the injected professional profile:
-
-1. **Analyst (Claude Haiku)** — a generic job-description parser: raw posting → structured `ParsedJob` JSON.
-2. **Evaluator (Claude Sonnet, extended thinking)** — scores fit and returns a structured verdict.
-
-**Scoring dimensions** (each split into scored sub-components with one-sentence reasons):
-
-| Dimension | Weight | Sub-components |
-|-----------|--------|----------------|
-| Technical Fit | 35 | Core Stack (0–20) + System Design (0–15) |
-| Engineering Execution Fit | 30 | Practices / Role Clarity + Engineering Maturity |
-| Sustainability & Pace Fit | 35 | Work-Life + Communication/Pace + Growth/Risk |
-
-**Verdicts:** `STRONG_YES` · `YES` · `MAYBE` · `NO` · `STRONG_NO` · `INSUFFICIENT_DATA`.
-
-**Engineering details worth noting:**
-
-- **The profile is the only user-editable input;** prompts and scoring config are read-only server configuration (the .NET Options pattern, overridable per-deploy via env vars — no runtime editing). Experience and skills are LLM-normalized from pasted free text or an uploaded résumé; strengths and core values stay manual.
-- **Resilience.** The evaluator response is streamed (keeps the connection alive on long generations) with prompt caching on the static system prompt; the JSON layer has lenient deserializers, fence/brace extraction, comment stripping, and an auto-retry "return ONLY JSON" nudge. The search **advisor** call reuses the same machinery.
-- **Cancellation.** Aborting a discovery run lands a terminal `cancelled` status; every orchestrator status write is guarded so the in-flight task can't resurrect a cancelled run.
-
----
-
-## Tech stack
-
-**Backend (.NET)**
-- ASP.NET Core 10 — Minimal APIs
-- Anthropic SDK for .NET (Claude integration: streaming, extended thinking, prompt caching, native PDF documents)
-- MongoDB Driver v3
-- Google Gmail API (mailbot)
-
-**Backend (Python)**
-- FastAPI + Uvicorn
-- `python-jobspy` (LinkedIn/Indeed scraping)
-- Motor (async MongoDB driver) + Atlas Vector Search (`$vectorSearch`)
-- OpenAI SDK (`text-embedding-3-small` embeddings)
-- pydantic-settings
-
-**Frontend**
-- React 19 + React Router v7
-- Vite 6 · TypeScript · **Bun** (runtime & package manager)
-- shadcn/ui + Tailwind CSS v4 — custom *Editorial Broadsheet* theme
-- TanStack React Query (server state) · Axios (HTTP)
-- Vitest + Testing Library (unit/component)
-
-**Infrastructure**
-- MongoDB Atlas (`job-tracker` + `jobmatch` databases)
-- Docker + Docker Compose
-- GitHub Actions CI/CD · GitHub Container Registry (`ghcr.io`)
-- Render (hosting) · Nginx (production proxy)
-- Playwright (E2E)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/flow-mailbot-dark.svg">
+  <img alt="Email sync flow — a one-shot cron runs the Mailbot, which pulls tracked applications, fetches recent Gmail, has the API parse each email with Claude, and applies matched status and interview updates to the tracker" src="docs/images/flow-mailbot-light.svg">
+</picture>
 
 ---
 
 ## Getting started
 
-### Prerequisites
-
-- [.NET 10 SDK](https://dotnet.microsoft.com/download) — API, Mailbot, Seeder
-- [Python 3.12+](https://www.python.org/) — Scraper
-- [Bun](https://bun.sh/) — frontend runtime & package manager
-- A [MongoDB](https://www.mongodb.com/) instance (Atlas free tier works)
-- An [Anthropic API key](https://console.anthropic.com/)
-- [Docker](https://www.docker.com/) (optional — for the all-in-one path)
-- A Google Cloud OAuth client (optional — only for the mailbot/Gmail sync)
-
-### Option A — Docker Compose (all services)
+For the Docker path you only need [Docker](https://www.docker.com/), a [MongoDB](https://www.mongodb.com/) instance (Atlas free tier works), and an [Anthropic API key](https://console.anthropic.com/):
 
 ```bash
 export ANTHROPIC_API_KEY=your-key-here
@@ -283,100 +80,7 @@ docker compose up --build
 
 Open [http://localhost:3000](http://localhost:3000).
 
-Ports: client `:3000`, API `:5002`, scraper `:5137`.
-
-### Option B — Run the core locally (minimum setup)
-
-The app runs on just a MongoDB connection string + an Anthropic key. The scraper and mailbot are optional.
-
-```bash
-# API — match + tracking (http://localhost:5002)
-MongoDB__ConnectionString="<your-mongo-uri>" Anthropic__ApiKey="sk-ant-..." \
-  dotnet run --project server/api/src/Api
-
-# Client (http://localhost:5173)
-cd client && bun install && bun run dev
-```
-
-### Optional services
-
-```powershell
-# Scraper — Python FastAPI on :8000 (PowerShell for venv activation)
-cd server/scraper
-python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
-.\.venv\Scripts\python.exe -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-```
-
-```bash
-# Mailbot — one-shot Gmail sync (skips cleanly if no Gmail credentials)
-dotnet run --project server/mailbot
-
-# Build the whole .NET solution
-dotnet build nextrole.sln
-```
-
----
-
-## Environment variables
-
-The Mongo connection string and the Anthropic key are read **only** from the environment — never hardcoded. `.env.example` templates are provided for the [API](server/api/src/Api/.env.example), [Scraper](server/scraper/.env.example), and [Mailbot](server/mailbot/.env.example); copy to `.env` and fill in. ASP.NET maps `__` in env-var names to config `:` (e.g. `MongoDB__ConnectionString` → `MongoDB:ConnectionString`).
-
-> **Minimum to run:** the API needs only `MongoDB__ConnectionString` + `Anthropic__ApiKey`; the Scraper needs only `MONGODB_CONNECTION_STRING`. Everything else is optional with sensible defaults.
-
-### API (ASP.NET Core)
-
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `MongoDB__ConnectionString` | **yes** | — | MongoDB connection string |
-| `Anthropic__ApiKey` | **yes** | — | Claude API key |
-| `MongoDB__DatabaseName` | no | `job-tracker` | Application-tracking DB |
-| `MongoDB__ProfileDatabase` | no | `jobmatch` | Profile/scoring DB |
-| `CorsOrigins` | no | `""` (none) | Comma-separated allowed browser origins; `*` for dev |
-| `Scoring__*`, `Prompts__Analyzer`, `Prompts__Evaluator`, `Prompts__Advisor` | no | see `appsettings.json` / `PromptSeeds.cs` | Read-only scoring/advisor config & prompt overrides |
-
-### Scraper (Python FastAPI)
-
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `MONGODB_CONNECTION_STRING` | **yes** | — | MongoDB connection string |
-| `OPENAI_API_KEY` | **yes** | — | OpenAI key for job/profile embeddings (`text-embedding-3-small`) |
-| `MONGODB_DATABASE_NAME` | no | `job-tracker` | Database name |
-| `API_BASE_URL` | no | `http://localhost:5002` | Unified API URL (triage, advisor, dedup, save) |
-| `CORS_ORIGINS` | no | `*` | Comma-separated allowed browser origins |
-
-**Scheduled ingest (Render Cron Job).** Discovery can run daily without the UI: create a Render **Cron Job** service from this repo — Docker runtime, Dockerfile `server/scraper/Dockerfile`, schedule `0 5 * * *`, command `python -m app.cli run-all` — with the scraper env vars above (`CORS_ORIGINS` not needed; point `API_BASE_URL` at your deployed API). `run-all` ingests every criteria with `is_active=true` sequentially, ensures the retention TTL index, and exits non-zero when no criteria are active so failed runs are visible in Render's history.
-
-### Mailbot (.NET console, optional) & Frontend
-
-The mailbot reads config from env vars or a local `.env`. It does **not** need an Anthropic key — email parsing happens in the API.
-
-| Variable | Service | Required | Description |
-|----------|---------|----------|-------------|
-| `Tracker__BaseUrl` | Mailbot | no (`http://localhost:5002`) | API URL the mailbot posts updates to |
-| `Gmail__CredentialsPath` | Mailbot | no | OAuth client-secrets JSON; **if absent, mailbot skips and exits cleanly** |
-| `Gmail__LookbackDays` | Mailbot | no (`3`) | Daily-sync search window; the query is built from tracked-company names |
-| `Gmail__Query` | Mailbot | no (built automatically) | Optional verbatim override of the daily-sync Gmail query |
-| `Mailbot__Resync` | Mailbot | no (`false`) | `true` → next run re-syncs from full history instead of the daily 24h sync |
-| `Mailbot__ResyncCompany` / `Mailbot__ResyncTitle` | Mailbot | no | Scope re-sync to one company/role; if unset, re-sync all |
-| `API_URL` / `SCRAPER_URL` | Frontend (Nginx) | no | Upstream URLs for the reverse proxy |
-| `VITE_API_URL` / `VITE_SCRAPER_URL` | Frontend (build arg) | no | Direct-call URLs baked into the SPA (bypass nginx) |
-
----
-
-## Project structure
-
-```
-nextrole/
-├── client/              # React 19 + Vite SPA
-├── server/
-│   ├── api/             # ASP.NET Core 10 — AI scoring + tracking
-│   ├── scraper/         # Python FastAPI — job scraping + enrichment
-│   └── mailbot/         # .NET console — Gmail sync
-├── e2e/                 # Playwright end-to-end tests
-├── docker-compose.yml   # run the whole stack
-└── .github/workflows/   # per-service CI/CD
-```
+Running services individually ([.NET 10 SDK](https://dotnet.microsoft.com/download), [Python 3.12+](https://www.python.org/), [Bun](https://bun.sh/)), the optional integrations (scraper, Gmail sync), the daily ingest cron, and every environment variable are covered in the **[Getting Started Guide](docs/getting-started.md)**.
 
 ---
 

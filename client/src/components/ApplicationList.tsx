@@ -34,9 +34,16 @@ function edVerdictColor(verdict: string | null): string {
 }
 
 // The page reads as a front page: live interview processes get feature cards,
-// applications awaiting a reply stay compact rows, closed ones fold away.
+// the user's own to-apply queue and applications awaiting a reply stay compact
+// rows, stale waits fold into "Probably ghosted", closed ones fold away.
 const IN_MOTION = new Set(['PhoneScreen', 'TechnicalInterview', 'FinalRound', 'OfferReceived', 'Accepted']);
 const CLOSED = new Set(['Rejected', 'Withdrawn']);
+// Not waiting on anyone — these are the user's own next moves.
+const TO_APPLY = new Set(['Analyzing', 'DecidedToApply']);
+// An Applied role silent this long is presumed ghosted (presentation only).
+const GHOST_DAYS = 30;
+// Fresh awaiting rows shown before the "Show all" expander.
+const AWAITING_VISIBLE = 6;
 
 // "Today" / "Tomorrow" / weekday within a week / date — for the feature cards.
 function interviewDayLabel(iso: string): string {
@@ -56,6 +63,20 @@ function daysSince(iso: string | undefined): number | null {
 
 const COLS = 'grid-cols-[1fr_1fr] md:grid-cols-[2fr_1.5fr_1fr_0.5fr_0.8fr_0.5fr_2.25rem]';
 const HEAD = 'hidden md:grid grid-cols-[2fr_1.5fr_1fr_0.5fr_0.8fr_0.5fr_2.25rem] gap-4 py-[0.6rem] text-[0.62rem] text-[var(--ed-ink-faint)] border-b border-[var(--ed-rule)] uppercase tracking-[0.14em] font-semibold';
+
+function TableHead() {
+  return (
+    <div className={HEAD}>
+      <span>Position</span>
+      <span>Company</span>
+      <span>Status</span>
+      <span>Days</span>
+      <span>Verdict</span>
+      <span>Date</span>
+      <span></span>
+    </div>
+  );
+}
 
 // Quiet running-head, same voice as the page dateline — a whisper, not a rule.
 function SectionRule({ label, count }: { label: string; count: number }) {
@@ -150,6 +171,7 @@ export default function ApplicationList() {
   const { data: apps = [], error, isLoading } = useApplications();
   const deleteAppMutation = useDeleteApplication();
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [showAllAwaiting, setShowAllAwaiting] = useState(false);
 
   if (error) {
     return <div className="border border-[var(--ed-no)]/30 bg-[var(--ed-no)]/10 p-6 mb-4"><p className="text-center py-12 text-[var(--ed-no)] text-[0.88rem]">Failed to load applications: {error.message}</p></div>;
@@ -161,15 +183,7 @@ export default function ApplicationList() {
   if (isLoading) {
     return (
       <div className="mb-4" aria-hidden="true">
-        <div className={HEAD}>
-          <span>Position</span>
-          <span>Company</span>
-          <span>Status</span>
-          <span>Days</span>
-          <span>Verdict</span>
-          <span>Date</span>
-          <span></span>
-        </div>
+        <TableHead />
         {[0, 1, 2, 3, 4].map((i) => (
           <div key={i} className={`grid ${COLS} items-center gap-4 py-[0.9rem] border-b border-[var(--ed-rule)] last:border-b-0`}>
             <Skeleton className="h-[14px] w-[80%] rounded" />
@@ -191,6 +205,9 @@ export default function ApplicationList() {
   }
 
   const all = apps as Application[];
+  const lastTouch = (x: Application) => new Date(x.updatedAt ?? x.createdAt).getTime();
+  const byFreshest = (a: Application, b: Application) => lastTouch(b) - lastTouch(a);
+
   const inMotion = all
     .filter((a) => IN_MOTION.has(a.status))
     .sort((a, b) => {
@@ -198,12 +215,18 @@ export default function ApplicationList() {
       const t = (x: Application) => (x.nextInterviewAt ? new Date(x.nextInterviewAt).getTime() : Infinity);
       return t(a) - t(b);
     });
-  const awaiting = all
-    .filter((a) => !IN_MOTION.has(a.status) && !CLOSED.has(a.status))
-    .sort((a, b) => (daysSince(b.updatedAt) ?? -1) - (daysSince(a.updatedAt) ?? -1)); // stalest first — they need the nudge
+  const toApply = all.filter((a) => TO_APPLY.has(a.status)).sort(byFreshest);
+  // Everything else (Applied + any unknown/legacy status) waits on a reply —
+  // the catch-all keeps nothing from silently disappearing off the page.
+  const appliedAll = all
+    .filter((a) => !IN_MOTION.has(a.status) && !CLOSED.has(a.status) && !TO_APPLY.has(a.status))
+    .sort(byFreshest);
+  const awaiting = appliedAll.filter((a) => (daysSince(a.updatedAt ?? a.createdAt) ?? 0) < GHOST_DAYS);
+  const ghosted = appliedAll.filter((a) => (daysSince(a.updatedAt ?? a.createdAt) ?? 0) >= GHOST_DAYS);
+  const awaitingVisible = showAllAwaiting ? awaiting : awaiting.slice(0, AWAITING_VISIBLE);
   const archive = all
     .filter((a) => CLOSED.has(a.status))
-    .sort((a, b) => new Date(b.updatedAt ?? b.createdAt).getTime() - new Date(a.updatedAt ?? a.createdAt).getTime());
+    .sort(byFreshest);
 
   const open = (id: string) => navigate(`/tracker/${id}`);
 
@@ -222,20 +245,46 @@ export default function ApplicationList() {
         )}
       </section>
 
-      {/* Sent, no verdict yet */}
-      {awaiting.length > 0 && (
+      {/* The user's own queue — nothing sent yet, nothing to wait on */}
+      {toApply.length > 0 && (
+        <section aria-label="Applications to apply to" className="mt-12">
+          <SectionRule label="To Apply" count={toApply.length} />
+          <TableHead />
+          {toApply.map((a) => <Row key={a.id} app={a} onOpen={() => open(a.id)} onDelete={() => setDeleteId(a.id)} />)}
+        </section>
+      )}
+
+      {/* Sent, no verdict yet — capped, with the long silences folded away */}
+      {appliedAll.length > 0 && (
         <section aria-label="Applications awaiting a reply" className="mt-12">
           <SectionRule label="No Reply Yet" count={awaiting.length} />
-          <div className={HEAD}>
-            <span>Position</span>
-            <span>Company</span>
-            <span>Status</span>
-            <span>Days</span>
-            <span>Verdict</span>
-            <span>Date</span>
-            <span></span>
-          </div>
-          {awaiting.map((a) => <Row key={a.id} app={a} onOpen={() => open(a.id)} onDelete={() => setDeleteId(a.id)} />)}
+          {awaiting.length > 0 && (
+            <>
+              <TableHead />
+              {awaitingVisible.map((a) => <Row key={a.id} app={a} onOpen={() => open(a.id)} onDelete={() => setDeleteId(a.id)} />)}
+              {awaiting.length > AWAITING_VISIBLE && (
+                <button
+                  type="button"
+                  onClick={() => setShowAllAwaiting((v) => !v)}
+                  className="w-full py-[0.6rem] text-[0.68rem] uppercase tracking-[0.14em] font-semibold text-[var(--ed-ink-faint)] hover:text-[var(--ed-ink)] transition-colors border-b border-[var(--ed-rule)]/70"
+                >
+                  {showAllAwaiting ? 'Show fewer' : `Show all (${awaiting.length})`}
+                </button>
+              )}
+            </>
+          )}
+          {ghosted.length > 0 && (
+            <details className="mt-3 group">
+              <summary className="cursor-pointer list-none inline-flex items-baseline gap-[0.6rem] py-[0.5rem] text-[var(--ed-ink-faint)] hover:text-[var(--ed-ink-soft)] transition-colors">
+                <span aria-hidden="true" className="text-[0.8rem] leading-none transition-transform group-open:rotate-90">▸</span>
+                <span className="text-[0.66rem] uppercase tracking-[0.24em] font-semibold">Probably ghosted</span>
+                <span className="text-[0.66rem] text-[var(--ed-ink-faint)]/70 tabular-nums">· {ghosted.length} silent {GHOST_DAYS}d+</span>
+              </summary>
+              <div className="border-t border-[var(--ed-rule)] pt-1">
+                {ghosted.map((a) => <Row key={a.id} app={a} muted onOpen={() => open(a.id)} onDelete={() => setDeleteId(a.id)} />)}
+              </div>
+            </details>
+          )}
         </section>
       )}
 

@@ -318,7 +318,7 @@ public static class MatchEndpoints
             self_presentation_technical = doc.SelfPresentationTechnical,
             presenting_work_project = doc.PresentingWorkProject,
             presenting_personal_project = doc.PresentingPersonalProject,
-            qa_rubric = doc.QaRubric.Select(e => new { question = e.Question, answer = e.Answer }),
+            qa_rubric = doc.QaRubric.Select(e => new { question = e.Question, answer = e.Answer, categories = e.Categories, topic = e.Topic }),
             self_presentation_hr_cues = doc.SelfPresentationHrCues,
             self_presentation_technical_cues = doc.SelfPresentationTechnicalCues,
             updated_at = doc.UpdatedAt
@@ -364,7 +364,13 @@ public static class MatchEndpoints
             try
             {
                 var qa = request.QaRubric?
-                    .Select(e => new QaEntry { Question = e.Question, Answer = e.Answer })
+                    .Select(e => new QaEntry
+                    {
+                        Question = e.Question,
+                        Answer = e.Answer,
+                        Categories = e.Categories ?? new List<string>(),
+                        Topic = e.Topic ?? "",
+                    })
                     .ToList();
                 await provider.UpsertInterviewPrepAsync(
                     request.SelfPresentationHr,

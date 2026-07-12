@@ -184,14 +184,18 @@ if (string.IsNullOrWhiteSpace(prep.SelfPresentationHr))
             new() { Question = "Where do you see yourself in 5 years?",
                 Answer = "Growing into a senior/tech-lead role where I own a significant area of the product and help set " +
                          "technical direction while still writing code — deepening system design and mentoring rather than " +
-                         "moving fully into management." },
+                         "moving fully into management.",
+                Categories = new List<string> { "HR" } },
             new() { Question = "Tell me about a time you disagreed with a teammate.",
                 Answer = "On the order-processing rebuild a teammate wanted a full rewrite; I argued for a strangler-fig " +
                          "approach to cut risk. I laid out the migration and rollback plan, we tried it behind a flag, and the " +
-                         "incremental cutover saved weeks and avoided downtime." },
+                         "incremental cutover saved weeks and avoided downtime.",
+                Categories = new List<string> { "Behavioral" },
+                Topic = "Order-processing rebuild" },
             new() { Question = "Why are you looking to leave your current role?",
                 Answer = "I've shipped things I'm proud of, but I've grown past the scope available to me. I want harder " +
-                         "technical problems and a clearer path toward technical leadership." },
+                         "technical problems and a clearer path toward technical leadership.",
+                Categories = new List<string> { "HR" } },
         });
     Console.WriteLine("Interview-prep seeded.");
 }

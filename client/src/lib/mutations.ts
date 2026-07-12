@@ -281,10 +281,10 @@ export function useDeleteMockSession() {
 export function useAdoptRubric() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ question, answer }: { question: string; answer: string }) =>
+    mutationFn: ({ question, answer, categories }: { question: string; answer: string; categories?: string[] }) =>
       api('/mock-interview/adopt-rubric', {
         method: 'POST',
-        body: JSON.stringify({ question, answer }),
+        body: JSON.stringify({ question, answer, categories }),
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['match', 'interview-prep'] });

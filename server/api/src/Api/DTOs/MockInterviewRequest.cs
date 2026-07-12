@@ -41,4 +41,8 @@ public sealed record AdoptRubricRequest
 {
     public string? Question { get; init; }
     public string? Answer { get; init; }
+    // Optional interviewer-type tags (client sends the session persona, e.g.
+    // ["HR"] or ["Technical"]); normalized server-side against the fixed set.
+    public List<string>? Categories { get; init; }
+    public string? Topic { get; init; }
 }

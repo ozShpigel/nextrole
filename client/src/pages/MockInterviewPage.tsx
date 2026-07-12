@@ -431,7 +431,7 @@ export default function MockInterviewPage() {
   async function doAdopt(idx: number, question: string, answer: string) {
     setAdopted((p) => ({ ...p, [idx]: 'pending' }));
     try {
-      await adopt.mutateAsync({ question, answer });
+      await adopt.mutateAsync({ question, answer, categories: [persona === 'technical' ? 'Technical' : 'HR'] });
       setAdopted((p) => ({ ...p, [idx]: 'done' }));
     } catch {
       setAdopted((p) => { const n = { ...p }; delete n[idx]; return n; });

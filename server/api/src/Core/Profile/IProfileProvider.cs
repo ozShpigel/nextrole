@@ -38,6 +38,11 @@ public sealed record QaEntry
 {
     public string Question { get; init; } = "";
     public string Answer { get; init; } = "";
+    // Interviewer-type tags from a fixed set (HR / Technical / Behavioral) — a
+    // question may carry several. Normalized in BuildQaRubricBson.
+    public IReadOnlyList<string> Categories { get; init; } = Array.Empty<string>();
+    // Optional free-text grouping label (e.g. a project name); "" = ungrouped.
+    public string Topic { get; init; } = "";
 }
 
 public sealed record InterviewPrepDocument

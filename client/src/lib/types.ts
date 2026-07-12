@@ -138,7 +138,14 @@ export interface ProfileHistoryResponse {
 export interface QaEntry {
   question: string;
   answer: string;
+  // Interviewer-type tags from the fixed QA_CATEGORIES set; server drops unknowns.
+  categories?: string[];
+  // Free-text grouping label (e.g. a project name); ''/absent = ungrouped.
+  topic?: string;
 }
+
+export const QA_CATEGORIES = ['HR', 'Technical', 'Behavioral'] as const;
+export type QaCategory = (typeof QA_CATEGORIES)[number];
 
 export interface InterviewPrepResponse {
   self_presentation_hr?: string;

@@ -10,7 +10,13 @@ from motor.motor_asyncio import AsyncIOMotorClient
 
 from app.config import Settings
 from app.indexes import ensure_ttl_index
-from app.schemas.criteria import CreateCriteriaRequest, UpdateCriteriaRequest
+from app.schemas.criteria import (
+    MAX_SEARCHES_PER_RUN,
+    CreateCriteriaRequest,
+    UpdateCriteriaRequest,
+    pairs_error,
+    search_pairs,
+)
 from app.schemas.search import SearchRequest
 from app.models.search_criteria import SearchCriteria
 from app.services import orchestrator, search, tracker_client
@@ -141,6 +147,16 @@ async def update_criteria(criteria_id: str, req: UpdateCriteriaRequest):
     updates = req.model_dump(exclude_unset=True)
     if not updates:
         raise HTTPException(400, "No fields to update")
+    # Partial update: enforce the titles x locations search budget against the
+    # merged result (schema-level validation can't see the other half).
+    if "job_titles" in updates or "locations" in updates:
+        existing = await db.search_criteria.find_one({"id": criteria_id})
+        if not existing:
+            raise HTTPException(404, "Criteria not found")
+        titles = updates.get("job_titles", existing.get("job_titles") or [])
+        locations = updates.get("locations", existing.get("locations") or [])
+        if search_pairs(titles, locations) > MAX_SEARCHES_PER_RUN:
+            raise HTTPException(400, pairs_error(titles, locations))
     updates["updated_at"] = datetime.now(timezone.utc)
     result = await db.search_criteria.update_one({"id": criteria_id}, {"$set": updates})
     if result.matched_count == 0:
@@ -194,9 +210,14 @@ async def get_run(run_id: str):
 
 @app.get("/api/discovery/runs/{run_id}/jobs")
 async def get_run_jobs(run_id: str):
-    docs = await db.discovered_jobs.find({"run_id": run_id}).sort("score", -1).to_list(200)
+    # Exclude the raw vector (~12KB/doc); expose an `embedded` flag instead so
+    # the UI can surface jobs that silently fell out of the searchable pool.
+    docs = await db.discovered_jobs.find(
+        {"run_id": run_id}, {"job_embedding": 0}
+    ).sort("score", -1).to_list(200)
     for d in docs:
         d.pop("_id", None)
+        d["embedded"] = d.get("embedding_model") is not None
     return docs
 
 

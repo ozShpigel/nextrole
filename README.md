@@ -117,4 +117,4 @@ Each pipeline logs into GHCR, builds the service's Dockerfile, tags `:latest`, a
 
 ---
 
-<sub>Built by Ozz Shpigel. NextRole is a personal project — see [`project-scope.md`](project-scope.md) and [`implementation-plan.md`](implementation-plan.md) for the original brief.</sub>
+<sub>NextRole is a personal project — the original brief lives in [`project-scope.md`](project-scope.md).</sub>

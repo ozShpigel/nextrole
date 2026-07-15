@@ -134,6 +134,47 @@ describe('QaRubricAccordion', () => {
     expect(screen.getByText('Untagged question')).toBeInTheDocument();
   });
 
+  it('filters by topic chip, toggles off on second click, and combines with the category filter', async () => {
+    render(<Harness initial={ENTRIES} />);
+
+    // Topic chips carry counts; General covers the topic-less entries.
+    await userEvent.click(screen.getByRole('button', { name: 'Payoneer project (2)' }));
+    expect(screen.getByText('Explain the Payoneer project')).toBeInTheDocument();
+    expect(screen.getByText('Biggest challenge there?')).toBeInTheDocument();
+    expect(screen.queryByText('Tell me about yourself')).not.toBeInTheDocument();
+    expect(screen.queryByText('Untagged question')).not.toBeInTheDocument();
+
+    // AND-combines with the category filter.
+    await userEvent.click(screen.getByRole('button', { name: 'HR (2)' }));
+    expect(screen.getByText('Biggest challenge there?')).toBeInTheDocument();
+    expect(screen.queryByText('Explain the Payoneer project')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'All (4)' }));
+
+    // Clicking the active topic chip clears the topic filter.
+    await userEvent.click(screen.getByRole('button', { name: 'Payoneer project (2)', pressed: true }));
+    expect(screen.getByText('Untagged question')).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: 'General (2)' }));
+    expect(screen.getByText('Tell me about yourself')).toBeInTheDocument();
+    expect(screen.getByText('Untagged question')).toBeInTheDocument();
+    expect(screen.queryByText('Biggest challenge there?')).not.toBeInTheDocument();
+  });
+
+  it('collapses an open question when the topic filter hides it, and pre-tags Add question with the active topic', async () => {
+    render(<Harness initial={ENTRIES} />);
+
+    await userEvent.click(screen.getByRole('button', { name: /tell me about yourself/i }));
+    expect(screen.getByText('Intro answer')).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Payoneer project (2)' }));
+    expect(screen.queryByText('Intro answer')).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: /add question/i }));
+    // The edit-mode topic chip shows the new entry already tagged with the topic.
+    expect(screen.getByRole('button', { name: 'Payoneer project', pressed: true })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Payoneer project (3)' })).toBeInTheDocument();
+  });
+
   it('collapses an open question when the new filter hides it, and disables reorder while filtered', async () => {
     render(<Harness initial={ENTRIES} />);
 

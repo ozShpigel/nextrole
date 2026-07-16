@@ -34,8 +34,8 @@ export function StatStrip({ criteriaCount, runsCount, lastRun }: StatStripProps)
   return (
     <div className="flex items-stretch mb-11 divide-x divide-[var(--ed-rule)] max-[640px]:flex-col max-[640px]:divide-x-0 max-[640px]:divide-y max-[640px]:gap-0">
       <StatFigure value={criteriaCount} label="Active Criteria" />
-      <StatFigure value={runsCount} label="Search History" />
-      <StatFigure value={lastRun ? relativeTime(lastRun) : '—'} label="Last Search" />
+      <StatFigure value={runsCount} label="Collection Runs" />
+      <StatFigure value={lastRun ? relativeTime(lastRun) : '—'} label="Last Collection" />
     </div>
   );
 }

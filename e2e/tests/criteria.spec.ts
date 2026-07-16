@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { clearAll, insertCriteria } from '../fixtures/helpers';
 
-test.describe('Search Criteria — Create', () => {
+test.describe('Collection Criteria — Create', () => {
   test.beforeEach(async () => {
     await clearAll();
   });
@@ -10,7 +10,7 @@ test.describe('Search Criteria — Create', () => {
     await page.goto('/discovery');
 
     await page.getByRole('button', { name: '+ New Criteria' }).click();
-    await expect(page.getByText('New Search Criteria')).toBeVisible();
+    await expect(page.getByText('New Collection Criteria')).toBeVisible();
 
     await page.getByPlaceholder('e.g. "Senior Backend .NET"').fill('My Backend Search');
     await page.getByPlaceholder('Senior Backend Engineer').fill('Senior Backend Engineer\nPlatform Engineer');
@@ -26,7 +26,7 @@ test.describe('Search Criteria — Create', () => {
 
     await page.getByRole('button', { name: 'Create', exact: true }).click();
 
-    await expect(page.getByText('New Search Criteria')).toBeHidden();
+    await expect(page.getByText('New Collection Criteria')).toBeHidden();
     await expect(page.getByText('My Backend Search')).toBeVisible();
 
     await expect(page.getByText('Senior Backend Engineer')).toBeVisible();
@@ -46,7 +46,7 @@ test.describe('Search Criteria — Create', () => {
 
     await page.getByRole('button', { name: 'Create', exact: true }).click();
 
-    await expect(page.getByText('New Search Criteria')).toBeHidden();
+    await expect(page.getByText('New Collection Criteria')).toBeHidden();
     await expect(page.getByText('Minimal Criteria')).toBeVisible();
     await expect(page.getByText('Software Engineer')).toBeVisible();
   });
@@ -55,16 +55,16 @@ test.describe('Search Criteria — Create', () => {
     await page.goto('/discovery');
 
     await page.getByRole('button', { name: '+ New Criteria' }).click();
-    await expect(page.getByText('New Search Criteria')).toBeVisible();
+    await expect(page.getByText('New Collection Criteria')).toBeVisible();
 
     await page.getByRole('button', { name: 'Cancel' }).click();
-    await expect(page.getByText('New Search Criteria')).toBeHidden();
+    await expect(page.getByText('New Collection Criteria')).toBeHidden();
 
     await expect(page.getByText('No search criteria')).toBeVisible();
   });
 });
 
-test.describe('Search Criteria — Edit', () => {
+test.describe('Collection Criteria — Edit', () => {
   test.beforeEach(async () => {
     await clearAll();
   });
@@ -91,7 +91,7 @@ test.describe('Search Criteria — Edit', () => {
   });
 });
 
-test.describe('Search Criteria — Delete', () => {
+test.describe('Collection Criteria — Delete', () => {
   test.beforeEach(async () => {
     await clearAll();
   });

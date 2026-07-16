@@ -35,8 +35,8 @@ describe('CriteriaSection - Empty State', () => {
     renderWithRouter(
       <CriteriaSection criteria={[]} onEdit={noop} onDelete={noop} onRun={noop} onNew={noop} />,
     );
-    expect(screen.getByText('No search criteria')).toBeInTheDocument();
-    expect(screen.getByText('Define your first criteria to start automatically scanning jobs from LinkedIn and Indeed.')).toBeInTheDocument();
+    expect(screen.getByText('No collection criteria')).toBeInTheDocument();
+    expect(screen.getByText('Define your first criteria to start automatically collecting jobs from LinkedIn and Indeed.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '+ Create New Criteria' })).toBeInTheDocument();
   });
 });
@@ -54,12 +54,12 @@ describe('CriteriaSection - Multiple Cards', () => {
     expect(screen.getByText('Backend Jobs')).toBeInTheDocument();
   });
 
-  it('each card has a Run Search button', () => {
+  it('each card has a Collect Jobs button', () => {
     const criteria = [makeCriteria({ name: 'A' }), makeCriteria({ name: 'B' })];
     renderWithRouter(
       <CriteriaSection criteria={criteria} onEdit={noop} onDelete={noop} onRun={noop} onNew={noop} />,
     );
-    expect(screen.getAllByRole('button', { name: 'Run Search →' })).toHaveLength(2);
+    expect(screen.getAllByRole('button', { name: 'Collect Jobs →' })).toHaveLength(2);
   });
 });
 
@@ -83,7 +83,7 @@ describe('CriteriaCard - Display', () => {
     expect(screen.queryByText('Threshold')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Edit' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Delete' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Run Search →' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Collect Jobs →' })).toBeInTheDocument();
   });
 });
 
@@ -94,7 +94,7 @@ describe('CriteriaCard - Demo mode', () => {
     renderWithRouter(
       <CriteriaCard criteria={makeCriteria()} index={0} onEdit={noop} onDelete={noop} onRun={noop} />,
     );
-    const run = await screen.findByRole('button', { name: 'Run Search — disabled in demo' });
+    const run = await screen.findByRole('button', { name: 'Collect Jobs — disabled in demo' });
     expect(run).toBeDisabled();
     expect(run).toHaveAttribute('title', 'Disabled in the read-only demo');
     await waitFor(() => expect(screen.getByRole('button', { name: 'Edit' })).toBeDisabled());

@@ -21,7 +21,7 @@ describe("PageHeader", () => {
     renderWithRouter(<PageHeader onNewCriteria={() => {}} />);
     expect(
       screen.getByText(
-        "Automated job search from LinkedIn and Indeed with AI-powered scoring and matching via Claude.",
+        /Collects jobs from LinkedIn and Indeed into your pool/,
       ),
     ).toBeInTheDocument();
   });

@@ -21,7 +21,7 @@ function makeRun(overrides = {}) {
 describe('RunsTimeline - Empty State', () => {
   it('shows empty message when no runs exist', () => {
     renderWithRouter(<RunsTimeline runs={[]} onAbort={noop} />);
-    expect(screen.getByText('No searches yet')).toBeInTheDocument();
+    expect(screen.getByText('No collection runs yet')).toBeInTheDocument();
     expect(screen.getByText('Run your first criteria to start collecting jobs.')).toBeInTheDocument();
   });
 });
@@ -68,14 +68,14 @@ describe('RunsTimeline - Run Cards', () => {
     renderWithRouter(
       <RunsTimeline runs={[makeRun({ status, completed_at: null })]} onAbort={noop} />,
     );
-    expect(screen.getByRole('button', { name: 'Abort search' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Abort collection run' })).toBeInTheDocument();
   });
 
   it('completed run does not show abort button', () => {
     renderWithRouter(
       <RunsTimeline runs={[makeRun({ status: 'completed' })]} onAbort={noop} />,
     );
-    expect(screen.queryByRole('button', { name: 'Abort search' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Abort collection run' })).not.toBeInTheDocument();
   });
 
   it('multiple runs appear in timeline', () => {
@@ -112,7 +112,7 @@ describe('RunsTimeline - Throttle visibility', () => {
         onAbort={noop}
       />,
     );
-    expect(screen.getByText(/7 of 12 searches returned nothing — possibly rate-limited/)).toBeInTheDocument();
+    expect(screen.getByText(/7 of 12 board queries returned nothing — possibly rate-limited/)).toBeInTheDocument();
   });
 
   it('shows no warning on a healthy run', () => {
@@ -132,7 +132,7 @@ describe('RunsTimeline - Throttle visibility', () => {
         onAbort={noop}
       />,
     );
-    expect(screen.getByText(/6 of 6 searches returned nothing/)).toBeInTheDocument();
+    expect(screen.getByText(/6 of 6 board queries returned nothing/)).toBeInTheDocument();
   });
 });
 

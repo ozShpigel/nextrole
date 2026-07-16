@@ -16,7 +16,7 @@ export default function PageHeader({ onNewCriteria }: PageHeaderProps) {
       {/* dateline / running head */}
       <div className="flex items-baseline justify-between gap-4 pb-[10px] border-b border-[var(--ed-rule)] text-[0.62rem] font-semibold uppercase tracking-[0.22em] text-[var(--ed-ink-faint)]">
         <span>Discovery</span>
-        <span className="text-[var(--ed-accent)] hidden sm:block">Curated &amp; scored against your profile</span>
+        <span className="text-[var(--ed-accent)] hidden sm:block">Collect · runs automatically</span>
         <span className="tabular-nums">{TODAY}</span>
       </div>
 
@@ -27,7 +27,8 @@ export default function PageHeader({ onNewCriteria }: PageHeaderProps) {
             Job{' '}<span className="italic font-medium text-[var(--ed-accent)]">Discovery</span>
           </h1>
           <p className="mt-3 max-w-[560px] text-[0.95rem] leading-[1.6] text-[var(--ed-ink-soft)]">
-            Automated job search from LinkedIn and Indeed with AI-powered scoring and matching via Claude.
+            Collects jobs from LinkedIn and Indeed into your pool — automatically, on a nightly schedule.
+            Matching against your profile happens on the Search page.
           </p>
         </div>
         <Button

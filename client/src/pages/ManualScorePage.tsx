@@ -3,11 +3,18 @@ import { Link } from 'react-router-dom';
 import { useScoreJob, useAddApplication } from '../lib/mutations';
 import type { MatchResponse } from '../lib/types';
 import AnalysisCard from '../components/AnalysisCard';
+import { InterviewModal } from '../components/Interviews';
+import { STATUS_LABELS } from '../lib/tracker';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 
 const MIN_DESCRIPTION = 50;
+
+// Analyzing is the discovery pipeline's pre-decision state — a job you scored
+// and chose to save has, by definition, moved past it.
+const SAVE_STATUSES = Object.entries(STATUS_LABELS).filter(([value]) => value !== 'Analyzing');
 
 const ED_BTN = 'rounded-none border px-4 py-[0.55rem] text-[0.7rem] font-semibold uppercase tracking-[0.1em] transition-all disabled:opacity-50 disabled:pointer-events-none';
 const ED_GHOST = `${ED_BTN} border-[var(--ed-rule)] text-[var(--ed-ink-soft)] hover:border-[var(--ed-ink)] hover:text-[var(--ed-ink)]`;
@@ -25,8 +32,11 @@ export default function ManualScorePage() {
 
   const [result, setResult] = useState<MatchResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [status, setStatus] = useState('DecidedToApply');
   const [saved, setSaved] = useState<SavedRef | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [showInterviewModal, setShowInterviewModal] = useState(false);
+  const [interviewScheduled, setInterviewScheduled] = useState(false);
 
   const scoreJob = useScoreJob();
   const addApplication = useAddApplication();
@@ -76,7 +86,7 @@ export default function ManualScorePage() {
       {
         jobTitle: resolvedTitle,
         company: resolvedCompany,
-        status: 'DecidedToApply',
+        status,
         jobDescription: trimmedDescription,
         matchScore: result.overallScore ?? null,
         matchVerdict: result.verdict,
@@ -101,8 +111,11 @@ export default function ManualScorePage() {
     setDescription('');
     setResult(null);
     setError(null);
+    setStatus('DecidedToApply');
     setSaved(null);
     setSaveError(null);
+    setShowInterviewModal(false);
+    setInterviewScheduled(false);
   }
 
   return (
@@ -180,8 +193,17 @@ export default function ManualScorePage() {
           <div className="border border-[var(--ed-rule)] p-5 flex items-center justify-between gap-4 flex-wrap">
             {saved ? (
               <>
-                <span className="text-[0.88rem] text-[var(--ed-yes)] font-semibold uppercase tracking-[0.06em]">Saved to your tracker.</span>
-                <Link to={`/tracker/${saved.id}`} className={ED_PRIMARY}>View in Tracker</Link>
+                <span className="text-[0.88rem] text-[var(--ed-yes)] font-semibold uppercase tracking-[0.06em]">
+                  Saved to your tracker.{interviewScheduled ? ' Interview scheduled.' : ''}
+                </span>
+                <div className="flex items-center gap-2 flex-wrap">
+                  {!interviewScheduled && (
+                    <button type="button" className={ED_GHOST} onClick={() => setShowInterviewModal(true)}>
+                      Schedule Interview
+                    </button>
+                  )}
+                  <Link to={`/tracker/${saved.id}`} className={ED_PRIMARY}>View in Tracker</Link>
+                </div>
               </>
             ) : (
               <>
@@ -190,15 +212,41 @@ export default function ManualScorePage() {
                     ? <>Save <span className="text-[var(--ed-ink)] font-semibold">{resolvedTitle}</span> at <span className="text-[var(--ed-ink)] font-semibold">{resolvedCompany}</span> to your tracker.</>
                     : 'Add a job title and company above to save this to your tracker.'}
                 </div>
-                <button type="button" className={ED_PRIMARY} onClick={handleSave} disabled={!canSave}>
-                  {addApplication.isPending ? 'Saving…' : 'Save to Tracker'}
-                </button>
+                <div className="flex items-center gap-3 flex-wrap">
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="ms-status" className="text-[var(--ed-ink-soft)]">Save as</Label>
+                    <Select value={status} onValueChange={setStatus}>
+                      <SelectTrigger id="ms-status" className="min-w-[180px]">
+                        <SelectValue placeholder="Select status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {SAVE_STATUSES.map(([value, label]) => (
+                          <SelectItem key={value} value={value}>{label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <button type="button" className={ED_PRIMARY} onClick={handleSave} disabled={!canSave}>
+                    {addApplication.isPending ? 'Saving…' : 'Save to Tracker'}
+                  </button>
+                </div>
               </>
             )}
             {saveError && (
               <div className="w-full mt-1 p-3 bg-[var(--ed-no)]/10 text-[var(--ed-no)] text-[0.88rem] border border-[var(--ed-no)]/30">{saveError}</div>
             )}
           </div>
+
+          {saved && showInterviewModal && (
+            <InterviewModal
+              appId={saved.id}
+              onClose={() => setShowInterviewModal(false)}
+              onSaved={() => {
+                setShowInterviewModal(false);
+                setInterviewScheduled(true);
+              }}
+            />
+          )}
         </>
       )}
       </div>

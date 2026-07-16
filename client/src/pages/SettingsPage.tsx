@@ -343,24 +343,28 @@ export default function SettingsPage() {
           </div>
         </FieldGroup>
 
-        {/* Manual: strengths + core values */}
-        <FieldGroup title="Strengths" desc="Manual — add one at a time (Enter to add). Not auto-extracted.">
+        {/* Manual: strengths + core values. Capped at 3 each so the matching
+            signal stays sharp — a long list dilutes every item's weight in
+            the search queries and the advisor ranking. */}
+        <FieldGroup title="Strengths" desc="Manual, max 3 — pick the ones that should steer job matching. Not auto-extracted.">
           <ChipInput
             value={profile.strengths}
             onChange={(v) => patch({ strengths: v })}
             placeholder="e.g. Clear written communication"
             ariaLabel="Add a strength"
             suggestions={STRENGTH_SUGGESTIONS}
+            max={3}
           />
         </FieldGroup>
 
-        <FieldGroup title="Core values" desc="Manual — add one at a time (Enter to add). Not auto-extracted.">
+        <FieldGroup title="Core values" desc="Manual, max 3 — pick the ones that should steer job matching. Not auto-extracted.">
           <ChipInput
             value={profile.coreValues}
             onChange={(v) => patch({ coreValues: v })}
             placeholder="e.g. Sustainable pace over short-term heroics"
             ariaLabel="Add a core value"
             suggestions={VALUE_SUGGESTIONS}
+            max={3}
           />
         </FieldGroup>
 

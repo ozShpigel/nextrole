@@ -8,24 +8,29 @@ interface ChipInputProps {
   dir?: 'auto' | 'ltr' | 'rtl';
   /** Curated quick-add presets, shown below the input; already-added ones are hidden. */
   suggestions?: string[];
+  /** Hard cap on items: at the limit the input and quick-adds hide behind a hint. */
+  max?: number;
 }
 
 // Editorial-palette tag input over a flat string[]. Each item is a removable
 // chip; the trailing text box adds items on Enter / comma / blur / +Add.
 // De-dupes case-insensitively and trims — mirrors the csv()/lines() cleanup the
 // profile fields used before, so re-saving stays stable.
-export function ChipInput({ value, onChange, placeholder, ariaLabel, dir = 'auto', suggestions }: ChipInputProps) {
+export function ChipInput({ value, onChange, placeholder, ariaLabel, dir = 'auto', suggestions, max }: ChipInputProps) {
   const [draft, setDraft] = useState('');
 
+  const atMax = max != null && value.length >= max;
   const present = new Set(value.map((v) => v.toLowerCase()));
-  const quickAdd = (suggestions ?? []).filter((s) => !present.has(s.toLowerCase()));
+  const quickAdd = atMax ? [] : (suggestions ?? []).filter((s) => !present.has(s.toLowerCase()));
 
   // Add one or more items (comma-split), trimmed and de-duped against the
-  // existing values (case-insensitive). Returns nothing — commits via onChange.
+  // existing values (case-insensitive), truncated to `max` when set.
+  // Returns nothing — commits via onChange.
   function commit(raw: string): void {
     const existing = new Set(value.map((v) => v.toLowerCase()));
     const additions: string[] = [];
     for (const part of raw.split(',')) {
+      if (max != null && value.length + additions.length >= max) break;
       const trimmed = part.trim();
       if (!trimmed) continue;
       const key = trimmed.toLowerCase();
@@ -71,6 +76,11 @@ export function ChipInput({ value, onChange, placeholder, ariaLabel, dir = 'auto
           </button>
         </span>
       ))}
+      {atMax ? (
+        <span className="text-[0.64rem] text-[var(--ed-ink-faint)] tracking-[0.08em] uppercase font-semibold py-[0.2rem]">
+          {value.length > max! ? `Over the limit — remove down to ${max}` : `${max} of ${max} — remove one to add another`}
+        </span>
+      ) : (
       <div className="flex items-center gap-[0.4rem] flex-1 min-w-[8rem]">
         <input
           type="text"
@@ -93,6 +103,7 @@ export function ChipInput({ value, onChange, placeholder, ariaLabel, dir = 'auto
           </button>
         )}
       </div>
+      )}
     </div>
     {quickAdd.length > 0 && (
       <div className="flex flex-wrap items-center gap-[0.3rem]">

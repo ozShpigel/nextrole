@@ -144,6 +144,59 @@ public static class MatchEndpoints
         .WithName("GetProfile")
         .WithSummary("Get the stored professional profile (rendered content + structured fields)");
 
+        // HyDE search queries for the RAG search: the profile rewritten as the
+        // 1-3 ideal job postings it matches (one per role facet). The scraper
+        // embeds each facet's posting as its own $vectorSearch query and
+        // rank-fuses the results — posting-vs-posting comparison closes the
+        // résumé↔posting genre gap, and per-facet queries stop secondary
+        // facets being averaged away into one centroid. Cached on the profile
+        // doc keyed to the profile's updated_at — regenerated on profile change
+        // or ?force=true. Consumed by the scraper's /api/search, which falls
+        // back to the raw profile on error.
+        app.MapGet("/api/match/profile/search-query", async (
+            bool? force,
+            IProfileProvider provider,
+            ApplicationTracker.Core.AI.IClaudeClient claude,
+            ILogger<Program> logger,
+            CancellationToken ct) =>
+        {
+            static object ToResponse(IReadOnlyList<SearchQueryFacet> facets, bool cached) => new
+            {
+                facets = facets.Select(f => new { name = f.Name, content = f.Posting }),
+                cached
+            };
+
+            try
+            {
+                var cachedFacets = force == true ? null : await provider.GetSearchQueryAsync(ct);
+                if (cachedFacets is not null)
+                    return Results.Ok(ToResponse(cachedFacets, cached: true));
+
+                var profile = await provider.GetProfileAsync(ct);
+                if (string.IsNullOrWhiteSpace(profile))
+                    return Results.BadRequest(new { error = "profile is empty — set it up in Settings first" });
+
+                var facets = await claude.GenerateIdealPostingsAsync(profile, ct);
+                await provider.SetSearchQueryAsync(facets, ct);
+                return Results.Ok(ToResponse(facets, cached: false));
+            }
+            catch (InvalidOperationException ex) when (ex.Message.Contains("ApiKey"))
+            {
+                logger.LogError(ex, "Anthropic API key not configured");
+                return Results.Problem(
+                    detail: "Anthropic API key is not configured. Please set Anthropic:ApiKey in configuration.",
+                    statusCode: 500);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Failed to build the HyDE search query");
+                return Results.Problem("An internal error occurred.", statusCode: 500);
+            }
+        })
+        .RequireRateLimiting("match")
+        .WithName("GetProfileSearchQuery")
+        .WithSummary("Get the cached HyDE search-query facets (profile as 1-3 ideal job postings), regenerating when the profile changed");
+
         app.MapPut("/api/match/profile", async (
             [FromBody] StructuredProfile request,
             IProfileProvider provider,

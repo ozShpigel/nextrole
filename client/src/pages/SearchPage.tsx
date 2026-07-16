@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useSemanticSearch, useSaveJob, useDismissJob } from '../lib/mutations';
-import { useSearchFacets } from '../lib/queries';
+import { useSearchFacets, useDemoMode, DEMO_DISABLED_TITLE } from '../lib/queries';
 import type { AdvisorJobBrief, SearchHit, SemanticSearchResponse } from '../lib/types';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -50,6 +50,8 @@ export default function SearchPage() {
   const search = useSemanticSearch();
   const saveJob = useSaveJob();
   const dismissJob = useDismissJob();
+  const demoMode = useDemoMode();
+  const demoTitle = demoMode ? DEMO_DISABLED_TITLE : undefined;
 
   function toggleLevel(level: string): void {
     setLevels((prev) => {
@@ -283,10 +285,10 @@ export default function SearchPage() {
                           <div className="flex gap-2 items-center mt-4 flex-wrap">
                             {hit?.job_url && <a href={hit.job_url} target="_blank" rel="noopener noreferrer" className={ED_GHOST}>View Job</a>}
                             {hit && !saved && !dismissed && (
-                              <button type="button" className={ED_PRIMARY} onClick={() => handleSave(hit.id)}>Save to Tracker</button>
+                              <button type="button" disabled={demoMode} title={demoTitle} className={`${ED_PRIMARY} disabled:cursor-not-allowed`} onClick={() => handleSave(hit.id)}>Save to Tracker</button>
                             )}
                             {hit && !saved && !dismissed && (
-                              <button type="button" className={`${ED_BTN} border-[var(--ed-rule)] text-[var(--ed-no)] hover:border-[var(--ed-no)] hover:bg-[var(--ed-no)]/10`} onClick={() => handleDismiss(hit.id)}>Dismiss</button>
+                              <button type="button" disabled={demoMode} title={demoTitle} className={`${ED_BTN} border-[var(--ed-rule)] text-[var(--ed-no)] hover:border-[var(--ed-no)] hover:bg-[var(--ed-no)]/10 disabled:cursor-not-allowed`} onClick={() => handleDismiss(hit.id)}>Dismiss</button>
                             )}
                             {saved && <span className="text-[0.66rem] font-semibold uppercase tracking-[0.08em] text-[var(--ed-yes)] py-[0.35rem] px-[0.7rem] border border-[var(--ed-yes)]/40">Saved</span>}
                             {dismissed && <span className="text-[0.66rem] font-semibold uppercase tracking-[0.08em] text-[var(--ed-no)] py-[0.35rem] px-[0.7rem] border border-[var(--ed-no)]/40">Dismissed — won't reappear</span>}

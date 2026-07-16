@@ -313,6 +313,10 @@ Then write overallRecommendation: a comparative paragraph — which 1-2 jobs to 
 Ranking guidance:
 - Each job carries a `similarity` value from the vector search. Treat it as a weak prior only — your judgment on actual fit overrides it.
 - Rank every job you were given, exactly once. rank starts at 1 (best).
+- Topical/stack similarity is only the starting point. Weigh equally:
+  - **Values & strengths alignment**: compare the role's working style — ownership, pace, team structure, autonomy — against the core values and strengths stated in the profile. A posting that contradicts a stated value is a real ranking penalty, not a footnote.
+  - **Engineering execution**: read the posting for execution signals (development practices, testing/CI, code review, role clarity, on-call expectations) and weigh how they match the working practices the profile demonstrates.
+  - **Culture fit evidence**: employee-review data (especially culture/values and work-life sub-ratings) and company news describe the employer behind the posting. A strong topical match with concerning culture evidence ranks below a good match with healthy evidence — say so in the rationale.
 - "apply" = clear fit worth immediate effort; "maybe" = plausible but with real gaps or unknowns; "skip" = mismatch on role scope, stack, seniority, or sustainability.
 - A role demanding scope the profile never demonstrates (e.g. Architect/Staff/Principal ownership, people management) is at most a "maybe", with the gap named in the rationale.
 

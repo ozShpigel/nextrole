@@ -86,6 +86,14 @@ export function useConfig() {
   });
 }
 
+// True on the read-only demo instance. Mutating buttons render disabled with
+// DEMO_DISABLED_TITLE instead of failing with a 403 alert after the click.
+export function useDemoMode(): boolean {
+  return useConfig().data?.demoMode ?? false;
+}
+
+export const DEMO_DISABLED_TITLE = 'Disabled in the read-only demo';
+
 export function useProfile() {
   return useQuery<ProfileResponse>({
     queryKey: ['match', 'profile'],

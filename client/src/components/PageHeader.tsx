@@ -1,4 +1,5 @@
 import { Button } from '@/components/ui/button';
+import { useDemoMode, DEMO_DISABLED_TITLE } from '../lib/queries';
 
 interface PageHeaderProps {
   onNewCriteria: () => void;
@@ -9,6 +10,7 @@ const TODAY = new Date().toLocaleDateString('en-US', {
 });
 
 export default function PageHeader({ onNewCriteria }: PageHeaderProps) {
+  const demoMode = useDemoMode();
   return (
     <header className="relative mb-9 pt-2">
       {/* dateline / running head */}
@@ -30,6 +32,8 @@ export default function PageHeader({ onNewCriteria }: PageHeaderProps) {
         </div>
         <Button
           onClick={onNewCriteria}
+          disabled={demoMode}
+          title={demoMode ? DEMO_DISABLED_TITLE : undefined}
           className="shrink-0 rounded-none bg-[var(--ed-accent)] text-[var(--ed-paper)] hover:bg-[var(--ed-accent-deep)] uppercase text-[0.7rem] font-semibold tracking-[0.08em]"
         >
           + New Criteria

@@ -6,6 +6,7 @@ import { discoveryApi } from '../lib/api';
 
 vi.mock('../lib/api', () => ({
   discoveryApi: vi.fn(),
+  api: vi.fn(),
 }));
 
 const noop = () => {};
@@ -83,6 +84,21 @@ describe('CriteriaCard - Display', () => {
     expect(screen.getByRole('button', { name: 'Edit' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Delete' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Run Search →' })).toBeInTheDocument();
+  });
+});
+
+describe('CriteriaCard - Demo mode', () => {
+  it('disables the mutating buttons with an explanation instead of failing on click', async () => {
+    const { api } = await import('../lib/api');
+    vi.mocked(api).mockResolvedValue({ demoMode: true });
+    renderWithRouter(
+      <CriteriaCard criteria={makeCriteria()} index={0} onEdit={noop} onDelete={noop} onRun={noop} />,
+    );
+    const run = await screen.findByRole('button', { name: 'Run Search — disabled in demo' });
+    expect(run).toBeDisabled();
+    expect(run).toHaveAttribute('title', 'Disabled in the read-only demo');
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Edit' })).toBeDisabled());
+    expect(screen.getByRole('button', { name: 'Delete' })).toBeDisabled();
   });
 });
 

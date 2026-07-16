@@ -1,5 +1,6 @@
 ﻿import { useState } from 'react';
 import { useSaveCriteria } from '../lib/mutations';
+import { useDemoMode, DEMO_DISABLED_TITLE } from '../lib/queries';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -28,6 +29,8 @@ interface CriteriaCardProps {
 
 export function CriteriaCard({ criteria, index, onEdit, onDelete, onRun }: CriteriaCardProps) {
   const num = String(index + 1).padStart(2, '0');
+  const demoMode = useDemoMode();
+  const demoTitle = demoMode ? DEMO_DISABLED_TITLE : undefined;
   return (
     <div
       className="ed-rise group relative flex flex-col border-t border-[var(--ed-rule-strong)] pt-4 pb-1"
@@ -39,8 +42,8 @@ export function CriteriaCard({ criteria, index, onEdit, onDelete, onRun }: Crite
           <h3 className="ed-display font-semibold text-[1.3rem] tracking-[-0.015em] leading-[1.15] text-[var(--ed-ink)] transition-colors group-hover:text-[var(--ed-accent-deep)]">{criteria.name}</h3>
         </div>
         <div className="flex gap-[0.35rem] shrink-0">
-          <Button variant="ghost" size="sm" onClick={() => onEdit(criteria)} className="rounded-none h-7 px-2 text-[0.7rem] uppercase tracking-[0.06em] text-[var(--ed-ink-soft)] hover:bg-[var(--ed-panel)] hover:text-[var(--ed-ink)]">Edit</Button>
-          <Button variant="ghost" size="sm" onClick={() => onDelete(criteria.id)} className="rounded-none h-7 px-2 text-[0.7rem] uppercase tracking-[0.06em] text-[var(--ed-no)] hover:bg-[var(--ed-no)]/10">Delete</Button>
+          <Button variant="ghost" size="sm" disabled={demoMode} title={demoTitle} onClick={() => onEdit(criteria)} className="rounded-none h-7 px-2 text-[0.7rem] uppercase tracking-[0.06em] text-[var(--ed-ink-soft)] hover:bg-[var(--ed-panel)] hover:text-[var(--ed-ink)]">Edit</Button>
+          <Button variant="ghost" size="sm" disabled={demoMode} title={demoTitle} onClick={() => onDelete(criteria.id)} className="rounded-none h-7 px-2 text-[0.7rem] uppercase tracking-[0.06em] text-[var(--ed-no)] hover:bg-[var(--ed-no)]/10">Delete</Button>
         </div>
       </div>
 
@@ -65,10 +68,12 @@ export function CriteriaCard({ criteria, index, onEdit, onDelete, onRun }: Crite
 
       <button
         type="button"
+        disabled={demoMode}
+        title={demoTitle}
         onClick={() => onRun(criteria.id)}
-        className="mt-auto w-full border border-[var(--ed-ink)] bg-transparent py-[0.6rem] text-[0.72rem] font-semibold uppercase tracking-[0.1em] text-[var(--ed-ink)] transition-all hover:bg-[var(--ed-ink)] hover:text-[var(--ed-paper)]"
+        className="mt-auto w-full border border-[var(--ed-ink)] bg-transparent py-[0.6rem] text-[0.72rem] font-semibold uppercase tracking-[0.1em] text-[var(--ed-ink)] transition-all hover:bg-[var(--ed-ink)] hover:text-[var(--ed-paper)] disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-[var(--ed-ink)]"
       >
-        Run Search →
+        {demoMode ? 'Run Search — disabled in demo' : 'Run Search →'}
       </button>
     </div>
   );
@@ -83,6 +88,7 @@ interface CriteriaSectionProps {
 }
 
 export function CriteriaSection({ criteria, onEdit, onDelete, onRun, onNew }: CriteriaSectionProps) {
+  const demoMode = useDemoMode();
   return (
     <section className="mb-[3.25rem] relative">
       <div className="flex items-baseline justify-between gap-3 mb-1">
@@ -98,7 +104,7 @@ export function CriteriaSection({ criteria, onEdit, onDelete, onRun, onNew }: Cr
           <div className="text-[var(--ed-ink-soft)] text-[0.85rem] leading-[1.6] mb-[1.1rem] max-w-[360px] mx-auto">
             Define your first criteria to start automatically scanning jobs from LinkedIn and Indeed.
           </div>
-          <Button onClick={onNew} className="rounded-none bg-[var(--ed-accent)] text-[var(--ed-paper)] hover:bg-[var(--ed-accent-deep)] uppercase text-[0.7rem] font-semibold tracking-[0.08em]">
+          <Button onClick={onNew} disabled={demoMode} title={demoMode ? DEMO_DISABLED_TITLE : undefined} className="rounded-none bg-[var(--ed-accent)] text-[var(--ed-paper)] hover:bg-[var(--ed-accent-deep)] uppercase text-[0.7rem] font-semibold tracking-[0.08em]">
             + Create New Criteria
           </Button>
         </div>

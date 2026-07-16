@@ -65,6 +65,8 @@ public static class ProfileRenderer
             sb.AppendLine("</experience>");
         }
 
+        AppendList(sb, "education", p.Education);
+
         sb.AppendLine();
         sb.Append("</professional_profile>");
         return sb.ToString();

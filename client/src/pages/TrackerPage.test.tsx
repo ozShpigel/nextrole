@@ -9,11 +9,6 @@ vi.mock("../components/Dashboard", () => ({
 vi.mock("../components/ApplicationList", () => ({
   default: () => <div data-testid="application-list">Applications</div>,
 }));
-vi.mock("../components/AddApplication", () => ({
-  default: ({ onSaved }: { onSaved: () => void }) => (
-    <div data-testid="add-application">Add</div>
-  ),
-}));
 vi.mock("../components/Statistics", () => ({
   default: () => <div data-testid="statistics">Statistics</div>,
 }));
@@ -29,11 +24,10 @@ describe("TrackerPage", () => {
     ).toBeInTheDocument();
   });
 
-  it("renders all four tab buttons", () => {
+  it("renders all three tab buttons", () => {
     renderWithRouter(<TrackerPage />);
     expect(screen.getByRole("button", { name: "Dashboard" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Applications" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Add Application" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Statistics" })).toBeInTheDocument();
   });
 

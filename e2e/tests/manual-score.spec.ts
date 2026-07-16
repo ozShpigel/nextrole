@@ -87,6 +87,45 @@ test.describe('Manual Score — /score', () => {
     await expect(page.getByText('Worth Applying')).toBeVisible();
   });
 
+  test('saving with a status and scheduling an interview from the save panel', async ({ page }) => {
+    await mockScoring(page);
+    await page.goto('/score');
+
+    await page.getByLabel('Job Title').fill('Senior Backend Engineer');
+    await page.getByLabel('Company').fill('Acme Inc.');
+    await page.getByLabel('Job Description').fill(LONG_DESCRIPTION);
+
+    await page.getByRole('button', { name: 'Score Job' }).click();
+    await expect(page.getByRole('heading', { name: 'AI Analysis' })).toBeVisible();
+
+    // Pick a non-default status — an outside job where HR already booked a call.
+    await page.getByLabel('Save as').click();
+    await page.getByRole('option', { name: 'Technical Interview' }).click();
+
+    // Real save — POST /api/applications writes to the test DB (no AI cost).
+    await page.getByRole('button', { name: 'Save to Tracker' }).click();
+    await expect(page.getByText('Saved to your tracker.')).toBeVisible();
+
+    // Schedule the interview right from the save panel (real POST, test DB).
+    await page.getByRole('button', { name: 'Schedule Interview' }).click();
+    const dialog = page.getByRole('dialog');
+    await expect(dialog.getByRole('heading', { name: 'Add Interview' })).toBeVisible();
+    await dialog.getByRole('combobox').click();
+    await page.getByRole('option', { name: 'Technical' }).click();
+    await dialog.locator('input[type="datetime-local"]').fill('2026-08-05T10:00');
+    await dialog.getByRole('button', { name: 'Add' }).click();
+
+    await expect(page.getByText('Interview scheduled.')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Schedule Interview' })).toBeHidden();
+
+    // Both the status and the interview really persisted.
+    await page.getByRole('link', { name: 'View in Tracker' }).click();
+    await expect(page).toHaveURL(/\/tracker\/[0-9a-fA-F-]+$/);
+    await expect(page.getByRole('heading', { name: 'Senior Backend Engineer' })).toBeVisible();
+    await expect(page.getByRole('banner').getByText('Technical Interview')).toBeVisible();
+    await expect(page.getByText('Interview: Technical').first()).toBeVisible();
+  });
+
   test('saving a scored job persists it to the tracker', async ({ page }) => {
     await mockScoring(page);
     await page.goto('/score');

@@ -7,8 +7,10 @@ public sealed record Interview
     [BsonId]
     [BsonRepresentation(MongoDB.Bson.BsonType.String)]
     public Guid Id { get; init; } = Guid.NewGuid();
+    // Not `required`: the interview endpoints take this from the route and
+    // overwrite whatever the body carries, so JSON binding must not demand it.
     [BsonRepresentation(MongoDB.Bson.BsonType.String)]
-    public required Guid ApplicationId { get; init; }
+    public Guid ApplicationId { get; init; }
     public required DateTime ScheduledAt { get; init; }
     // Optional end time (null when the email/source gives no end). Never inferred.
     public DateTime? EndsAt { get; init; }

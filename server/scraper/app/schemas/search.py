@@ -16,3 +16,6 @@ class SearchRequest(BaseModel):
     # boards have null job_level and are excluded when this filter is set).
     job_levels: list[str] | None = None
     sites: list[str] | None = None
+    # Focus the search on ONE HyDE facet by name (e.g. "backend-dotnet") instead
+    # of fusing all facets. None = fused search across every facet (default).
+    facet: str | None = None

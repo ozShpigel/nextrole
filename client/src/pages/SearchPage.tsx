@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useSemanticSearch, useSaveJob, useDismissJob } from '../lib/mutations';
+import { useSearchFacets } from '../lib/queries';
 import type { AdvisorJobBrief, SearchHit, SemanticSearchResponse } from '../lib/types';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -35,6 +36,11 @@ export default function SearchPage() {
   const [location, setLocation] = useState('');
   const [remoteOnly, setRemoteOnly] = useState(false);
   const [levels, setLevels] = useState<Set<string>>(() => new Set());
+  // null = fused search across all facets (the default and recommended mode).
+  const [facet, setFacet] = useState<string | null>(null);
+
+  const facetsQuery = useSearchFacets();
+  const facetNames = (facetsQuery.data?.facets ?? []).map((f) => f.name);
 
   const [result, setResult] = useState<SemanticSearchResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -65,6 +71,7 @@ export default function SearchPage() {
         location: location.trim() || null,
         is_remote: remoteOnly ? true : null,
         job_levels: levels.size > 0 ? [...levels] : null,
+        facet,
       },
       {
         onSuccess: (data) => setResult(data),
@@ -167,6 +174,22 @@ export default function SearchPage() {
               </button>
             </div>
           </div>
+
+          {facetNames.length > 1 && (
+            <div className="flex flex-col gap-[0.45rem] mb-5">
+              <span className={fieldLabel}>Search focus (your profile's role facets)</span>
+              <div className="flex flex-wrap gap-2">
+                <button type="button" className={chip(facet === null)} onClick={() => setFacet(null)} aria-pressed={facet === null}>
+                  All roles
+                </button>
+                {facetNames.map((name) => (
+                  <button key={name} type="button" className={chip(facet === name)} onClick={() => setFacet(facet === name ? null : name)} aria-pressed={facet === name}>
+                    {name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="flex flex-col gap-[0.45rem] mb-6">
             <span className={fieldLabel}>Seniority (LinkedIn jobs only)</span>
@@ -284,6 +307,16 @@ export default function SearchPage() {
                               <span className="relative block h-[3px] bg-[var(--ed-rule)] overflow-hidden">
                                 <span className="ed-fill bg-[var(--ed-ink)]" style={{ ['--p' as string]: hit.similarity }} />
                               </span>
+                            </div>
+                          )}
+                          {hit?.facet_ranks && Object.keys(hit.facet_ranks).length > 0 && (
+                            <div className="mt-3 flex flex-col gap-[0.25rem]">
+                              <span className="text-[0.58rem] font-semibold uppercase tracking-[0.1em] text-[var(--ed-ink-soft)]">Facet rank</span>
+                              {Object.entries(hit.facet_ranks).map(([name, rank]) => (
+                                <span key={name} className="text-[0.68rem] font-code text-[var(--ed-ink-faint)]">
+                                  {name} <span className="text-[var(--ed-ink)] tabular-nums">#{rank}</span>
+                                </span>
+                              ))}
                             </div>
                           )}
                         </aside>

@@ -9,7 +9,20 @@ import type {
   InterviewPrepHistoryField,
   MockSessionListItem,
   MockSession,
+  SearchQueryResponse,
 } from './types';
+
+// The cached HyDE search facets — powers the Search page's focus chips.
+// Usually a cache hit on the profile doc; a miss regenerates via one Claude
+// call, hence the generous staleTime. Chips simply don't render on error.
+export function useSearchFacets() {
+  return useQuery<SearchQueryResponse>({
+    queryKey: ['match', 'search-facets'],
+    queryFn: () => matchApi('/profile/search-query'),
+    staleTime: 5 * 60 * 1000,
+    retry: 1,
+  });
+}
 
 export function useDiscoveryHealth() {
   return useQuery({

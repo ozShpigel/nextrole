@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import Dashboard from '../components/Dashboard';
 import ApplicationList from '../components/ApplicationList';
-import AddApplication from '../components/AddApplication';
 import Statistics from '../components/Statistics';
 
 interface Tab {
@@ -13,7 +12,6 @@ interface Tab {
 const TABS: Tab[] = [
   { key: 'dashboard', label: 'Dashboard' },
   { key: 'list', label: 'Applications' },
-  { key: 'add', label: 'Add Application' },
   { key: 'stats', label: 'Statistics' },
 ];
 
@@ -63,7 +61,6 @@ export default function TrackerPage() {
 
         {activeTab === 'dashboard' && <Dashboard />}
         {activeTab === 'list' && <ApplicationList />}
-        {activeTab === 'add' && <AddApplication onSaved={() => switchTab('list')} />}
         {activeTab === 'stats' && <Statistics />}
       </div>
     </div>

@@ -62,8 +62,8 @@ function DiscoveryDetail({ run, index, onAbort }: DiscoveryDetailProps) {
             type="button"
             className="bg-transparent border border-[var(--ed-rule)] text-[var(--ed-ink-faint)] w-[1.5rem] h-[1.5rem] rounded-full text-[0.75rem] leading-none cursor-pointer inline-flex items-center justify-center transition-all shrink-0 hover:text-[var(--ed-no)] hover:border-[var(--ed-no)]/50"
             onClick={(e) => onAbort(run.id, e)}
-            title="Abort search"
-            aria-label="Abort search"
+            title="Abort collection run"
+            aria-label="Abort collection run"
           >
             ✕
           </button>
@@ -81,7 +81,7 @@ function DiscoveryDetail({ run, index, onAbort }: DiscoveryDetailProps) {
       </div>
       {throttleSuspect && (
         <div className="mt-1 pl-[calc(1.05rem+0.75rem)] text-[0.74rem] text-[var(--ed-gold)] max-[640px]:pl-0">
-          ⚠ {noResult} of {total} searches returned nothing — possibly rate-limited by the job board
+          ⚠ {noResult} of {total} board queries returned nothing — possibly rate-limited by the job board
         </div>
       )}
     </div>
@@ -134,7 +134,7 @@ export function RunsTimeline({ runs, onAbort }: RunsTimelineProps) {
   return (
     <section className="mb-[3.25rem] relative">
       <div className="flex items-baseline justify-between gap-3 mb-1">
-        <span className="ed-display italic font-semibold text-[1.5rem] tracking-[-0.01em] text-[var(--ed-ink)]">Search History</span>
+        <span className="ed-display italic font-semibold text-[1.5rem] tracking-[-0.01em] text-[var(--ed-ink)]">Collection Runs</span>
         <span className="text-[0.6rem] font-semibold uppercase tracking-[0.2em] text-[var(--ed-ink-faint)]">Section 02</span>
       </div>
       <div className="border-t border-[var(--ed-rule-strong)] mb-1" />
@@ -142,7 +142,7 @@ export function RunsTimeline({ runs, onAbort }: RunsTimelineProps) {
       {runs.length === 0 ? (
         <div className="border border-dashed border-[var(--ed-rule)] mt-6 p-[2.75rem_1.5rem] text-center">
           <div className="ed-display text-[2rem] font-black text-[var(--ed-accent)] mb-2">↻</div>
-          <div className="ed-display text-[1.15rem] font-semibold text-[var(--ed-ink)] mb-[0.3rem]">No searches yet</div>
+          <div className="ed-display text-[1.15rem] font-semibold text-[var(--ed-ink)] mb-[0.3rem]">No collection runs yet</div>
           <div className="text-[var(--ed-ink-soft)] text-[0.85rem] leading-[1.6] max-w-[360px] mx-auto">
             Run your first criteria to start collecting jobs.
           </div>

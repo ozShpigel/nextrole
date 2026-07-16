@@ -15,11 +15,11 @@ test.describe('Discovery Runs - Abort', () => {
 
     await page.goto('/discovery');
 
-    await page.getByRole('button', { name: 'Abort search' }).click();
+    await page.getByRole('button', { name: 'Abort collection run' }).click();
     await page.getByRole('alertdialog').getByRole('button', { name: 'Abort' }).click();
 
     await expect(page.getByText('Failed', { exact: true })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Abort search' })).toBeHidden();
+    await expect(page.getByRole('button', { name: 'Abort collection run' })).toBeHidden();
   });
 
   test('cancelling abort confirmation keeps the run active', async ({ page }) => {
@@ -31,11 +31,11 @@ test.describe('Discovery Runs - Abort', () => {
 
     await page.goto('/discovery');
 
-    await page.getByRole('button', { name: 'Abort search' }).click();
+    await page.getByRole('button', { name: 'Abort collection run' }).click();
     await page.getByRole('alertdialog').getByRole('button', { name: 'Cancel' }).click();
 
     await expect(page.getByText('Scraping')).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Abort search' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Abort collection run' })).toBeVisible();
   });
 });
 

@@ -7,6 +7,10 @@ namespace ApplicationTracker.Api.Endpoints;
 
 public static class MatchEndpoints
 {
+    // Cap on the manual matching-signal lists (strengths / core values);
+    // mirrored by the ChipInput max in the Settings UI.
+    private const int MaxSignalItems = 3;
+
     public static WebApplication MapMatchEndpoints(this WebApplication app)
     {
         app.MapPost("/api/match", async (
@@ -205,6 +209,14 @@ public static class MatchEndpoints
         {
             if (request is null)
                 return Results.BadRequest(new { error = "a structured profile is required" });
+
+            // Strengths/core values are the manual matching signal; capping them
+            // keeps each one carrying real weight in the HyDE search queries and
+            // the advisor ranking instead of diluting into a wish list.
+            if (request.Strengths.Length > MaxSignalItems)
+                return Results.BadRequest(new { error = $"at most {MaxSignalItems} strengths — keep the ones that should steer matching" });
+            if (request.CoreValues.Length > MaxSignalItems)
+                return Results.BadRequest(new { error = $"at most {MaxSignalItems} core values — keep the ones that should steer matching" });
 
             try
             {

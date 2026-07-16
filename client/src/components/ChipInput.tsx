@@ -10,26 +10,29 @@ interface ChipInputProps {
   suggestions?: string[];
   /** Hard cap on items: at the limit the input and quick-adds hide behind a hint. */
   max?: number;
+  /** Set false for values that legitimately contain commas (e.g. "B.Sc. CS, Uni, 2015") —
+      commas then neither commit nor split; items are added on Enter / blur / +Add only. */
+  splitOnComma?: boolean;
 }
 
 // Editorial-palette tag input over a flat string[]. Each item is a removable
 // chip; the trailing text box adds items on Enter / comma / blur / +Add.
 // De-dupes case-insensitively and trims — mirrors the csv()/lines() cleanup the
 // profile fields used before, so re-saving stays stable.
-export function ChipInput({ value, onChange, placeholder, ariaLabel, dir = 'auto', suggestions, max }: ChipInputProps) {
+export function ChipInput({ value, onChange, placeholder, ariaLabel, dir = 'auto', suggestions, max, splitOnComma = true }: ChipInputProps) {
   const [draft, setDraft] = useState('');
 
   const atMax = max != null && value.length >= max;
   const present = new Set(value.map((v) => v.toLowerCase()));
   const quickAdd = atMax ? [] : (suggestions ?? []).filter((s) => !present.has(s.toLowerCase()));
 
-  // Add one or more items (comma-split), trimmed and de-duped against the
-  // existing values (case-insensitive), truncated to `max` when set.
-  // Returns nothing — commits via onChange.
+  // Add one or more items (comma-split unless disabled), trimmed and de-duped
+  // against the existing values (case-insensitive), truncated to `max` when
+  // set. Commits via onChange.
   function commit(raw: string): void {
     const existing = new Set(value.map((v) => v.toLowerCase()));
     const additions: string[] = [];
-    for (const part of raw.split(',')) {
+    for (const part of splitOnComma ? raw.split(',') : [raw]) {
       if (max != null && value.length + additions.length >= max) break;
       const trimmed = part.trim();
       if (!trimmed) continue;
@@ -47,7 +50,7 @@ export function ChipInput({ value, onChange, placeholder, ariaLabel, dir = 'auto
   }
 
   function onKeyDown(e: KeyboardEvent<HTMLInputElement>): void {
-    if (e.key === 'Enter' || e.key === ',') {
+    if (e.key === 'Enter' || (e.key === ',' && splitOnComma)) {
       e.preventDefault();
       commit(draft);
     } else if (e.key === 'Backspace' && draft === '' && value.length > 0) {

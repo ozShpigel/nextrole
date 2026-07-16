@@ -123,7 +123,8 @@ The candidate's free text is provided in the user message inside <candidate_text
     "infrastructure": ["string"],
     "databases": ["string"],
     "other": ["string"]
-  }
+  },
+  "education": ["string"]
 }
 
 ---
@@ -132,6 +133,9 @@ The candidate's free text is provided in the user message inside <candidate_text
 
 - `seniority`: as stated or clearly implied by years (e.g. "Senior", "10+ years"), else null.
 - `domains`: industries / problem areas the candidate has worked in (e.g. "fintech", "defense"), if stated.
+- `education`: one entry per stated degree/diploma/certification, in the form
+  "<degree>, <institution>, <years>" with whichever parts the text provides
+  (e.g. "B.Sc. Computer Science, Open University, 2015"). Empty array if none stated.
 - `experience[]`: one entry per role, newest first if order is discernible. `dates` may be a range
   ("2021–Present") or empty. `highlights`: concrete accomplishments/responsibilities from the text.
 - `skills`: split stated technologies into the groups; anything that doesn't fit a group goes in `other`.

@@ -1,10 +1,14 @@
-"""Unit tests for the $vectorSearch pipeline composition and the multi-facet
-Reciprocal Rank Fusion (pure functions)."""
+"""Unit tests for the $vectorSearch pipeline composition, the multi-facet
+Reciprocal Rank Fusion, and the acted-on-job exclusion / content dedupe."""
 from datetime import datetime, timedelta, timezone
+
+import pytest
 
 from app.services.search import (
     OVERFETCH_FACTOR,
     VECTOR_INDEX_NAME,
+    _dedupe_by_content,
+    _excluded_urls,
     build_vector_pipeline,
     fuse_rankings,
 )
@@ -96,3 +100,57 @@ def test_fuse_carries_best_similarity_across_facets():
     ])
     assert fused[0]["similarity"] == 0.82
     assert fused[0]["facet_ranks"] == {"backend": 1, "devops": 1}
+
+
+class _FakeCollection:
+    def __init__(self, distinct_results: dict[str, list]):
+        self._results = distinct_results
+        self.calls: list[tuple[str, dict | None]] = []
+
+    async def distinct(self, field, query=None):
+        self.calls.append((field, query))
+        return self._results.get(field, [])
+
+
+class _FakeDb:
+    def __init__(self, discovered_urls: list, application_urls: list):
+        self.discovered_jobs = _FakeCollection({"job_url": discovered_urls})
+        self.applications = _FakeCollection({"JobUrl": application_urls})
+
+
+@pytest.mark.asyncio
+async def test_excluded_urls_unions_discovered_flags_and_applications():
+    db = _FakeDb(
+        discovered_urls=["https://x/1", "https://x/2", "", None],
+        application_urls=["https://x/2", "https://x/3", None],
+    )
+    urls = await _excluded_urls(db)
+    assert urls == {"https://x/1", "https://x/2", "https://x/3"}
+    # The discovered-side query must match by flag (dismissed OR saved), so a
+    # flagged copy hides every re-scraped copy of the same URL.
+    field, query = db.discovered_jobs.calls[0]
+    assert field == "job_url"
+    assert query == {"$or": [{"dismissed": True}, {"saved_to_tracker": True}]}
+
+
+def _posting(url: str, company: str, title: str, location: str) -> dict:
+    return {"job_url": url, "company": company, "title": title, "location": location}
+
+
+def test_dedupe_by_content_collapses_same_posting_under_two_urls():
+    hits = [
+        _posting("https://x/1", "Nogamy", "DevOps Engineer", "Tel Aviv"),
+        _posting("https://x/2", " nogamy ", "devops engineer", "tel aviv"),
+        _posting("https://x/3", "Nogamy", "DevOps Engineer", "Haifa"),
+    ]
+    deduped = _dedupe_by_content(hits)
+    # Best-ranked copy survives; different location is a different job.
+    assert [h["job_url"] for h in deduped] == ["https://x/1", "https://x/3"]
+
+
+def test_dedupe_by_content_keeps_hits_with_no_content_fields():
+    hits = [
+        {"job_url": "https://x/1"},
+        {"job_url": "https://x/2"},
+    ]
+    assert len(_dedupe_by_content(hits)) == 2

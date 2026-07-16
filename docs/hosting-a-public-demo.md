@@ -96,6 +96,7 @@ MONGODB_DATABASE_NAME     = job-tracker-demo
 DEMO_MODE                 = true
 API_BASE_URL              = https://<your-public-api-host>
 CORS_ORIGINS              = https://<your-public-frontend-host>
+OPENAI_API_KEY            = <your key>   # embeds the search query at request time
 ```
 
 **Client service** (Vite bakes `VITE_*` at **build** time — redeploy with the build
@@ -144,6 +145,25 @@ Gmail__CredentialsPath / token secret files as before
 ```
 
 Don't set `Gmail__Query` — the mailbot builds the company-names query itself.
+
+## Demo search pool (seeded, not scraped)
+
+Semantic search is demo-allowlisted, but scraping real boards from a datacenter
+IP is unreliable and would mix real jobs into the fictional demo data. Instead,
+the search pool is **seeded with fictional postings** written for the demo
+profile:
+
+1. Create the Atlas **vector index** on the *demo* `discovered_jobs` collection —
+   same `jobs_vector_index` definition as the private one (this step is easy to
+   forget; without it `$vectorSearch` silently returns nothing).
+2. One-time (or whenever the postings change), with the demo env:
+   `MONGODB_DATABASE_NAME=job-tracker-demo python -m app.cli seed-demo-jobs` —
+   embeds `app/services/demo_seed.py`'s postings (one OpenAI call) and inserts
+   them (idempotent; replaces previously seeded docs, never touches scraped ones).
+3. Freshness is automatic: on every demo web-service startup (`DEMO_MODE=true`)
+   the seeded jobs' `discovered_at` is bumped to now, so they always sit inside
+   the Search page's days-back window and never TTL out. Free-tier cold starts
+   happen whenever a visitor arrives — exactly when freshness matters.
 
 ## Gotchas
 

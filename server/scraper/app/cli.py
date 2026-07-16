@@ -8,6 +8,7 @@ pattern. Run it as a Render Cron Job using the scraper image:
     python -m app.cli run-all             # every is_active criteria (cron)
     python -m app.cli run <criteria_id>   # one specific criteria
     python -m app.cli eval-recall         # golden-set retrieval recall report
+    python -m app.cli seed-demo-jobs      # (re)seed the demo search pool
 
 Because nothing is exposed over HTTP, no X-Cron-Key guard is needed and there's
 no free-tier idle-eviction race: the container lives exactly as long as the work.
@@ -23,7 +24,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 
 from app.config import Settings
 from app.indexes import ensure_ttl_index
-from app.services import orchestrator, recall_eval
+from app.services import demo_seed, orchestrator, recall_eval
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("cli")
@@ -72,6 +73,14 @@ async def _run_all():
     await _with_db(_r)
 
 
+async def _seed_demo_jobs():
+    async def _r(db, settings):
+        await ensure_ttl_index(db)
+        result = await demo_seed.seed_demo_jobs(db, settings)
+        logger.info("seed-demo-jobs: %s", result)
+    await _with_db(_r)
+
+
 async def _eval_recall(ks: tuple[int, ...], tracker_db: str | None):
     async def _r(db, settings):
         report = await recall_eval.run_eval(db, settings, ks=ks, tracker_db=tracker_db)
@@ -87,6 +96,10 @@ def main():
     run.add_argument("criteria_id", help="SearchCriteria id to run")
 
     sub.add_parser("run-all", help="Run every criteria with is_active=true, sequentially")
+
+    sub.add_parser(
+        "seed-demo-jobs",
+        help="(Re)seed the fictional demo search pool: embed the curated postings and insert them")
 
     ev = sub.add_parser(
         "eval-recall",
@@ -104,6 +117,8 @@ def main():
         asyncio.run(_run(args.criteria_id))
     elif args.command == "run-all":
         asyncio.run(_run_all())
+    elif args.command == "seed-demo-jobs":
+        asyncio.run(_seed_demo_jobs())
     elif args.command == "eval-recall":
         ks = tuple(int(k) for k in args.k.split(",") if k.strip())
         asyncio.run(_eval_recall(ks or recall_eval.DEFAULT_KS, args.tracker_db))

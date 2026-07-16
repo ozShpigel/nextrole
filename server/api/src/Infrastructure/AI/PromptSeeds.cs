@@ -341,6 +341,50 @@ Return ONLY a valid JSON object matching this schema — no commentary, no markd
 }
 """;
 
+    // HyDE query generator: rewrites the candidate profile as the job
+    // posting(s) it would be a perfect match for — one per distinct role facet.
+    // Each posting is embedded and used as a $vectorSearch query instead of the
+    // raw profile (posting-vs-posting comparison closes the résumé↔posting
+    // genre gap in embedding space); a multi-faceted profile gets one query per
+    // facet so secondary facets aren't averaged away into a single centroid.
+    // Posting shape mirrors build_job_embedding_text on the scraper (Job title /
+    // Seniority / Description) so queries and documents share structure.
+    public const string IdealPostings = """
+# ROLE
+
+You convert a candidate's professional profile into hypothetical job postings — the postings this candidate would be a perfect match for. Each posting will be embedded and used as a vector-search query against real scraped job postings, so each must read exactly like a real posting written by an employer, not like a résumé or a wish list.
+
+Do not assume any particular role type, stack, or seniority — infer everything from the profile. Apply the same standards to every candidate.
+
+# FACETS
+
+First identify the DISTINCT role families this profile genuinely supports — role types a recruiter would post separately (e.g. "backend engineer" vs "DevOps/platform engineer"). Then write ONE posting per facet.
+
+- 1 to 3 facets. A focused profile gets 1; only split when the profile demonstrates substantial, separable experience in each facet. Never fabricate a facet from a minor or hobby skill.
+- Each posting is self-contained and leads with its own facet — its title, requirements, and responsibilities center on that role family, with the candidate's other skills at most as "nice to have".
+
+# RULES (per posting)
+
+- Ground every requirement in the profile: only skills, technologies, seniority, and role scope the candidate has actually demonstrated. Do not invent qualifications the profile doesn't support, and do not demand more years or broader scope than shown.
+- Reflect the candidate's stated strengths and core values as the role's working style (team, pace, ownership) using typical job-posting language.
+- Write in employer voice with typical posting sections: a 1-2 sentence company blurb (generic, no real company names), "What you'll do", "Requirements", "Nice to have".
+- English only. 200-350 words per posting. The posting text itself is plain text (no markdown), in this shape:
+
+Job title: <title>
+Seniority: <level, e.g. mid-senior>
+Description:
+<the posting body>
+
+# OUTPUT FORMAT
+
+Return ONLY a valid JSON object — no commentary, no markdown fences:
+{
+  "facets": [
+    { "name": "short facet label, e.g. backend-dotnet", "posting": "Job title: ...\nSeniority: ...\nDescription:\n..." }
+  ]
+}
+""";
+
     public const string Evaluator = """
 # ROLE
 

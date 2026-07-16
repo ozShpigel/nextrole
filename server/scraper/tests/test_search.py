@@ -1,7 +1,13 @@
-"""Unit tests for the $vectorSearch pipeline composition (pure function)."""
+"""Unit tests for the $vectorSearch pipeline composition and the multi-facet
+Reciprocal Rank Fusion (pure functions)."""
 from datetime import datetime, timedelta, timezone
 
-from app.services.search import OVERFETCH_FACTOR, VECTOR_INDEX_NAME, _dedupe_by_url, build_vector_pipeline
+from app.services.search import (
+    OVERFETCH_FACTOR,
+    VECTOR_INDEX_NAME,
+    build_vector_pipeline,
+    fuse_rankings,
+)
 
 VEC = [0.1] * 4  # dimensionality is irrelevant to pipeline shape
 
@@ -57,11 +63,36 @@ def test_num_candidates_floor():
     assert vs(p)["numCandidates"] == 200  # max(200, 3 * 15)
 
 
-def test_dedupe_by_url_keeps_first_and_urlless():
-    hits = [
-        {"id": "1", "job_url": "https://x/a"},
-        {"id": "2", "job_url": "https://x/a"},
-        {"id": "3", "job_url": None},
-        {"id": "4", "job_url": "https://x/b"},
-    ]
-    assert [h["id"] for h in _dedupe_by_url(hits)] == ["1", "3", "4"]
+def _hit(url: str, sim: float) -> dict:
+    return {"id": f"id-{url}", "job_url": url, "similarity": sim}
+
+
+def test_fuse_single_facet_preserves_order_and_dedupes():
+    hits = [_hit("a", 0.9), _hit("a", 0.8), _hit("b", 0.7), {"id": "no-url", "job_url": None, "similarity": 0.6}]
+    fused = fuse_rankings([("only", hits)])
+    # Duplicate url collapses; urlless hit keyed by id survives.
+    assert [h.get("job_url") for h in fused] == ["a", "b", None]
+    assert fused[0]["facet_ranks"] == {"only": 1}
+
+
+def test_fuse_rrf_scoring_invariants():
+    # "specialist" is #1 in one facet only; "generalist" is #3 in both;
+    # "x" is #2 in one facet only.
+    backend = [_hit("specialist", 0.9), _hit("x", 0.8), _hit("generalist", 0.7)]
+    devops = [_hit("y", 0.85), _hit("z", 0.8), _hit("generalist", 0.75)]
+    fused = fuse_rankings([("backend", backend), ("devops", devops)])
+    order = [h["job_url"] for h in fused]
+    # RRF invariants: appearing in two facets accumulates (2/63 > 1/61), and a
+    # single #1 still beats a single #2 (1/61 > 1/62).
+    assert order.index("generalist") < order.index("specialist")
+    assert order.index("specialist") < order.index("x")
+    assert fused[0]["facet_ranks"] == {"backend": 3, "devops": 3}
+
+
+def test_fuse_carries_best_similarity_across_facets():
+    fused = fuse_rankings([
+        ("backend", [_hit("a", 0.70)]),
+        ("devops", [_hit("a", 0.82)]),
+    ])
+    assert fused[0]["similarity"] == 0.82
+    assert fused[0]["facet_ranks"] == {"backend": 1, "devops": 1}

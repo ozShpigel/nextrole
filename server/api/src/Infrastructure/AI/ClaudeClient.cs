@@ -214,6 +214,55 @@ public sealed class ClaudeClient : IClaudeClient
         return content;
     }
 
+    public async Task<List<SearchQueryFacet>> GenerateIdealPostingsAsync(string profile, CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Generating ideal-posting search queries ({Length} chars profile)", profile.Length);
+
+        // The profile is the user's own (trusted) data, but it's still the
+        // input payload — XML-wrapped in the user message per convention.
+        var userMessage = $"<professional_profile>\n{profile.Trim()}\n</professional_profile>";
+
+        var parameters = new MessageParameters
+        {
+            System = new List<SystemMessage> { new(PromptSeeds.IdealPostings) },
+            Messages = new List<Message> { new(RoleType.User, userMessage) },
+            // Up to 3 postings of ~350 words each, wrapped in JSON.
+            MaxTokens = 4096,
+            Model = "claude-sonnet-4-6",
+            Temperature = 0.4m,
+            Stream = false
+        };
+
+        var response = await _client.Messages.GetClaudeMessageAsync(parameters, cancellationToken);
+        var content = response.Message?.ToString()?.Trim()
+            ?? throw new InvalidOperationException("Empty response from Claude API");
+
+        var json = ExtractJson(content);
+        var parsed = JsonSerializer.Deserialize<IdealPostingsResult>(json, CaseInsensitive);
+        var facets = (parsed?.Facets ?? [])
+            .Where(f => !string.IsNullOrWhiteSpace(f?.Posting))
+            .Select((f, i) => new SearchQueryFacet
+            {
+                Name = string.IsNullOrWhiteSpace(f!.Name) ? $"facet-{i + 1}" : f.Name.Trim(),
+                Posting = f.Posting.Trim(),
+            })
+            .Take(3)
+            .ToList();
+        if (facets.Count == 0)
+            throw new InvalidOperationException("Ideal-posting response contained no facets");
+
+        _logger.LogInformation(
+            "Ideal-posting search queries generated: {Facets}",
+            string.Join(", ", facets.Select(f => f.Name)));
+        return facets;
+    }
+
+    private sealed record IdealPostingsResult
+    {
+        [JsonPropertyName("facets")]
+        public SearchQueryFacet[]? Facets { get; init; }
+    }
+
     public async Task<string> GenerateWhyWorkHereAsync(Application app, string profile, InterviewPrepDocument prep, CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Generating 'why work here' answer for: {Company} / {Title}", app.Company, app.JobTitle);

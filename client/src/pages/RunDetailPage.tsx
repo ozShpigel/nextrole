@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { useRunDetail, useRunJobs } from '../lib/queries';
+import { useRunDetail, useRunJobs, useDemoMode, DEMO_DISABLED_TITLE } from '../lib/queries';
 import { useSaveJob, useDismissJob } from '../lib/mutations';
 import { ACTIVE_RUN_STATUSES } from '../lib/discovery';
 import { VERDICT_LABELS } from '../lib/scoring';
@@ -153,6 +153,7 @@ export default function RunDetail() {
   // --- Mutation hooks ---
   const saveJobMutation = useSaveJob();
   const dismissJobMutation = useDismissJob();
+  const demoMode = useDemoMode();
 
   // --- UI state ---
   const [openBreakdownIds, setOpenBreakdownIds] = useState<Set<string>>(() => new Set());
@@ -332,10 +333,10 @@ export default function RunDetail() {
                       </button>
                     )}
                     {!j.saved_to_tracker && j.verdict !== 'MATCH_FAILED' && j.verdict !== 'INSUFFICIENT_DATA' && (
-                      <button type="button" className={`${actionBtn} border-[var(--ed-accent)] bg-[var(--ed-accent)] text-[var(--ed-paper)] hover:bg-[var(--ed-accent-deep)]`} onClick={() => saveJob(j.id)}>Save to Tracker</button>
+                      <button type="button" disabled={demoMode} title={demoMode ? DEMO_DISABLED_TITLE : undefined} className={`${actionBtn} border-[var(--ed-accent)] bg-[var(--ed-accent)] text-[var(--ed-paper)] hover:bg-[var(--ed-accent-deep)] disabled:opacity-45 disabled:cursor-not-allowed`} onClick={() => saveJob(j.id)}>Save to Tracker</button>
                     )}
                     {j.saved_to_tracker && <span className="text-[0.66rem] font-semibold uppercase tracking-[0.08em] text-[var(--ed-yes)] py-[0.35rem] px-[0.7rem] border border-[var(--ed-yes)]/40">Saved</span>}
-                    <button type="button" className={`${actionBtn} border-[var(--ed-rule)] text-[var(--ed-no)] hover:border-[var(--ed-no)] hover:bg-[var(--ed-no)]/10`} onClick={() => dismissJob(j.id)}>Dismiss</button>
+                    <button type="button" disabled={demoMode} title={demoMode ? DEMO_DISABLED_TITLE : undefined} className={`${actionBtn} border-[var(--ed-rule)] text-[var(--ed-no)] hover:border-[var(--ed-no)] hover:bg-[var(--ed-no)]/10 disabled:opacity-45 disabled:cursor-not-allowed`} onClick={() => dismissJob(j.id)}>Dismiss</button>
                   </div>
                 </div>
 

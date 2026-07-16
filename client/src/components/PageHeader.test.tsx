@@ -1,17 +1,24 @@
-import { render, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { renderWithRouter } from "../test/render";
 import PageHeader from "./PageHeader";
+
+// useDemoMode needs a QueryClient; the config query fails fast in tests
+// (api unmocked), which resolves to demoMode=false.
+vi.mock("../lib/api", () => ({
+  api: vi.fn(),
+}));
 
 describe("PageHeader", () => {
   it('renders the heading "Job Discovery"', () => {
-    render(<PageHeader onNewCriteria={() => {}} />);
+    renderWithRouter(<PageHeader onNewCriteria={() => {}} />);
     expect(
       screen.getByRole("heading", { name: "Job Discovery" }),
     ).toBeInTheDocument();
   });
 
   it("renders the description text", () => {
-    render(<PageHeader onNewCriteria={() => {}} />);
+    renderWithRouter(<PageHeader onNewCriteria={() => {}} />);
     expect(
       screen.getByText(
         "Automated job search from LinkedIn and Indeed with AI-powered scoring and matching via Claude.",
@@ -23,7 +30,7 @@ describe("PageHeader", () => {
     const user = userEvent.setup();
     const handleClick = vi.fn();
 
-    render(<PageHeader onNewCriteria={handleClick} />);
+    renderWithRouter(<PageHeader onNewCriteria={handleClick} />);
 
     await user.click(screen.getByRole("button", { name: /New Criteria/i }));
     expect(handleClick).toHaveBeenCalledOnce();

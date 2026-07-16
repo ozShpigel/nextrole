@@ -65,6 +65,21 @@ async def get_search_queries(settings: Settings) -> tuple[list[dict], str]:
     return ([{"name": "profile", "text": profile}] if profile else []), "profile"
 
 
+def select_facet(queries: list[dict], facet: str | None) -> list[dict]:
+    """Narrow the search to one HyDE facet by name; None keeps all (fused).
+
+    Focused search runs a single facet's vector with no fusion — the facet
+    names come from the same cached HyDE response the UI's focus chips show.
+    """
+    if not facet:
+        return queries
+    matched = [q for q in queries if q["name"] == facet]
+    if not matched:
+        available = ", ".join(q["name"] for q in queries)
+        raise HTTPException(400, f"Unknown facet '{facet}' — available: {available}")
+    return matched
+
+
 # Reciprocal Rank Fusion constant — the standard damping value; higher k
 # flattens the difference between adjacent ranks.
 RRF_K = 60
@@ -210,6 +225,7 @@ async def search_jobs(db: AsyncIOMotorDatabase, settings: Settings, req: SearchR
     queries, query_source = await get_search_queries(settings)
     if not queries:
         raise HTTPException(503, "Profile unavailable — set up your profile in Settings first")
+    queries = select_facet(queries, req.facet)
     logger.info("Search query source: %s (%d facet(s))", query_source, len(queries))
 
     vectors = await embeddings.embed_texts(settings, [q["text"] for q in queries])

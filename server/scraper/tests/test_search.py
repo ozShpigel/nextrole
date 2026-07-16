@@ -3,6 +3,7 @@ Reciprocal Rank Fusion, and the acted-on-job exclusion / content dedupe."""
 from datetime import datetime, timedelta, timezone
 
 import pytest
+from fastapi import HTTPException
 
 from app.services.search import (
     OVERFETCH_FACTOR,
@@ -11,6 +12,7 @@ from app.services.search import (
     _excluded_urls,
     build_vector_pipeline,
     fuse_rankings,
+    select_facet,
 )
 
 VEC = [0.1] * 4  # dimensionality is irrelevant to pipeline shape
@@ -154,3 +156,22 @@ def test_dedupe_by_content_keeps_hits_with_no_content_fields():
         {"job_url": "https://x/2"},
     ]
     assert len(_dedupe_by_content(hits)) == 2
+
+
+QUERIES = [{"name": "backend-dotnet", "text": "…"}, {"name": "platform", "text": "…"}]
+
+
+def test_select_facet_none_keeps_all_for_fusion():
+    assert select_facet(QUERIES, None) == QUERIES
+    assert select_facet(QUERIES, "") == QUERIES
+
+
+def test_select_facet_narrows_to_one():
+    assert select_facet(QUERIES, "backend-dotnet") == [QUERIES[0]]
+
+
+def test_select_facet_unknown_name_is_a_400_naming_the_options():
+    with pytest.raises(HTTPException) as exc:
+        select_facet(QUERIES, "data-engineering")
+    assert exc.value.status_code == 400
+    assert "backend-dotnet, platform" in exc.value.detail

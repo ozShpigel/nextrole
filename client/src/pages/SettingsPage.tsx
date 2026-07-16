@@ -38,7 +38,7 @@ const META_TEXT = 'text-[0.72rem] text-[var(--ed-ink-faint)] tabular-nums tracki
 const EMPTY_SKILLS: SkillGroups = { languages: [], frameworks: [], infrastructure: [], databases: [], other: [] };
 const EMPTY_PROFILE: StructuredProfile = {
   summary: '', seniority: '', domains: [], experience: [], skills: EMPTY_SKILLS,
-  strengths: [], coreValues: [], rawExperienceText: '',
+  education: [], strengths: [], coreValues: [], rawExperienceText: '',
 };
 
 // Curated quick-add presets for the chip inputs — generic, role-agnostic
@@ -75,6 +75,7 @@ function hydrate(p?: StructuredProfile | null): StructuredProfile {
     skills: { ...EMPTY_SKILLS, ...(p?.skills ?? {}) },
     experience: p?.experience ?? [],
     domains: p?.domains ?? [],
+    education: p?.education ?? [],
     strengths: p?.strengths ?? [],
     coreValues: p?.coreValues ?? [],
   };
@@ -138,7 +139,8 @@ export default function SettingsPage() {
     patch({ experience: profile.experience.filter((_, idx) => idx !== i) });
   }
 
-  // Merge the extracted experience/skills; keep manual strengths/values + the raw paste.
+  // Merge the extracted experience/skills/education; keep manual
+  // strengths/values + the raw paste.
   function applyNormalized(n: NormalizedProfile): void {
     setProfile((prev) => ({
       ...prev,
@@ -147,6 +149,7 @@ export default function SettingsPage() {
       domains: n.domains ?? [],
       experience: n.experience ?? [],
       skills: { ...EMPTY_SKILLS, ...(n.skills ?? {}) },
+      education: n.education ?? [],
     }));
   }
 
@@ -341,6 +344,16 @@ export default function SettingsPage() {
               </label>
             ))}
           </div>
+        </FieldGroup>
+
+        <FieldGroup title="Education" desc="Degrees and certifications — extracted from your résumé/paste, editable here (e.g. B.Sc. Computer Science, Open University, 2015).">
+          <ChipInput
+            value={profile.education}
+            onChange={(v) => patch({ education: v })}
+            placeholder="e.g. B.Sc. Computer Science, Open University, 2015"
+            ariaLabel="Add education"
+            splitOnComma={false}
+          />
         </FieldGroup>
 
         {/* Manual: strengths + core values. Capped at 3 each so the matching

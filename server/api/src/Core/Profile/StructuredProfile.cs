@@ -2,7 +2,7 @@ namespace ApplicationTracker.Core.Profile;
 
 // The candidate profile as a first-class structured input.
 //
-// - Experience & skills are produced by the LLM normalization layer
+// - Experience, skills & education are produced by the LLM normalization layer
 //   (NormalizedProfile) from pasted free text, then editable by the user.
 // - Strengths and CoreValues are explicit manual inputs (not reliably
 //   extractable, so never auto-generated).
@@ -17,6 +17,8 @@ public sealed record StructuredProfile
     public string[] Domains { get; init; } = [];
     public ExperienceItem[] Experience { get; init; } = [];
     public SkillGroups Skills { get; init; } = new();
+    // One entry per degree/certification, e.g. "B.Sc. Computer Science, Open University, 2015".
+    public string[] Education { get; init; } = [];
     public string[] Strengths { get; init; } = [];
     public string[] CoreValues { get; init; } = [];
     public string RawExperienceText { get; init; } = "";
@@ -50,4 +52,5 @@ public sealed record NormalizedProfile
     public string[] Domains { get; init; } = [];
     public ExperienceItem[] Experience { get; init; } = [];
     public SkillGroups Skills { get; init; } = new();
+    public string[] Education { get; init; } = [];
 }

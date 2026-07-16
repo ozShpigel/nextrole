@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useSemanticSearch, useSaveJob } from '../lib/mutations';
+import { useSemanticSearch, useSaveJob, useDismissJob } from '../lib/mutations';
 import type { AdvisorJobBrief, SearchHit, SemanticSearchResponse } from '../lib/types';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -39,9 +39,11 @@ export default function SearchPage() {
   const [result, setResult] = useState<SemanticSearchResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [savedIds, setSavedIds] = useState<Set<string>>(() => new Set());
+  const [dismissedIds, setDismissedIds] = useState<Set<string>>(() => new Set());
 
   const search = useSemanticSearch();
   const saveJob = useSaveJob();
+  const dismissJob = useDismissJob();
 
   function toggleLevel(level: string): void {
     setLevels((prev) => {
@@ -77,6 +79,15 @@ export default function SearchPage() {
       setSavedIds((prev) => new Set(prev).add(jobId));
     } catch (e) {
       alert('Save failed: ' + (e as Error).message);
+    }
+  }
+
+  async function handleDismiss(jobId: string): Promise<void> {
+    try {
+      await dismissJob.mutateAsync(jobId);
+      setDismissedIds((prev) => new Set(prev).add(jobId));
+    } catch (e) {
+      alert('Dismiss failed: ' + (e as Error).message);
     }
   }
 
@@ -215,8 +226,9 @@ export default function SearchPage() {
                 {ranked.map(({ brief, hit }, idx) => {
                   const tone = VERDICT_TONE[brief.verdict] ?? 'var(--ed-ink-faint)';
                   const saved = hit != null && (savedIds.has(hit.id) || hit.saved_to_tracker);
+                  const dismissed = hit != null && dismissedIds.has(hit.id);
                   return (
-                    <article key={brief.jobId} className="ed-rise border-t border-[var(--ed-rule-strong)] pt-7 pb-8" style={{ animationDelay: `${idx * 80}ms` }}>
+                    <article key={brief.jobId} className={`ed-rise border-t border-[var(--ed-rule-strong)] pt-7 pb-8 ${dismissed ? 'opacity-40' : ''}`} style={{ animationDelay: `${idx * 80}ms` }}>
                       <div className="grid grid-cols-[3rem_1fr_180px] gap-x-8 max-[820px]:grid-cols-1 max-[820px]:gap-x-0 max-[820px]:gap-y-5">
                         <div className="ed-display text-[1.5rem] leading-none pt-1 tabular-nums text-[var(--ed-ink-faint)] max-[820px]:hidden">{String(brief.rank).padStart(2, '0')}</div>
 
@@ -247,10 +259,14 @@ export default function SearchPage() {
 
                           <div className="flex gap-2 items-center mt-4 flex-wrap">
                             {hit?.job_url && <a href={hit.job_url} target="_blank" rel="noopener noreferrer" className={ED_GHOST}>View Job</a>}
-                            {hit && !saved && (
+                            {hit && !saved && !dismissed && (
                               <button type="button" className={ED_PRIMARY} onClick={() => handleSave(hit.id)}>Save to Tracker</button>
                             )}
+                            {hit && !saved && !dismissed && (
+                              <button type="button" className={`${ED_BTN} border-[var(--ed-rule)] text-[var(--ed-no)] hover:border-[var(--ed-no)] hover:bg-[var(--ed-no)]/10`} onClick={() => handleDismiss(hit.id)}>Dismiss</button>
+                            )}
                             {saved && <span className="text-[0.66rem] font-semibold uppercase tracking-[0.08em] text-[var(--ed-yes)] py-[0.35rem] px-[0.7rem] border border-[var(--ed-yes)]/40">Saved</span>}
+                            {dismissed && <span className="text-[0.66rem] font-semibold uppercase tracking-[0.08em] text-[var(--ed-no)] py-[0.35rem] px-[0.7rem] border border-[var(--ed-no)]/40">Dismissed — won't reappear</span>}
                           </div>
                         </div>
 

@@ -81,6 +81,8 @@ export interface SemanticSearchRequest {
   is_remote?: boolean | null;
   job_levels?: string[] | null;
   sites?: string[] | null;
+  // Focus on one HyDE facet by name; null/omitted = fused search (default).
+  facet?: string | null;
 }
 
 // A $vectorSearch hit — a discovered_jobs doc (snake_case, embedding stripped).
@@ -98,6 +100,21 @@ export interface SearchHit {
   similarity?: number;
   saved_to_tracker?: boolean;
   is_duplicate?: boolean;
+  // Per-facet $vectorSearch position, e.g. { "backend-dotnet": 2 } — set by
+  // the fusion step; single-facet searches carry just that facet's rank.
+  facet_ranks?: Record<string, number>;
+}
+
+// GET /api/match/profile/search-query — the cached HyDE facets. The Search
+// page shows facet names as focus chips; content is the ideal-posting text.
+export interface SearchQueryFacet {
+  name: string;
+  content: string;
+}
+
+export interface SearchQueryResponse {
+  facets: SearchQueryFacet[];
+  cached?: boolean;
 }
 
 export interface AdvisorJobBrief {

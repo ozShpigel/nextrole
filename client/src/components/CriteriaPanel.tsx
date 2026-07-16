@@ -73,7 +73,7 @@ export function CriteriaCard({ criteria, index, onEdit, onDelete, onRun }: Crite
         onClick={() => onRun(criteria.id)}
         className="mt-auto w-full border border-[var(--ed-ink)] bg-transparent py-[0.6rem] text-[0.72rem] font-semibold uppercase tracking-[0.1em] text-[var(--ed-ink)] transition-all hover:bg-[var(--ed-ink)] hover:text-[var(--ed-paper)] disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-[var(--ed-ink)]"
       >
-        {demoMode ? 'Run Search — disabled in demo' : 'Run Search →'}
+        {demoMode ? 'Collect Jobs — disabled in demo' : 'Collect Jobs →'}
       </button>
     </div>
   );
@@ -92,7 +92,7 @@ export function CriteriaSection({ criteria, onEdit, onDelete, onRun, onNew }: Cr
   return (
     <section className="mb-[3.25rem] relative">
       <div className="flex items-baseline justify-between gap-3 mb-1">
-        <span className="ed-display italic font-semibold text-[1.5rem] tracking-[-0.01em] text-[var(--ed-ink)]">Search Criteria</span>
+        <span className="ed-display italic font-semibold text-[1.5rem] tracking-[-0.01em] text-[var(--ed-ink)]">Collection Criteria</span>
         <span className="text-[0.6rem] font-semibold uppercase tracking-[0.2em] text-[var(--ed-ink-faint)]">Section 01</span>
       </div>
       <div className="border-t border-[var(--ed-rule-strong)] mb-7" />
@@ -100,9 +100,9 @@ export function CriteriaSection({ criteria, onEdit, onDelete, onRun, onNew }: Cr
       {criteria.length === 0 ? (
         <div className="border border-dashed border-[var(--ed-rule)] p-[2.75rem_1.5rem] text-center">
           <div className="ed-display text-[2rem] font-black text-[var(--ed-accent)] mb-2">+</div>
-          <div className="ed-display text-[1.15rem] font-semibold text-[var(--ed-ink)] mb-[0.3rem]">No search criteria</div>
+          <div className="ed-display text-[1.15rem] font-semibold text-[var(--ed-ink)] mb-[0.3rem]">No collection criteria</div>
           <div className="text-[var(--ed-ink-soft)] text-[0.85rem] leading-[1.6] mb-[1.1rem] max-w-[360px] mx-auto">
-            Define your first criteria to start automatically scanning jobs from LinkedIn and Indeed.
+            Define your first criteria to start automatically collecting jobs from LinkedIn and Indeed.
           </div>
           <Button onClick={onNew} disabled={demoMode} title={demoMode ? DEMO_DISABLED_TITLE : undefined} className="rounded-none bg-[var(--ed-accent)] text-[var(--ed-paper)] hover:bg-[var(--ed-accent-deep)] uppercase text-[0.7rem] font-semibold tracking-[0.08em]">
             + Create New Criteria
@@ -257,7 +257,7 @@ export function CriteriaForm({ initial, onSave, onCancel }: CriteriaFormProps) {
 
   return (
     <form className="mb-8 p-7 bg-card border border-border rounded-lg shadow-md animate-in fade-in slide-in-from-bottom-2 duration-300" onSubmit={submit}>
-      <h3 className="font-serif text-[1.2rem] font-bold text-foreground mb-5 tracking-[-0.005em]">{initial ? 'Edit Criteria' : 'New Search Criteria'}</h3>
+      <h3 className="font-serif text-[1.2rem] font-bold text-foreground mb-5 tracking-[-0.005em]">{initial ? 'Edit Criteria' : 'New Collection Criteria'}</h3>
 
       <div className="mb-4">
         <Label>Name</Label>

@@ -54,13 +54,13 @@ export default function DiscoveryPage() {
 
   function handleTriggerRun(criteriaId: string): void {
     triggerRun.mutate(criteriaId, {
-      onError: (e) => alert('Error starting search: ' + e.message),
+      onError: (e) => alert('Error starting collection: ' + e.message),
     });
   }
 
   function handleDeleteCriteria(id: string): void {
     setConfirmState({
-      message: 'Delete this search criteria?',
+      message: 'Delete this collection criteria?',
       onConfirm: () => {
         setConfirmState(null);
         deleteCriteria.mutate(id, {
@@ -73,7 +73,7 @@ export default function DiscoveryPage() {
   function handleAbortRun(runId: string, e: React.MouseEvent): void {
     e.stopPropagation();
     setConfirmState({
-      message: 'Abort this search?',
+      message: 'Abort this collection run?',
       onConfirm: () => {
         setConfirmState(null);
         abortRun.mutate(runId, {

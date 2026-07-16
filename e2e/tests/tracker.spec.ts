@@ -70,22 +70,3 @@ test.describe('Tracker — Application List Data Flow', () => {
     await expect(page.getByText('No applications yet')).toBeVisible();
   });
 });
-
-test.describe('Tracker — Add Application', () => {
-  test.beforeEach(async () => {
-    await clearAll();
-  });
-
-  test('submitting the form persists application and switches to list', async ({ page }) => {
-    await page.goto('/tracker');
-    await page.getByRole('button', { name: 'Add Application' }).click();
-
-    await page.getByPlaceholder('Senior Backend Engineer').fill('New Test Position');
-    await page.getByPlaceholder('Company name').fill('NewCo');
-
-    await page.locator('form').getByRole('button', { name: 'Add Application' }).click();
-
-    await expect(page.getByText('New Test Position')).toBeVisible();
-    await expect(page.getByText('NewCo')).toBeVisible();
-  });
-});

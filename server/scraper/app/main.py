@@ -69,6 +69,14 @@ async def lifespan(app: FastAPI):
 
     await ensure_ttl_index(db)
 
+    # Demo pool freshness: seeded fictional jobs re-enter the Search page's
+    # days-back window on every cold start — which on the free tier happens
+    # whenever a visitor arrives — so demo search always has results. No-op
+    # outside demo mode or before `python -m app.cli seed-demo-jobs` ran.
+    if settings.demo_mode:
+        from app.services import demo_seed
+        await demo_seed.refresh_seed_timestamps(db)
+
     yield
     if db_client:
         db_client.close()

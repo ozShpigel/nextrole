@@ -183,6 +183,9 @@ export function QaRubricAccordion({ entries, onChange }: { entries: QaEntry[]; o
   const [openId, setOpenId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [filter, setFilter] = useState<'all' | QaCategory>('all');
+  // Topic filter key: 'all' = no topic filter, '' = the General (topic-less)
+  // group, otherwise a lowercased topic key. Combines (AND) with the category filter.
+  const [topicFilter, setTopicFilter] = useState<'all' | string>('all');
   // The array we last emitted through onChange; anything else arriving via
   // props is an external replacement (initial load, history restore, discard).
   const lastEmitted = useRef<QaEntry[] | null>(null);
@@ -205,15 +208,18 @@ export function QaRubricAccordion({ entries, onChange }: { entries: QaEntry[]; o
   }
 
   const rows: Row[] = entries.map((entry, index) => ({ entry, id: ids[index] ?? `qa-fallback-${index}`, index }));
-  const matchesFilter = (e: QaEntry) => filter === 'all' || (e.categories ?? []).includes(filter);
-  const groups = groupRows(rows)
-    .map((g) => ({ ...g, rows: g.rows.filter((r) => matchesFilter(r.entry)) }))
-    .filter((g) => g.rows.length > 0);
   const topics: string[] = [];
   for (const r of rows) {
     const t = (r.entry.topic ?? '').trim();
     if (t && !topics.some((x) => x.toLowerCase() === t.toLowerCase())) topics.push(t);
   }
+  const topicKeyOf = (e: QaEntry) => (e.topic ?? '').trim().toLowerCase();
+  const matchesFilter = (e: QaEntry) =>
+    (filter === 'all' || (e.categories ?? []).includes(filter)) &&
+    (topicFilter === 'all' || topicKeyOf(e) === topicFilter);
+  const groups = groupRows(rows)
+    .map((g) => ({ ...g, rows: g.rows.filter((r) => matchesFilter(r.entry)) }))
+    .filter((g) => g.rows.length > 0);
 
   function update(index: number, patch: Partial<QaEntry>): void {
     emit(entries.map((e, i) => (i === index ? { ...e, ...patch } : e)), ids);
@@ -243,8 +249,10 @@ export function QaRubricAccordion({ entries, onChange }: { entries: QaEntry[]; o
 
   function add(): void {
     const id = nextRowId();
+    // Pre-tag with the active filters so the new row stays visible.
+    const topic = topicFilter !== 'all' ? (topics.find((t) => t.toLowerCase() === topicFilter) ?? '') : '';
     emit(
-      [...entries, { question: '', answer: '', categories: filter !== 'all' ? [filter] : [], topic: '' }],
+      [...entries, { question: '', answer: '', categories: filter !== 'all' ? [filter] : [], topic }],
       [...ids, id],
     );
     setOpenId(id);
@@ -270,7 +278,20 @@ export function QaRubricAccordion({ entries, onChange }: { entries: QaEntry[]; o
     }
   }
 
+  /* Toggle semantics: clicking the active topic chip clears the topic filter. */
+  function applyTopicFilter(key: string): void {
+    const next = topicFilter === key ? 'all' : key;
+    setTopicFilter(next);
+    const open = rows.find((r) => r.id === openId);
+    if (open && next !== 'all' && topicKeyOf(open.entry) !== next) {
+      setOpenId(null);
+      setEditingId(null);
+    }
+  }
+
   const countFor = (cat: QaCategory) => entries.filter((e) => (e.categories ?? []).includes(cat)).length;
+  const countForTopic = (key: string) => entries.filter((e) => topicKeyOf(e) === key).length;
+  const generalCount = countForTopic('');
   const canReorder = filter === 'all';
 
   return (
@@ -280,31 +301,61 @@ export function QaRubricAccordion({ entries, onChange }: { entries: QaEntry[]; o
           No questions yet. Add prepared answers to common interview questions like "Where do you see yourself in 5 years?".
         </p>
       ) : (
-        <div className="flex items-center gap-[0.4rem] flex-wrap" role="group" aria-label="Filter questions by category">
-          {(['all', ...QA_CATEGORIES] as const).map((cat) => {
-            const selected = filter === cat;
-            const label = cat === 'all' ? `All (${entries.length})` : `${cat} (${countFor(cat)})`;
-            return (
-              <button
-                key={cat}
-                type="button"
-                aria-pressed={selected}
-                onClick={() => applyFilter(cat)}
-                className={`rounded-none border px-2.5 py-[0.28rem] text-[0.66rem] font-semibold uppercase tracking-[0.1em] transition-all ${
-                  selected
-                    ? 'border-[var(--ed-ink)] bg-[var(--ed-ink)] text-[var(--ed-paper)]'
-                    : 'border-[var(--ed-rule)] text-[var(--ed-ink-soft)] hover:border-[var(--ed-ink)] hover:text-[var(--ed-ink)]'
-                }`}
-              >
-                {label}
-              </button>
-            );
-          })}
+        <div className="flex items-center gap-[0.4rem] flex-wrap">
+          <span className="flex items-center gap-[0.4rem] flex-wrap" role="group" aria-label="Filter questions by category">
+            {(['all', ...QA_CATEGORIES] as const).map((cat) => {
+              const selected = filter === cat;
+              const label = cat === 'all' ? `All (${entries.length})` : `${cat} (${countFor(cat)})`;
+              return (
+                <button
+                  key={cat}
+                  type="button"
+                  aria-pressed={selected}
+                  onClick={() => applyFilter(cat)}
+                  className={`rounded-none border px-2.5 py-[0.28rem] text-[0.66rem] font-semibold uppercase tracking-[0.1em] transition-all ${
+                    selected
+                      ? 'border-[var(--ed-ink)] bg-[var(--ed-ink)] text-[var(--ed-paper)]'
+                      : 'border-[var(--ed-rule)] text-[var(--ed-ink-soft)] hover:border-[var(--ed-ink)] hover:text-[var(--ed-ink)]'
+                  }`}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </span>
+          {topics.length > 0 && (
+            <>
+              <span className="h-4 border-l border-[var(--ed-rule)] mx-[0.2rem]" aria-hidden="true" />
+              <span className="flex items-center gap-[0.4rem] flex-wrap" role="group" aria-label="Filter questions by topic">
+                {[...topics.map((t) => ({ key: t.toLowerCase(), label: t })), ...(generalCount > 0 ? [{ key: '', label: GENERAL_LABEL }] : [])].map(
+                  ({ key, label }) => {
+                    const selected = topicFilter === key;
+                    return (
+                      <button
+                        key={key || GENERAL_LABEL}
+                        type="button"
+                        aria-pressed={selected}
+                        onClick={() => applyTopicFilter(key)}
+                        dir="auto"
+                        className={`rounded-none border px-2.5 py-[0.28rem] text-[0.66rem] font-semibold uppercase tracking-[0.1em] transition-all ${
+                          selected
+                            ? 'border-[var(--ed-ink)] bg-[var(--ed-ink)] text-[var(--ed-paper)]'
+                            : 'border-[var(--ed-rule)] text-[var(--ed-ink-soft)] hover:border-[var(--ed-ink)] hover:text-[var(--ed-ink)]'
+                        }`}
+                      >
+                        {label} ({countForTopic(key)})
+                      </button>
+                    );
+                  },
+                )}
+              </span>
+            </>
+          )}
         </div>
       )}
 
       {entries.length > 0 && groups.length === 0 && (
-        <p className="text-[0.82rem] text-[var(--ed-ink-faint)] italic">No questions tagged {filter}.</p>
+        <p className="text-[0.82rem] text-[var(--ed-ink-faint)] italic">No questions match the current filter.</p>
       )}
 
       {groups.map((group) => (

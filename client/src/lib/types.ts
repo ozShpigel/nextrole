@@ -24,12 +24,14 @@ export interface StructuredProfile {
   domains: string[];
   experience: ExperienceItem[];
   skills: SkillGroups;
+  // One entry per degree/certification, e.g. "B.Sc. Computer Science, Open University, 2015".
+  education: string[];
   strengths: string[];
   coreValues: string[];
   rawExperienceText: string;
 }
 
-// Output of POST /api/match/profile/normalize (experience + skills only;
+// Output of POST /api/match/profile/normalize (experience/skills/education;
 // strengths/core values are never auto-generated).
 export interface NormalizedProfile {
   summary: string;
@@ -37,6 +39,7 @@ export interface NormalizedProfile {
   domains: string[];
   experience: ExperienceItem[];
   skills: SkillGroups;
+  education: string[];
 }
 
 export interface ProfileResponse {

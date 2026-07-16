@@ -4,9 +4,9 @@ import userEvent from '@testing-library/user-event';
 import { ChipInput } from './ChipInput';
 
 // Controlled wrapper so the component behaves like it does in the app.
-function Harness({ initial = [] as string[], suggestions, max }: { initial?: string[]; suggestions?: string[]; max?: number }) {
+function Harness({ initial = [] as string[], suggestions, max, splitOnComma }: { initial?: string[]; suggestions?: string[]; max?: number; splitOnComma?: boolean }) {
   const [value, setValue] = useState<string[]>(initial);
-  return <ChipInput value={value} onChange={setValue} placeholder="Add item" ariaLabel="Add item" suggestions={suggestions} max={max} />;
+  return <ChipInput value={value} onChange={setValue} placeholder="Add item" ariaLabel="Add item" suggestions={suggestions} max={max} splitOnComma={splitOnComma} />;
 }
 
 describe('ChipInput', () => {
@@ -54,6 +54,15 @@ describe('ChipInput', () => {
     await user.keyboard('{Backspace}');
     expect(screen.queryByText('Vue')).not.toBeInTheDocument();
     expect(screen.getByText('React')).toBeInTheDocument();
+  });
+
+  it('keeps commas inside one item when splitOnComma is false', async () => {
+    const user = userEvent.setup();
+    render(<Harness splitOnComma={false} />);
+    const input = screen.getByLabelText('Add item');
+    await user.type(input, 'B.Sc. Computer Science, Open University, 2015{Enter}');
+    expect(screen.getByText('B.Sc. Computer Science, Open University, 2015')).toBeInTheDocument();
+    expect(screen.queryByText('Open University')).not.toBeInTheDocument();
   });
 
   it('adds a quick-add suggestion on click and hides it once present', async () => {

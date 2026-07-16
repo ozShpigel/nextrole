@@ -14,8 +14,9 @@ logger = logging.getLogger(__name__)
 
 VECTOR_INDEX_NAME = "jobs_vector_index"
 # $vectorSearch over-fetch factor: headroom for the free-text location
-# post-filter and job_url dedupe to still fill `limit`.
-OVERFETCH_FACTOR = 3
+# post-filter, the saved/dismissed/applied exclusion, and dedupe to still
+# fill `limit`.
+OVERFETCH_FACTOR = 5
 
 
 async def get_profile_text(settings: Settings) -> str | None:
@@ -141,6 +142,51 @@ def build_vector_pipeline(
     ]
 
 
+async def _excluded_urls(db: AsyncIOMotorDatabase) -> set[str]:
+    """URLs of jobs the user already acted on — hidden from search results.
+
+    Matched by URL rather than the document's own flags because re-scrapes
+    insert fresh copies of the same posting (new id, flags reset to False):
+    dismissing one copy must hide every copy. Covers discovered jobs that were
+    saved or dismissed, plus tracker applications (jobs applied to via any
+    route, e.g. mailbot or manual add).
+    """
+    urls: set[str] = set(
+        await db.discovered_jobs.distinct(
+            "job_url",
+            {"$or": [{"dismissed": True}, {"saved_to_tracker": True}]},
+        )
+    )
+    urls |= set(await db.applications.distinct("JobUrl"))
+    urls.discard("")
+    urls.discard(None)
+    return urls
+
+
+def _content_key(hit: dict) -> tuple[str, str, str]:
+    return tuple(
+        (hit.get(f) or "").strip().lower() for f in ("company", "title", "location")
+    )
+
+
+def _dedupe_by_content(hits: list[dict]) -> list[dict]:
+    """Drop copies of the same posting published under different URLs.
+
+    Fusion already dedupes by job_url, but boards list the same job under
+    multiple URLs; collapse identical (company, title, location), keeping the
+    best-ranked copy.
+    """
+    seen: set[tuple[str, str, str]] = set()
+    out = []
+    for h in hits:
+        key = _content_key(h)
+        if key != ("", "", "") and key in seen:
+            continue
+        seen.add(key)
+        out.append(h)
+    return out
+
+
 def _to_advisor_job(hit: dict, news_cache: dict, glassdoor_cache: dict) -> dict:
     key = (hit.get("company") or "").strip().lower()
     return {
@@ -197,7 +243,9 @@ async def search_jobs(db: AsyncIOMotorDatabase, settings: Settings, req: SearchR
     if req.location:
         needle = req.location.lower()
         hits = [h for h in hits if needle in (h.get("location") or "").lower()]
-    hits = hits[: req.limit]
+    excluded = await _excluded_urls(db)
+    hits = [h for h in hits if (h.get("job_url") or "") not in excluded]
+    hits = _dedupe_by_content(hits)[: req.limit]
 
     if not hits:
         return {"jobs": [], "advisor": None}

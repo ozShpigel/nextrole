@@ -5,13 +5,22 @@ import type { AdvisorJobBrief, SearchHit, SemanticSearchResponse } from '../lib/
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
-const ED_BTN = 'rounded-none border px-4 py-[0.55rem] text-[0.7rem] font-semibold uppercase tracking-[0.1em] transition-all disabled:opacity-50 disabled:pointer-events-none';
+const ED_BTN = 'rounded-full border px-4 py-[0.55rem] text-[0.7rem] font-semibold uppercase tracking-[0.1em] transition-all disabled:opacity-50 disabled:pointer-events-none';
 const ED_GHOST = `${ED_BTN} border-[var(--ed-rule)] text-[var(--ed-ink-soft)] hover:border-[var(--ed-ink)] hover:text-[var(--ed-ink)]`;
 const ED_PRIMARY = `${ED_BTN} border-[var(--ed-accent)] bg-[var(--ed-accent)] text-[var(--ed-paper)] hover:bg-[var(--ed-accent-deep)]`;
 
 // jobspy job_level values (LinkedIn-populated; other boards carry none, so
 // filtering by seniority excludes them — noted in the UI copy).
 const JOB_LEVELS = ['entry level', 'associate', 'mid-senior level', 'director', 'executive'];
+
+// Freshness window over discovered_at (when the job entered the pool, not its
+// posting date). 45 = the pool's TTL, i.e. everything.
+const DAYS_PRESETS = [
+  { days: 3, label: 'Last 3 days' },
+  { days: 7, label: 'Last week' },
+  { days: 14, label: 'Last 2 weeks' },
+  { days: 45, label: 'Whole pool' },
+];
 
 const VERDICT_TONE: Record<string, string> = {
   apply: 'var(--ed-yes)',
@@ -108,7 +117,7 @@ export default function SearchPage() {
 
   const fieldLabel = 'text-[0.62rem] font-semibold uppercase tracking-[0.16em] text-[var(--ed-ink-faint)]';
   const chip = (active: boolean) =>
-    `rounded-none border px-3 py-[0.35rem] text-[0.68rem] font-semibold uppercase tracking-[0.06em] transition-all cursor-pointer ${
+    `rounded-full border px-3 py-[0.35rem] text-[0.68rem] font-semibold uppercase tracking-[0.06em] transition-all cursor-pointer ${
       active
         ? 'border-[var(--ed-accent)] bg-[var(--ed-accent)]/10 text-[var(--ed-accent)]'
         : 'border-[var(--ed-rule)] text-[var(--ed-ink-soft)] hover:border-[var(--ed-ink)] hover:text-[var(--ed-ink)]'
@@ -144,19 +153,7 @@ export default function SearchPage() {
                 max={15}
                 value={limit}
                 onChange={(e) => setLimit(Math.max(1, Math.min(15, Number(e.target.value) || 10)))}
-                className="rounded-none border-[var(--ed-rule)] bg-transparent text-[var(--ed-ink)]"
-              />
-            </div>
-            <div className="flex flex-col gap-[0.45rem]">
-              <Label htmlFor="search-days" className={fieldLabel}>Collected within (days)</Label>
-              <Input
-                id="search-days"
-                type="number"
-                min={1}
-                max={45}
-                value={daysBack}
-                onChange={(e) => setDaysBack(Math.max(1, Math.min(45, Number(e.target.value) || 3)))}
-                className="rounded-none border-[var(--ed-rule)] bg-transparent text-[var(--ed-ink)]"
+                className="rounded-lg border-[var(--ed-rule)] bg-transparent text-[var(--ed-ink)]"
               />
             </div>
             <div className="flex flex-col gap-[0.45rem]">
@@ -166,7 +163,7 @@ export default function SearchPage() {
                 placeholder="e.g. Tel Aviv"
                 value={location}
                 onChange={(e) => setLocation(e.target.value)}
-                className="rounded-none border-[var(--ed-rule)] bg-transparent text-[var(--ed-ink)]"
+                className="rounded-lg border-[var(--ed-rule)] bg-transparent text-[var(--ed-ink)]"
               />
             </div>
             <div className="flex flex-col gap-[0.45rem]">
@@ -174,6 +171,20 @@ export default function SearchPage() {
               <button type="button" className={chip(remoteOnly)} onClick={() => setRemoteOnly((v) => !v)} aria-pressed={remoteOnly}>
                 Remote only
               </button>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-[0.45rem] mb-5">
+            <span className={fieldLabel}>
+              Collected within
+              <span className="normal-case tracking-normal font-normal text-[var(--ed-ink-faint)]"> — how far back jobs entered your pool, not their posting date</span>
+            </span>
+            <div className="flex flex-wrap gap-2">
+              {DAYS_PRESETS.map(({ days, label }) => (
+                <button key={days} type="button" className={chip(daysBack === days)} onClick={() => setDaysBack(days)} aria-pressed={daysBack === days}>
+                  {label}
+                </button>
+              ))}
             </div>
           </div>
 

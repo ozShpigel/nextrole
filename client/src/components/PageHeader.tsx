@@ -35,7 +35,7 @@ export default function PageHeader({ onNewCriteria }: PageHeaderProps) {
           onClick={onNewCriteria}
           disabled={demoMode}
           title={demoMode ? DEMO_DISABLED_TITLE : undefined}
-          className="shrink-0 rounded-none bg-[var(--ed-accent)] text-[var(--ed-paper)] hover:bg-[var(--ed-accent-deep)] uppercase text-[0.7rem] font-semibold tracking-[0.08em]"
+          className="shrink-0 rounded-full bg-[var(--ed-accent)] text-[var(--ed-paper)] hover:bg-[var(--ed-accent-deep)] uppercase text-[0.7rem] font-semibold tracking-[0.08em]"
         >
           + New Criteria
         </Button>

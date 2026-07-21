@@ -37,7 +37,7 @@ interface StatusBadgeProps {
 export function StatusBadge({ status }: StatusBadgeProps) {
   const tone = STATUS_TONE[status] ?? STATUS_TONE.Analyzing;
   const label = STATUS_LABELS[status] || status;
-  const base = 'inline-flex items-center py-[0.22rem] px-[0.55rem] text-[0.6rem] font-semibold uppercase tracking-[0.1em] leading-[1.3] border';
+  const base = 'inline-flex items-center rounded-full py-[0.22rem] px-[0.6rem] text-[0.6rem] font-semibold uppercase tracking-[0.1em] leading-[1.3] border';
 
   if (SOLID.has(status)) {
     return (
@@ -56,7 +56,6 @@ export function StatusBadge({ status }: StatusBadgeProps) {
         color: tone,
         background: `color-mix(in oklab, ${tone} ${bgPct}%, transparent)`,
         borderColor: `color-mix(in oklab, ${tone} ${borderPct}%, transparent)`,
-        borderLeft: `2px solid ${tone}`,
       }}
     >
       {label}

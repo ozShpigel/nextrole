@@ -33,7 +33,7 @@ export function CriteriaCard({ criteria, index, onEdit, onDelete, onRun }: Crite
   const demoTitle = demoMode ? DEMO_DISABLED_TITLE : undefined;
   return (
     <div
-      className="ed-rise group relative flex flex-col border-t border-[var(--ed-rule-strong)] pt-4 pb-1"
+      className="ed-rise group relative flex flex-col border border-[var(--ed-rule)] bg-[var(--ed-panel)]/70 p-5"
       style={{ animationDelay: `${index * 70}ms` }}
     >
       <div className="flex justify-between items-start gap-3 mb-3">
@@ -42,13 +42,13 @@ export function CriteriaCard({ criteria, index, onEdit, onDelete, onRun }: Crite
           <h3 className="ed-display font-semibold text-[1.3rem] tracking-[-0.015em] leading-[1.15] text-[var(--ed-ink)] transition-colors group-hover:text-[var(--ed-accent-deep)]">{criteria.name}</h3>
         </div>
         <div className="flex gap-[0.35rem] shrink-0">
-          <Button variant="ghost" size="sm" disabled={demoMode} title={demoTitle} onClick={() => onEdit(criteria)} className="rounded-none h-7 px-2 text-[0.7rem] uppercase tracking-[0.06em] text-[var(--ed-ink-soft)] hover:bg-[var(--ed-panel)] hover:text-[var(--ed-ink)]">Edit</Button>
-          <Button variant="ghost" size="sm" disabled={demoMode} title={demoTitle} onClick={() => onDelete(criteria.id)} className="rounded-none h-7 px-2 text-[0.7rem] uppercase tracking-[0.06em] text-[var(--ed-no)] hover:bg-[var(--ed-no)]/10">Delete</Button>
+          <Button variant="ghost" size="sm" disabled={demoMode} title={demoTitle} onClick={() => onEdit(criteria)} className="rounded-full h-7 px-2 text-[0.7rem] uppercase tracking-[0.06em] text-[var(--ed-ink-soft)] hover:bg-[var(--ed-panel)] hover:text-[var(--ed-ink)]">Edit</Button>
+          <Button variant="ghost" size="sm" disabled={demoMode} title={demoTitle} onClick={() => onDelete(criteria.id)} className="rounded-full h-7 px-2 text-[0.7rem] uppercase tracking-[0.06em] text-[var(--ed-no)] hover:bg-[var(--ed-no)]/10">Delete</Button>
         </div>
       </div>
 
       <div className="flex flex-wrap gap-[0.35rem] mb-[0.85rem] pl-[calc(1.4rem+0.75rem)] max-[480px]:pl-0">
-        {criteria.job_titles.map((t) => <span key={t} className="py-[0.15rem] px-[0.55rem] border border-[var(--ed-rule)] text-[var(--ed-ink-soft)] text-[0.74rem] font-medium tracking-[0.01em]">{t}</span>)}
+        {criteria.job_titles.map((t) => <span key={t} className="py-[0.15rem] px-[0.6rem] rounded-full border border-[var(--ed-rule)] text-[var(--ed-ink-soft)] text-[0.74rem] font-medium tracking-[0.01em]">{t}</span>)}
       </div>
 
       <div className="flex flex-col gap-[0.35rem] py-[0.7rem] mb-[0.85rem] border-y border-dashed border-[var(--ed-rule)]">
@@ -71,7 +71,7 @@ export function CriteriaCard({ criteria, index, onEdit, onDelete, onRun }: Crite
         disabled={demoMode}
         title={demoTitle}
         onClick={() => onRun(criteria.id)}
-        className="mt-auto w-full border border-[var(--ed-ink)] bg-transparent py-[0.6rem] text-[0.72rem] font-semibold uppercase tracking-[0.1em] text-[var(--ed-ink)] transition-all hover:bg-[var(--ed-ink)] hover:text-[var(--ed-paper)] disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-[var(--ed-ink)]"
+        className="mt-auto w-full rounded-full border border-[var(--ed-ink)] bg-transparent py-[0.6rem] text-[0.72rem] font-semibold uppercase tracking-[0.1em] text-[var(--ed-ink)] transition-all hover:bg-[var(--ed-ink)] hover:text-[var(--ed-paper)] disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-[var(--ed-ink)]"
       >
         {demoMode ? 'Collect Jobs — disabled in demo' : 'Collect Jobs →'}
       </button>
@@ -104,7 +104,7 @@ export function CriteriaSection({ criteria, onEdit, onDelete, onRun, onNew }: Cr
           <div className="text-[var(--ed-ink-soft)] text-[0.85rem] leading-[1.6] mb-[1.1rem] max-w-[360px] mx-auto">
             Define your first criteria to start automatically collecting jobs from LinkedIn and Indeed.
           </div>
-          <Button onClick={onNew} disabled={demoMode} title={demoMode ? DEMO_DISABLED_TITLE : undefined} className="rounded-none bg-[var(--ed-accent)] text-[var(--ed-paper)] hover:bg-[var(--ed-accent-deep)] uppercase text-[0.7rem] font-semibold tracking-[0.08em]">
+          <Button onClick={onNew} disabled={demoMode} title={demoMode ? DEMO_DISABLED_TITLE : undefined} className="rounded-full bg-[var(--ed-accent)] text-[var(--ed-paper)] hover:bg-[var(--ed-accent-deep)] uppercase text-[0.7rem] font-semibold tracking-[0.08em]">
             + Create New Criteria
           </Button>
         </div>

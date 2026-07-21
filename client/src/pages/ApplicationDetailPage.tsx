@@ -21,7 +21,7 @@ function edScoreColor(score: number | null | undefined): string {
 }
 
 // Shared editorial button styles
-const ED_BTN = 'rounded-none border px-3.5 py-[0.5rem] text-[0.68rem] font-semibold uppercase tracking-[0.08em] transition-all disabled:opacity-50 disabled:pointer-events-none';
+const ED_BTN = 'rounded-full border px-3.5 py-[0.5rem] text-[0.68rem] font-semibold uppercase tracking-[0.08em] transition-all disabled:opacity-50 disabled:pointer-events-none';
 const ED_GHOST = `${ED_BTN} border-[var(--ed-rule)] text-[var(--ed-ink-soft)] hover:border-[var(--ed-ink)] hover:text-[var(--ed-ink)]`;
 const ED_PRIMARY = `${ED_BTN} border-[var(--ed-accent)] bg-[var(--ed-accent)] text-[var(--ed-paper)] hover:bg-[var(--ed-accent-deep)]`;
 const ED_DANGER = `${ED_BTN} border-[var(--ed-rule)] text-[var(--ed-no)] hover:border-[var(--ed-no)] hover:bg-[var(--ed-no)]/10`;
@@ -316,7 +316,7 @@ function SalaryField({ appId, initialValue }: { appId: string; initialValue: str
     <div className="flex items-center gap-2 mb-3">
       <label className="text-[0.64rem] uppercase tracking-[0.1em] text-[var(--ed-ink-faint)] font-semibold shrink-0">Salary</label>
       <input
-        className="max-w-[200px] h-8 text-[0.84rem] px-2 rounded-none border border-[var(--ed-rule)] bg-transparent text-[var(--ed-ink)] focus:outline-none focus:border-[var(--ed-ink)]"
+        className="max-w-[200px] h-8 text-[0.84rem] px-2 rounded-lg border border-[var(--ed-rule)] bg-transparent text-[var(--ed-ink)] focus:outline-none focus:border-[var(--ed-ink)]"
         placeholder="e.g. 25-30K/mo"
         value={value}
         onChange={(e: React.ChangeEvent<HTMLInputElement>) => setValue(e.target.value)}
@@ -408,7 +408,7 @@ function WhyWorkHereBlock({ appId, initialAnswer }: { appId: string; initialAnsw
           <button
             type="button"
             onClick={copyToClipboard}
-            className="absolute top-0 left-0 py-[0.3rem] px-[0.6rem] rounded-none text-[0.66rem] font-semibold uppercase tracking-[0.06em] border border-[var(--ed-rule)] bg-transparent text-[var(--ed-ink-faint)] cursor-pointer transition-all hover:border-[var(--ed-ink)] hover:text-[var(--ed-ink)]"
+            className="absolute top-0 left-0 py-[0.3rem] px-[0.6rem] rounded-full text-[0.66rem] font-semibold uppercase tracking-[0.06em] border border-[var(--ed-rule)] bg-transparent text-[var(--ed-ink-faint)] cursor-pointer transition-all hover:border-[var(--ed-ink)] hover:text-[var(--ed-ink)]"
           >
             {copied ? 'Copied' : 'Copy'}
           </button>

@@ -44,29 +44,33 @@
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
+  /* App-wide type: Instrument Sans body; `font-serif` is repurposed as the
+     display face (Schibsted Grotesk) so legacy serif headings modernize too. */
+  --font-sans: "Instrument Sans", "Heebo", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Schibsted Grotesk", "Heebo", ui-sans-serif, system-ui, sans-serif;
 }
 
 :root {
-  --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
+  --radius: 0.8rem;
+  --background: oklch(0.988 0.004 120);
+  --foreground: oklch(0.26 0.022 165);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
+  --card-foreground: oklch(0.26 0.022 165);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.26 0.022 165);
+  --primary: oklch(0.44 0.1 160);
+  --primary-foreground: oklch(0.99 0.005 150);
+  --secondary: oklch(0.955 0.009 150);
+  --secondary-foreground: oklch(0.3 0.03 165);
+  --muted: oklch(0.955 0.009 150);
+  --muted-foreground: oklch(0.5 0.02 165);
+  --accent: oklch(0.95 0.014 155);
+  --accent-foreground: oklch(0.3 0.04 162);
   --destructive: oklch(0.577 0.245 27.325);
   --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  --border: oklch(0.915 0.01 140);
+  --input: oklch(0.915 0.01 140);
+  --ring: oklch(0.6 0.11 160);
   --chart-1: oklch(0.646 0.222 41.116);
   --chart-2: oklch(0.6 0.118 184.704);
   --chart-3: oklch(0.398 0.07 227.392);
@@ -83,25 +87,25 @@
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
+  --background: oklch(0.17 0.012 165);
+  --foreground: oklch(0.96 0.008 150);
+  --card: oklch(0.22 0.015 165);
+  --card-foreground: oklch(0.96 0.008 150);
+  --popover: oklch(0.22 0.015 165);
+  --popover-foreground: oklch(0.96 0.008 150);
+  --primary: oklch(0.79 0.15 158);
+  --primary-foreground: oklch(0.2 0.03 165);
+  --secondary: oklch(0.27 0.016 165);
+  --secondary-foreground: oklch(0.96 0.008 150);
+  --muted: oklch(0.27 0.016 165);
+  --muted-foreground: oklch(0.72 0.015 160);
+  --accent: oklch(0.28 0.02 162);
+  --accent-foreground: oklch(0.96 0.008 150);
   --destructive: oklch(0.704 0.191 22.216);
   --destructive-foreground: oklch(0.985 0 0);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
+  --ring: oklch(0.65 0.11 160);
   --chart-1: oklch(0.488 0.243 264.376);
   --chart-2: oklch(0.696 0.17 162.48);
   --chart-3: oklch(0.769 0.188 70.08);
@@ -129,56 +133,90 @@
 }
 
 /* ============================================================
-   Editorial Broadsheet — a scoped sub-theme for the discovery
-   flow (DiscoveryPage + RunDetailPage). All colors live as
-   --ed-* design tokens so the look adapts to light/dark and
-   never leaks hardcoded hex into the JSX.
+   Forest Ledger — the app's scoped sub-theme (Glassdoor-inspired
+   modern refresh of the old broadsheet): deep forest ink + vivid
+   emerald accents on warm porcelain, rounded surfaces, grotesque
+   display type. All colors live as --ed-* design tokens so the
+   look adapts to light/dark and never leaks hardcoded hex into
+   the JSX. (Token names kept from the broadsheet era.)
    ============================================================ */
 .editorial {
-  --ed-paper:        #f5f1e8;   /* warm ivory canvas        */
-  --ed-panel:        #efe9dc;   /* slightly deeper panel    */
-  --ed-ink:          #1c1a17;   /* near-black ink           */
-  --ed-ink-soft:     #4a463e;   /* muted body ink           */
-  --ed-ink-faint:    #8c857a;   /* captions, metadata       */
-  --ed-rule:         #cdc6b6;   /* hairline rule            */
-  --ed-rule-strong:  #1c1a17;   /* heavy masthead rule      */
-  --ed-accent:       #b23a25;   /* vermillion accent        */
-  --ed-accent-deep:  #8c2c1b;
-  --ed-yes:          #3f6f4a;   /* muted editorial green    */
-  --ed-no:           #9a3324;   /* oxblood                  */
-  --ed-gold:         #7a6a3f;
+  --ed-paper:        #f7f6f2;   /* warm porcelain canvas    */
+  --ed-panel:        #ffffff;   /* raised card surface      */
+  --ed-ink:          #1d2b25;   /* forest near-black        */
+  --ed-ink-soft:     #4b5a52;   /* muted body ink           */
+  --ed-ink-faint:    #7e8b83;   /* captions, metadata       */
+  --ed-rule:         #e2e4dd;   /* hairline rule            */
+  --ed-rule-strong:  #14382a;   /* heavy masthead rule      */
+  --ed-accent:       #0e8a4f;   /* emerald accent           */
+  --ed-accent-deep:  #0a5c37;
+  --ed-yes:          #35935e;   /* success green            */
+  --ed-no:           #c94a3d;   /* warm signal red          */
+  --ed-gold:         #a1780f;   /* amber caution            */
 
   background-color: var(--ed-paper);
   color: var(--ed-ink);
 }
 .dark .editorial {
-  --ed-paper:        #15130e;   /* warm near-black          */
-  --ed-panel:        #1d1a13;
-  --ed-ink:          #f1ece0;
-  --ed-ink-soft:     #cabfa9;
-  --ed-ink-faint:    #8c8472;
-  --ed-rule:         #3a352a;
-  --ed-rule-strong:  #6f6855;
-  --ed-accent:       #d9694e;
-  --ed-accent-deep:  #e58b73;
-  --ed-yes:          #84b389;
-  --ed-no:           #d98873;
-  --ed-gold:         #bda878;
+  --ed-paper:        #101613;   /* green-cast near-black    */
+  --ed-panel:        #1a211c;
+  --ed-ink:          #edf3ee;
+  --ed-ink-soft:     #b6c3ba;
+  --ed-ink-faint:    #7d8b82;
+  --ed-rule:         #2a332c;
+  --ed-rule-strong:  #6d7f73;
+  --ed-accent:       #41d488;
+  --ed-accent-deep:  #82e5b1;
+  --ed-yes:          #6fbe8d;
+  --ed-no:           #ec8878;
+  --ed-gold:         #d5ab4d;
 }
 
-/* paper grain + faint top vignette (decorative, full-bleed) */
+/* atmosphere: soft emerald glow bleeding from the top + whisper of
+   noise so large canvases don't read flat (decorative, full-bleed) */
 .editorial-grain::before {
   content: "";
   position: fixed; inset: 0; z-index: 0; pointer-events: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.4'/%3E%3C/svg%3E");
-  opacity: .05; mix-blend-mode: multiply;
+  background:
+    radial-gradient(1100px 480px at 78% -12%,
+      color-mix(in oklab, var(--ed-accent) 9%, transparent), transparent 70%),
+    radial-gradient(900px 420px at -8% 4%,
+      color-mix(in oklab, var(--ed-gold) 6%, transparent), transparent 65%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.14'/%3E%3C/svg%3E");
 }
-.dark .editorial-grain::before { mix-blend-mode: screen; opacity: .04; }
+.dark .editorial-grain::before {
+  background:
+    radial-gradient(1100px 480px at 78% -12%,
+      color-mix(in oklab, var(--ed-accent) 7%, transparent), transparent 70%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.1'/%3E%3C/svg%3E");
+}
 
 /* display face */
 .ed-display {
-  font-family: "Fraunces", "Noto Serif Hebrew", Georgia, serif;
+  font-family: "Schibsted Grotesk", "Heebo", ui-sans-serif, system-ui, sans-serif;
   font-optical-sizing: auto;
+}
+
+/* ------------------------------------------------------------
+   Modern skin — rounds and lifts the token-styled surfaces so
+   every editorial page inherits the refresh without per-page
+   markup churn. Selectors key off the --ed-* utility classes.
+   ------------------------------------------------------------ */
+/* any panel-surfaced box (incl. hover-surfaced list rows) */
+.editorial [class*="bg-[var(--ed-panel)"] { border-radius: 0.9rem; }
+/* boxes that are real cards (border + panel fill) get soft elevation */
+.editorial [class*="border-[var(--ed-rule)]"][class*=" bg-[var(--ed-panel)"] {
+  box-shadow: 0 1px 2px rgb(10 30 20 / 0.04), 0 10px 28px -18px rgb(10 30 20 / 0.14);
+}
+/* dashed empty-states */
+.editorial [class*="border-dashed"] { border-radius: 0.9rem; }
+/* form fields */
+.editorial input, .editorial select, .editorial textarea { border-radius: 0.7rem; }
+/* the broadsheet's engraved double rules become one confident bar */
+.editorial .border-double { border-style: solid; }
+/* selection tint in brand green */
+.editorial ::selection {
+  background: color-mix(in oklab, var(--ed-accent) 28%, transparent);
 }
 
 /* staggered entry reveal */

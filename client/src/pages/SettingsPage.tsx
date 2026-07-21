@@ -15,7 +15,7 @@ function Button(
   { variant?: BtnVariant; size?: 'sm' | 'default'; className?: string; children: React.ReactNode } &
   React.ButtonHTMLAttributes<HTMLButtonElement>,
 ) {
-  const base = 'inline-flex items-center justify-center gap-1.5 rounded-none border font-semibold uppercase tracking-[0.08em] transition-all disabled:opacity-45 disabled:pointer-events-none';
+  const base = 'inline-flex items-center justify-center gap-1.5 rounded-full border font-semibold uppercase tracking-[0.08em] transition-all disabled:opacity-45 disabled:pointer-events-none';
   const sz = size === 'sm' ? 'px-3 py-[0.42rem] text-[0.64rem]' : 'px-4 py-[0.55rem] text-[0.68rem]';
   const variants: Record<BtnVariant, string> = {
     default:     'border-[var(--ed-accent)] bg-[var(--ed-accent)] text-[var(--ed-paper)] hover:bg-[var(--ed-accent-deep)]',

@@ -222,7 +222,7 @@ export default function RunDetail() {
     : run.status === 'cancelled' ? 'var(--ed-ink-faint)'
     : 'var(--ed-gold)';
 
-  const actionBtn = 'rounded-none border px-3 py-[0.4rem] text-[0.68rem] font-semibold uppercase tracking-[0.08em] transition-all disabled:opacity-50 disabled:pointer-events-none';
+  const actionBtn = 'rounded-full border px-3 py-[0.4rem] text-[0.68rem] font-semibold uppercase tracking-[0.08em] transition-all disabled:opacity-50 disabled:pointer-events-none';
   const ghostBtn = `${actionBtn} border-[var(--ed-rule)] text-[var(--ed-ink-soft)] hover:border-[var(--ed-ink)] hover:text-[var(--ed-ink)]`;
 
   return (

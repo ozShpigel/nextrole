@@ -3,7 +3,7 @@ import { ChevronDown, Pencil, Check, Trash2, ArrowUp, ArrowDown, Plus } from 'lu
 import { QA_CATEGORIES, type QaCategory, type QaEntry } from '../lib/types';
 import { AutoGrowTextarea } from './AutoGrowTextarea';
 
-const ED_BTN = 'rounded-none border px-3.5 py-[0.5rem] text-[0.68rem] font-semibold uppercase tracking-[0.08em] transition-all disabled:opacity-50 disabled:pointer-events-none';
+const ED_BTN = 'rounded-full border px-3.5 py-[0.5rem] text-[0.68rem] font-semibold uppercase tracking-[0.08em] transition-all disabled:opacity-50 disabled:pointer-events-none';
 const ED_GHOST = `${ED_BTN} border-[var(--ed-rule)] text-[var(--ed-ink-soft)] hover:border-[var(--ed-ink)] hover:text-[var(--ed-ink)]`;
 
 const INPUT_CLASS =
@@ -11,7 +11,7 @@ const INPUT_CLASS =
 const TEXTAREA_CLASS =
   'w-full p-[0.75rem_0.95rem] border border-[var(--ed-rule)] text-[var(--ed-ink)] text-[0.88rem] outline-none leading-[1.7] whitespace-pre-wrap transition-all hover:border-[var(--ed-ink-faint)] focus:border-[var(--ed-accent)] bg-[var(--ed-paper)]';
 const ICON_BTN =
-  'h-7 w-7 p-0 inline-flex items-center justify-center rounded-none text-[var(--ed-ink-soft)] transition-colors hover:text-[var(--ed-ink)] disabled:opacity-40 disabled:pointer-events-none';
+  'h-7 w-7 p-0 inline-flex items-center justify-center rounded-full text-[var(--ed-ink-soft)] transition-colors hover:text-[var(--ed-ink)] disabled:opacity-40 disabled:pointer-events-none';
 
 // Tone per fixed category, mapped onto the editorial palette.
 const CATEGORY_TONE: Record<QaCategory, string> = {
@@ -38,7 +38,7 @@ function CategoryToggleChips({ value, onChange }: { value: string[]; onChange: (
             type="button"
             aria-pressed={selected}
             onClick={() => onChange(selected ? value.filter((c) => c !== cat) : [...value, cat])}
-            className="rounded-none border px-2 py-[0.2rem] text-[0.64rem] font-semibold uppercase tracking-[0.1em] transition-all"
+            className="rounded-full border px-2 py-[0.2rem] text-[0.64rem] font-semibold uppercase tracking-[0.1em] transition-all"
             style={selected
               ? { borderColor: `var(${tone})`, color: `var(${tone})`, background: `color-mix(in oklab, var(${tone}) 10%, transparent)` }
               : { borderColor: 'var(--ed-rule)', color: 'var(--ed-ink-faint)' }}
@@ -80,7 +80,7 @@ function TopicChips({ topics, value, onChange }: { topics: string[]; value: stri
             aria-pressed={selected}
             onClick={() => onChange(selected ? '' : topic)}
             dir="auto"
-            className={`rounded-none border px-2 py-[0.2rem] text-[0.64rem] font-semibold uppercase tracking-[0.1em] transition-all ${
+            className={`rounded-full border px-2 py-[0.2rem] text-[0.64rem] font-semibold uppercase tracking-[0.1em] transition-all ${
               selected
                 ? 'border-[var(--ed-ink)] bg-[var(--ed-ink)] text-[var(--ed-paper)]'
                 : 'border-[var(--ed-rule)] text-[var(--ed-ink-faint)] hover:border-[var(--ed-ink)] hover:text-[var(--ed-ink)]'
@@ -110,7 +110,7 @@ function TopicChips({ topics, value, onChange }: { topics: string[]; value: stri
           type="button"
           onClick={() => setAdding(true)}
           aria-label="Add topic"
-          className="rounded-none border border-dashed border-[var(--ed-rule)] px-2 py-[0.2rem] text-[0.64rem] font-semibold uppercase tracking-[0.1em] text-[var(--ed-ink-faint)] transition-all hover:border-[var(--ed-ink)] hover:text-[var(--ed-ink)]"
+          className="rounded-full border border-dashed border-[var(--ed-rule)] px-2 py-[0.2rem] text-[0.64rem] font-semibold uppercase tracking-[0.1em] text-[var(--ed-ink-faint)] transition-all hover:border-[var(--ed-ink)] hover:text-[var(--ed-ink)]"
         >
           + Topic
         </button>
@@ -130,7 +130,7 @@ function CategoryStamps({ categories }: { categories: string[] }) {
         return (
           <span
             key={cat}
-            className="rounded-none border px-[0.4rem] py-[0.1rem] text-[0.58rem] font-semibold uppercase tracking-[0.12em]"
+            className="rounded-full border px-[0.4rem] py-[0.1rem] text-[0.58rem] font-semibold uppercase tracking-[0.12em]"
             style={{ borderColor: `color-mix(in oklab, var(${tone}) 45%, transparent)`, color: `var(${tone})` }}
           >
             {cat}
@@ -312,7 +312,7 @@ export function QaRubricAccordion({ entries, onChange }: { entries: QaEntry[]; o
                   type="button"
                   aria-pressed={selected}
                   onClick={() => applyFilter(cat)}
-                  className={`rounded-none border px-2.5 py-[0.28rem] text-[0.66rem] font-semibold uppercase tracking-[0.1em] transition-all ${
+                  className={`rounded-full border px-2.5 py-[0.28rem] text-[0.66rem] font-semibold uppercase tracking-[0.1em] transition-all ${
                     selected
                       ? 'border-[var(--ed-ink)] bg-[var(--ed-ink)] text-[var(--ed-paper)]'
                       : 'border-[var(--ed-rule)] text-[var(--ed-ink-soft)] hover:border-[var(--ed-ink)] hover:text-[var(--ed-ink)]'
@@ -337,7 +337,7 @@ export function QaRubricAccordion({ entries, onChange }: { entries: QaEntry[]; o
                         aria-pressed={selected}
                         onClick={() => applyTopicFilter(key)}
                         dir="auto"
-                        className={`rounded-none border px-2.5 py-[0.28rem] text-[0.66rem] font-semibold uppercase tracking-[0.1em] transition-all ${
+                        className={`rounded-full border px-2.5 py-[0.28rem] text-[0.66rem] font-semibold uppercase tracking-[0.1em] transition-all ${
                           selected
                             ? 'border-[var(--ed-ink)] bg-[var(--ed-ink)] text-[var(--ed-paper)]'
                             : 'border-[var(--ed-rule)] text-[var(--ed-ink-soft)] hover:border-[var(--ed-ink)] hover:text-[var(--ed-ink)]'

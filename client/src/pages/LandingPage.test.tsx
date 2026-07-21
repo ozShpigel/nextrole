@@ -29,9 +29,9 @@ describe("LandingPage", () => {
     expect(settingsLink).toHaveAttribute("href", "/settings");
   });
 
-  it("renders the footer", () => {
-    renderWithRouter(<Landing />);
-    expect(screen.getByText(/NextRole/)).toBeInTheDocument();
-    expect(screen.getByText(/2026/)).toBeInTheDocument();
+  it("renders the footer monogram", () => {
+    const { container } = renderWithRouter(<Landing />);
+    expect(container.querySelector("footer")).toBeInTheDocument();
+    expect(screen.getByText("R")).toBeInTheDocument();
   });
 });

@@ -8,6 +8,14 @@ Built as a four-service monorepo (C#, Python, React), deployed to production on 
 
 ---
 
+## See it in action
+
+<img alt="Product walkthrough: semantic Search Matches ranked by an AI career advisor with similarity scores and apply/maybe/skip verdicts, then the Application Tracker dashboard and a tracked application's detail view" src="docs/images/demo.gif">
+
+*Semantic Search Matches, ranked by an AI career advisor — into the Application Tracker and a tracked application's detail view. Real data from a running instance, no mockups.*
+
+---
+
 ## Highlighted Features
 
 1. **Semantic job search (RAG)**: Every collected job is matched against your profile *by meaning* via MongoDB Atlas Vector Search, and a single Claude "career advisor" call ranks the results with apply/maybe/skip verdicts. [Details](#job-discovery--semantic-search)

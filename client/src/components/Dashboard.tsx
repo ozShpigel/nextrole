@@ -45,10 +45,10 @@ export default function Dashboard() {
     <>
       {stats && (
         <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] max-md:grid-cols-2 gap-3 mb-9">
-          <StatCard value={stats.total} label="Total Applications" />
-          <StatCard value={stats.inProgress} label="In Progress" />
-          <StatCard value={stats.avgScore || '-'} label="Average Score" />
-          <StatCard value={`${stats.responseRate}%`} label="Response Rate" />
+          <StatCard value={stats.total} label="Total Applications" index={0} />
+          <StatCard value={stats.inProgress} label="In Progress" index={1} />
+          <StatCard value={stats.avgScore || '-'} label="Average Score" index={2} />
+          <StatCard value={`${stats.responseRate}%`} label="Response Rate" index={3} />
         </div>
       )}
 
@@ -62,7 +62,7 @@ export default function Dashboard() {
           <p className="text-center py-12 text-[var(--ed-ink-faint)] text-[0.88rem]">No upcoming interviews</p>
         ) : (
           upcoming.map((u, i) => (
-            <div key={i} className="border-t border-[var(--ed-rule)] py-[0.95rem] first:border-t-0">
+            <div key={i} className="ed-rise border-t border-[var(--ed-rule)] py-[0.95rem] first:border-t-0" style={{ animationDelay: `${i * 60}ms` }}>
               <div className="flex justify-between items-baseline gap-3 mb-1">
                 <span className="ed-display font-semibold text-[var(--ed-ink)] text-[1.02rem] tracking-[-0.005em]">{u.interview.type} — {u.company || ''}</span>
                 <span className="text-[0.74rem] text-[var(--ed-ink-faint)] tabular-nums shrink-0">{formatDateTime(u.interview.scheduledAt)}</span>
@@ -83,7 +83,7 @@ export default function Dashboard() {
           <p className="text-center py-12 text-[var(--ed-ink-faint)] text-[0.88rem]">No recent activity</p>
         ) : (
           recent.map((a, i) => (
-            <div key={a.id} className="group flex items-baseline gap-4 py-[0.9rem] border-t border-[var(--ed-rule)] transition-colors hover:bg-[var(--ed-panel)]/60 cursor-pointer first:border-t-0" onClick={() => navigate(`/tracker/${a.id}`)}>
+            <div key={a.id} className="ed-rise group flex items-baseline gap-4 py-[0.9rem] border-t border-[var(--ed-rule)] transition-colors hover:bg-[var(--ed-panel)]/60 cursor-pointer first:border-t-0" style={{ animationDelay: `${i * 60}ms` }} onClick={() => navigate(`/tracker/${a.id}`)}>
               <span className="ed-display text-[1.05rem] leading-none tabular-nums text-[var(--ed-ink-faint)] shrink-0 w-7">{String(i + 1).padStart(2, '0')}</span>
               <div className="flex-1 min-w-0">
                 <div className="text-[0.9rem] flex items-center gap-2 flex-wrap">

@@ -131,13 +131,14 @@ function FeatureCard({ app, index, onOpen }: { app: Application; index: number; 
   );
 }
 
-function Row({ app, muted, onOpen, onDelete }: { app: Application; muted?: boolean; onOpen: () => void; onDelete: () => void }) {
+function Row({ app, index = 0, muted, onOpen, onDelete }: { app: Application; index?: number; muted?: boolean; onOpen: () => void; onDelete: () => void }) {
   const days = daysSince(app.updatedAt);
   // Stay quiet unless the silence is getting long.
   const daysColor = days !== null && days >= 14 ? 'var(--ed-no)' : days !== null && days >= 7 ? 'var(--ed-gold)' : 'var(--ed-ink-faint)';
   return (
     <div
-      className={`group grid ${COLS} items-center gap-4 py-[1.05rem] border-b border-[var(--ed-rule)]/70 cursor-pointer transition-colors duration-300 hover:bg-[var(--ed-panel)]/50 last:border-b-0 ${muted ? 'opacity-65 hover:opacity-90 transition-opacity' : ''}`}
+      className={`ed-rise group grid ${COLS} items-center gap-4 py-[1.05rem] border-b border-[var(--ed-rule)]/70 cursor-pointer transition-colors duration-300 hover:bg-[var(--ed-panel)]/50 last:border-b-0 ${muted ? 'opacity-65 hover:opacity-90 transition-opacity' : ''}`}
+      style={{ animationDelay: `${Math.min(index, 10) * 40}ms` }}
       onClick={onOpen}
     >
       <div><div className="ed-display font-medium text-[var(--ed-ink)] text-[0.95rem]">{app.jobTitle}</div></div>
@@ -250,7 +251,7 @@ export default function ApplicationList() {
         <section aria-label="Applications to apply to" className="mt-12">
           <SectionRule label="To Apply" count={toApply.length} />
           <TableHead />
-          {toApply.map((a) => <Row key={a.id} app={a} onOpen={() => open(a.id)} onDelete={() => setDeleteId(a.id)} />)}
+          {toApply.map((a, i) => <Row key={a.id} app={a} index={i} onOpen={() => open(a.id)} onDelete={() => setDeleteId(a.id)} />)}
         </section>
       )}
 
@@ -261,7 +262,7 @@ export default function ApplicationList() {
           {awaiting.length > 0 && (
             <>
               <TableHead />
-              {awaitingVisible.map((a) => <Row key={a.id} app={a} onOpen={() => open(a.id)} onDelete={() => setDeleteId(a.id)} />)}
+              {awaitingVisible.map((a, i) => <Row key={a.id} app={a} index={i} onOpen={() => open(a.id)} onDelete={() => setDeleteId(a.id)} />)}
               {awaiting.length > AWAITING_VISIBLE && (
                 <button
                   type="button"
@@ -281,7 +282,7 @@ export default function ApplicationList() {
                 <span className="text-[0.66rem] text-[var(--ed-ink-faint)]/70 tabular-nums">· {ghosted.length} silent {GHOST_DAYS}d+</span>
               </summary>
               <div className="border-t border-[var(--ed-rule)] pt-1">
-                {ghosted.map((a) => <Row key={a.id} app={a} muted onOpen={() => open(a.id)} onDelete={() => setDeleteId(a.id)} />)}
+                {ghosted.map((a, i) => <Row key={a.id} app={a} index={i} muted onOpen={() => open(a.id)} onDelete={() => setDeleteId(a.id)} />)}
               </div>
             </details>
           )}
@@ -297,7 +298,7 @@ export default function ApplicationList() {
             <span className="text-[0.66rem] text-[var(--ed-ink-faint)]/70 tabular-nums">· {archive.length} closed</span>
           </summary>
           <div className="border-t border-[var(--ed-rule)] pt-1">
-            {archive.map((a) => <Row key={a.id} app={a} muted onOpen={() => open(a.id)} onDelete={() => setDeleteId(a.id)} />)}
+            {archive.map((a, i) => <Row key={a.id} app={a} index={i} muted onOpen={() => open(a.id)} onDelete={() => setDeleteId(a.id)} />)}
           </div>
         </details>
       )}

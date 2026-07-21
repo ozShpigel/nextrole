@@ -24,10 +24,10 @@ export default function Statistics() {
   return (
     <>
       <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] max-md:grid-cols-2 gap-3 mb-9">
-        <StatCard value={stats.total} label="Total Applications" />
-        <StatCard value={stats.applied} label="Applied" />
-        <StatCard value={stats.avgScore || '-'} label="Average Score" />
-        <StatCard value={`${stats.responseRate}%`} label="Response Rate" />
+        <StatCard value={stats.total} label="Total Applications" index={0} />
+        <StatCard value={stats.applied} label="Applied" index={1} />
+        <StatCard value={stats.avgScore || '-'} label="Average Score" index={2} />
+        <StatCard value={`${stats.responseRate}%`} label="Response Rate" index={3} />
       </div>
 
       <section className="mb-4">
@@ -37,15 +37,17 @@ export default function Statistics() {
         </div>
         <div className="border-t border-[var(--ed-rule-strong)] mb-4" />
         <div>
-          {Object.entries(STATUS_LABELS).map(([key, label]) => {
+          {Object.entries(STATUS_LABELS).map(([key, label], i) => {
             const count = breakdown[key] || 0;
-            const pct = (count / max * 100).toFixed(0);
             const color = STATUS_TONE[key] || 'var(--ed-ink-faint)';
             return (
-              <div key={key} className="flex items-center gap-3 py-[0.45rem] border-b border-[var(--ed-rule)] last:border-b-0">
+              <div key={key} className="ed-rise flex items-center gap-3 py-[0.45rem] border-b border-[var(--ed-rule)] last:border-b-0" style={{ animationDelay: `${i * 60}ms` }}>
                 <span className="min-w-[130px] text-[0.78rem] text-[var(--ed-ink-soft)] uppercase tracking-[0.06em] font-medium">{label}</span>
-                <div className="flex-1 h-[18px] bg-[var(--ed-rule)]/40 overflow-hidden">
-                  <div className="h-full transition-all duration-[800ms] flex items-center justify-end pr-2 text-[0.68rem] font-semibold text-[var(--ed-paper)]" style={{ width: `${pct}%`, background: color }}>
+                <div className="relative flex-1 h-[18px] bg-[var(--ed-rule)]/40 overflow-hidden">
+                  <div
+                    className="ed-fill h-full flex items-center justify-end pr-2 text-[0.68rem] font-semibold text-[var(--ed-paper)]"
+                    style={{ ['--p' as string]: count / max, background: color }}
+                  >
                     {count > 0 ? count : ''}
                   </div>
                 </div>

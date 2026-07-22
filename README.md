@@ -1,10 +1,28 @@
-# NextRole
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/wordmark-dark.png">
+  <img alt="NextRole" src="docs/images/wordmark-light.png" width="360" align="left">
+</picture>
+<br clear="left">
+
+
+[![License: MIT](https://img.shields.io/github/license/ozShpigel/nextrole)](LICENSE)
+![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white)
+![.NET](https://img.shields.io/badge/.NET-10-512BD4?logo=dotnet&logoColor=white)
+![Python](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)
+![MongoDB Atlas](https://img.shields.io/badge/MongoDB-Atlas-47A248?logo=mongodb&logoColor=white)
+![Claude](https://img.shields.io/badge/Claude-Anthropic-D97757)
 
 **NextRole** is an AI-powered platform that runs your job hunt end-to-end: it discovers listings from LinkedIn and Indeed, matches them to your professional profile *by meaning*, watches your inbox for replies, and tracks every role from first application to final outcome — with Claude working as analyst, career advisor, and interview coach along the way.
 
 Built as a four-service monorepo (C#, Python, React), deployed to production on Render.
 
 > **Single-tenant by design** — one user, no login. NextRole is your private tool, running against your own database.
+
+> **Cost**: Claude (Anthropic) and OpenAI (embeddings) are both pay-as-you-go — running your own instance has an ongoing cost proportional to how much you scrape and search, not a one-time fee. MongoDB Atlas's free tier is enough to get started.
+
+### Contents
+
+[See it in action](#see-it-in-action) · [Highlighted Features](#highlighted-features) · [Architecture](#architecture) · [Getting Started](#getting-started) · [Testing](#testing) · [Deployment & CI/CD](#deployment--cicd) · [Contributing](#contributing) · [License](#license)
 
 ---
 
@@ -77,10 +95,11 @@ A one-shot cron process: pull active applications, parse the last 24 h of Gmail 
 
 ## Getting started
 
-For the Docker path you only need [Docker](https://www.docker.com/), a [MongoDB](https://www.mongodb.com/) instance (Atlas free tier works), and an [Anthropic API key](https://console.anthropic.com/):
+For the Docker path you only need [Docker](https://www.docker.com/), a [MongoDB](https://www.mongodb.com/) instance (Atlas free tier works), an [Anthropic API key](https://console.anthropic.com/), and an [OpenAI API key](https://platform.openai.com/api-keys) (embeddings for semantic search):
 
 ```bash
 export ANTHROPIC_API_KEY=your-key-here
+export OPENAI_API_KEY=your-key-here
 export MONGODB_CONNECTION_STRING=mongodb://your-connection-string
 
 docker compose up --build
@@ -122,6 +141,16 @@ Each service has its own GitHub Actions workflow with **path-based triggers** �
 | `frontend.yml` | `client/**` | Docker image → `ghcr.io` | Render webhook |
 
 Each pipeline logs into GHCR, builds the service's Dockerfile, tags `:latest`, and triggers a Render deploy.
+
+---
+
+## Contributing
+
+This started as a personal tool and is now open for others to use, fork, or extend. Issues and pull requests are welcome — see [`AGENTS.md`](AGENTS.md) for the codebase's conventions and the docs in [`/docs`](docs) for how each feature works under the hood.
+
+## License
+
+[MIT](LICENSE)
 
 ---
 

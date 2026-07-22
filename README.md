@@ -1,6 +1,6 @@
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/wordmark-dark.png">
-  <img alt="NextRole" src="docs/images/wordmark-light.png" width="360" align="left">
+  <img alt="NextRole" src="docs/images/wordmark-light.png" width="220" align="left">
 </picture>
 <br clear="left">
 
@@ -36,7 +36,7 @@ Built as a four-service monorepo (C#, Python, React), deployed to production on 
 
 ## Highlighted Features
 
-1. **Semantic job search (RAG)**: Every collected job is matched against your profile *by meaning* via MongoDB Atlas Vector Search, and a single Claude "career advisor" call ranks the results with apply/maybe/skip verdicts. [Details](#job-discovery--semantic-search)
+1. **Semantic job search**: Every collected job is matched against your profile *by meaning* via MongoDB Atlas Vector Search (retrieval-augmented generation, or RAG), and a single Claude "career advisor" call ranks the results with apply/maybe/skip verdicts. [Details](#job-discovery--semantic-search)
 2. **Automated job discovery**: Define search criteria once — the system scrapes LinkedIn/Indeed, drops off-target titles with AI triage, and embeds everything for search, from the UI or a daily cron.
 3. **AI job scoring**: Paste any job description and get a weighted compatibility score with a sub-component breakdown and an honest verdict. [Details](docs/scoring-and-search.md)
 4. **Email sync**: The mailbot detects interview invites, rejections, and offers in Gmail and updates the tracker automatically — idempotent, and it never moves an application backwards. [Details](#email-sync-mailbot)
@@ -60,13 +60,13 @@ NextRole consists of four loosely-coupled services, communicating over HTTP:
   <img alt="NextRole architecture — the Client on top; the Scraper, API, and Mailbot services in the middle with the API as the AI hub; external providers (job boards, OpenAI, MongoDB Atlas, Claude, Gmail) along the bottom" src="docs/images/architecture-light.svg">
 </picture>
 
-**The life of a job** ties the parts together: the scraper discovers it, AI triage checks the title is on-target, its text is embedded, and it lands in `discovered_jobs` (a 1536-dim vector, 45-day TTL). When you search, your profile is embedded too, `$vectorSearch` surfaces the closest jobs, and **one** Claude *advisor* call ranks the top-N with apply/maybe/skip verdicts. Saving a result copies it into the tracker database — and from there the mailbot keeps its status current from your inbox.
+**The life of a job** ties the parts together: the scraper discovers it, AI triage checks the title is on-target, and it's embedded into a searchable pool. When you search, your profile is embedded too, and the closest matches get ranked by **one** Claude *advisor* call with apply/maybe/skip verdicts. Saving a result copies it into the tracker database — and from there the mailbot keeps its status current from your inbox.
 
 The diagrams below break the three core engines down — *how* each feature moves data through the services (dashed nodes are external systems).
 
 ### Job discovery & semantic search
 
-Two decoupled halves. **Ingest** (per discovery run): scrape → AI title triage → embed → store. **Search** (on demand): the DB does the semantic matching, and Claude runs **once** over the top-N as a career advisor — instead of two Claude calls per scraped job.
+This is how NextRole finds jobs and figures out which ones actually fit you. Two decoupled halves. **Ingest** (per discovery run): scrape → AI title triage → embed → store. **Search** (on demand): the DB does the semantic matching, and Claude runs **once** over the top-N as a career advisor — instead of two Claude calls per scraped job.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/flow-search-dark.svg">
@@ -75,7 +75,7 @@ Two decoupled halves. **Ingest** (per discovery run): scrape → AI title triage
 
 ### Mock interview (stateless turn engine)
 
-The client holds the whole transcript and **replays it every turn** — the server keeps no session state. Trusted context (profile, prep) goes in the system prompt; untrusted data (job context, the transcript) is XML-wrapped in the user message. Cheap Haiku per turn, Sonnet once for the debrief.
+Practice interviews with Claude playing the interviewer, one question at a time. The client holds the whole transcript and **replays it every turn** — the server keeps no session state. Trusted context (profile, prep) goes in the system prompt; untrusted data (job context, the transcript) is XML-wrapped in the user message. Cheap Haiku per turn, Sonnet once for the debrief.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/flow-mock-interview-dark.svg">
@@ -84,7 +84,7 @@ The client holds the whole transcript and **replays it every turn** — the serv
 
 ### Email sync (Mailbot)
 
-A one-shot cron process: pull active applications, parse the last 24 h of Gmail with Claude, and apply status/interview updates — matched by company + title, idempotent, and never moving an application backwards.
+Keeps your tracker up to date without you lifting a finger. A one-shot cron process: pull active applications, parse the last 24 h of Gmail with Claude, and apply status/interview updates — matched by company + title, idempotent, and never moving an application backwards.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/flow-mailbot-dark.svg">

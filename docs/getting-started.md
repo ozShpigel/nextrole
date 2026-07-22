@@ -16,6 +16,7 @@ Full setup for [NextRole](../README.md) — running the stack with Docker or per
 
 ```bash
 export ANTHROPIC_API_KEY=your-key-here
+export OPENAI_API_KEY=your-key-here
 export MONGODB_CONNECTION_STRING=mongodb://your-connection-string
 
 docker compose up --build

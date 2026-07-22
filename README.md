@@ -1,6 +1,6 @@
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/wordmark-dark.png">
-  <img alt="NextRole" src="docs/images/wordmark-light.png" width="360" align="left">
+  <img alt="NextRole" src="docs/images/wordmark-light.png" width="220" align="left">
 </picture>
 <br clear="left">
 

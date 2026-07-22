@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 340" font-family="Georgia, 'Times New Roman', serif">
   <defs>
     <marker id="arr" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
-      <path d="M0 0 L10 5 L0 10 z" fill="#A99B84"/>
+      <path d="M0 0 L10 5 L0 10 z" fill="#7e8b83"/>
     </marker>
     <path id="icoDotnet" d="M24 8.77h-2.468v7.565h-1.425V8.77h-2.462V7.53H24zm-6.852 7.565h-4.821V7.53h4.63v1.24h-3.205v2.494h2.953v1.234h-2.953v2.604h3.396zm-6.708 0H8.882L4.78 9.863a2.896 2.896 0 0 1-.258-.51h-.036c.032.189.048.592.048 1.21v5.772H3.157V7.53h1.659l3.965 6.32c.167.261.275.442.323.54h.024c-.04-.233-.06-.629-.06-1.185V7.529h1.372zm-8.703-.693a.868.829 0 0 1-.869.829.868.829 0 0 1-.868-.83.868.829 0 0 1 .868-.828.868.829 0 0 1 .869.829Z"/>
     <path id="icoGmail" d="M24 5.457v13.909c0 .904-.732 1.636-1.636 1.636h-3.819V11.73L12 16.64l-6.545-4.91v9.273H1.636A1.636 1.636 0 0 1 0 19.366V5.457c0-2.023 2.309-3.178 3.927-1.964L5.455 4.64 12 9.548l6.545-4.91 1.528-1.145C21.69 2.28 24 3.434 24 5.457z"/>
@@ -9,11 +9,11 @@
     <path id="icoMongo" d="M17.193 9.555c-1.264-5.58-4.252-7.414-4.573-8.115-.28-.394-.53-.954-.735-1.44-.036.495-.055.685-.523 1.184-.723.566-4.438 3.682-4.74 10.02-.282 5.912 4.27 9.435 4.888 9.884l.07.05A73.49 73.49 0 0111.91 24h.481c.114-1.032.284-2.056.51-3.07.417-.296.604-.463.85-.693a11.342 11.342 0 003.639-8.464c.01-.814-.103-1.662-.197-2.218zm-5.336 8.195s0-8.291.275-8.29c.213 0 .49 10.695.49 10.695-.381-.045-.765-1.76-.765-2.405z"/>
   </defs>
 
-  <rect x="0" y="0" width="960" height="340" fill="#FAF6EE"/>
-  <rect x="0.5" y="0.5" width="959" height="339" fill="none" stroke="#DCD2C0"/>
+  <rect x="0" y="0" width="960" height="340" fill="#f7f6f2"/>
+  <rect x="0.5" y="0.5" width="959" height="339" fill="none" stroke="#e2e4dd"/>
 
   <!-- edges -->
-  <g stroke="#A99B84" fill="none" stroke-width="1.4" marker-end="url(#arr)">
+  <g stroke="#7e8b83" fill="none" stroke-width="1.4" marker-end="url(#arr)">
     <path d="M150,130 H186"/>
     <path d="M430,130 H466"/>
     <path d="M710,130 H746"/>
@@ -22,44 +22,44 @@
   </g>
 
   <!-- edge labels -->
-  <g font-style="italic" font-size="10" fill="#6E6355" text-anchor="middle">
+  <g font-style="italic" font-size="10" fill="#4b5a52" text-anchor="middle">
     <text x="448" y="122">emails</text>
     <text x="730" y="184">match by company + title</text>
   </g>
 
   <!-- trigger -->
-  <rect x="40" y="108" width="110" height="44" fill="#FFFFFF" stroke="#DCD2C0" stroke-dasharray="4 3"/>
-  <text x="95" y="127" font-family="Helvetica, Arial, sans-serif" font-size="8.5" letter-spacing="1.2" fill="#6E6355" text-anchor="middle">CRON</text>
-  <text x="95" y="140" font-family="Helvetica, Arial, sans-serif" font-size="8.5" letter-spacing="1.2" fill="#6E6355" text-anchor="middle">ONE-SHOT</text>
+  <rect x="40" y="108" width="110" height="44" fill="#FFFFFF" stroke="#e2e4dd" stroke-dasharray="4 3"/>
+  <text x="95" y="127" font-family="Helvetica, Arial, sans-serif" font-size="8.5" letter-spacing="1.2" fill="#4b5a52" text-anchor="middle">CRON</text>
+  <text x="95" y="140" font-family="Helvetica, Arial, sans-serif" font-size="8.5" letter-spacing="1.2" fill="#4b5a52" text-anchor="middle">ONE-SHOT</text>
 
   <!-- pipeline -->
-  <rect x="190" y="95" width="240" height="70" fill="#FFFFFF" stroke="#DCD2C0"/>
+  <rect x="190" y="95" width="240" height="70" fill="#FFFFFF" stroke="#e2e4dd"/>
   <use href="#icoDotnet" transform="translate(206,118)" fill="#512BD4"/>
-  <text x="246" y="122" font-size="14.5" font-weight="700" fill="#201B15">Mailbot</text>
-  <text x="246" y="142" font-size="10.5" font-style="italic" fill="#6E6355">pull apps · fetch 3 days of mail</text>
+  <text x="246" y="122" font-size="14.5" font-weight="700" fill="#1d2b25">Mailbot</text>
+  <text x="246" y="142" font-size="10.5" font-style="italic" fill="#4b5a52">pull apps · fetch 3 days of mail</text>
 
-  <rect x="470" y="95" width="240" height="70" fill="#FFFFFF" stroke="#C2410C" stroke-width="1.5"/>
-  <rect x="470" y="95" width="3" height="70" fill="#C2410C"/>
-  <text x="702" y="111" font-family="Helvetica, Arial, sans-serif" font-size="7.5" letter-spacing="1.5" fill="#C2410C" text-anchor="end">AI</text>
-  <text x="492" y="122" font-size="14.5" font-weight="700" fill="#201B15">Email parser</text>
-  <text x="492" y="142" font-size="10.5" font-style="italic" fill="#6E6355">via the API — status · interview · dates</text>
+  <rect x="470" y="95" width="240" height="70" fill="#FFFFFF" stroke="#0e8a4f" stroke-width="1.5"/>
+  <rect x="470" y="95" width="3" height="70" fill="#0e8a4f"/>
+  <text x="702" y="111" font-family="Helvetica, Arial, sans-serif" font-size="7.5" letter-spacing="1.5" fill="#0e8a4f" text-anchor="end">AI</text>
+  <text x="492" y="122" font-size="14.5" font-weight="700" fill="#1d2b25">Email parser</text>
+  <text x="492" y="142" font-size="10.5" font-style="italic" fill="#4b5a52">via the API — status · interview · dates</text>
 
-  <rect x="750" y="98" width="170" height="64" fill="#FFFFFF" stroke="#DCD2C0" stroke-dasharray="4 3"/>
+  <rect x="750" y="98" width="170" height="64" fill="#FFFFFF" stroke="#e2e4dd" stroke-dasharray="4 3"/>
   <use href="#icoMongo" transform="translate(762,119) scale(0.83)" fill="#47A248"/>
-  <text x="792" y="125" font-size="12" font-weight="600" fill="#201B15">Tracker</text>
-  <text x="792" y="143" font-size="10" font-style="italic" fill="#6E6355">status + interviews</text>
+  <text x="792" y="125" font-size="12" font-weight="600" fill="#1d2b25">Tracker</text>
+  <text x="792" y="143" font-size="10" font-style="italic" fill="#4b5a52">status + interviews</text>
 
   <!-- sources -->
-  <rect x="230" y="230" width="160" height="62" fill="#FFFFFF" stroke="#DCD2C0" stroke-dasharray="4 3"/>
+  <rect x="230" y="230" width="160" height="62" fill="#FFFFFF" stroke="#e2e4dd" stroke-dasharray="4 3"/>
   <use href="#icoGmail" transform="translate(244,251) scale(0.83)" fill="#EA4335"/>
-  <text x="274" y="257" font-size="12" font-weight="600" fill="#201B15">Gmail</text>
-  <text x="274" y="275" font-size="10" font-style="italic" fill="#6E6355">read-only scope</text>
+  <text x="274" y="257" font-size="12" font-weight="600" fill="#1d2b25">Gmail</text>
+  <text x="274" y="275" font-size="10" font-style="italic" fill="#4b5a52">read-only scope</text>
 
-  <rect x="510" y="230" width="160" height="62" fill="#FFFFFF" stroke="#DCD2C0" stroke-dasharray="4 3"/>
+  <rect x="510" y="230" width="160" height="62" fill="#FFFFFF" stroke="#e2e4dd" stroke-dasharray="4 3"/>
   <use href="#icoClaude" transform="translate(524,251) scale(0.83)" fill="#D97757"/>
-  <text x="554" y="257" font-size="12" font-weight="600" fill="#201B15">Claude</text>
-  <text x="554" y="275" font-size="10" font-style="italic" fill="#6E6355">via the API</text>
+  <text x="554" y="257" font-size="12" font-weight="600" fill="#1d2b25">Claude</text>
+  <text x="554" y="275" font-size="10" font-style="italic" fill="#4b5a52">via the API</text>
 
   <!-- caption -->
-  <text x="40" y="322" font-size="10" font-style="italic" fill="#6E6355">One-shot and reconcile-only — re-processing an email never duplicates a row, and a status never moves backwards.</text>
+  <text x="40" y="322" font-size="10" font-style="italic" fill="#4b5a52">One-shot and reconcile-only — re-processing an email never duplicates a row, and a status never moves backwards.</text>
 </svg>

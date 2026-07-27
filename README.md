@@ -22,27 +22,37 @@ Built as a four-service monorepo (C#, Python, React), deployed to production on 
 
 ### Contents
 
-[See it in action](#see-it-in-action) · [Highlighted Features](#highlighted-features) · [Architecture](#architecture) · [Getting Started](#getting-started) · [Testing](#testing) · [Deployment & CI/CD](#deployment--cicd) · [Contributing](#contributing) · [License](#license)
-
----
-
-## See it in action
-
-<img alt="Product walkthrough: semantic Search Matches ranked by an AI career advisor with similarity scores and apply/maybe/skip verdicts, then the Application Tracker dashboard and a tracked application's detail view" src="docs/images/demo.gif">
-
-*Semantic Search Matches, ranked by an AI career advisor — into the Application Tracker and a tracked application's detail view. Real data from a running instance, no mockups.*
+[Highlighted Features](#highlighted-features) · [Architecture](#architecture) · [Getting Started](#getting-started) · [Testing](#testing) · [Deployment & CI/CD](#deployment--cicd) · [Contributing](#contributing) · [License](#license)
 
 ---
 
 ## Highlighted Features
 
-1. **Semantic job search**: Every collected job is matched against your profile *by meaning* via MongoDB Atlas Vector Search (retrieval-augmented generation, or RAG), and a single Claude "career advisor" call ranks the results with apply/maybe/skip verdicts. [Details](#job-discovery--semantic-search)
-2. **Automated job discovery**: Define search criteria once — the system scrapes LinkedIn/Indeed, drops off-target titles with AI triage, and embeds everything for search, from the UI or a daily cron.
-3. **AI job scoring**: Paste any job description and get a weighted compatibility score with a sub-component breakdown and an honest verdict. [Details](docs/scoring-and-search.md)
-4. **Email sync**: The mailbot detects interview invites, rejections, and offers in Gmail and updates the tracker automatically — idempotent, and it never moves an application backwards. [Details](#email-sync-mailbot)
-5. **Interview practice**: Author self-presentations and a Q&A rubric, rehearse from AI-distilled keyword cues, then run turn-by-turn mock interviews whose debrief feeds back into your prep. [Details](#mock-interview-stateless-turn-engine)
-6. **Résumé upload**: Drop in a PDF and your profile is normalized automatically — the PDF goes to Claude natively, no extraction library.
-7. **Prompt-injection defense**: Untrusted external data — job descriptions, scraped news, raw emails — is always XML-wrapped in the user message and kept out of the system prompt.
+### Semantic job search
+
+Every collected job is matched against your profile *by meaning* via MongoDB Atlas Vector Search (retrieval-augmented generation, or RAG), and a single Claude "career advisor" call ranks the results with apply/maybe/skip verdicts. [Details](#job-discovery--semantic-search)
+
+<img alt="Search Matches: ranked job results with similarity scores, apply/maybe/skip verdicts, and the AI advisor's rationale" src="docs/demos/output/search.gif" width="760">
+
+### Application tracking
+
+Every save, application, and status update lives in one dashboard — response rate and average score at a glance, a running activity feed, and a per-application AI Analysis breakdown (technical / execution / sustainability) behind every tracked role.
+
+<img alt="Application Tracker: stats row, Recent Activity feed, and a tracked application's AI Analysis score breakdown" src="docs/demos/output/tracker.gif" width="760">
+
+### Interview practice
+
+Author self-presentations and a Q&A rubric, rehearse from AI-distilled keyword cues, then run turn-by-turn mock interviews whose debrief feeds back into your prep. [Details](#mock-interview-stateless-turn-engine)
+
+<img alt="Interview Prep: self-presentation text and a Question Rubric with grouped, expandable prepared answers" src="docs/demos/output/interview-prep.gif" width="760">
+
+A few more things NextRole does:
+
+- **Automated job discovery**: Define search criteria once — the system scrapes LinkedIn/Indeed, drops off-target titles with AI triage, and embeds everything for search, from the UI or a daily cron.
+- **AI job scoring**: Paste any job description and get a weighted compatibility score with a sub-component breakdown and an honest verdict. [Details](docs/scoring-and-search.md)
+- **Email sync**: The mailbot detects interview invites, rejections, and offers in Gmail and updates the tracker automatically — idempotent, and it never moves an application backwards. [Details](#email-sync-mailbot)
+- **Résumé upload**: Drop in a PDF and your profile is normalized automatically — the PDF goes to Claude natively, no extraction library.
+- **Prompt-injection defense**: Untrusted external data — job descriptions, scraped news, raw emails — is always XML-wrapped in the user message and kept out of the system prompt.
 
 ---
 

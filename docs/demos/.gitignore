@@ -1,0 +1,5 @@
+node_modules/
+output/test-results/
+output/*.webm
+output/*.timing.json
+output/frames/

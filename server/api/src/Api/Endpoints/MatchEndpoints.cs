@@ -161,6 +161,7 @@ public static class MatchEndpoints
             bool? force,
             IProfileProvider provider,
             ApplicationTracker.Core.AI.IClaudeClient claude,
+            IConfiguration config,
             ILogger<Program> logger,
             CancellationToken ct) =>
         {
@@ -170,9 +171,16 @@ public static class MatchEndpoints
                 cached
             };
 
+            // This is a GET, so Program.cs's demo write-block never sees it — but a
+            // cache miss both bills a Claude call and persists via SetSearchQueryAsync.
+            // In demo mode: ignore `force` (no unauthenticated visitor can force a
+            // regeneration) and never persist, so a cache miss costs at most one
+            // Claude call per request and never touches the seeded data.
+            var isDemoMode = config.GetValue<bool>("DemoMode");
+
             try
             {
-                var cachedFacets = force == true ? null : await provider.GetSearchQueryAsync(ct);
+                var cachedFacets = (force == true && !isDemoMode) ? null : await provider.GetSearchQueryAsync(ct);
                 if (cachedFacets is not null)
                     return Results.Ok(ToResponse(cachedFacets, cached: true));
 
@@ -181,7 +189,8 @@ public static class MatchEndpoints
                     return Results.BadRequest(new { error = "profile is empty — set it up in Settings first" });
 
                 var facets = await claude.GenerateIdealPostingsAsync(profile, ct);
-                await provider.SetSearchQueryAsync(facets, ct);
+                if (!isDemoMode)
+                    await provider.SetSearchQueryAsync(facets, ct);
                 return Results.Ok(ToResponse(facets, cached: false));
             }
             catch (InvalidOperationException ex) when (ex.Message.Contains("ApiKey"))

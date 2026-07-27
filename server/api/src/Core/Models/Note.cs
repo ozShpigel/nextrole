@@ -7,8 +7,10 @@ public sealed record Note
     [BsonId]
     [BsonRepresentation(MongoDB.Bson.BsonType.String)]
     public Guid Id { get; init; } = Guid.NewGuid();
+    // Not `required`: CreateNote takes this from the route and overwrites
+    // whatever the body carries, so JSON binding must not demand it.
     [BsonRepresentation(MongoDB.Bson.BsonType.String)]
-    public required Guid ApplicationId { get; init; }
+    public Guid ApplicationId { get; init; }
     public required string Content { get; init; }
     [BsonRepresentation(MongoDB.Bson.BsonType.String)]
     public NoteCategory? Category { get; init; }

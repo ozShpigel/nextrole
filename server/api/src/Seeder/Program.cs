@@ -59,7 +59,22 @@ var interviews = db.GetCollection<Interview>("interviews");
 
 var now = DateTime.UtcNow;
 
-var seeds = new List<(Application App, Interview[] Interviews)>
+// Stratus Cloud is the app the tracker demo clip (docs/demos/specs/tracker.spec.ts)
+// clicks into from Recent Activity (it's the most recently created, so it sorts
+// first) to show the "AI Analysis" score breakdown. Nothing in the API/mailbot
+// ever populates Application.MatchAnalysis (only discovered_jobs.match_analysis
+// does, pre-application) — reuse the same breakdown already authored below for
+// the matching discovered-job entry (same title/company/score/verdict) so the
+// tracker detail page has a real breakdown to render instead of the section
+// silently disappearing (AnalysisCard returns null with no matchAnalysisJson).
+var stratusMatchAnalysisJson = Analysis(
+    "Backend Engineer", "Stratus Cloud", 82, "YES", true, (16, 11), (13, 12), (11, 11, 8),
+    new[] { "Strong .NET + cloud background", "Clear ownership of services" }, Array.Empty<string>(),
+    "Strong overall fit; stack and seniority line up well with the role.",
+    new[] { "Recently raised a growth round" }, Array.Empty<string>(),
+    "Company is growing and hiring across engineering.").ToJson();
+
+var seeds = new List<(Application App, Interview[] Interviews, string? MatchAnalysisJson)>
 {
     (new Application
     {
@@ -67,7 +82,7 @@ var seeds = new List<(Application App, Interview[] Interviews)>
         MatchScore = 82, MatchVerdict = "YES", JobUrl = "https://example.com/jobs/stratus-backend",
         JobDescription = "Build and operate backend services for a cloud platform team.",
         CreatedAt = now.AddDays(-2), UpdatedAt = now.AddDays(-2),
-    }, Array.Empty<Interview>()),
+    }, Array.Empty<Interview>(), stratusMatchAnalysisJson),
 
     (new Application
     {
@@ -75,7 +90,7 @@ var seeds = new List<(Application App, Interview[] Interviews)>
         MatchScore = 76, MatchVerdict = "YES", JobUrl = "https://example.com/jobs/vela-fullstack",
         JobDescription = "Ship product features across a TypeScript/Node stack.",
         CreatedAt = now.AddDays(-9), AppliedAt = now.AddDays(-8), UpdatedAt = now.AddDays(-8),
-    }, Array.Empty<Interview>()),
+    }, Array.Empty<Interview>(), null),
 
     (new Application
     {
@@ -87,7 +102,7 @@ var seeds = new List<(Application App, Interview[] Interviews)>
     {
         new Interview { ApplicationId = Guid.Empty, ScheduledAt = now.AddDays(-3), Type = InterviewType.Phone,
             Interviewer = "Dana Levin", Topics = "Background, role expectations", Completed = true },
-    }),
+    }, null),
 
     (new Application
     {
@@ -101,7 +116,7 @@ var seeds = new List<(Application App, Interview[] Interviews)>
             Interviewer = "Recruiting", Completed = true },
         new Interview { ApplicationId = Guid.Empty, ScheduledAt = now.AddDays(1), Type = InterviewType.Technical,
             Interviewer = "Priya Nair", Topics = "System design, coding", Completed = false },
-    }),
+    }, null),
 
     (new Application
     {
@@ -110,7 +125,7 @@ var seeds = new List<(Application App, Interview[] Interviews)>
         JobUrl = "https://example.com/jobs/beacon-platform",
         JobDescription = "Developer platform and CI/CD tooling for product teams.",
         CreatedAt = now.AddDays(-30), AppliedAt = now.AddDays(-28), UpdatedAt = now.AddDays(-1),
-    }, Array.Empty<Interview>()),
+    }, Array.Empty<Interview>(), null),
 
     (new Application
     {
@@ -118,7 +133,7 @@ var seeds = new List<(Application App, Interview[] Interviews)>
         MatchScore = 58, MatchVerdict = "MAYBE", JobUrl = "https://example.com/jobs/ironwood-backend",
         JobDescription = "Maintain order-management services for a retail platform.",
         CreatedAt = now.AddDays(-35), AppliedAt = now.AddDays(-33), UpdatedAt = now.AddDays(-10),
-    }, Array.Empty<Interview>()),
+    }, Array.Empty<Interview>(), null),
 };
 
 // Idempotency: skip any application that already exists by (Company, JobTitle),
@@ -128,13 +143,29 @@ var existingKeys = existing
     .Select(a => $"{a.Company}|{a.JobTitle}".ToLowerInvariant())
     .ToHashSet();
 
-int created = 0, skipped = 0;
-foreach (var (app, ivs) in seeds)
+int created = 0, skipped = 0, backfilled = 0;
+foreach (var (app, ivs, matchAnalysisJson) in seeds)
 {
     var key = $"{app.Company}|{app.JobTitle}".ToLowerInvariant();
-    if (existingKeys.Contains(key)) { skipped++; continue; }
+    if (existingKeys.Contains(key))
+    {
+        skipped++;
+        // Backfill MatchAnalysis onto an already-seeded app from an earlier run
+        // (only if still unset, so this never clobbers real data).
+        if (matchAnalysisJson != null)
+        {
+            var backfillFilter = Builders<Application>.Filter.And(
+                Builders<Application>.Filter.Eq(a => a.Company, app.Company),
+                Builders<Application>.Filter.Eq(a => a.JobTitle, app.JobTitle),
+                Builders<Application>.Filter.Eq(a => a.MatchAnalysis, null));
+            var result = await apps.UpdateOneAsync(backfillFilter, Builders<Application>.Update.Set(a => a.MatchAnalysis, matchAnalysisJson));
+            if (result.ModifiedCount > 0) backfilled++;
+        }
+        continue;
+    }
 
-    await apps.InsertOneAsync(app);
+    var toInsert = matchAnalysisJson != null ? app with { MatchAnalysis = matchAnalysisJson } : app;
+    await apps.InsertOneAsync(toInsert);
     await statusUpdates.InsertOneAsync(new StatusUpdate
     {
         ApplicationId = app.Id,
@@ -150,7 +181,7 @@ foreach (var (app, ivs) in seeds)
     created++;
 }
 
-Console.WriteLine($"Applications: {created} created, {skipped} skipped (already present).");
+Console.WriteLine($"Applications: {created} created, {skipped} skipped (already present), {backfilled} backfilled with match analysis.");
 
 // 3) Interview-prep on the demo profile (idempotent — skip if already authored).
 var prep = await profileProvider.GetInterviewPrepAsync();

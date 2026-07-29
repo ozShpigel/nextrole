@@ -291,9 +291,15 @@ export interface InterviewDoc {
   Interviewer: string | null;
   Topics: string | null;
   Notes: string | null;
-  Feedback: string | null;
   Completed: boolean;
   CreatedAt: Date;
+  // Structured retro, captured when Completed flips to true. RetroRating
+  // presence is the "has a retro" predicate the /interview-insights/retros
+  // endpoint filters on — the rest is optional.
+  RetroRating?: number | null;
+  RetroWentWell?: string | null;
+  RetroToImprove?: string | null;
+  RetroCategories?: string[];
 }
 
 export async function insertInterview(overrides: Partial<InterviewDoc> = {}): Promise<InterviewDoc> {
@@ -306,9 +312,12 @@ export async function insertInterview(overrides: Partial<InterviewDoc> = {}): Pr
     Interviewer: null,
     Topics: null,
     Notes: null,
-    Feedback: null,
     Completed: false,
     CreatedAt: new Date(),
+    RetroRating: null,
+    RetroWentWell: null,
+    RetroToImprove: null,
+    RetroCategories: [],
     ...overrides,
   };
   await db.collection('interviews').insertOne(doc);

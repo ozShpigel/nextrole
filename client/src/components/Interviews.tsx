@@ -2,25 +2,15 @@
 import { formatDateTime, formatTime } from '../lib/format';
 import { useDeleteInterview, useAddInterview, useUpdateInterview } from '../lib/mutations';
 import { INTERVIEW_TYPES } from '../lib/tracker';
+import type { Interview } from '../lib/types';
 import ConfirmDialog from './ConfirmDialog';
+import { InterviewRetroModal, type InterviewRetro } from './InterviewRetroModal';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
-
-interface Interview {
-  id: string;
-  type: string;
-  scheduledAt: string;
-  endsAt?: string | null;
-  interviewer?: string;
-  topics?: string;
-  notes?: string;
-  feedback?: string;
-  completed: boolean;
-}
 
 interface InterviewListProps {
   interviews: Interview[];
@@ -59,9 +49,8 @@ export function InterviewList({ interviews, onEdit, onRefresh }: InterviewListPr
             </div>
           </div>
           <div className="text-[0.78rem] text-muted-foreground">{formatDateTime(i.scheduledAt)}{i.endsAt ? `–${formatTime(i.endsAt)}` : ''} {i.interviewer ? `| ${i.interviewer}` : ''}</div>
-          {i.topics && <div className="text-[0.84rem] text-foreground leading-[1.6] mt-4">Topics: {i.topics}</div>}
-          {i.notes && <div className="text-[0.84rem] text-foreground leading-[1.6]">Notes: {i.notes}</div>}
-          {i.feedback && <div className="text-[0.84rem] text-foreground leading-[1.6]">Feedback: {i.feedback}</div>}
+          {i.topics && <div dir="auto" className="text-[0.84rem] text-foreground leading-[1.6] mt-4">Topics: {i.topics}</div>}
+          {i.notes && <div dir="auto" className="text-[0.84rem] text-foreground leading-[1.6]">Notes: {i.notes}</div>}
         </div>
       ))}
       <ConfirmDialog
@@ -87,7 +76,6 @@ interface InterviewFormState {
   interviewer: string;
   topics: string;
   notes: string;
-  feedback: string;
   completed: boolean;
 }
 
@@ -99,14 +87,29 @@ export function InterviewModal({ appId, interview, onClose, onSaved }: Interview
     interviewer: interview?.interviewer || '',
     topics: interview?.topics || '',
     notes: interview?.notes || '',
-    feedback: interview?.feedback || '',
     completed: interview?.completed || false,
   });
+  // Set when Completed just flipped false→true and the form was submitted:
+  // holds the built body while the retro modal collects (or skips) a retro,
+  // so exactly one PUT/POST fires either way.
+  const [pendingBody, setPendingBody] = useState<Record<string, unknown> | null>(null);
   const addInterviewMutation = useAddInterview();
   const updateInterviewMutation = useUpdateInterview();
 
   function update(field: keyof InterviewFormState, value: string | boolean) {
     setForm((f) => ({ ...f, [field]: value }));
+  }
+
+  function submit(body: Record<string, unknown>) {
+    const callbacks = {
+      onSuccess: () => onSaved(),
+      onError: (e: Error) => alert('Error: ' + e.message),
+    };
+    if (isEdit) {
+      updateInterviewMutation.mutate({ interviewId: interview!.id, body }, callbacks);
+    } else {
+      addInterviewMutation.mutate({ appId, body }, callbacks);
+    }
   }
 
   function save() {
@@ -116,25 +119,30 @@ export function InterviewModal({ appId, interview, onClose, onSaved }: Interview
       interviewer: form.interviewer || null,
       topics: form.topics || null,
       notes: form.notes || null,
-      feedback: form.feedback || null,
       completed: form.completed,
     };
 
-    const callbacks = {
-      onSuccess: () => onSaved(),
-      onError: (e: Error) => alert('Error: ' + e.message),
-    };
-
-    if (isEdit) {
-      updateInterviewMutation.mutate({ interviewId: interview!.id, body }, callbacks);
-    } else {
-      addInterviewMutation.mutate({ appId, body }, callbacks);
+    const flippedToComplete = isEdit && !interview!.completed && form.completed;
+    if (flippedToComplete) {
+      setPendingBody(body);
+      return;
     }
+    submit(body);
+  }
+
+  if (pendingBody) {
+    return (
+      <InterviewRetroModal
+        interviewType={form.type}
+        onSave={(retro: InterviewRetro) => submit({ ...pendingBody, ...retro })}
+        onSkip={() => submit(pendingBody)}
+      />
+    );
   }
 
   return (
     <Dialog open onOpenChange={(open: boolean) => { if (!open) onClose(); }}>
-      <DialogContent>
+      <DialogContent className="max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{isEdit ? 'Edit Interview' : 'Add Interview'}</DialogTitle>
         </DialogHeader>
@@ -157,21 +165,17 @@ export function InterviewModal({ appId, interview, onClose, onSaved }: Interview
         </div>
         <div className="mb-5">
           <Label>Interviewer</Label>
-          <Input type="text" value={form.interviewer} onChange={(e: React.ChangeEvent<HTMLInputElement>) => update('interviewer', e.target.value)} placeholder="Name" className="mt-1.5" />
+          <Input type="text" value={form.interviewer} onChange={(e: React.ChangeEvent<HTMLInputElement>) => update('interviewer', e.target.value)} placeholder="Name" dir="auto" className="mt-1.5" />
         </div>
         <div className="mb-5">
           <Label>Topics</Label>
-          <Input type="text" value={form.topics} onChange={(e: React.ChangeEvent<HTMLInputElement>) => update('topics', e.target.value)} placeholder="Interview topics" className="mt-1.5" />
+          <Input type="text" value={form.topics} onChange={(e: React.ChangeEvent<HTMLInputElement>) => update('topics', e.target.value)} placeholder="Interview topics" dir="auto" className="mt-1.5" />
         </div>
         {isEdit && (
           <>
             <div className="mb-5">
               <Label>Notes</Label>
               <Textarea value={form.notes} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => update('notes', e.target.value)} dir="auto" className="mt-1.5 min-h-[120px]" />
-            </div>
-            <div className="mb-5">
-              <Label>Feedback</Label>
-              <Textarea value={form.feedback} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => update('feedback', e.target.value)} dir="auto" className="mt-1.5 min-h-[120px]" />
             </div>
             <div className="mb-5">
               <label className="flex items-center gap-2 text-sm text-muted-foreground font-medium">

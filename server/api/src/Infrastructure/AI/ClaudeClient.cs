@@ -516,6 +516,42 @@ public sealed class ClaudeClient : IClaudeClient
         return result;
     }
 
+    // One-shot batch synthesis over the user's real-interview retros. Uses
+    // CallClaudeAsync (streaming + JSON-repair retry) rather than the direct
+    // non-streaming style above — this is a user-triggered "regenerate"
+    // button, so the retry safety net is worth it. Always reads the full raw
+    // retro text (never the previous summary) — see the interface doc comment.
+    public async Task<InterviewInsightsSynthesis> GenerateInterviewInsightAsync(
+        IReadOnlyList<Interview> retros, CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Generating interview insight over {Count} retros", retros.Count);
+
+        var userMessage = BuildInterviewInsightsUserMessage(retros);
+        var (result, _) = await CallClaudeAsync<InterviewInsightsSynthesis>(
+            PromptSeeds.InterviewInsights, userMessage, _scoring.InterviewInsights, "interview-insights", cancellationToken);
+
+        return result;
+    }
+
+    // Untrusted data: each retro's self-rating + free text the user wrote
+    // about themselves, XML-wrapped per house convention (own text is still
+    // data, not instructions — same treatment mock-interview <candidate>
+    // answers get).
+    private static string BuildInterviewInsightsUserMessage(IReadOnlyList<Interview> retros)
+    {
+        var sb = new System.Text.StringBuilder("<retros>\n");
+        foreach (var r in retros)
+        {
+            sb.Append("<retro id=\"").Append(r.Id).Append("\" rating=\"").Append(r.RetroRating).Append("\">\n");
+            sb.Append("<went_well>").Append(r.RetroWentWell?.Trim() ?? "").Append("</went_well>\n");
+            sb.Append("<to_improve>").Append(r.RetroToImprove?.Trim() ?? "").Append("</to_improve>\n");
+            sb.Append("<categories>").Append(string.Join(",", r.RetroCategories)).Append("</categories>\n");
+            sb.Append("</retro>\n");
+        }
+        sb.Append("</retros>");
+        return sb.ToString();
+    }
+
     // Trusted context: base instruction + persona/language directives + the
     // user's own profile, the persona-matched self-presentation, project
     // pitches, and the prepared-question skeleton. All trusted (system prompt).

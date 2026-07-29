@@ -71,6 +71,14 @@ builder.Services.AddRateLimiter(options =>
         cfg.Window = TimeSpan.FromMinutes(1);
         cfg.QueueLimit = 0;
     });
+    // Interview Insights synthesis is a "regenerate" click, not a hot loop —
+    // same order-of-magnitude cost as a single match/advise call.
+    options.AddFixedWindowLimiter("insights", cfg =>
+    {
+        cfg.PermitLimit = 10;
+        cfg.Window = TimeSpan.FromMinutes(1);
+        cfg.QueueLimit = 0;
+    });
     options.RejectionStatusCode = 429;
 });
 
@@ -187,6 +195,7 @@ if (app.Environment.IsDevelopment())
 
 app.MapApplicationEndpoints();
 app.MapInterviewEndpoints();
+app.MapInterviewInsightsEndpoints();
 app.MapNoteEndpoints();
 app.MapStatsEndpoints();
 app.MapMatchEndpoints();

@@ -11,6 +11,7 @@ import Timeline from '../components/Timeline';
 import { InterviewList, InterviewModal } from '../components/Interviews';
 import { NoteList, NoteModal } from '../components/Notes';
 import { Skeleton } from '@/components/ui/skeleton';
+import type { Interview } from '../lib/types';
 
 // Editorial score tint (var(--ed-*), valid only inside the .editorial scope)
 function edScoreColor(score: number | null | undefined): string {
@@ -37,17 +38,6 @@ function SectionHead({ title, action }: { title: string; action?: React.ReactNod
       <div className="border-t border-[var(--ed-rule-strong)] mb-4" />
     </>
   );
-}
-
-interface Interview {
-  id: string;
-  type: string;
-  scheduledAt: string;
-  interviewer?: string;
-  topics?: string;
-  notes?: string;
-  feedback?: string;
-  completed: boolean;
 }
 
 interface Note {

@@ -37,6 +37,13 @@ public sealed class InterviewRepository : IInterviewRepository
             .ToListAsync(ct);
     }
 
+    public async Task<List<Interview>> GetRetrosAsync(CancellationToken ct = default)
+    {
+        return await _interviews.Find(i => i.Completed && i.RetroRating != null)
+            .SortByDescending(i => i.ScheduledAt)
+            .ToListAsync(ct);
+    }
+
     public async Task<Interview> UpdateAsync(Interview interview, CancellationToken ct = default)
     {
         await _interviews.ReplaceOneAsync(i => i.Id == interview.Id, interview, cancellationToken: ct);

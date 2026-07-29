@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { ChevronDown, Pencil, Check, Trash2, ArrowUp, ArrowDown, Plus } from 'lucide-react';
 import { QA_CATEGORIES, type QaCategory, type QaEntry } from '../lib/types';
 import { AutoGrowTextarea } from './AutoGrowTextarea';
+import { CategoryToggleChips } from './CategoryToggleChips';
 
 const ED_BTN = 'rounded-full border px-3.5 py-[0.5rem] text-[0.68rem] font-semibold uppercase tracking-[0.08em] transition-all disabled:opacity-50 disabled:pointer-events-none';
 const ED_GHOST = `${ED_BTN} border-[var(--ed-rule)] text-[var(--ed-ink-soft)] hover:border-[var(--ed-ink)] hover:text-[var(--ed-ink)]`;
@@ -24,32 +25,6 @@ const GENERAL_LABEL = 'General';
 
 let rowSeq = 0;
 const nextRowId = () => `qa-row-${++rowSeq}`;
-
-/* Fixed-set toggle chips for a question's categories (edit mode). */
-function CategoryToggleChips({ value, onChange }: { value: string[]; onChange: (next: string[]) => void }) {
-  return (
-    <div className="flex items-center gap-[0.4rem] flex-wrap">
-      {QA_CATEGORIES.map((cat) => {
-        const selected = value.includes(cat);
-        const tone = CATEGORY_TONE[cat];
-        return (
-          <button
-            key={cat}
-            type="button"
-            aria-pressed={selected}
-            onClick={() => onChange(selected ? value.filter((c) => c !== cat) : [...value, cat])}
-            className="rounded-full border px-2 py-[0.2rem] text-[0.64rem] font-semibold uppercase tracking-[0.1em] transition-all"
-            style={selected
-              ? { borderColor: `var(${tone})`, color: `var(${tone})`, background: `color-mix(in oklab, var(${tone}) 10%, transparent)` }
-              : { borderColor: 'var(--ed-rule)', color: 'var(--ed-ink-faint)' }}
-          >
-            {cat}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
 
 /* Topic chips sit beside the category chips: one chip per existing topic
  * (single-select — a question has one topic; click again to clear), plus a

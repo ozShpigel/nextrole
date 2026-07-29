@@ -43,7 +43,6 @@ public sealed class MongoProfileProvider : IProfileProvider
     private const int QaTopicMaxLength = 200;
     // Fixed interviewer-type taxonomy; unknown values are dropped on save so the
     // client can trust round-tripped data.
-    private static readonly string[] AllowedQaCategories = { "HR", "Technical", "Behavioral" };
     private static readonly string[] InterviewPrepStringFields =
     {
         "self_presentation_hr", "self_presentation_technical",
@@ -625,15 +624,12 @@ public sealed class MongoProfileProvider : IProfileProvider
         return arr;
     }
 
-    // Trim, match case-insensitively against the fixed set, emit canonical
-    // casing, drop unknowns, de-dupe (preserving AllowedQaCategories order).
+    // Delegates to the shared InterviewCategories vocabulary so the Q&A rubric
+    // and Interview retro tags normalize identically.
     private static BsonArray NormalizeCategories(IReadOnlyList<string>? categories)
     {
         var arr = new BsonArray();
-        if (categories is null) return arr;
-        foreach (var allowed in AllowedQaCategories)
-            if (categories.Any(c => string.Equals(c?.Trim(), allowed, StringComparison.OrdinalIgnoreCase)))
-                arr.Add(allowed);
+        foreach (var c in InterviewCategories.Normalize(categories)) arr.Add(c);
         return arr;
     }
 

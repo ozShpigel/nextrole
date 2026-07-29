@@ -167,6 +167,50 @@ export interface QaEntry {
 export const QA_CATEGORIES = ['HR', 'Technical', 'Behavioral'] as const;
 export type QaCategory = (typeof QA_CATEGORIES)[number];
 
+// A real (tracked) interview — as opposed to a mock/practice session above.
+// Shared between the tracker's Interviews list/modal and Interview Insights.
+export interface Interview {
+  id: string;
+  applicationId: string;
+  type: string;
+  scheduledAt: string;
+  endsAt?: string | null;
+  interviewer?: string | null;
+  topics?: string | null;
+  notes?: string | null;
+  completed: boolean;
+  createdAt: string;
+  // Structured retro, captured when `completed` flips to true. `retroRating`
+  // presence is the "has a retro" signal — the rest is optional.
+  retroRating?: number | null;
+  retroWentWell?: string | null;
+  retroToImprove?: string | null;
+  retroCategories?: string[];
+}
+
+// Interview Insights — cross-application retro log + a persisted, free-form
+// observation summary. Deliberately decoupled from the interview-prep Q&A
+// rubric — no adopt action, pure read.
+export interface InterviewRetroListItem {
+  interview: Interview;
+  applicationId: string;
+  company?: string | null;
+  jobTitle?: string | null;
+}
+
+export interface InterviewInsight {
+  summary: string;
+  generatedAt: string;
+  retroCount: number; // how many retros contributed to this summary
+}
+
+export interface InterviewInsightResponse {
+  insight: InterviewInsight | null; // null = never generated yet
+  newRetroCount: number;            // retros added since `insight.generatedAt`
+  totalRetroCount: number;
+  insufficientData: boolean;        // totalRetroCount < 2
+}
+
 export interface InterviewPrepResponse {
   self_presentation_hr?: string;
   self_presentation_technical?: string;

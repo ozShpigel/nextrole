@@ -61,4 +61,10 @@ public interface IClaudeClient
     // End-of-session debrief: scores the whole transcript on the fixed 1–5
     // rubric and returns highlights, improvements, and answer rewrites.
     Task<MockInterviewDebrief> GenerateMockInterviewDebriefAsync(MockInterviewContext context, IReadOnlyList<MockInterviewTurn> transcript, CancellationToken cancellationToken = default);
+
+    // Interview Insights: one-shot batch synthesis of a free-form observation
+    // summary across the user's real-interview retros (self-rating +
+    // wentWell/toImprove text). Always re-reads the raw retro text — never
+    // summarizes its own prior output — so repeated regeneration can't drift.
+    Task<InterviewInsightsSynthesis> GenerateInterviewInsightAsync(IReadOnlyList<Interview> retros, CancellationToken cancellationToken = default);
 }

@@ -2,6 +2,10 @@ using MongoDB.Bson.Serialization.Attributes;
 
 namespace ApplicationTracker.Core.Models;
 
+// IgnoreExtraElements: existing stored documents may still carry a `feedback`
+// field (removed below, superseded by the structured retro) — without this,
+// the driver throws on any unmapped element instead of silently dropping it.
+[BsonIgnoreExtraElements]
 public sealed record Interview
 {
     [BsonId]
@@ -19,8 +23,13 @@ public sealed record Interview
     public string? Interviewer { get; init; }
     public string? Topics { get; init; }
     public string? Notes { get; init; }
-    public string? Feedback { get; init; }
     public bool Completed { get; init; }
+    // Structured post-interview retro, captured when Completed flips to true.
+    // RetroRating presence is the "has a retro" predicate — the rest is optional.
+    public int? RetroRating { get; init; }
+    public string? RetroWentWell { get; init; }
+    public string? RetroToImprove { get; init; }
+    public IReadOnlyList<string> RetroCategories { get; init; } = Array.Empty<string>();
     public DateTime CreatedAt { get; init; } = DateTime.UtcNow;
 }
 

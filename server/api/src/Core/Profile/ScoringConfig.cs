@@ -45,6 +45,11 @@ public sealed record ScoringConfig
     // path). 8192 like the Evaluator — the brief covers up to 15 jobs.
     public RoleScoringConfig Advisor { get; init; } = new() { MaxTokens = 8192 };
 
+    // Interview Insights: one-shot batch synthesis of recurring themes across
+    // all of the user's interview retros. Infrequent ("regenerate" click, not
+    // a hot loop) — default MaxTokens covers a handful of themes comfortably.
+    public RoleScoringConfig InterviewInsights { get; init; } = new() { MaxTokens = 4096, Temperature = 0.4m };
+
     public int MinScoreToSave { get; init; } = 70;
 
     public VerdictBands VerdictBands { get; init; } = new();

@@ -1,4 +1,5 @@
 using ApplicationTracker.Core.Models;
+using ApplicationTracker.Core.Profile;
 using ApplicationTracker.Core.Repositories;
 using Microsoft.AspNetCore.Mvc;
 
@@ -9,6 +10,7 @@ public static class InterviewEndpoints
     // Marker the mailbot stamps on interviews it creates from parsed emails.
     // Must match Mailbot's MailbotOrchestrator interview Notes value.
     private const string AutoDetectedNote = "Auto-detected from email";
+    private const int RetroTextMaxLength = 5_000;
 
     public static WebApplication MapInterviewEndpoints(this WebApplication app)
     {
@@ -63,7 +65,18 @@ public static class InterviewEndpoints
             var existing = await repo.GetByIdAsync(id, ct);
             if (existing is null) return Results.NotFound();
 
-            var updated = interview with { Id = id, ApplicationId = existing.ApplicationId };
+            if (interview.RetroRating is < 1 or > 5)
+                return Results.BadRequest(new { error = "retroRating must be between 1 and 5" });
+            if ((interview.RetroWentWell?.Length ?? 0) > RetroTextMaxLength
+                || (interview.RetroToImprove?.Length ?? 0) > RetroTextMaxLength)
+                return Results.BadRequest(new { error = $"retro text exceeds maximum length of {RetroTextMaxLength} characters" });
+
+            var updated = interview with
+            {
+                Id = id,
+                ApplicationId = existing.ApplicationId,
+                RetroCategories = InterviewCategories.Normalize(interview.RetroCategories),
+            };
             await repo.UpdateAsync(updated, ct);
             return Results.Ok(updated);
         })

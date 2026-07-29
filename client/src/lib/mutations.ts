@@ -12,6 +12,7 @@ import type {
   NormalizedProfile,
   SemanticSearchRequest,
   SemanticSearchResponse,
+  InterviewInsightResponse,
 } from './types';
 
 export function useTriggerRun() {
@@ -292,6 +293,21 @@ export function useAdoptRubric() {
   });
 }
 
+// Interview Insights — regenerates the persisted observation summary from all
+// current retros. This now persists (unlike the old ephemeral synthesis), so
+// on success it writes the fresh result straight into the query cache —
+// no need to invalidate/refetch, the page reflects it immediately.
+export function useSynthesizeInsights() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      api('/interview-insights/synthesize', { method: 'POST' }) as Promise<InterviewInsightResponse>,
+    onSuccess: (data) => {
+      queryClient.setQueryData(['interview-insights', 'insight'], data);
+    },
+  });
+}
+
 export function useUpdateAppStatus() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -405,6 +421,10 @@ export function useUpdateInterview() {
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['applications'] });
+      // Retro fields ride this same PUT — keep Interview Insights' retro log
+      // and staleness ("N new retros since this insight") fresh.
+      queryClient.invalidateQueries({ queryKey: ['interview-insights', 'retros'] });
+      queryClient.invalidateQueries({ queryKey: ['interview-insights', 'insight'] });
     },
   });
 }

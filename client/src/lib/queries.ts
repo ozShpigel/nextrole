@@ -10,6 +10,8 @@ import type {
   MockSessionListItem,
   MockSession,
   SearchQueryResponse,
+  InterviewRetroListItem,
+  InterviewInsightResponse,
 } from './types';
 
 // The cached HyDE search facets — powers the Search page's focus chips.
@@ -164,5 +166,22 @@ export function useUpcomingInterviews() {
   return useQuery({
     queryKey: ['interviews', 'upcoming'],
     queryFn: () => api('/interviews/upcoming'),
+  });
+}
+
+// Cross-application retro log, most recent completed interview first.
+export function useInterviewRetros() {
+  return useQuery<InterviewRetroListItem[]>({
+    queryKey: ['interview-insights', 'retros'],
+    queryFn: () => api('/interview-insights/retros'),
+  });
+}
+
+// The persisted, standing observation summary (if any) plus its staleness
+// relative to the current retro set.
+export function useInterviewInsight() {
+  return useQuery<InterviewInsightResponse>({
+    queryKey: ['interview-insights', 'insight'],
+    queryFn: () => api('/interview-insights'),
   });
 }

@@ -27,6 +27,7 @@ const JOBS_GROUP: NavChild[] = [
 const INTERVIEW_GROUP: NavChild[] = [
   { to: '/interview-prep', label: 'Interview Prep' },
   { to: '/practice-interview', label: 'Practice Interview' },
+  { to: '/interview-insights', label: 'Interview Insights' },
 ];
 
 function NavGroup({ label, items }: { label: string; items: NavChild[] }) {

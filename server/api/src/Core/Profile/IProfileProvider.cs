@@ -53,6 +53,26 @@ public sealed record QaEntry
     public string Topic { get; init; } = "";
 }
 
+// Shared HR/Technical/Behavioral tag vocabulary — used by the Q&A rubric
+// (above) and by Interview retro category tags. One canonical list so both
+// sides normalize the same way instead of maintaining duplicate copies.
+public static class InterviewCategories
+{
+    public static readonly IReadOnlyList<string> Allowed = new[] { "HR", "Technical", "Behavioral" };
+
+    // Trim, match case-insensitively against the fixed set, emit canonical
+    // casing, drop unknowns, de-dupe (preserving Allowed's order).
+    public static IReadOnlyList<string> Normalize(IReadOnlyList<string>? categories)
+    {
+        if (categories is null) return Array.Empty<string>();
+        var result = new List<string>();
+        foreach (var allowed in Allowed)
+            if (categories.Any(c => string.Equals(c?.Trim(), allowed, StringComparison.OrdinalIgnoreCase)))
+                result.Add(allowed);
+        return result;
+    }
+}
+
 public sealed record InterviewPrepDocument
 {
     public string SelfPresentationHr { get; init; } = "";

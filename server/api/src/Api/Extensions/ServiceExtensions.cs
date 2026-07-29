@@ -36,6 +36,8 @@ public static class ServiceExtensions
             new StatusUpdateRepository(sp.GetRequiredService<IMongoCollection<StatusUpdate>>()));
         services.AddScoped<IMockInterviewRepository>(sp =>
             new MockInterviewRepository(sp.GetRequiredService<IMongoCollection<MockInterviewSession>>()));
+        services.AddScoped<IInterviewInsightRepository>(sp =>
+            new InterviewInsightRepository(sp.GetRequiredService<IMongoCollection<InterviewInsight>>()));
 
         // Read-only scoring configuration (Options pattern). Prompts default from
         // PromptSeeds (code); scoring config values live in appsettings "Scoring".

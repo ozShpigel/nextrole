@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { ListChecks, AlignLeft, RefreshCw, MessageSquare } from 'lucide-react';
-import { useInterviewPrep, useInterviewPrepHistory } from '../lib/queries';
-import { useSaveInterviewPrep, useRestoreInterviewPrepHistory, useGeneratePresentationCues } from '../lib/mutations';
+import { ListChecks, AlignLeft, RefreshCw, MessageSquare, Sparkles } from 'lucide-react';
+import { useInterviewPrep } from '../lib/queries';
+import { useSaveInterviewPrep, useGeneratePresentationCues } from '../lib/mutations';
 import type { InterviewPrepResponse, InterviewPrepHistoryField, QaEntry } from '../lib/types';
 import { Skeleton } from '../components/ui/skeleton';
 import { AutoGrowTextarea } from '../components/AutoGrowTextarea';
@@ -10,7 +10,6 @@ import { QaRubricAccordion } from '../components/QaRubricAccordion';
 import {
   SaveResult,
   IntroTextarea,
-  HistoryDropdown,
   type SaveResultData,
 } from '../components/settings-shared';
 
@@ -18,18 +17,6 @@ const ED_BTN = 'rounded-full border px-3.5 py-[0.5rem] text-[0.68rem] font-semib
 const ED_GHOST = `${ED_BTN} border-[var(--ed-rule)] text-[var(--ed-ink-soft)] hover:border-[var(--ed-ink)] hover:text-[var(--ed-ink)]`;
 const ED_PRIMARY = `${ED_BTN} border-[var(--ed-accent)] bg-[var(--ed-accent)] text-[var(--ed-paper)] hover:bg-[var(--ed-accent-deep)]`;
 const ED_DANGER = `${ED_BTN} border-[var(--ed-rule)] text-[var(--ed-no)] hover:border-[var(--ed-no)] hover:bg-[var(--ed-no)]/10`;
-
-/* Thin wrapper binding the shared dropdown to the interview-prep hooks. */
-function HistoryButton({ field, onRestored }: { field: InterviewPrepHistoryField; onRestored: (data: InterviewPrepResponse) => void }) {
-  return (
-    <HistoryDropdown<InterviewPrepHistoryField, InterviewPrepResponse>
-      field={field}
-      onRestored={onRestored}
-      useHistory={useInterviewPrepHistory}
-      useRestore={useRestoreInterviewPrepHistory}
-    />
-  );
-}
 
 /* ------------------------------------------------------------------ */
 /* Sticky section nav + scroll-spy                                    */
@@ -394,9 +381,15 @@ export default function InterviewPrepPage() {
         <p className="mt-3 max-w-[600px] text-[0.95rem] leading-[1.6] text-[var(--ed-ink-soft)]">
           Your personal interview playbook — values-based self-presentations, prepared answers to common questions, and how to walk through your projects. Each section is versioned, so you can restore a prior draft anytime.
         </p>
-        <div className="mt-5">
+        <div className="mt-5 flex items-center gap-5 flex-wrap">
           <Link to="/practice-interview" className={`${ED_PRIMARY} inline-flex items-center gap-[0.45rem]`}>
             <MessageSquare size={15} /> Start a practice interview
+          </Link>
+          <Link
+            to="/interview-insights"
+            className="inline-flex items-center gap-[0.4rem] text-[0.72rem] font-semibold uppercase tracking-[0.1em] text-[var(--ed-ink-soft)] transition-colors hover:text-[var(--ed-ink)]"
+          >
+            <Sparkles size={13} /> Interview Insights
           </Link>
         </div>
         <div className="mt-5 border-t-[3px] border-double border-[var(--ed-rule-strong)]" />
@@ -438,8 +431,6 @@ export default function InterviewPrepPage() {
           minHeight={220}
         />
         <div className="flex justify-end items-center gap-[0.6rem] mt-2 pt-[1.1rem] border-t border-dashed border-[var(--ed-rule)]">
-          <HistoryButton field="self_presentation_hr" onRestored={applyData} />
-          <HistoryButton field="self_presentation_technical" onRestored={applyData} />
           {isPresentationDirty && (
             <button type="button" className={ED_DANGER} onClick={() => { setHr(originalHr); setTech(originalTech); setPresentationResult(null); }}>
               Discard changes
@@ -461,7 +452,6 @@ export default function InterviewPrepPage() {
         />
         <QaRubricAccordion entries={qa} onChange={(next) => { setQa(next); setQaResult(null); }} />
         <div className="flex justify-end items-center gap-[0.6rem] mt-5 pt-[1.1rem] border-t border-dashed border-[var(--ed-rule)]">
-          <HistoryButton field="qa_rubric" onRestored={applyData} />
           {isQaDirty && (
             <button type="button" className={ED_DANGER} onClick={() => { setQa(originalQa); setQaResult(null); }}>
               Discard changes
@@ -496,8 +486,6 @@ export default function InterviewPrepPage() {
           minHeight={220}
         />
         <div className="flex justify-end items-center gap-[0.6rem] mt-2 pt-[1.1rem] border-t border-dashed border-[var(--ed-rule)]">
-          <HistoryButton field="presenting_work_project" onRestored={applyData} />
-          <HistoryButton field="presenting_personal_project" onRestored={applyData} />
           {isProjectsDirty && (
             <button type="button" className={ED_DANGER} onClick={() => { setWork(originalWork); setPersonal(originalPersonal); setProjectsResult(null); }}>
               Discard changes

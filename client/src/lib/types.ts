@@ -158,19 +158,6 @@ export interface SemanticSearchResponse {
   advisor: AdvisorBrief | null;
 }
 
-// Version history — shared shape; the interview-prep fields are the only
-// remaining consumer (the Profile page's own history UI was removed).
-export interface ProfileHistoryEntry {
-  index: number;
-  savedAt?: string | null;
-  preview: string;
-  length: number;
-}
-
-export interface ProfileHistoryResponse {
-  entries: ProfileHistoryEntry[];
-}
-
 // Interview prep — standalone authored content (self-presentation, Q&A rubric,
 // project pitches). Stored alongside the profile but exposed via its own endpoints.
 export interface QaEntry {

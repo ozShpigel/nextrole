@@ -1,10 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
-import { api, matchApi, discoveryApi } from './api';
-import { ACTIVE_RUN_STATUSES } from './discovery';
+import { api, matchApi } from './api';
 import type {
   ProfileResponse,
   InterviewPrepResponse,
-  InterviewPrepHistoryField,
   MockSessionListItem,
   MockSession,
   SearchQueryResponse,
@@ -23,59 +21,6 @@ export function useSearchFacets() {
     queryFn: () => matchApi('/profile/search-query'),
     staleTime: 5 * 60 * 1000,
     retry: 1,
-  });
-}
-
-export function useDiscoveryHealth() {
-  return useQuery({
-    queryKey: ['discovery', 'health'],
-    queryFn: () => discoveryApi('/health'),
-    retry: 5,
-    retryDelay: 22000,
-    staleTime: Infinity,
-  });
-}
-
-export function useDiscoveryCriteria(enabled: boolean) {
-  return useQuery({
-    queryKey: ['discovery', 'criteria'],
-    queryFn: () => discoveryApi('/criteria'),
-    enabled,
-  });
-}
-
-export function useDiscoveryRuns(enabled: boolean) {
-  return useQuery({
-    queryKey: ['discovery', 'runs'],
-    queryFn: () => discoveryApi('/runs'),
-    enabled,
-    refetchInterval: (query) => {
-      const data = query.state.data as Array<{ status: string }> | undefined;
-      if (!data) return false;
-      const hasActive = data.some((run) => ACTIVE_RUN_STATUSES.includes(run.status));
-      return hasActive ? 5000 : false;
-    },
-  });
-}
-
-export function useRunDetail(runId: string) {
-  return useQuery({
-    queryKey: ['discovery', 'runs', runId],
-    queryFn: () => discoveryApi(`/runs/${runId}`),
-    refetchInterval: (query) => {
-      const data = query.state.data as { status: string } | undefined;
-      if (!data) return false;
-      const isActive = ACTIVE_RUN_STATUSES.includes(data.status);
-      return isActive ? 5000 : false;
-    },
-  });
-}
-
-export function useRunJobs(runId: string, isActive: boolean) {
-  return useQuery({
-    queryKey: ['discovery', 'runs', runId, 'jobs'],
-    queryFn: () => discoveryApi(`/runs/${runId}/jobs`),
-    refetchInterval: isActive ? 5000 : false,
   });
 }
 
@@ -125,14 +70,6 @@ export function useInterviewPrep() {
   return useQuery<InterviewPrepResponse>({
     queryKey: ['match', 'interview-prep'],
     queryFn: () => matchApi('/interview-prep'),
-  });
-}
-
-export function useInterviewPrepHistory(field: InterviewPrepHistoryField, enabled: boolean) {
-  return useQuery<ProfileHistoryResponse>({
-    queryKey: ['match', 'interview-prep', 'history', field],
-    queryFn: () => matchApi(`/interview-prep/history/${field}`),
-    enabled,
   });
 }
 

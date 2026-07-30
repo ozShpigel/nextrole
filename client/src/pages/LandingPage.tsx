@@ -1,31 +1,16 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Upload } from 'lucide-react';
 import { BrandMark } from '../components/BrandMark';
 
-// Real job-board source marks — kept small and self-contained since there
-// are only three (mirrors AVAILABLE_SITES in CriteriaPanel.tsx). Not a
-// generic icon library dependency for three fixed brand marks.
-function LinkedInMark() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
-      <rect width="24" height="24" rx="5" fill="#0A66C2" />
-      <path d="M7.4 9.8h2.6v7.6H7.4V9.8zm1.3-4.15a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3zM11.5 9.8h2.5v1.04h.04c.35-.65 1.2-1.34 2.46-1.34 2.63 0 3.12 1.73 3.12 3.98v4h-2.6v-3.55c0-.85-.02-1.94-1.18-1.94-1.19 0-1.37.93-1.37 1.88v3.6h-2.6V9.8z" fill="#fff" />
-    </svg>
-  );
-}
-
-function IndeedMark() {
-  return (
-    <span className="font-black text-[1.02rem] tracking-[-0.02em]" style={{ color: '#2164F3' }} aria-hidden="true">
-      indeed<span style={{ color: '#FFC72C' }}>.</span>
-    </span>
-  );
-}
-
+// Company marks for the "Matching roles from…" marquee — simplified but
+// recognizable, self-contained (each carries its own backing shape/color
+// where the real brand mark has one, transparent where it doesn't) so no
+// outer frame is needed around them.
 function GoogleMark() {
   return (
-    <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
+    <svg width="100%" height="100%" viewBox="0 0 48 48" aria-hidden="true">
+      <circle cx="24" cy="24" r="24" fill="#fff" />
       <path fill="#4285F4" d="M45.1 24.5c0-1.6-.14-3.13-.4-4.6H24v9h11.8c-.5 2.7-2.05 5-4.35 6.55v5.4h7c4.1-3.78 6.45-9.36 6.45-16.35z" />
       <path fill="#34A853" d="M24 46c5.85 0 10.75-1.94 14.35-5.25l-7-5.4c-1.94 1.3-4.45 2.07-7.35 2.07-5.65 0-10.44-3.81-12.15-8.94H4.6v5.57C8.2 41.1 15.5 46 24 46z" />
       <path fill="#FBBC05" d="M11.85 28.48A13.98 13.98 0 0 1 11.1 24c0-1.56.27-3.07.75-4.48v-5.57H4.6A21.98 21.98 0 0 0 2 24c0 3.55.85 6.9 2.6 9.86l7.25-5.38z" />
@@ -34,12 +19,135 @@ function GoogleMark() {
   );
 }
 
-function SourceBadge({ children, plate }: { children: React.ReactNode; plate?: boolean }) {
+function MetaMark() {
   return (
-    <div className="w-14 h-14 rounded-2xl border border-[var(--ed-rule)] bg-[var(--ed-panel)]/60 flex items-center justify-center transition-transform hover:-translate-y-0.5">
-      {plate ? (
-        <span className="w-8 h-8 rounded-full bg-white flex items-center justify-center">{children}</span>
-      ) : children}
+    <svg width="100%" height="100%" viewBox="0 0 48 48" aria-hidden="true">
+      <defs>
+        <linearGradient id="meta-grad" x1="0" y1="0" x2="48" y2="48" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#0064E1" />
+          <stop offset="100%" stopColor="#00B2FF" />
+        </linearGradient>
+      </defs>
+      <rect x="1" y="1" width="46" height="46" rx="13" fill="url(#meta-grad)" />
+      <text x="24" y="32" textAnchor="middle" fontSize="21" fontWeight="700" fill="#fff" fontFamily="Georgia, serif">&#8734;</text>
+    </svg>
+  );
+}
+
+function AmazonMark() {
+  return (
+    <svg width="100%" height="100%" viewBox="0 0 48 48" aria-hidden="true">
+      <rect x="1" y="1" width="46" height="46" rx="13" fill="#B15C1E" />
+      <path d="M13 27c6 5 16 5 22 0" stroke="#fff" strokeWidth="2.6" strokeLinecap="round" fill="none" />
+      <path d="M31 25.4l4 .7-1.7 3.6" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+    </svg>
+  );
+}
+
+function MicrosoftMark() {
+  return (
+    <svg width="88%" height="88%" viewBox="0 0 44 44" aria-hidden="true">
+      <rect x="1" y="1" width="19.5" height="19.5" fill="#F35325" />
+      <rect x="23.5" y="1" width="19.5" height="19.5" fill="#81BC06" />
+      <rect x="1" y="23.5" width="19.5" height="19.5" fill="#05A6F0" />
+      <rect x="23.5" y="23.5" width="19.5" height="19.5" fill="#FFBA08" />
+    </svg>
+  );
+}
+
+function NetflixMark() {
+  return (
+    <svg width="55%" height="80%" viewBox="0 0 26 36" aria-hidden="true">
+      <path d="M2 0h6l10 24V0h6v36h-6L8 12v24H2V0z" fill="#E50914" />
+    </svg>
+  );
+}
+
+function SalesforceMark() {
+  return (
+    <svg width="90%" height="66%" viewBox="0 0 48 32" aria-hidden="true">
+      <ellipse cx="16" cy="17" rx="10" ry="9" fill="#00A1E0" />
+      <ellipse cx="28" cy="13" rx="9" ry="8" fill="#00A1E0" />
+      <ellipse cx="36" cy="19" rx="8" ry="7" fill="#00A1E0" />
+      <rect x="10" y="17" width="30" height="10" rx="5" fill="#00A1E0" />
+    </svg>
+  );
+}
+
+function RedditMark() {
+  return (
+    <svg width="100%" height="100%" viewBox="0 0 48 48" aria-hidden="true">
+      <rect x="1" y="1" width="46" height="46" rx="13" fill="#FF4500" />
+      <circle cx="24" cy="27" r="11" fill="#fff" />
+      <circle cx="18.5" cy="26" r="2.2" fill="#FF4500" />
+      <circle cx="29.5" cy="26" r="2.2" fill="#FF4500" />
+      <path d="M18 31c2 2 10 2 12 0" stroke="#FF4500" strokeWidth="2" strokeLinecap="round" fill="none" />
+      <circle cx="24" cy="12" r="2.5" fill="#fff" />
+      <line x1="24" y1="14.5" x2="24" y2="18" stroke="#fff" strokeWidth="2" />
+    </svg>
+  );
+}
+
+function SpotifyMark() {
+  return (
+    <svg width="100%" height="100%" viewBox="0 0 48 48" aria-hidden="true">
+      <circle cx="24" cy="24" r="23" fill="#1DB954" />
+      <path d="M13 20c7-2 15-1 21 3" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" fill="none" />
+      <path d="M14 26c6-1.6 13-1 18 2.4" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" fill="none" />
+      <path d="M15 32c5-1 10-.6 14 1.6" stroke="#fff" strokeWidth="2" strokeLinecap="round" fill="none" />
+    </svg>
+  );
+}
+
+const COMPANY_LOGOS = [
+  { name: 'Google', node: <GoogleMark /> },
+  { name: 'Meta', node: <MetaMark /> },
+  { name: 'Amazon', node: <AmazonMark /> },
+  { name: 'Microsoft', node: <MicrosoftMark /> },
+  { name: 'Netflix', node: <NetflixMark /> },
+  { name: 'Salesforce', node: <SalesforceMark /> },
+  { name: 'Reddit', node: <RedditMark /> },
+  { name: 'Spotify', node: <SpotifyMark /> },
+];
+
+const SLOT_COUNT = 6;
+// One shared, slower clock — each tick picks a single random slot to swap,
+// so only ever one mark is mid-transition at a time instead of several
+// slots flickering together.
+const SWITCH_INTERVAL_MS = 1800;
+
+function LogoMarquee() {
+  const [indices, setIndices] = useState<number[]>(() =>
+    Array.from({ length: SLOT_COUNT }, (_, i) => i % COMPANY_LOGOS.length),
+  );
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      setIndices((prev) => {
+        const slot = Math.floor(Math.random() * SLOT_COUNT);
+        // Exclude every mark already showing (including this slot's own
+        // current one) — always changes, and never duplicates a logo
+        // that's already elsewhere in the row.
+        const taken = new Set(prev);
+        const available = COMPANY_LOGOS.map((_, i) => i).filter((i) => !taken.has(i));
+        const next = available[Math.floor(Math.random() * available.length)];
+        const updated = [...prev];
+        updated[slot] = next;
+        return updated;
+      });
+    }, SWITCH_INTERVAL_MS);
+    return () => clearInterval(id);
+  }, []);
+
+  return (
+    <div className="flex items-center justify-center gap-4 max-sm:gap-3">
+      {indices.map((logoIndex, slot) => (
+        <div key={slot} className="w-7 h-7 flex items-center justify-center max-sm:w-6 max-sm:h-6">
+          <div key={logoIndex} className="w-full h-full flex items-center justify-center animate-in fade-in zoom-in-90 duration-500">
+            {COMPANY_LOGOS[logoIndex].node}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -94,16 +202,13 @@ export default function Landing() {
           </Link>
         </div>
 
-        {/* Real job-board sources — matches AVAILABLE_SITES in CriteriaPanel.tsx */}
+        {/* Company marks cycling independently per slot — a living sample of
+            where matched roles come from, not a fixed source list. */}
         <div className="mt-16 pt-9 border-t border-dashed border-[var(--ed-rule)]">
-          <p className="text-[0.62rem] tracking-[0.26em] uppercase text-[var(--ed-ink-faint)] font-semibold mb-5">
+          <p className="text-[0.62rem] tracking-[0.26em] uppercase text-[var(--ed-ink-faint)] font-semibold mb-6">
             Matching roles from&hellip;
           </p>
-          <div className="flex items-center justify-center gap-4">
-            <SourceBadge><LinkedInMark /></SourceBadge>
-            <SourceBadge><IndeedMark /></SourceBadge>
-            <SourceBadge plate><GoogleMark /></SourceBadge>
-          </div>
+          <LogoMarquee />
         </div>
       </div>
 

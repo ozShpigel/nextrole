@@ -1,59 +1,10 @@
 import { useEffect } from 'react';
-import { NavLink, Outlet, useLocation, useNavigate, useNavigationType } from 'react-router-dom';
-import { ChevronDown } from 'lucide-react';
+import { NavLink, Outlet, useLocation, useNavigationType } from 'react-router-dom';
 import { useConfig } from './lib/queries';
 import { BrandMark } from './components/BrandMark';
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-} from '@/components/ui/dropdown-menu';
 
 const navLinkClass = ({ isActive }: { isActive: boolean }): string =>
   `relative py-[0.45rem] px-4 rounded-full text-[0.82rem] font-medium transition-all ${isActive ? 'text-foreground bg-accent' : 'text-muted-foreground hover:text-foreground hover:bg-accent'}`;
-
-const triggerClass = (active: boolean): string =>
-  `relative flex items-center gap-1 py-[0.45rem] px-4 rounded-full text-[0.82rem] font-medium transition-all outline-none focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:bg-accent data-[state=open]:text-foreground ${active ? 'text-foreground bg-accent' : 'text-muted-foreground hover:text-foreground hover:bg-accent'}`;
-
-type NavChild = { to: string; label: string };
-
-const JOBS_GROUP: NavChild[] = [
-  { to: '/search', label: 'Search Matches' },
-  { to: '/discovery', label: 'Discovery' },
-  { to: '/score', label: 'Score a Job' },
-];
-
-const INTERVIEW_GROUP: NavChild[] = [
-  { to: '/interview-prep', label: 'Interview Prep' },
-  { to: '/practice-interview', label: 'Practice Interview' },
-  { to: '/interview-insights', label: 'Interview Insights' },
-];
-
-function NavGroup({ label, items }: { label: string; items: NavChild[] }) {
-  const { pathname } = useLocation();
-  const navigate = useNavigate();
-  const active = items.some((item) => pathname.startsWith(item.to));
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger className={triggerClass(active)}>
-        {label}
-        <ChevronDown size={13} className="opacity-60 transition-transform data-[state=open]:rotate-180" />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="min-w-[10rem]">
-        {items.map((item) => (
-          <DropdownMenuItem
-            key={item.to}
-            onSelect={() => navigate(item.to)}
-            className={pathname.startsWith(item.to) ? 'bg-accent text-foreground' : ''}
-          >
-            {item.label}
-          </DropdownMenuItem>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
 
 /* BrowserRouter keeps the window scroll offset across navigations, so opening
  * a page from deep in a long list (e.g. tracker → application detail) landed
@@ -84,10 +35,10 @@ export default function App() {
             NextRole<span className="text-primary" aria-hidden="true">.</span>
           </NavLink>
           <div className="flex items-center gap-[0.15rem]">
-            <NavLink to="/" end className={navLinkClass}>Home</NavLink>
-            <NavGroup label="Jobs" items={JOBS_GROUP} />
-            <NavLink to="/tracker" className={navLinkClass}>Tracker</NavLink>
-            <NavGroup label="Interview" items={INTERVIEW_GROUP} />
+            <NavLink to="/search" className={navLinkClass}>Matches</NavLink>
+            <NavLink to="/tracker" className={navLinkClass}>Active</NavLink>
+            <NavLink to="/messages" className={navLinkClass}>Messages</NavLink>
+            <NavLink to="/interview-prep" className={navLinkClass}>Preparation</NavLink>
             <NavLink to="/settings" className={navLinkClass}>Profile</NavLink>
           </div>
         </div>

@@ -15,61 +15,6 @@ import type {
   ResumePack,
 } from './types';
 
-export function useTriggerRun() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (criteriaId: string) =>
-      discoveryApi(`/run/${criteriaId}`, { method: 'POST' }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['discovery', 'runs'] });
-      queryClient.invalidateQueries({ queryKey: ['discovery', 'criteria'] });
-    },
-  });
-}
-
-export function useDeleteCriteria() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (id: string) =>
-      discoveryApi(`/criteria/${id}`, { method: 'DELETE' }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['discovery', 'criteria'] });
-    },
-  });
-}
-
-export function useAbortRun() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (runId: string) =>
-      discoveryApi(`/runs/${runId}/abort`, { method: 'POST' }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['discovery', 'runs'] });
-    },
-  });
-}
-
-export function useSaveCriteria() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, payload }: { id?: string; payload: Record<string, unknown> }) => {
-      if (id) {
-        return discoveryApi(`/criteria/${id}`, {
-          method: 'PUT',
-          body: JSON.stringify(payload),
-        });
-      }
-      return discoveryApi('/criteria', {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['discovery', 'criteria'] });
-    },
-  });
-}
-
 export function useSaveJob() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -175,21 +120,6 @@ export function useSaveInterviewPrep() {
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['match', 'interview-prep'] });
-    },
-  });
-}
-
-export function useRestoreInterviewPrepHistory() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: ({ field, index }: { field: InterviewPrepHistoryField; index: number }) =>
-      matchApi(`/interview-prep/history/${field}/restore`, {
-        method: 'POST',
-        body: JSON.stringify({ index }),
-      }),
-    onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['match', 'interview-prep'] });
-      queryClient.invalidateQueries({ queryKey: ['match', 'interview-prep', 'history', variables.field] });
     },
   });
 }

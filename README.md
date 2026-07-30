@@ -48,7 +48,7 @@ Author self-presentations and a Q&A rubric, rehearse from AI-distilled keyword c
 
 A few more things NextRole does:
 
-- **Automated job discovery**: Define search criteria once — the system scrapes LinkedIn/Indeed, drops off-target titles with AI triage, and embeds everything for search, from the UI or a daily cron.
+- **Automated job discovery**: Search criteria (titles, locations, boards) run on a daily cron — the system scrapes LinkedIn/Indeed, drops off-target titles with AI triage, and embeds everything for search.
 - **AI job scoring**: Paste any job description and get a weighted compatibility score with a sub-component breakdown and an honest verdict. [Details](docs/scoring-and-search.md)
 - **Email sync**: The mailbot detects interview invites, rejections, and offers in Gmail and updates the tracker automatically — idempotent, and it never moves an application backwards. [Details](#email-sync-mailbot)
 - **Résumé upload**: Drop in a PDF and your profile is normalized automatically — the PDF goes to Claude natively, no extraction library.
@@ -60,7 +60,7 @@ A few more things NextRole does:
 
 NextRole consists of four loosely-coupled services, communicating over HTTP:
 
-1. **Client** — the React single-page app: discovery, semantic search, scoring, interview prep, and the application tracker in one dashboard, behind an Nginx reverse proxy in production.
+1. **Client** — the React single-page app: semantic search, scoring, interview prep, and the application tracker in one dashboard, behind an Nginx reverse proxy in production.
 2. **API** — the unified backend and **the only service that calls Claude**: job scoring, the search advisor, email parsing, profile normalization, and all tracking data. Keeping every AI call here keeps the API key and prompt logic in one place.
 3. **Scraper** — the ingest & search engine: scrapes LinkedIn/Indeed, filters titles with AI triage, embeds jobs, and serves semantic matching via MongoDB Atlas `$vectorSearch` — delegating its AI needs to the API.
 4. **Mailbot** — a one-shot cron process (not a service): reads Gmail, has the API parse each email with Claude, and applies status/interview updates to the tracker.

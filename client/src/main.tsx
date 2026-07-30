@@ -7,11 +7,10 @@ import App from './App';
 import { queryClient } from './lib/queryClient';
 import { ErrorBoundary } from './components/Error';
 import LandingPage from './pages/LandingPage';
-import DiscoveryPage from './pages/DiscoveryPage';
-import RunDetailPage from './pages/RunDetailPage';
 import SearchPage from './pages/SearchPage';
 import ManualScorePage from './pages/ManualScorePage';
 import TrackerPage from './pages/TrackerPage';
+import MessagesPage from './pages/MessagesPage';
 import ApplicationDetailPage from './pages/ApplicationDetailPage';
 import SettingsPage from './pages/SettingsPage';
 import InterviewPrepPage from './pages/InterviewPrepPage';
@@ -27,12 +26,11 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         <Routes>
           <Route element={<App />}>
             <Route path="/" element={<LandingPage />} />
-            <Route path="/discovery" element={<DiscoveryPage />} />
-            <Route path="/discovery/:runId" element={<RunDetailPage />} />
             <Route path="/search" element={<SearchPage />} />
             <Route path="/score" element={<ManualScorePage />} />
             <Route path="/tracker" element={<TrackerPage />} />
             <Route path="/tracker/:id" element={<ApplicationDetailPage />} />
+            <Route path="/messages" element={<MessagesPage />} />
             <Route path="/interview-prep" element={<InterviewPrepPage />} />
             <Route path="/practice-interview" element={<MockInterviewPage />} />
             <Route path="/interview-insights" element={<InterviewInsightsPage />} />

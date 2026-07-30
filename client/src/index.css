@@ -158,18 +158,18 @@
   color: var(--ed-ink);
 }
 .dark .editorial {
-  --ed-paper:        #101613;   /* green-cast near-black    */
-  --ed-panel:        #1a211c;
-  --ed-ink:          #edf3ee;
-  --ed-ink-soft:     #b6c3ba;
-  --ed-ink-faint:    #7d8b82;
-  --ed-rule:         #2a332c;
-  --ed-rule-strong:  #6d7f73;
-  --ed-accent:       #41d488;
-  --ed-accent-deep:  #82e5b1;
-  --ed-yes:          #6fbe8d;
+  --ed-paper:        #000000;   /* true black — dreamworkhq-style noir */
+  --ed-panel:        #0a0a0a;
+  --ed-ink:          #ffffff;
+  --ed-ink-soft:     #a3a3a8;   /* neutral gray, no green cast */
+  --ed-ink-faint:    #6b6b70;
+  --ed-rule:         rgba(255, 255, 255, 0.1);
+  --ed-rule-strong:  rgba(255, 255, 255, 0.22);
+  --ed-accent:       #2be08f;
+  --ed-accent-deep:  #7ef2bd;
+  --ed-yes:          #6fbe8d;   /* unchanged — semantic, not part of the noir shift */
   --ed-no:           #ec8878;
-  --ed-gold:         #d5ab4d;
+  --ed-gold:         #d5ab4d;   /* kept distinct from accent — still means "caution" */
 }
 
 /* atmosphere: soft emerald glow bleeding from the top + whisper of
@@ -258,82 +258,49 @@
   content: "";
   position: fixed; inset: 0; z-index: 0; pointer-events: none;
   background:
-    radial-gradient(38% 30% at 20% 15%, color-mix(in oklab, var(--ed-accent) 14%, transparent), transparent 72%),
-    radial-gradient(32% 28% at 84% 60%, color-mix(in oklab, var(--ed-gold) 9%, transparent), transparent 74%);
+    radial-gradient(55% 45% at 18% 12%, color-mix(in oklab, var(--ed-accent) 20%, transparent), transparent 72%),
+    radial-gradient(48% 40% at 86% 18%, color-mix(in oklab, var(--ed-accent) 14%, transparent), transparent 74%),
+    radial-gradient(50% 42% at 50% 95%, color-mix(in oklab, var(--ed-accent) 12%, transparent), transparent 76%);
   animation: nr-aurora-drift 26s ease-in-out infinite;
   will-change: transform;
 }
 .dark .home-atmosphere::after {
   background:
-    radial-gradient(38% 30% at 20% 15%, color-mix(in oklab, var(--ed-accent) 11%, transparent), transparent 72%),
-    radial-gradient(32% 28% at 84% 60%, color-mix(in oklab, var(--ed-gold) 7%, transparent), transparent 74%);
+    radial-gradient(55% 45% at 18% 12%, color-mix(in oklab, var(--ed-accent) 16%, transparent), transparent 72%),
+    radial-gradient(48% 40% at 86% 18%, color-mix(in oklab, var(--ed-accent) 10%, transparent), transparent 74%),
+    radial-gradient(50% 42% at 50% 95%, color-mix(in oklab, var(--ed-accent) 9%, transparent), transparent 76%);
 }
 
-/* ornament diamond: slow continuous spin + a soft breathing glow */
-@keyframes nr-diamond-spin { from { transform: rotate(45deg); } to { transform: rotate(405deg); } }
-@keyframes nr-diamond-pulse {
-  0%, 100% { opacity: .65; filter: drop-shadow(0 0 0 transparent); }
-  50%      { opacity: 1; filter: drop-shadow(0 0 5px color-mix(in oklab, var(--ed-accent) 60%, transparent)); }
+/* Brand mark — a faceted gem (BrandMark.tsx): four currentColor triangles
+   slowly rotate as a whole while each facet's opacity glints on a staggered
+   delay, so light appears to travel across the facets as it turns.
+   currentColor-driven so it works both in the neutral nav (text-primary)
+   and inside .editorial pages (text-[var(--ed-accent)]). */
+@keyframes nr-gem-spin { to { transform: rotate(360deg); } }
+@keyframes nr-gem-glint {
+  0%, 100% { opacity: .3; }
+  50%      { opacity: 1; }
 }
-.nr-ornament-diamond {
-  animation: nr-diamond-spin 9s linear infinite, nr-diamond-pulse 3s ease-in-out infinite;
+.nr-gem {
+  animation: nr-gem-spin 13s linear infinite;
+  transform-origin: 50% 50%;
+  filter: drop-shadow(0 0 3px color-mix(in oklab, currentColor 45%, transparent));
 }
-
-/* service-card icons: idle motifs matching what each icon depicts —
-   the gear literally turns, the lens sweeps as if scanning, the tracker's
-   rows pulse like a status scan. Hover/focus color transitions (defined
-   inline via Tailwind) run independently on the wrapping span. */
-@keyframes nr-icon-sweep { 0%, 100% { transform: rotate(-9deg); } 50% { transform: rotate(9deg); } }
-.nr-icon-search svg { transform-origin: 55% 55%; animation: nr-icon-sweep 3.6s ease-in-out infinite; }
-
-@keyframes nr-icon-spin { to { transform: rotate(360deg); } }
-.nr-icon-gear svg { transform-origin: center; animation: nr-icon-spin 11s linear infinite; }
-
-@keyframes nr-icon-blink { 0%, 100% { opacity: .4; } 50% { opacity: 1; } }
-.nr-icon-track .nr-scan-1 { animation: nr-icon-blink 2.4s ease-in-out infinite; }
-.nr-icon-track .nr-scan-2 { animation: nr-icon-blink 2.4s ease-in-out infinite; animation-delay: .3s; }
-.nr-icon-track .nr-scan-3 { animation: nr-icon-blink 2.4s ease-in-out infinite; animation-delay: .6s; }
-
-/* hide the scrollbar on the homepage's mobile peek-carousel row — native
-   touch swipe + snap already communicate scrollability, so a visible
-   scrollbar track would just be visual noise here */
-.nr-card-row { scrollbar-width: none; -ms-overflow-style: none; }
-.nr-card-row::-webkit-scrollbar { display: none; }
-
-/* card tilt — follows the cursor via --rx/--ry set from JS; --ty lifts
-   the card on hover/focus (kept in the same transform so it composes
-   with the tilt instead of fighting a separate Tailwind translate) */
-.nr-tilt-card {
-  --rx: 0deg; --ry: 0deg; --ty: 0px;
-  transform: perspective(900px) rotateX(var(--rx)) rotateY(var(--ry)) translateY(var(--ty));
-  transition: transform .5s cubic-bezier(.22,1,.36,1);
+.nr-gem-facet {
+  animation: nr-gem-glint 3.2s ease-in-out infinite;
 }
-.nr-tilt-card:hover, .nr-tilt-card:focus-visible {
-  --ty: -4px;
-  transition: transform .12s ease-out;
-}
-
-/* footer colophon — a quieter echo of the masthead ornament (bookends the
-   page rather than introducing a new motif), so motion stays slower/lower
-   amplitude than the hero: this is the calmest spot on the page */
-@keyframes nr-footer-diamond-spin { from { transform: rotate(45deg); } to { transform: rotate(405deg); } }
-.nr-footer-diamond {
-  width: 4px; height: 4px; display: inline-block;
-  background: var(--ed-accent); opacity: .7;
-  animation: nr-footer-diamond-spin 14s linear infinite;
-}
+.nr-gem-facet:nth-child(1) { animation-delay: 0s; }
+.nr-gem-facet:nth-child(2) { animation-delay: .4s; }
+.nr-gem-facet:nth-child(3) { animation-delay: .8s; }
+.nr-gem-facet:nth-child(4) { animation-delay: 1.2s; }
 
 @keyframes nr-mono-breathe { 0%, 100% { color: var(--ed-ink); } 50% { color: var(--ed-accent); } }
 .nr-footer-mono { animation: nr-mono-breathe 6s ease-in-out infinite; }
 
 @media (prefers-reduced-motion: reduce) {
   .home-atmosphere::after { animation: none; }
-  .nr-ornament-diamond { animation: none; transform: rotate(45deg); opacity: .8; }
-  .nr-icon-search svg, .nr-icon-gear svg,
-  .nr-icon-track .nr-scan-1, .nr-icon-track .nr-scan-2, .nr-icon-track .nr-scan-3 {
-    animation: none;
-  }
-  .nr-tilt-card { transform: none !important; }
-  .nr-footer-diamond { animation: none; transform: rotate(45deg); opacity: .7; }
+  .nr-gem { animation: none; }
+  .nr-gem-facet { animation: none; opacity: .75; }
+  .nr-gem-facet:nth-child(1), .nr-gem-facet:nth-child(2) { opacity: 1; }
   .nr-footer-mono { animation: none; color: var(--ed-ink); }
 }

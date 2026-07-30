@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useProfile, useProfileHistory } from '../lib/queries';
 import { useSaveProfile, useRestoreHistory, useNormalizeProfile, useNormalizeProfileFile } from '../lib/mutations';
 import type {
@@ -96,6 +97,7 @@ export default function SettingsPage() {
   const normalizeFileMutation = useNormalizeProfileFile();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [initialized, setInitialized] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
 
   function applyProfileData(data: ProfileResponse): void {
     const h = hydrate(data?.structured);
@@ -199,6 +201,20 @@ export default function SettingsPage() {
     }
   }
 
+  // Homepage "Upload your résumé" CTA lands here with ?upload=1 — open the
+  // file picker as soon as the page (and its hidden input) has rendered,
+  // then strip the param so a refresh/back-nav doesn't reopen it.
+  useEffect(() => {
+    if (!loading && searchParams.get('upload') === '1') {
+      fileInputRef.current?.click();
+      setSearchParams((prev) => {
+        prev.delete('upload');
+        return prev;
+      }, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading]);
+
   if (loading) return <SettingsLoadingSkeleton />;
 
   return (
@@ -211,7 +227,7 @@ export default function SettingsPage() {
           <span className="hidden sm:block text-[var(--ed-accent)]">Your candidate profile</span>
         </div>
         <h1 className="ed-display font-black text-[clamp(2.6rem,6.5vw,4.4rem)] leading-[0.9] tracking-[-0.022em] text-[var(--ed-ink)] pt-4">
-          Settings
+          Profile
         </h1>
         <p className="mt-3 max-w-[600px] text-[var(--ed-ink-soft)] text-[0.98rem] leading-[1.65]">
           Your professional profile — the input Claude uses for job analysis and matching.
@@ -458,11 +474,11 @@ function HistoryButton({ field, onRestored }: { field: HistoryField; onRestored:
 function SettingsLoadingSkeleton() {
   return (
     <div className="editorial editorial-grain min-h-screen">
-    <div className="relative z-[1] max-w-[960px] mx-auto px-8 pt-14 pb-32 animate-in fade-in slide-in-from-bottom-1 duration-500 max-sm:px-5" role="status" aria-live="polite" aria-label="Loading settings">
+    <div className="relative z-[1] max-w-[960px] mx-auto px-8 pt-14 pb-32 animate-in fade-in slide-in-from-bottom-1 duration-500 max-sm:px-5" role="status" aria-live="polite" aria-label="Loading profile">
       <header className="mb-12 relative" aria-hidden="true">
         <div className="pb-[10px] border-b border-[var(--ed-rule)] text-[0.62rem] font-semibold uppercase tracking-[0.22em] text-[var(--ed-ink-faint)]">The Standards Desk</div>
         <h1 className="ed-display text-[clamp(2.6rem,6.5vw,4.4rem)] font-black text-[var(--ed-ink)] leading-[0.9] pt-4 mb-4 tracking-[-0.022em] animate-in fade-in duration-300">
-          Settings
+          Profile
         </h1>
         <Skeleton className="w-[62%] h-[14px] rounded-[4px] mt-2" />
         <div className="mt-[1.4rem] border-t-[3px] border-double border-[var(--ed-rule-strong)]" />

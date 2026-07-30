@@ -36,7 +36,7 @@ describe('CriteriaSection - Empty State', () => {
       <CriteriaSection criteria={[]} onEdit={noop} onDelete={noop} onRun={noop} onNew={noop} />,
     );
     expect(screen.getByText('No collection criteria')).toBeInTheDocument();
-    expect(screen.getByText('Define your first criteria to start automatically collecting jobs from LinkedIn and Indeed.')).toBeInTheDocument();
+    expect(screen.getByText('Define your first criteria to start automatically collecting jobs from LinkedIn, Indeed, and Google.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '+ Create New Criteria' })).toBeInTheDocument();
   });
 });

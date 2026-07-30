@@ -1,4 +1,5 @@
 import { screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { renderWithRouter } from "../test/render";
 import Landing from "./LandingPage";
 
@@ -9,24 +10,22 @@ describe("LandingPage", () => {
     expect(screen.getByText("Role")).toBeInTheDocument();
   });
 
-  it("renders all three service cards with correct names", () => {
+  it("renders the résumé upload CTA and the matches link", () => {
     renderWithRouter(<Landing />);
-    expect(screen.getByText("Job Discovery")).toBeInTheDocument();
-    expect(screen.getByText("Application Tracker")).toBeInTheDocument();
-    expect(screen.getByText("Settings")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /upload your résumé/i })).toBeInTheDocument();
+
+    const matchesLink = screen.getByRole("link", { name: /browse your matches/i });
+    expect(matchesLink).toHaveAttribute("href", "/search");
   });
 
-  it("each service card links to the correct path", () => {
+  it("navigates to Settings with the upload param when the CTA is clicked", async () => {
+    const user = userEvent.setup();
     renderWithRouter(<Landing />);
 
-    const discoveryLink = screen.getByRole("link", { name: /job discovery/i });
-    expect(discoveryLink).toHaveAttribute("href", "/discovery");
+    await user.click(screen.getByRole("button", { name: /upload your résumé/i }));
 
-    const trackerLink = screen.getByRole("link", { name: /application tracker/i });
-    expect(trackerLink).toHaveAttribute("href", "/tracker");
-
-    const settingsLink = screen.getByRole("link", { name: /settings/i });
-    expect(settingsLink).toHaveAttribute("href", "/settings");
+    expect(window.location.pathname).toBe("/settings");
+    expect(window.location.search).toBe("?upload=1");
   });
 
   it("renders the footer monogram", () => {

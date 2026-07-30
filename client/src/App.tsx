@@ -1,8 +1,8 @@
 import { useEffect } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate, useNavigationType } from 'react-router-dom';
-import { Sun, Moon, ChevronDown } from 'lucide-react';
-import { useTheme } from './lib/theme';
+import { ChevronDown } from 'lucide-react';
 import { useConfig } from './lib/queries';
+import { BrandMark } from './components/BrandMark';
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -69,7 +69,6 @@ function ScrollToTop() {
 }
 
 export default function App() {
-  const { theme, toggleTheme } = useTheme();
   const { data: config } = useConfig();
   return (
     <div className="relative">
@@ -80,20 +79,16 @@ export default function App() {
       )}
       <nav data-app-nav className="bg-background/80 backdrop-blur-[20px] border-b border-border sticky top-0 z-50">
         <div className="max-w-[1100px] mx-auto px-6 flex items-center justify-between h-14">
-          <NavLink to="/" className="font-serif font-bold text-[1rem] text-foreground tracking-[-0.01em] transition-opacity hover:opacity-75">NextRole<span className="text-primary" aria-hidden="true">.</span></NavLink>
+          <NavLink to="/" className="inline-flex items-center gap-[0.4rem] font-serif font-bold text-[1rem] text-foreground tracking-[-0.01em] transition-opacity hover:opacity-75">
+            <BrandMark size={15} className="text-primary" />
+            NextRole<span className="text-primary" aria-hidden="true">.</span>
+          </NavLink>
           <div className="flex items-center gap-[0.15rem]">
             <NavLink to="/" end className={navLinkClass}>Home</NavLink>
             <NavGroup label="Jobs" items={JOBS_GROUP} />
             <NavLink to="/tracker" className={navLinkClass}>Tracker</NavLink>
             <NavGroup label="Interview" items={INTERVIEW_GROUP} />
-            <NavLink to="/settings" className={navLinkClass}>Settings</NavLink>
-            <button
-              onClick={toggleTheme}
-              className="ml-2 p-2 rounded-full text-muted-foreground hover:text-foreground hover:bg-accent transition-all"
-              aria-label="Toggle theme"
-            >
-              {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
-            </button>
+            <NavLink to="/settings" className={navLinkClass}>Profile</NavLink>
           </div>
         </div>
       </nav>

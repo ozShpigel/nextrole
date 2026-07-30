@@ -21,7 +21,7 @@ describe("PageHeader", () => {
     renderWithRouter(<PageHeader onNewCriteria={() => {}} />);
     expect(
       screen.getByText(
-        /Collects jobs from LinkedIn and Indeed into your pool/,
+        /Collects jobs from LinkedIn, Indeed, and Google into your pool/,
       ),
     ).toBeInTheDocument();
   });

@@ -27,7 +27,7 @@ export default function PageHeader({ onNewCriteria }: PageHeaderProps) {
             Job{' '}<span className="italic font-medium text-[var(--ed-accent)]">Discovery</span>
           </h1>
           <p className="mt-3 max-w-[560px] text-[0.95rem] leading-[1.6] text-[var(--ed-ink-soft)]">
-            Collects jobs from LinkedIn and Indeed into your pool — automatically, on a nightly schedule.
+            Collects jobs from LinkedIn, Indeed, and Google into your pool — automatically, on a nightly schedule.
             Matching against your profile happens on the Search page.
           </p>
         </div>

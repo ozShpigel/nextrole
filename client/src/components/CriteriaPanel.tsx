@@ -102,7 +102,7 @@ export function CriteriaSection({ criteria, onEdit, onDelete, onRun, onNew }: Cr
           <div className="ed-display text-[2rem] font-black text-[var(--ed-accent)] mb-2">+</div>
           <div className="ed-display text-[1.15rem] font-semibold text-[var(--ed-ink)] mb-[0.3rem]">No collection criteria</div>
           <div className="text-[var(--ed-ink-soft)] text-[0.85rem] leading-[1.6] mb-[1.1rem] max-w-[360px] mx-auto">
-            Define your first criteria to start automatically collecting jobs from LinkedIn and Indeed.
+            Define your first criteria to start automatically collecting jobs from LinkedIn, Indeed, and Google.
           </div>
           <Button onClick={onNew} disabled={demoMode} title={demoMode ? DEMO_DISABLED_TITLE : undefined} className="rounded-full bg-[var(--ed-accent)] text-[var(--ed-paper)] hover:bg-[var(--ed-accent-deep)] uppercase text-[0.7rem] font-semibold tracking-[0.08em]">
             + Create New Criteria
@@ -147,6 +147,7 @@ const LOCATION_SUGGESTIONS = [
 const AVAILABLE_SITES = [
   { value: 'linkedin', label: 'LinkedIn' },
   { value: 'indeed', label: 'Indeed' },
+  { value: 'google', label: 'Google' },
 ];
 
 // Mirrors MAX_SEARCHES_PER_RUN in the scraper's schemas/criteria.py — each

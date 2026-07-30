@@ -34,7 +34,7 @@ describe('SettingsPage', () => {
 
     renderWithRouter(<SettingsPage />);
 
-    expect(screen.getByRole('status', { name: /loading settings/i })).toBeInTheDocument();
+    expect(screen.getByRole('status', { name: /loading profile/i })).toBeInTheDocument();
     expect(screen.getByText('Loading...')).toBeInTheDocument();
   });
 

@@ -5,7 +5,6 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import './index.css';
 import App from './App';
 import { queryClient } from './lib/queryClient';
-import { ThemeProvider } from './lib/theme';
 import { ErrorBoundary } from './components/Error';
 import LandingPage from './pages/LandingPage';
 import DiscoveryPage from './pages/DiscoveryPage';
@@ -24,7 +23,6 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
     <BrowserRouter>
-      <ThemeProvider>
       <ErrorBoundary>
         <Routes>
           <Route element={<App />}>
@@ -43,7 +41,6 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
           </Route>
         </Routes>
       </ErrorBoundary>
-      </ThemeProvider>
     </BrowserRouter>
     </QueryClientProvider>
   </React.StrictMode>

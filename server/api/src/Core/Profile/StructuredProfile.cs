@@ -12,6 +12,12 @@ namespace ApplicationTracker.Core.Profile;
 // that the scoring/interview prompts consume via {{USER_PROFILE}}.
 public sealed record StructuredProfile
 {
+    // Contact fields — used only for the Generate Pack résumé header, not
+    // rendered into the {{USER_PROFILE}} scoring/interview prompts.
+    public string? FullName { get; init; }
+    public string? Email { get; init; }
+    public string? Phone { get; init; }
+    public string? Location { get; init; }
     public string Summary { get; init; } = "";
     public string? Seniority { get; init; }
     public string[] Domains { get; init; } = [];
@@ -47,6 +53,13 @@ public sealed record SkillGroups
 // StructuredProfile (no manual Strengths / CoreValues / RawExperienceText).
 public sealed record NormalizedProfile
 {
+    // Extracted only when actually present in the source text/résumé — never
+    // invented. Same contact fields as StructuredProfile, used for the
+    // Generate Pack résumé header.
+    public string? FullName { get; init; }
+    public string? Email { get; init; }
+    public string? Phone { get; init; }
+    public string? Location { get; init; }
     public string Summary { get; init; } = "";
     public string? Seniority { get; init; }
     public string[] Domains { get; init; } = [];

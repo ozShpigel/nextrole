@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useApplications } from '../lib/queries';
-import { useDeleteApplication } from '../lib/mutations';
+import { Sparkles, FileCheck, RefreshCw } from 'lucide-react';
+import { useApplications, useDemoMode, DEMO_DISABLED_TITLE } from '../lib/queries';
+import { useDeleteApplication, useGeneratePack } from '../lib/mutations';
 import { formatDate, formatTime, verdictLabel } from '../lib/format';
 import { StatusBadge, STATUS_TONE } from './Status';
 import ConfirmDialog from './ConfirmDialog';
+import { ResumePackModal } from './ResumePackModal';
 import { Skeleton } from '@/components/ui/skeleton';
 
 interface Application {
@@ -19,6 +21,8 @@ interface Application {
   nextInterviewAt?: string | null;
   nextInterviewEndsAt?: string | null;
   nextInterviewer?: string | null;
+  hasPack?: boolean;
+  packGeneratedAt?: string | null;
 }
 
 // Editorial verdict tint (var(--ed-*) instead of the emerald/red of lib/format)
@@ -61,8 +65,8 @@ function daysSince(iso: string | undefined): number | null {
   return iso ? Math.floor((Date.now() - new Date(iso).getTime()) / 86400000) : null;
 }
 
-const COLS = 'grid-cols-[1fr_1fr] md:grid-cols-[2fr_1.5fr_1fr_0.5fr_0.8fr_0.5fr_2.25rem]';
-const HEAD = 'hidden md:grid grid-cols-[2fr_1.5fr_1fr_0.5fr_0.8fr_0.5fr_2.25rem] gap-4 py-[0.6rem] text-[0.62rem] text-[var(--ed-ink-faint)] border-b border-[var(--ed-rule)] uppercase tracking-[0.14em] font-semibold';
+const COLS = 'grid-cols-[1fr_1fr] md:grid-cols-[2fr_1.5fr_1fr_0.5fr_0.8fr_0.5fr_4.5rem]';
+const HEAD = 'hidden md:grid grid-cols-[2fr_1.5fr_1fr_0.5fr_0.8fr_0.5fr_4.5rem] gap-4 py-[0.6rem] text-[0.62rem] text-[var(--ed-ink-faint)] border-b border-[var(--ed-rule)] uppercase tracking-[0.14em] font-semibold';
 
 function TableHead() {
   return (
@@ -131,10 +135,25 @@ function FeatureCard({ app, index, onOpen }: { app: Application; index: number; 
   );
 }
 
-function Row({ app, index = 0, muted, onOpen, onDelete }: { app: Application; index?: number; muted?: boolean; onOpen: () => void; onDelete: () => void }) {
+interface RowProps {
+  app: Application;
+  index?: number;
+  muted?: boolean;
+  onOpen: () => void;
+  onDelete: () => void;
+  // Only passed from the "To Apply" section — Generate/Review Pack makes
+  // sense before you've applied, not for rows already sent or archived.
+  onGeneratePack?: () => void;
+  onReviewPack?: () => void;
+  packGenerating?: boolean;
+  demoMode?: boolean;
+}
+
+function Row({ app, index = 0, muted, onOpen, onDelete, onGeneratePack, onReviewPack, packGenerating, demoMode }: RowProps) {
   const days = daysSince(app.updatedAt);
   // Stay quiet unless the silence is getting long.
   const daysColor = days !== null && days >= 14 ? 'var(--ed-no)' : days !== null && days >= 7 ? 'var(--ed-gold)' : 'var(--ed-ink-faint)';
+  const showPackAction = !!(onGeneratePack || onReviewPack);
   return (
     <div
       className={`ed-rise group grid ${COLS} items-center gap-4 py-[1.05rem] border-b border-[var(--ed-rule)]/70 cursor-pointer transition-colors duration-300 hover:bg-[var(--ed-panel)]/50 last:border-b-0 ${muted ? 'opacity-65 hover:opacity-90 transition-opacity' : ''}`}
@@ -149,7 +168,23 @@ function Row({ app, index = 0, muted, onOpen, onDelete }: { app: Application; in
       <div className="text-[var(--ed-ink-faint)] text-[0.78rem] tabular-nums" title="Last updated">
         {formatDate(app.updatedAt ?? app.createdAt)}
       </div>
-      <div className="justify-self-end">
+      <div className="justify-self-end flex items-center gap-1">
+        {showPackAction && (
+          <button
+            type="button"
+            aria-label={app.hasPack ? `Review résumé pack for ${app.company}` : `Generate résumé pack for ${app.company}`}
+            title={demoMode && !app.hasPack ? DEMO_DISABLED_TITLE : (app.hasPack ? 'Review Pack' : 'Generate Pack')}
+            disabled={packGenerating || (demoMode && !app.hasPack)}
+            className="w-7 h-7 flex items-center justify-center text-[var(--ed-ink-faint)] opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity duration-200 hover:text-[var(--ed-accent)] disabled:opacity-40 disabled:cursor-not-allowed"
+            onClick={(e: React.MouseEvent) => {
+              e.stopPropagation();
+              if (app.hasPack) onReviewPack?.();
+              else onGeneratePack?.();
+            }}
+          >
+            {packGenerating ? <RefreshCw size={14} className="animate-spin" /> : app.hasPack ? <FileCheck size={14} /> : <Sparkles size={14} />}
+          </button>
+        )}
         <button
           type="button"
           aria-label={`Delete application at ${app.company}`}
@@ -171,8 +206,11 @@ export default function ApplicationList() {
   const navigate = useNavigate();
   const { data: apps = [], error, isLoading } = useApplications();
   const deleteAppMutation = useDeleteApplication();
+  const generatePackMutation = useGeneratePack();
+  const demoMode = useDemoMode();
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [showAllAwaiting, setShowAllAwaiting] = useState(false);
+  const [packModalApp, setPackModalApp] = useState<Application | null>(null);
 
   if (error) {
     return <div className="border border-[var(--ed-no)]/30 bg-[var(--ed-no)]/10 p-6 mb-4"><p className="text-center py-12 text-[var(--ed-no)] text-[0.88rem]">Failed to load applications: {error.message}</p></div>;
@@ -251,7 +289,19 @@ export default function ApplicationList() {
         <section aria-label="Applications to apply to" className="mt-12">
           <SectionRule label="To Apply" count={toApply.length} />
           <TableHead />
-          {toApply.map((a, i) => <Row key={a.id} app={a} index={i} onOpen={() => open(a.id)} onDelete={() => setDeleteId(a.id)} />)}
+          {toApply.map((a, i) => (
+            <Row
+              key={a.id}
+              app={a}
+              index={i}
+              onOpen={() => open(a.id)}
+              onDelete={() => setDeleteId(a.id)}
+              onGeneratePack={() => generatePackMutation.mutate(a.id)}
+              onReviewPack={() => setPackModalApp(a)}
+              packGenerating={generatePackMutation.isPending && generatePackMutation.variables === a.id}
+              demoMode={demoMode}
+            />
+          ))}
         </section>
       )}
 
@@ -313,6 +363,16 @@ export default function ApplicationList() {
       }}
       onCancel={() => setDeleteId(null)}
     />
+
+    {packModalApp && (
+      <ResumePackModal
+        appId={packModalApp.id}
+        jobTitle={packModalApp.jobTitle}
+        company={packModalApp.company}
+        open={!!packModalApp}
+        onClose={() => setPackModalApp(null)}
+      />
+    )}
     </>
   );
 }

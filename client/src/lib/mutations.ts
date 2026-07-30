@@ -1,7 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, matchApi, discoveryApi, scraperApi } from './api';
 import type {
-  HistoryField,
   InterviewPrepHistoryField,
   MockTurn,
   MockTurnResponse,
@@ -13,6 +12,7 @@ import type {
   SemanticSearchRequest,
   SemanticSearchResponse,
   InterviewInsightResponse,
+  ResumePack,
 } from './types';
 
 export function useTriggerRun() {
@@ -134,8 +134,9 @@ export function useScoreJob() {
   });
 }
 
-// Normalize pasted free-text experience/skills into structured fields for review.
-// Does not persist — the user edits the result, then saves via useSaveProfile.
+// Normalize pasted free-text experience/skills into structured fields. Doesn't
+// persist itself — SettingsPage merges the result and calls useSaveProfile
+// immediately after (no review step in the UI).
 export function useNormalizeProfile() {
   return useMutation({
     mutationFn: (text: string) =>
@@ -146,8 +147,10 @@ export function useNormalizeProfile() {
   });
 }
 
-// Same normalization, but from an uploaded résumé file (PDF or TXT). The API
-// extracts summary/experience/skills; the client merges + the user saves.
+// Same normalization, but from an uploaded résumé file (PDF or TXT) — the API
+// also persists the raw file itself (ResumeFile) as a side effect, so this
+// mutation is no longer purely ephemeral analysis (see the demo-allowlist
+// note in Program.cs). The client merges the result and auto-saves.
 export function useNormalizeProfileFile() {
   return useMutation({
     mutationFn: (file: File) => {
@@ -161,20 +164,6 @@ export function useNormalizeProfileFile() {
   });
 }
 
-export function useRestoreHistory() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: ({ field, index }: { field: HistoryField; index: number }) =>
-      matchApi(`/profile/history/${field}/restore`, {
-        method: 'POST',
-        body: JSON.stringify({ index }),
-      }),
-    onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['match', 'profile'] });
-      queryClient.invalidateQueries({ queryKey: ['match', 'profile', 'history', variables.field] });
-    },
-  });
-}
 
 export function useSaveInterviewPrep() {
   const queryClient = useQueryClient();
@@ -332,6 +321,30 @@ export function useUpdateAppStatus() {
       // The detail view's timeline gains a row, so refetch just that one app
       // (small) — not the whole list.
       queryClient.invalidateQueries({ queryKey: ['applications', variables.appId] });
+    },
+  });
+}
+
+// Generate (or regenerate) the tailored résumé pack for one application.
+// Writes the result straight into the pack's own query cache (no refetch,
+// same pattern as useSynthesizeInsights) and patches the list cache's
+// hasPack/packGeneratedAt so the row flips to "Review Pack" immediately.
+export function useGeneratePack() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (appId: string) =>
+      api(`/applications/${appId}/pack`, { method: 'POST' }) as Promise<ResumePack>,
+    onSuccess: (data, appId) => {
+      queryClient.setQueryData(['applications', appId, 'pack'], data);
+      queryClient.setQueryData(['applications'], (old: unknown) =>
+        Array.isArray(old)
+          ? old.map((a) =>
+              (a as { id: string }).id === appId
+                ? { ...a, hasPack: true, packGeneratedAt: data.generatedAt }
+                : a,
+            )
+          : old,
+      );
     },
   });
 }

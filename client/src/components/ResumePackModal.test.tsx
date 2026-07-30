@@ -1,0 +1,46 @@
+import { screen, waitFor } from '@testing-library/react';
+import { renderWithRouter } from '../test/render';
+import { api } from '../lib/api';
+import { ResumePackModal } from './ResumePackModal';
+
+vi.mock('../lib/api', async () => {
+  const actual = await vi.importActual<typeof import('../lib/api')>('../lib/api');
+  return { ...actual, api: vi.fn() };
+});
+
+describe('ResumePackModal', () => {
+  it('renders the persisted pack content and a PDF download link', async () => {
+    vi.mocked(api).mockResolvedValue({
+      tailoredSummary: 'A grounded, tailored summary.',
+      experience: [
+        { title: 'Senior Engineer', company: 'Acme', dates: '2021–2024', highlights: ['Shipped the thing', 'Owned the pipeline'] },
+      ],
+      highlightedSkills: ['TypeScript', 'React'],
+      generatedAt: '2026-01-15T00:00:00Z',
+    });
+
+    renderWithRouter(
+      <ResumePackModal appId="app-1" jobTitle="Staff Engineer" company="Acme" open onClose={() => {}} />,
+    );
+
+    expect(await screen.findByText('A grounded, tailored summary.')).toBeInTheDocument();
+    expect(screen.getByText('Shipped the thing')).toBeInTheDocument();
+    expect(screen.getByText('Owned the pipeline')).toBeInTheDocument();
+    expect(screen.getByText(/TypeScript.*React/)).toBeInTheDocument();
+
+    const downloadLink = screen.getByRole('link', { name: /download pdf/i });
+    expect(downloadLink).toHaveAttribute('href', expect.stringContaining('/applications/app-1/pack/pdf'));
+    expect(downloadLink).toHaveAttribute('download');
+  });
+
+  it('shows nothing to review while the pack is still loading', async () => {
+    vi.mocked(api).mockReturnValue(new Promise(() => {}));
+
+    renderWithRouter(
+      <ResumePackModal appId="app-1" jobTitle="Staff Engineer" company="Acme" open onClose={() => {}} />,
+    );
+
+    await waitFor(() => expect(screen.getByText(/loading/i)).toBeInTheDocument());
+    expect(screen.queryByRole('link', { name: /download pdf/i })).not.toBeInTheDocument();
+  });
+});

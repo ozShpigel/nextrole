@@ -67,4 +67,9 @@ public interface IClaudeClient
     // wentWell/toImprove text). Always re-reads the raw retro text — never
     // summarizes its own prior output — so repeated regeneration can't drift.
     Task<InterviewInsightsSynthesis> GenerateInterviewInsightAsync(IReadOnlyList<Interview> retros, CancellationToken cancellationToken = default);
+
+    // Generate Pack: reorders/re-emphasizes the candidate's real profile
+    // toward one specific application's job description. Never invents facts
+    // — only selects, reorders, and lightly rephrases what's already in profile.
+    Task<ResumePackSynthesis> GenerateResumePackAsync(Application app, string profile, CancellationToken cancellationToken = default);
 }

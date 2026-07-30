@@ -4,9 +4,10 @@ import { renderWithRouter } from '../test/render';
 import { api } from '../lib/api';
 import ApplicationList from './ApplicationList';
 
-vi.mock('../lib/api', () => ({
-  api: vi.fn(),
-}));
+vi.mock('../lib/api', async () => {
+  const actual = await vi.importActual<typeof import('../lib/api')>('../lib/api');
+  return { ...actual, api: vi.fn() };
+});
 
 const daysAgo = (n: number) => new Date(Date.now() - n * 86400000).toISOString();
 
@@ -112,5 +113,79 @@ describe('ApplicationList sections', () => {
     expect(within(archiveDetails).getByText('Closed Role')).toBeInTheDocument();
     const awaiting = screen.getByRole('region', { name: /awaiting a reply/i });
     expect(within(awaiting).queryByText('Closed Role')).not.toBeInTheDocument();
+  });
+});
+
+describe('ApplicationList — résumé pack action (To Apply only)', () => {
+  // Path/method-aware mock — the single generic mock above (any api() call
+  // resolves the same list) isn't enough here since these tests also need
+  // /config and /applications/{id}/pack to behave differently per call.
+  function mockRoutes(routes: Record<string, unknown>) {
+    vi.mocked(api).mockImplementation((path: string, options?: { method?: string }) => {
+      const key = `${options?.method ?? 'GET'} ${path}`;
+      if (key in routes) return Promise.resolve(routes[key]);
+      throw new Error(`Unmocked api() call: ${key}`);
+    });
+  }
+
+  const toApplyApp = {
+    id: 't1', jobTitle: 'Queue Role', company: 'QueueCo', status: 'DecidedToApply',
+    matchScore: 70, matchVerdict: 'YES', createdAt: daysAgo(1), updatedAt: daysAgo(1),
+    nextInterviewAt: null, hasPack: false,
+  };
+
+  it('shows Generate Pack for a row without a pack, and flips to Review Pack once generated', async () => {
+    const user = userEvent.setup();
+    mockRoutes({
+      'GET /config': { demoMode: false },
+      'GET /applications': [toApplyApp],
+      'POST /applications/t1/pack': {
+        tailoredSummary: 'Tailored summary', experience: [], highlightedSkills: [],
+        generatedAt: '2026-01-01T00:00:00Z',
+      },
+    });
+    renderWithRouter(<ApplicationList />);
+    await waitFor(() => expect(screen.getByText('Queue Role')).toBeInTheDocument());
+
+    const generateBtn = screen.getByRole('button', { name: 'Generate résumé pack for QueueCo' });
+    await user.click(generateBtn);
+
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Review résumé pack for QueueCo' })).toBeInTheDocument(),
+    );
+  });
+
+  it('disables Generate Pack with the demo title under DemoMode', async () => {
+    mockRoutes({
+      'GET /config': { demoMode: true },
+      'GET /applications': [toApplyApp],
+    });
+    renderWithRouter(<ApplicationList />);
+    await waitFor(() => expect(screen.getByText('Queue Role')).toBeInTheDocument());
+
+    const generateBtn = await screen.findByRole('button', { name: 'Generate résumé pack for QueueCo' });
+    expect(generateBtn).toBeDisabled();
+    expect(generateBtn).toHaveAttribute('title', 'Disabled in the read-only demo');
+  });
+
+  it('opens the pack modal with the persisted content when Review Pack is clicked', async () => {
+    const user = userEvent.setup();
+    mockRoutes({
+      'GET /config': { demoMode: false },
+      'GET /applications': [{ ...toApplyApp, hasPack: true }],
+      'GET /applications/t1/pack': {
+        tailoredSummary: 'Grounded tailored summary',
+        experience: [{ title: 'Engineer', company: 'Co', dates: '2020–2022', highlights: ['Did the thing'] }],
+        highlightedSkills: ['TypeScript'],
+        generatedAt: '2026-01-01T00:00:00Z',
+      },
+    });
+    renderWithRouter(<ApplicationList />);
+    await waitFor(() => expect(screen.getByText('Queue Role')).toBeInTheDocument());
+
+    await user.click(screen.getByRole('button', { name: 'Review résumé pack for QueueCo' }));
+
+    expect(await screen.findByText('Grounded tailored summary')).toBeInTheDocument();
+    expect(screen.getByText('Did the thing')).toBeInTheDocument();
   });
 });

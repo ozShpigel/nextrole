@@ -13,6 +13,12 @@ const SCRAPER_BASE  = (import.meta.env.VITE_SCRAPER_URL || '').replace(/\/$/, ''
 // Surfaced when the read-only demo instance blocks a write (HTTP 403).
 const DEMO_BLOCKED_MSG = 'This action is disabled in the read-only demo.';
 
+// Builds a plain /api URL for cases that need a real href rather than a
+// fetch()+JSON round-trip — e.g. an <a download> link to a PDF endpoint.
+export function apiUrl(path: string): string {
+  return API_BASE ? `${API_BASE}/api${path}` : `/api${path}`;
+}
+
 export async function api(path: string, options: ApiOptions = {}) {
   const { headers, ...fetchOptions } = options;
   const url = API_BASE ? `${API_BASE}/api${path}` : `/api${path}`;

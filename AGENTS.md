@@ -45,6 +45,7 @@ cd server/scraper
 | Scoring pipeline, semantic search (RAG), title triage, company enrichment, on-demand AI | `docs/scoring-and-search.md` |
 | Editorial Broadsheet theme (tokens, page pattern, portal caveat, status colors) | `docs/design-system.md` |
 | Tracker list projection + Applications tab buckets | `docs/tracker.md` |
+| Generate Pack — AI-tailored résumé PDF per application | `docs/resume-pack.md` |
 | Interview prep, Q&A rubric, keyword cues, mock interview | `docs/interview-prep.md` |
 | Mailbot (Gmail sync, parsing rules, resync, OAuth) | `docs/mailbot.md` |
 | Demo mode, ApiKey gate, seeder | `docs/demo-mode.md` |

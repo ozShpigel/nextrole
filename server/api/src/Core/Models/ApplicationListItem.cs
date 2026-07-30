@@ -18,4 +18,8 @@ public sealed record ApplicationListItem
     public DateTime? NextInterviewAt { get; init; }
     public DateTime? NextInterviewEndsAt { get; init; }
     public string? NextInterviewer { get; init; }
+    // Whether a résumé pack has been generated for this application — lets the
+    // Applications tab show "Generate Pack" vs "Review Pack" without a per-row fetch.
+    public bool HasPack { get; init; }
+    public DateTime? PackGeneratedAt { get; init; }
 }

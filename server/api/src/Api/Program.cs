@@ -7,6 +7,9 @@ using ApplicationTracker.Core.Models;
 using ApplicationTracker.Infrastructure.Repositories;
 using MongoDB.Driver;
 using Scalar.AspNetCore;
+using QuestPDF.Infrastructure;
+
+QuestPDF.Settings.License = LicenseType.Community;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -74,6 +77,14 @@ builder.Services.AddRateLimiter(options =>
     // Interview Insights synthesis is a "regenerate" click, not a hot loop —
     // same order-of-magnitude cost as a single match/advise call.
     options.AddFixedWindowLimiter("insights", cfg =>
+    {
+        cfg.PermitLimit = 10;
+        cfg.Window = TimeSpan.FromMinutes(1);
+        cfg.QueueLimit = 0;
+    });
+    // Generate Pack is a per-application "regenerate" click, same shape as insights —
+    // plain cost control, no user-facing quota UI (single-user tool).
+    options.AddFixedWindowLimiter("pack", cfg =>
     {
         cfg.PermitLimit = 10;
         cfg.Window = TimeSpan.FromMinutes(1);
@@ -154,7 +165,10 @@ if (demoMode)
     var analysisAllowlist = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
     {
         "/api/match", "/api/match/advise", "/api/match/title-triage",
-        "/api/match/profile/normalize", "/api/match/profile/normalize-file",
+        // normalize-file removed — it now persists the uploaded ResumeFile, so
+        // it must 403 in demo like every other write; normalize (paste-text)
+        // stays allowlisted since it's still purely ephemeral analysis.
+        "/api/match/profile/normalize",
         "/api/mock-interview/turn",
         "/api/mock-interview/debrief", "/api/emails/parse",
     };
@@ -196,6 +210,7 @@ if (app.Environment.IsDevelopment())
 app.MapApplicationEndpoints();
 app.MapInterviewEndpoints();
 app.MapInterviewInsightsEndpoints();
+app.MapResumePackEndpoints();
 app.MapNoteEndpoints();
 app.MapStatsEndpoints();
 app.MapMatchEndpoints();

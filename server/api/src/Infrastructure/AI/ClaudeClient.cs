@@ -552,6 +552,30 @@ public sealed class ClaudeClient : IClaudeClient
         return sb.ToString();
     }
 
+    public async Task<ResumePackSynthesis> GenerateResumePackAsync(
+        Application app, string profile, CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Generating resume pack for: {Company} / {Title}", app.Company, app.JobTitle);
+
+        // System prompt: trusted instructions + the candidate's own (trusted)
+        // profile, same pattern as GenerateWhyWorkHereAsync. The target job
+        // goes in the user message, XML-wrapped as untrusted data.
+        var systemBuilder = new System.Text.StringBuilder(PromptSeeds.ResumePack);
+        if (!string.IsNullOrWhiteSpace(profile))
+            systemBuilder.Append("\n\n# CANDIDATE PROFILE\n").Append(profile.Trim());
+
+        var userBuilder = new System.Text.StringBuilder();
+        userBuilder.Append("<company>").Append(app.Company).Append("</company>\n");
+        userBuilder.Append("<job_title>").Append(app.JobTitle).Append("</job_title>\n");
+        if (!string.IsNullOrWhiteSpace(app.JobDescription))
+            userBuilder.Append("<job_description>").Append(app.JobDescription).Append("</job_description>\n");
+
+        var (result, _) = await CallClaudeAsync<ResumePackSynthesis>(
+            systemBuilder.ToString(), userBuilder.ToString(), _scoring.ResumePack, "resume-pack", cancellationToken);
+
+        return result;
+    }
+
     // Trusted context: base instruction + persona/language directives + the
     // user's own profile, the persona-matched self-presentation, project
     // pitches, and the prepared-question skeleton. All trusted (system prompt).

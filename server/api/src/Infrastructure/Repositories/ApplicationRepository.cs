@@ -11,6 +11,7 @@ public sealed class ApplicationRepository : IApplicationRepository
     private readonly IMongoCollection<Interview> _interviews;
     private readonly IMongoCollection<Note> _notes;
     private readonly IMongoCollection<StatusUpdate> _statusUpdates;
+    private readonly IMongoCollection<ResumePack> _resumePacks;
 
     private static readonly Collation CaseInsensitive = new("en", strength: CollationStrength.Secondary);
 
@@ -19,13 +20,15 @@ public sealed class ApplicationRepository : IApplicationRepository
         IMongoCollection<Application> applications,
         IMongoCollection<Interview> interviews,
         IMongoCollection<Note> notes,
-        IMongoCollection<StatusUpdate> statusUpdates)
+        IMongoCollection<StatusUpdate> statusUpdates,
+        IMongoCollection<ResumePack> resumePacks)
     {
         _mongoClient = mongoClient;
         _applications = applications;
         _interviews = interviews;
         _notes = notes;
         _statusUpdates = statusUpdates;
+        _resumePacks = resumePacks;
     }
 
     public async Task<(Application Application, bool Created)> CreateAsync(Application app, CancellationToken ct = default)
@@ -85,15 +88,37 @@ public sealed class ApplicationRepository : IApplicationRepository
         var upcoming = await _interviews
             .Find(i => i.ScheduledAt >= now && !i.Completed)
             .ToListAsync(ct);
-        if (upcoming.Count == 0) return items;
+        if (upcoming.Count > 0)
+        {
+            var nextByApp = upcoming
+                .GroupBy(i => i.ApplicationId)
+                .ToDictionary(g => g.Key, g => g.OrderBy(i => i.ScheduledAt).First());
 
-        var nextByApp = upcoming
-            .GroupBy(i => i.ApplicationId)
-            .ToDictionary(g => g.Key, g => g.OrderBy(i => i.ScheduledAt).First());
+            items = items
+                .Select(it => nextByApp.TryGetValue(it.Id, out var next)
+                    ? it with { NextInterviewAt = next.ScheduledAt, NextInterviewEndsAt = next.EndsAt, NextInterviewer = next.Interviewer }
+                    : it)
+                .ToList();
+        }
 
+        return await EnrichWithPackStatusAsync(items, ct);
+    }
+
+    // Cheap second query over the small resumePacks collection — same shape
+    // as the upcoming-interview enrichment above.
+    private async Task<List<ApplicationListItem>> EnrichWithPackStatusAsync(List<ApplicationListItem> items, CancellationToken ct)
+    {
+        var appIds = items.Select(it => it.Id).ToList();
+        var packs = await _resumePacks
+            .Find(p => appIds.Contains(p.ApplicationId))
+            .Project(p => new { p.ApplicationId, p.GeneratedAt })
+            .ToListAsync(ct);
+        if (packs.Count == 0) return items;
+
+        var packByApp = packs.ToDictionary(p => p.ApplicationId, p => p.GeneratedAt);
         return items
-            .Select(it => nextByApp.TryGetValue(it.Id, out var next)
-                ? it with { NextInterviewAt = next.ScheduledAt, NextInterviewEndsAt = next.EndsAt, NextInterviewer = next.Interviewer }
+            .Select(it => packByApp.TryGetValue(it.Id, out var generatedAt)
+                ? it with { HasPack = true, PackGeneratedAt = generatedAt }
                 : it)
             .ToList();
     }
@@ -119,6 +144,7 @@ public sealed class ApplicationRepository : IApplicationRepository
             await _interviews.DeleteManyAsync(session, i => i.ApplicationId == id, cancellationToken: ct);
             await _notes.DeleteManyAsync(session, n => n.ApplicationId == id, cancellationToken: ct);
             await _statusUpdates.DeleteManyAsync(session, s => s.ApplicationId == id, cancellationToken: ct);
+            await _resumePacks.DeleteManyAsync(session, p => p.ApplicationId == id, cancellationToken: ct);
             await _applications.DeleteOneAsync(session, a => a.Id == id, cancellationToken: ct);
             await session.CommitTransactionAsync(ct);
         }

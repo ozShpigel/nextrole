@@ -1,6 +1,8 @@
 using ApplicationTracker.Api.DTOs;
 using ApplicationTracker.Core.Matching;
+using ApplicationTracker.Core.Models;
 using ApplicationTracker.Core.Profile;
+using ApplicationTracker.Core.Repositories;
 using Microsoft.AspNetCore.Mvc;
 
 namespace ApplicationTracker.Api.Endpoints;
@@ -10,6 +12,45 @@ public static class MatchEndpoints
     // Cap on the manual matching-signal lists (strengths / core values);
     // mirrored by the ChipInput max in the Settings UI.
     private const int MaxSignalItems = 3;
+
+    // Cheap page count for the Resume tab's pager — no PDF library dependency
+    // for what's a cosmetic count. Reads the raw object structure directly:
+    // Latin1 is a byte-for-byte-safe decode for PDF syntax (ASCII operators
+    // interleaved with binary streams), then look for the page-tree root's
+    // /Count entry. Falls back to counting individual /Type /Page objects if
+    // no /Pages node with a /Count is found. Null (never fails the upload) if
+    // neither pattern matches.
+    private static readonly System.Text.RegularExpressions.Regex PagesNodeRegex =
+        new(@"/Type\s*/Pages\b", System.Text.RegularExpressions.RegexOptions.Compiled);
+    private static readonly System.Text.RegularExpressions.Regex CountRegex =
+        new(@"/Count\s+(\d+)", System.Text.RegularExpressions.RegexOptions.Compiled);
+    private static readonly System.Text.RegularExpressions.Regex PageObjectRegex =
+        new(@"/Type\s*/Page(?!s)\b", System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    private static int? CountPdfPages(byte[] bytes)
+    {
+        try
+        {
+            var text = System.Text.Encoding.Latin1.GetString(bytes);
+            var max = 0;
+            foreach (System.Text.RegularExpressions.Match node in PagesNodeRegex.Matches(text))
+            {
+                var start = Math.Max(0, node.Index - 300);
+                var window = text.Substring(start, Math.Min(600, text.Length - start));
+                var countMatch = CountRegex.Match(window);
+                if (countMatch.Success && int.TryParse(countMatch.Groups[1].Value, out var n) && n > max)
+                    max = n;
+            }
+            if (max > 0) return max;
+
+            var pageCount = PageObjectRegex.Matches(text).Count;
+            return pageCount > 0 ? pageCount : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
 
     public static WebApplication MapMatchEndpoints(this WebApplication app)
     {
@@ -278,10 +319,14 @@ public static class MatchEndpoints
         .WithSummary("Normalize pasted free-text experience/skills into structured profile fields");
 
         // Same normalization, but from an uploaded résumé file. PDF is handed to
-        // Claude as a native document block; TXT reuses the free-text path.
+        // Claude as a native document block; TXT reuses the free-text path. The
+        // raw file is also persisted (ResumeFile) so the Profile page can show
+        // what was actually uploaded — this is why this endpoint is a write and
+        // no longer belongs in the demo analysisAllowlist (see Program.cs).
         app.MapPost("/api/match/profile/normalize-file", async (
             IFormFile file,
             ApplicationTracker.Core.AI.IClaudeClient claude,
+            IResumeFileRepository resumeFileRepo,
             ILogger<Program> logger,
             CancellationToken ct) =>
         {
@@ -303,7 +348,17 @@ public static class MatchEndpoints
                 {
                     using var ms = new MemoryStream();
                     await file.CopyToAsync(ms, ct);
-                    normalized = await claude.NormalizeProfileFromPdfAsync(ms.ToArray(), ct);
+                    var bytes = ms.ToArray();
+
+                    // Persist before parsing — the upload survives even if Claude
+                    // parsing fails, so the user can retry without re-uploading.
+                    await resumeFileRepo.UpsertAsync(new ResumeFile
+                    {
+                        Bytes = bytes, FileName = name, ContentType = "application/pdf",
+                        PageCount = CountPdfPages(bytes),
+                    }, ct);
+
+                    normalized = await claude.NormalizeProfileFromPdfAsync(bytes, ct);
                 }
                 else
                 {
@@ -313,6 +368,12 @@ public static class MatchEndpoints
                         return Results.BadRequest(new { error = "the file is empty" });
                     if (text.Length > 50_000)
                         text = text[..50_000];
+
+                    await resumeFileRepo.UpsertAsync(new ResumeFile
+                    {
+                        Bytes = System.Text.Encoding.UTF8.GetBytes(text), FileName = name, ContentType = "text/plain",
+                    }, ct);
+
                     normalized = await claude.NormalizeProfileAsync(text, ct);
                 }
                 return Results.Ok(normalized);
@@ -334,6 +395,43 @@ public static class MatchEndpoints
         .RequireRateLimiting("match")
         .WithName("NormalizeProfileFile")
         .WithSummary("Normalize an uploaded résumé (PDF or TXT) into structured profile fields");
+
+        // Metadata for the currently-stored résumé file — plain read, never demo-gated.
+        app.MapGet("/api/match/profile/resume-file", async (
+            IResumeFileRepository resumeFileRepo,
+            CancellationToken ct) =>
+        {
+            var file = await resumeFileRepo.GetAsync(ct);
+            if (file is null) return Results.NotFound();
+
+            return Results.Ok(new
+            {
+                fileName = file.FileName,
+                contentType = file.ContentType,
+                uploadedAt = file.UploadedAt,
+                pageCount = file.PageCount,
+                // Small enough to inline for TXT; PDF is fetched separately via
+                // /resume-file/download and rendered inline in an <embed>.
+                textContent = file.ContentType == "text/plain"
+                    ? System.Text.Encoding.UTF8.GetString(file.Bytes)
+                    : null,
+            });
+        })
+        .WithName("GetResumeFileMeta")
+        .WithSummary("Get metadata (and text content, if a .txt) for the currently-stored résumé file");
+
+        // Raw bytes — no Content-Disposition filename, so browsers render PDFs
+        // inline (via <embed>) instead of forcing a download. Plain read.
+        app.MapGet("/api/match/profile/resume-file/download", async (
+            IResumeFileRepository resumeFileRepo,
+            CancellationToken ct) =>
+        {
+            var file = await resumeFileRepo.GetAsync(ct);
+            if (file is null) return Results.NotFound();
+            return Results.File(file.Bytes, file.ContentType);
+        })
+        .WithName("DownloadResumeFile")
+        .WithSummary("Stream the currently-stored résumé file for inline preview");
 
         app.MapGet("/api/match/profile/history/{field}", async (
             string field,

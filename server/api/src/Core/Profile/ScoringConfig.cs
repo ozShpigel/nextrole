@@ -50,6 +50,11 @@ public sealed record ScoringConfig
     // a hot loop) — default MaxTokens covers a handful of themes comfortably.
     public RoleScoringConfig InterviewInsights { get; init; } = new() { MaxTokens = 4096, Temperature = 0.4m };
 
+    // Resume Pack: reorder/re-emphasize the candidate's real experience toward
+    // one specific job posting. "Regenerate" click, not a hot loop — lower
+    // temperature than free-form prose since this must stay grounded, not creative.
+    public RoleScoringConfig ResumePack { get; init; } = new() { MaxTokens = 3072, Temperature = 0.3m };
+
     public int MinScoreToSave { get; init; } = 70;
 
     public VerdictBands VerdictBands { get; init; } = new();

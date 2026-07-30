@@ -3,8 +3,6 @@ import { api, matchApi, discoveryApi } from './api';
 import { ACTIVE_RUN_STATUSES } from './discovery';
 import type {
   ProfileResponse,
-  ProfileHistoryResponse,
-  HistoryField,
   InterviewPrepResponse,
   InterviewPrepHistoryField,
   MockSessionListItem,
@@ -12,6 +10,8 @@ import type {
   SearchQueryResponse,
   InterviewRetroListItem,
   InterviewInsightResponse,
+  ResumePack,
+  ResumeFileMeta,
 } from './types';
 
 // The cached HyDE search facets — powers the Search page's focus chips.
@@ -103,13 +103,23 @@ export function useProfile() {
   });
 }
 
-export function useProfileHistory(field: HistoryField, enabled: boolean) {
-  return useQuery<ProfileHistoryResponse>({
-    queryKey: ['match', 'profile', 'history', field],
-    queryFn: () => matchApi(`/profile/history/${field}`),
-    enabled,
+// The currently-stored uploaded résumé file, if any. 404 means "none
+// uploaded yet" — a normal state, not an error, so it's mapped to null
+// rather than left to bubble up as a query error.
+export function useResumeFile() {
+  return useQuery<ResumeFileMeta | null>({
+    queryKey: ['match', 'profile', 'resume-file'],
+    queryFn: async () => {
+      try {
+        return await matchApi('/profile/resume-file');
+      } catch (e) {
+        if ((e as { status?: number }).status === 404) return null;
+        throw e;
+      }
+    },
   });
 }
+
 
 export function useInterviewPrep() {
   return useQuery<InterviewPrepResponse>({
@@ -145,6 +155,17 @@ export function useApplicationDetail(id: string) {
   return useQuery({
     queryKey: ['applications', id],
     queryFn: () => api(`/applications/${id}`),
+  });
+}
+
+// The tailored résumé pack for one application, if generated. Only enabled
+// when the Review Pack view is actually open — the list already carries
+// hasPack/packGeneratedAt so this fetch isn't needed just to render the row.
+export function usePack(appId: string, enabled: boolean) {
+  return useQuery<ResumePack>({
+    queryKey: ['applications', appId, 'pack'],
+    queryFn: () => api(`/applications/${appId}/pack`),
+    enabled,
   });
 }
 

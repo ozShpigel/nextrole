@@ -18,7 +18,22 @@ export interface SkillGroups {
   other: string[];
 }
 
+// The raw uploaded résumé file (PDF or TXT) — separate from the parsed
+// StructuredProfile fields it produced. null fields = none uploaded yet.
+export interface ResumeFileMeta {
+  fileName: string;
+  contentType: string;
+  uploadedAt: string;
+  textContent: string | null; // populated only for .txt uploads
+  pageCount: number | null; // PDF only — powers the Resume tab's custom pager
+}
+
 export interface StructuredProfile {
+  // Contact fields — used only for the Generate Pack résumé header.
+  fullName?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  location?: string | null;
   summary: string;
   seniority?: string | null;
   domains: string[];
@@ -34,6 +49,10 @@ export interface StructuredProfile {
 // Output of POST /api/match/profile/normalize (experience/skills/education;
 // strengths/core values are never auto-generated).
 export interface NormalizedProfile {
+  fullName?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  location?: string | null;
   summary: string;
   seniority?: string | null;
   domains: string[];
@@ -139,9 +158,8 @@ export interface SemanticSearchResponse {
   advisor: AdvisorBrief | null;
 }
 
-// Version history. The structured profile is versioned under the 'profile' field.
-export type HistoryField = 'profile';
-
+// Version history — shared shape; the interview-prep fields are the only
+// remaining consumer (the Profile page's own history UI was removed).
 export interface ProfileHistoryEntry {
   index: number;
   savedAt?: string | null;
@@ -209,6 +227,24 @@ export interface InterviewInsightResponse {
   newRetroCount: number;            // retros added since `insight.generatedAt`
   totalRetroCount: number;
   insufficientData: boolean;        // totalRetroCount < 2
+}
+
+// Generate Pack — an AI-tailored résumé for one specific application. Reorders/
+// re-emphasizes the candidate's real profile toward the job description; the
+// PDF itself is rendered server-side on demand (GET /applications/{id}/pack/pdf),
+// not stored — this type is just the reviewable structured content.
+export interface TailoredExperienceItem {
+  title: string;
+  company: string;
+  dates: string;
+  highlights: string[];
+}
+
+export interface ResumePack {
+  tailoredSummary: string;
+  experience: TailoredExperienceItem[];
+  highlightedSkills: string[];
+  generatedAt: string;
 }
 
 export interface InterviewPrepResponse {

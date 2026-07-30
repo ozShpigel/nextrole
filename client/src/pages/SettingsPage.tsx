@@ -1,57 +1,35 @@
 import { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { useProfile, useProfileHistory } from '../lib/queries';
-import { useSaveProfile, useRestoreHistory, useNormalizeProfile, useNormalizeProfileFile } from '../lib/mutations';
-import type {
-  ProfileResponse, StructuredProfile, ExperienceItem, SkillGroups, NormalizedProfile, HistoryField,
-} from '../lib/types';
+import { User, FileText, Upload, RefreshCw, Award, ChevronLeft, ChevronRight } from 'lucide-react';
+import { useProfile, useResumeFile } from '../lib/queries';
+import { useSaveProfile, useNormalizeProfileFile } from '../lib/mutations';
+import { apiUrl } from '../lib/api';
+import type { ProfileResponse, StructuredProfile, SkillGroups, NormalizedProfile } from '../lib/types';
 import { Skeleton } from '../components/ui/skeleton';
 import { ChipInput } from '../components/ChipInput';
-import { SaveResult, HistoryDropdown, type SaveResultData } from '../components/settings-shared';
 
-// Editorial button — broadsheet stamp on the --ed-* palette.
-type BtnVariant = 'default' | 'outline' | 'destructive' | 'secondary';
-function Button(
-  { variant = 'default', size, className = '', children, ...rest }:
-  { variant?: BtnVariant; size?: 'sm' | 'default'; className?: string; children: React.ReactNode } &
-  React.ButtonHTMLAttributes<HTMLButtonElement>,
-) {
-  const base = 'inline-flex items-center justify-center gap-1.5 rounded-full border font-semibold uppercase tracking-[0.08em] transition-all disabled:opacity-45 disabled:pointer-events-none';
-  const sz = size === 'sm' ? 'px-3 py-[0.42rem] text-[0.64rem]' : 'px-4 py-[0.55rem] text-[0.68rem]';
-  const variants: Record<BtnVariant, string> = {
-    default:     'border-[var(--ed-accent)] bg-[var(--ed-accent)] text-[var(--ed-paper)] hover:bg-[var(--ed-accent-deep)]',
-    outline:     'bg-transparent border-[var(--ed-rule)] text-[var(--ed-ink-soft)] hover:border-[var(--ed-ink)] hover:text-[var(--ed-ink)]',
-    destructive: 'bg-transparent border-[var(--ed-rule)] text-[var(--ed-no)] hover:border-[var(--ed-no)] hover:bg-[var(--ed-no)]/10',
-    secondary:   'border-[var(--ed-ink)] bg-[var(--ed-ink)] text-[var(--ed-paper)] hover:opacity-90',
-  };
-  return (
-    <button type="button" className={`${base} ${sz} ${variants[variant]} ${className}`} {...rest}>
-      {children}
-    </button>
-  );
+type Tab = 'about' | 'values' | 'resume';
+
+function initials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '?';
+  return (parts[0][0] + (parts[1]?.[0] ?? '')).toUpperCase();
 }
 
-const EDITOR_CLS = 'w-full p-[1rem_1.1rem] border border-[var(--ed-rule)] bg-[var(--ed-panel)]/40 text-[var(--ed-ink)] font-code text-[0.82rem] resize-y outline-none leading-[1.7] text-left whitespace-pre-wrap transition-colors hover:border-[var(--ed-ink-faint)] focus:border-[var(--ed-accent)]';
+
 const FIELD_INPUT = 'w-full py-[0.5rem] px-[0.75rem] bg-transparent border border-[var(--ed-rule)] text-[var(--ed-ink)] text-[0.85rem] font-code text-left transition-colors hover:border-[var(--ed-ink-faint)] focus:border-[var(--ed-accent)] focus:outline-none';
 const FIELD_LABEL = 'text-[0.62rem] text-[var(--ed-ink-faint)] tracking-[0.16em] uppercase font-semibold';
 const META_TEXT = 'text-[0.72rem] text-[var(--ed-ink-faint)] tabular-nums tracking-[0.05em] font-medium';
 
 const EMPTY_SKILLS: SkillGroups = { languages: [], frameworks: [], infrastructure: [], databases: [], other: [] };
 const EMPTY_PROFILE: StructuredProfile = {
+  fullName: '', email: '', phone: '', location: '',
   summary: '', seniority: '', domains: [], experience: [], skills: EMPTY_SKILLS,
   education: [], strengths: [], coreValues: [], rawExperienceText: '',
 };
 
-// Curated quick-add presets for the chip inputs — generic, role-agnostic
-// starting points the user can tap instead of typing. Not exhaustive; free
-// typing still works for anything not listed.
-const SKILL_SUGGESTIONS: Record<keyof SkillGroups, string[]> = {
-  languages: ['TypeScript', 'JavaScript', 'Python', 'C#', 'Go', 'Java', 'SQL', 'Rust', 'Kotlin', 'Swift'],
-  frameworks: ['React', 'Next.js', 'Node.js', '.NET', 'Vue', 'Angular', 'Express', 'FastAPI', 'Spring', 'Django'],
-  infrastructure: ['AWS', 'Docker', 'Kubernetes', 'GCP', 'Azure', 'Terraform', 'CI/CD', 'Linux'],
-  databases: ['PostgreSQL', 'MongoDB', 'MySQL', 'Redis', 'Elasticsearch', 'SQLite', 'DynamoDB'],
-  other: ['REST APIs', 'GraphQL', 'Microservices', 'gRPC', 'Kafka', 'Agile/Scrum', 'TDD', 'System Design'],
-};
+// Manual, never auto-extracted — kept editable even though everything else
+// (Summary/Experience/Skills/Education) only comes from Upload/Paste now.
 const STRENGTH_SUGGESTIONS = [
   'Complexity reduction', 'Reliability mindset', 'Understanding-to-enablement', 'Automation leverage',
   'End-to-end ownership', 'Persistent depth', 'Sustainable delivery', 'Trade-off thinking',
@@ -61,11 +39,6 @@ const VALUE_SUGGESTIONS = [
   'Perseverance and follow-through', 'Honesty and transparency', 'Continuous growth',
   'Enabling others', 'Respect for focus', 'Sustainability over heroics', 'Pragmatism over perfection',
 ];
-
-const lines = (s: string): string[] => s.split('\n').map((l) => l.trim()).filter(Boolean);
-const csv = (s: string): string[] => s.split(',').map((l) => l.trim()).filter(Boolean);
-const toLines = (a: string[]): string => (a ?? []).join('\n');
-const toCsv = (a: string[]): string => (a ?? []).join(', ');
 
 // Normalize a profile loaded from the API into a fully-populated shape so the
 // controlled inputs never see undefined.
@@ -84,31 +57,25 @@ function hydrate(p?: StructuredProfile | null): StructuredProfile {
 
 export default function SettingsPage() {
   const [profile, setProfile] = useState<StructuredProfile>(EMPTY_PROFILE);
-  const [original, setOriginal] = useState<StructuredProfile>(EMPTY_PROFILE);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
-
-  const [saving, setSaving] = useState(false);
-  const [result, setResult] = useState<SaveResultData | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [normalizeError, setNormalizeError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<Tab>('about');
+  const [pdfPage, setPdfPage] = useState(1);
 
   const profileQuery = useProfile();
+  const resumeFileQuery = useResumeFile();
   const saveProfileMutation = useSaveProfile();
-  const normalizeMutation = useNormalizeProfile();
   const normalizeFileMutation = useNormalizeProfileFile();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [initialized, setInitialized] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
 
-  function applyProfileData(data: ProfileResponse): void {
-    const h = hydrate(data?.structured);
-    setProfile(h);
-    setOriginal(h);
-    setLastUpdated(data?.updated_at ?? null);
-  }
-
   useEffect(() => {
     if (profileQuery.data && !initialized) {
-      applyProfileData(profileQuery.data as ProfileResponse);
+      const data = profileQuery.data as ProfileResponse;
+      setProfile(hydrate(data.structured));
+      setLastUpdated(data.updated_at ?? null);
       setInitialized(true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -116,56 +83,53 @@ export default function SettingsPage() {
 
   const loading = profileQuery.isLoading;
   const error = profileQuery.error?.message ?? null;
-  const isDirty = JSON.stringify(profile) !== JSON.stringify(original);
 
-  // Partial updates that also clear the stale save banner.
-  function patch(p: Partial<StructuredProfile>): void {
-    setProfile((prev) => ({ ...prev, ...p }));
-    setResult(null);
-  }
-  function patchSkills(p: Partial<SkillGroups>): void {
-    setProfile((prev) => ({ ...prev, skills: { ...prev.skills, ...p } }));
-    setResult(null);
-  }
-  function patchRole(i: number, p: Partial<ExperienceItem>): void {
-    setProfile((prev) => ({
-      ...prev,
-      experience: prev.experience.map((r, idx) => (idx === i ? { ...r, ...p } : r)),
-    }));
-    setResult(null);
-  }
-  function addRole(): void {
-    patch({ experience: [...profile.experience, { title: '', company: '', dates: '', highlights: [] }] });
-  }
-  function removeRole(i: number): void {
-    patch({ experience: profile.experience.filter((_, idx) => idx !== i) });
-  }
-
-  // Merge the extracted experience/skills/education; keep manual
-  // strengths/values + the raw paste.
-  function applyNormalized(n: NormalizedProfile): void {
-    setProfile((prev) => ({
-      ...prev,
-      summary: n.summary ?? '',
-      seniority: n.seniority ?? '',
-      domains: n.domains ?? [],
-      experience: n.experience ?? [],
-      skills: { ...EMPTY_SKILLS, ...(n.skills ?? {}) },
-      education: n.education ?? [],
-    }));
-  }
-
-  async function normalize(): Promise<void> {
-    setNormalizeError(null);
-    setResult(null);
-    if (!profile.rawExperienceText.trim()) {
-      setNormalizeError('Paste your experience and skills first.');
-      return;
-    }
+  // Every field on this page auto-saves — no "Save profile" button. Each
+  // call PUTs the full profile (the only save endpoint that exists), just
+  // triggered immediately instead of behind a button.
+  async function persist(next: StructuredProfile): Promise<void> {
+    setProfile(next);
+    setSaveError(null);
     try {
-      applyNormalized(await normalizeMutation.mutateAsync(profile.rawExperienceText) as NormalizedProfile);
+      const data = await saveProfileMutation.mutateAsync(next as unknown as Record<string, unknown>) as ProfileResponse;
+      setLastUpdated(data?.updated_at ?? null);
+      setProfile(hydrate(data?.structured ?? next));
     } catch (e) {
-      setNormalizeError(`Normalization failed: ${(e as Error).message}`);
+      setSaveError(`Couldn't save: ${(e as Error).message}`);
+    }
+  }
+
+  function saveContact(field: 'fullName' | 'email' | 'phone' | 'location', value: string): void {
+    persist({ ...profile, [field]: value });
+  }
+
+  function saveChips(field: 'strengths' | 'coreValues', value: string[]): void {
+    persist({ ...profile, [field]: value });
+  }
+
+  // Merge the extracted experience/skills/education/contact and save
+  // immediately — no review UI, so there's no reason to wait for a click.
+  // Contact fields only overwrite when the source actually stated them.
+  async function normalizeAndSave(run: () => Promise<NormalizedProfile>): Promise<void> {
+    setNormalizeError(null);
+    try {
+      const n = await run();
+      await persist({
+        ...profile,
+        fullName: n.fullName || profile.fullName,
+        email: n.email || profile.email,
+        phone: n.phone || profile.phone,
+        location: n.location || profile.location,
+        summary: n.summary ?? '',
+        seniority: n.seniority ?? '',
+        domains: n.domains ?? [],
+        experience: n.experience ?? [],
+        skills: { ...EMPTY_SKILLS, ...(n.skills ?? {}) },
+        education: n.education ?? [],
+      });
+      resumeFileQuery.refetch();
+    } catch (e) {
+      setNormalizeError(`Couldn't parse résumé: ${(e as Error).message}`);
     }
   }
 
@@ -173,32 +137,7 @@ export default function SettingsPage() {
     const file = e.target.files?.[0];
     e.target.value = ''; // allow re-selecting the same file
     if (!file) return;
-    setNormalizeError(null);
-    setResult(null);
-    try {
-      applyNormalized(await normalizeFileMutation.mutateAsync(file) as NormalizedProfile);
-    } catch (err) {
-      setNormalizeError(`Couldn't parse résumé: ${(err as Error).message}`);
-    }
-  }
-
-  async function save(): Promise<void> {
-    setSaving(true);
-    setResult(null);
-    try {
-      const data = await saveProfileMutation.mutateAsync(
-        profile as unknown as Record<string, unknown>,
-      ) as ProfileResponse;
-      setLastUpdated(data?.updated_at ?? null);
-      const h = hydrate(data?.structured ?? profile);
-      setProfile(h);
-      setOriginal(h);
-      setResult({ type: 'success', message: 'Profile saved successfully' });
-    } catch (e) {
-      setResult({ type: 'error', message: `Error saving: ${(e as Error).message}` });
-    } finally {
-      setSaving(false);
-    }
+    await normalizeAndSave(() => normalizeFileMutation.mutateAsync(file) as Promise<NormalizedProfile>);
   }
 
   // Homepage "Upload your résumé" CTA lands here with ?upload=1 — open the
@@ -215,28 +154,19 @@ export default function SettingsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading]);
 
+  // A freshly-uploaded (or reloaded) résumé always starts back on page 1.
+  useEffect(() => {
+    setPdfPage(1);
+  }, [resumeFileQuery.data?.fileName, resumeFileQuery.data?.uploadedAt]);
+
   if (loading) return <SettingsLoadingSkeleton />;
+
+  const resumeFile = resumeFileQuery.data;
+  const latestTitle = profile.experience[0]?.title || null;
 
   return (
     <div className="editorial editorial-grain min-h-screen">
-    <div className="relative z-[1] max-w-[960px] mx-auto px-8 pt-14 pb-32 animate-in fade-in slide-in-from-bottom-1 duration-500 max-sm:px-5 max-sm:pt-10 max-sm:pb-16">
-
-      <header className="mb-14 relative">
-        <div className="flex items-baseline justify-between gap-4 pb-[10px] border-b border-[var(--ed-rule)] text-[0.62rem] font-semibold uppercase tracking-[0.22em] text-[var(--ed-ink-faint)]">
-          <span>The Standards Desk</span>
-          <span className="hidden sm:block text-[var(--ed-accent)]">Your candidate profile</span>
-        </div>
-        <h1 className="ed-display font-black text-[clamp(2.6rem,6.5vw,4.4rem)] leading-[0.9] tracking-[-0.022em] text-[var(--ed-ink)] pt-4">
-          Profile
-        </h1>
-        <p className="mt-3 max-w-[600px] text-[var(--ed-ink-soft)] text-[0.98rem] leading-[1.65]">
-          Your professional profile — the input Claude uses for job analysis and matching.
-          Paste your experience and skills and let the normalizer structure them; add your
-          strengths and core values by hand. The scoring prompts and model parameters are
-          managed as server configuration.
-        </p>
-        <div className="mt-6 border-t-[3px] border-double border-[var(--ed-rule-strong)]" />
-      </header>
+    <div className="relative z-[1] max-w-[1000px] mx-auto px-8 pt-14 pb-32 animate-in fade-in slide-in-from-bottom-1 duration-500 max-sm:px-5 max-sm:pt-10 max-sm:pb-16">
 
       {error && (
         <div className="bg-[var(--ed-no)]/[0.07] border border-[var(--ed-no)]/30 py-[0.85rem] px-[1.15rem] mb-8 text-[var(--ed-no)] text-[0.85rem]">
@@ -244,204 +174,281 @@ export default function SettingsPage() {
         </div>
       )}
 
-      <section className="mb-16 relative animate-in fade-in slide-in-from-bottom-2 duration-300" id="settings-section-01">
-        <SectionHeader
-          num="01"
-          name="Professional Profile"
-          right={<MetaPill>{lastUpdated ? `Updated ${new Date(lastUpdated).toLocaleDateString('en-US')}` : 'Source: sample'}</MetaPill>}
-        />
+      <div className="grid grid-cols-[220px_1fr] gap-14 max-sm:grid-cols-1 max-sm:gap-8 items-start">
 
-        {/* Experience & skills — upload a résumé, or paste + normalize */}
-        <FieldGroup
-          title="Experience & skills"
-          desc="Upload your résumé (PDF or TXT) to fill Summary & Experience automatically, or paste your background and Normalize. Review and edit the result below."
-        >
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".pdf,.txt,application/pdf,text/plain"
-            onChange={onResumeFile}
-            className="hidden"
-            data-testid="resume-file-input"
-          />
-          <div className="flex items-center gap-3 mb-3 flex-wrap">
-            <Button size="sm" variant="secondary" onClick={() => fileInputRef.current?.click()} disabled={normalizeFileMutation.isPending}>
-              {normalizeFileMutation.isPending ? 'Parsing résumé…' : 'Upload résumé'}
-            </Button>
-            <span className={META_TEXT}>PDF or TXT — fills Summary & Experience below</span>
+        {/* Left rail — profile card + tab nav, mirrors the dreamworkhq layout
+            this was modeled on. Only About You / Resume are real tabs here —
+            NextRole has no Job preferences/Work vault/Subscription etc. */}
+        <aside className="max-sm:order-first">
+          <div className="flex flex-col items-start gap-[0.35rem] mb-8">
+            <div className="w-14 h-14 rounded-full bg-[var(--ed-accent)]/15 border border-[var(--ed-accent)]/40 flex items-center justify-center ed-display text-[1.1rem] font-bold text-[var(--ed-accent)] mb-3">
+              {initials(profile.fullName || '?')}
+            </div>
+            <h2 className="ed-display text-[1.15rem] font-bold text-[var(--ed-ink)] leading-tight">
+              {profile.fullName || 'Your profile'}
+            </h2>
+            {latestTitle && <span className="text-[0.8rem] text-[var(--ed-ink-soft)]">{latestTitle}</span>}
+            {profile.location && <span className="text-[0.76rem] text-[var(--ed-ink-faint)]" dir="auto">{profile.location}</span>}
           </div>
-          <textarea
-            className={`${EDITOR_CLS} min-h-[160px]`}
-            value={profile.rawExperienceText}
-            onChange={(e) => patch({ rawExperienceText: e.target.value })}
-            placeholder="…or paste your roles, accomplishments, and skills here"
-            dir="auto"
-            spellCheck={false}
-          />
-          <div className="flex items-center gap-3 mt-2 flex-wrap">
-            <Button size="sm" onClick={normalize} disabled={normalizeMutation.isPending || !profile.rawExperienceText.trim()}>
-              {normalizeMutation.isPending ? 'Normalizing…' : 'Normalize'}
-            </Button>
-            <span className={META_TEXT}>{profile.rawExperienceText.length.toLocaleString()} chars</span>
-            {normalizeError && <span className="text-[0.78rem] text-[var(--ed-no)]">{normalizeError}</span>}
-          </div>
-        </FieldGroup>
 
-        {/* Normalized: summary / seniority / domains */}
-        <FieldGroup title="Summary">
-          <textarea
-            className={`${EDITOR_CLS} min-h-[64px]`}
-            value={profile.summary}
-            onChange={(e) => patch({ summary: e.target.value })}
-            placeholder="One or two factual sentences (auto-filled by Normalize; editable)."
-            dir="auto"
-            spellCheck={false}
-          />
-          <div className="grid grid-cols-2 gap-3 mt-3 max-sm:grid-cols-1">
-            <label className="flex flex-col gap-[0.4rem]">
-              <span className={FIELD_LABEL}>Seniority</span>
-              <input className={FIELD_INPUT} value={profile.seniority ?? ''} onChange={(e) => patch({ seniority: e.target.value })} placeholder="e.g. Senior" />
-            </label>
-            <label className="flex flex-col gap-[0.4rem]">
-              <span className={FIELD_LABEL}>Domains (comma-separated)</span>
-              <input className={FIELD_INPUT} value={toCsv(profile.domains)} onChange={(e) => patch({ domains: csv(e.target.value) })} placeholder="e.g. fintech, healthtech" />
-            </label>
-          </div>
-        </FieldGroup>
+          <nav className="flex flex-col gap-[0.35rem] max-sm:flex-row max-sm:flex-wrap">
+            <SidebarTab active={activeTab === 'about'} onClick={() => setActiveTab('about')} icon={<User size={15} />} label="About You" />
+            <SidebarTab active={activeTab === 'values'} onClick={() => setActiveTab('values')} icon={<Award size={15} />} label="Work Values" />
+            <SidebarTab active={activeTab === 'resume'} onClick={() => setActiveTab('resume')} icon={<FileText size={15} />} label="Resume" />
+          </nav>
+        </aside>
 
-        {/* Experience items */}
-        <FieldGroup title="Experience" desc="One entry per role.">
-          <div className="flex flex-col gap-4">
-            {profile.experience.map((role, i) => (
-              <div key={i} className="border border-[var(--ed-rule)] bg-[var(--ed-panel)]/30 p-[1rem_1.1rem]">
-                <div className="grid grid-cols-3 gap-3 max-sm:grid-cols-1">
-                  <input className={FIELD_INPUT} value={role.title} onChange={(e) => patchRole(i, { title: e.target.value })} placeholder="Title" />
-                  <input className={FIELD_INPUT} value={role.company} onChange={(e) => patchRole(i, { company: e.target.value })} placeholder="Company" />
-                  <input className={FIELD_INPUT} value={role.dates} onChange={(e) => patchRole(i, { dates: e.target.value })} placeholder="Dates (e.g. 2021–Present)" />
-                </div>
-                <div className="mt-2 flex flex-col gap-[0.4rem]">
-                  <span className={FIELD_LABEL}>Highlights (one per line)</span>
-                  <textarea
-                    className={`${EDITOR_CLS} min-h-[80px]`}
-                    value={toLines(role.highlights)}
-                    onChange={(e) => patchRole(i, { highlights: lines(e.target.value) })}
-                    dir="auto"
-                    spellCheck={false}
-                  />
-                </div>
-                <div className="flex justify-end mt-2">
-                  <Button variant="destructive" size="sm" onClick={() => removeRole(i)}>Remove role</Button>
-                </div>
+        <div>
+          {activeTab === 'about' && (
+            <section className="animate-in fade-in slide-in-from-bottom-2 duration-300" id="settings-about-you">
+              <TabHeader icon={<User size={18} />} name="About You" right={<MetaPill>{lastUpdated ? `Updated ${new Date(lastUpdated).toLocaleDateString('en-US')}` : 'Source: sample'}</MetaPill>} />
+
+              <div className="border border-[var(--ed-rule)] bg-[var(--ed-panel)]/30 divide-y divide-[var(--ed-rule)]">
+                <ContactRow label="Full name" value={profile.fullName} onSave={(v) => saveContact('fullName', v)} />
+                <ContactRow label="Email" type="email" value={profile.email} onSave={(v) => saveContact('email', v)} />
+                <ContactRow label="Phone" value={profile.phone} onSave={(v) => saveContact('phone', v)} />
+                <ContactRow label="Location" value={profile.location} onSave={(v) => saveContact('location', v)} />
               </div>
-            ))}
-            <div><Button variant="outline" size="sm" onClick={addRole}>+ Add role</Button></div>
-          </div>
-        </FieldGroup>
+              {saveError && <p className="text-[0.78rem] text-[var(--ed-no)] mt-2">{saveError}</p>}
+            </section>
+          )}
 
-        {/* Skills */}
-        <FieldGroup title="Skills" desc="Grouped by category. Type a skill and press Enter to add it.">
-          <div className="grid grid-cols-2 gap-3 max-sm:grid-cols-1">
-            {([
-              ['languages', 'Languages'],
-              ['frameworks', 'Frameworks'],
-              ['infrastructure', 'Infrastructure'],
-              ['databases', 'Databases'],
-              ['other', 'Other'],
-            ] as const).map(([key, label]) => (
-              <label key={key} className="flex flex-col gap-[0.4rem]">
-                <span className={FIELD_LABEL}>{label}</span>
+          {activeTab === 'values' && (
+            <section className="animate-in fade-in slide-in-from-bottom-2 duration-300" id="settings-work-values">
+              <TabHeader icon={<Award size={18} />} name="Work Values" />
+
+              {/* Manual: strengths + core values. Capped at 3 each so the matching
+                  signal stays sharp — a long list dilutes every item's weight in
+                  the search queries and the advisor ranking. Nothing else auto-
+                  extracts these, so they stay editable even though the rest of
+                  the structured profile no longer shows in this UI. */}
+              <FieldGroup title="Strengths" desc="Manual, max 3 — pick the ones that should steer job matching." first>
                 <ChipInput
-                  value={profile.skills[key]}
-                  onChange={(v) => patchSkills({ [key]: v } as Partial<SkillGroups>)}
-                  placeholder={`Add ${label.toLowerCase()}…`}
-                  ariaLabel={`Add ${label.toLowerCase()}`}
-                  suggestions={SKILL_SUGGESTIONS[key]}
+                  value={profile.strengths}
+                  onChange={(v) => saveChips('strengths', v)}
+                  placeholder="e.g. Clear written communication"
+                  ariaLabel="Add a strength"
+                  suggestions={STRENGTH_SUGGESTIONS}
+                  max={3}
                 />
-              </label>
-            ))}
-          </div>
-        </FieldGroup>
+              </FieldGroup>
 
-        <FieldGroup title="Education" desc="Degrees and certifications — extracted from your résumé/paste, editable here (e.g. B.Sc. Computer Science, Open University, 2015).">
-          <ChipInput
-            value={profile.education}
-            onChange={(v) => patch({ education: v })}
-            placeholder="e.g. B.Sc. Computer Science, Open University, 2015"
-            ariaLabel="Add education"
-            splitOnComma={false}
-          />
-        </FieldGroup>
+              <FieldGroup title="Core values" desc="Manual, max 3 — pick the ones that should steer job matching.">
+                <ChipInput
+                  value={profile.coreValues}
+                  onChange={(v) => saveChips('coreValues', v)}
+                  placeholder="e.g. Sustainable pace over short-term heroics"
+                  ariaLabel="Add a core value"
+                  suggestions={VALUE_SUGGESTIONS}
+                  max={3}
+                />
+              </FieldGroup>
+            </section>
+          )}
 
-        {/* Manual: strengths + core values. Capped at 3 each so the matching
-            signal stays sharp — a long list dilutes every item's weight in
-            the search queries and the advisor ranking. */}
-        <FieldGroup title="Strengths" desc="Manual, max 3 — pick the ones that should steer job matching. Not auto-extracted.">
-          <ChipInput
-            value={profile.strengths}
-            onChange={(v) => patch({ strengths: v })}
-            placeholder="e.g. Clear written communication"
-            ariaLabel="Add a strength"
-            suggestions={STRENGTH_SUGGESTIONS}
-            max={3}
-          />
-        </FieldGroup>
+          {activeTab === 'resume' && (
+            <section className="animate-in fade-in slide-in-from-bottom-2 duration-300" id="settings-resume">
+              <TabHeader
+                icon={<FileText size={18} />}
+                name="Resume"
+                right={
+                  <ResumeActionButton
+                    hasResume={!!resumeFile}
+                    pending={normalizeFileMutation.isPending}
+                    onClick={() => fileInputRef.current?.click()}
+                  />
+                }
+              />
 
-        <FieldGroup title="Core values" desc="Manual, max 3 — pick the ones that should steer job matching. Not auto-extracted.">
-          <ChipInput
-            value={profile.coreValues}
-            onChange={(v) => patch({ coreValues: v })}
-            placeholder="e.g. Sustainable pace over short-term heroics"
-            ariaLabel="Add a core value"
-            suggestions={VALUE_SUGGESTIONS}
-            max={3}
-          />
-        </FieldGroup>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".pdf,.txt,application/pdf,text/plain"
+                onChange={onResumeFile}
+                className="hidden"
+                data-testid="resume-file-input"
+              />
 
-        <div className="flex justify-between items-center mt-[1.1rem] pt-4 border-t border-dashed border-[var(--ed-rule)] relative max-sm:flex-col max-sm:gap-3 max-sm:items-stretch">
-          <span className={META_TEXT}>
-            {profile.experience.length} role(s) · {profile.strengths.length} strength(s) · {profile.coreValues.length} value(s)
-          </span>
-          <div className="flex gap-[0.55rem] max-sm:justify-end max-sm:flex-wrap">
-            <HistoryButton field="profile" onRestored={applyProfileData} />
-            {isDirty && (
-              <Button variant="outline" size="sm" onClick={() => setProfile(original)} disabled={saving}>
-                Discard changes
-              </Button>
-            )}
-            <Button onClick={save} disabled={saving || !isDirty}>
-              {saving ? 'Saving...' : 'Save profile'}
-            </Button>
-          </div>
+              {resumeFile ? (
+                <div className="bg-[var(--ed-panel)]/40 border border-[var(--ed-rule)] overflow-hidden">
+                  {resumeFile.contentType === 'application/pdf' ? (
+                    <>
+                      <embed
+                        key={pdfPage}
+                        src={`${apiUrl('/match/profile/resume-file/download')}#toolbar=0&navpanes=0&scrollbar=0&view=Fit&page=${pdfPage}`}
+                        type="application/pdf"
+                        className="w-full h-[85vh] min-h-[700px] block"
+                      />
+                      {(resumeFile.pageCount ?? 1) > 1 && (
+                        <PdfPager
+                          page={pdfPage}
+                          pageCount={resumeFile.pageCount!}
+                          onChange={setPdfPage}
+                        />
+                      )}
+                    </>
+                  ) : (
+                    <pre className="p-5 max-h-[600px] overflow-y-auto text-[0.82rem] text-[var(--ed-ink)] font-code leading-[1.7] whitespace-pre-wrap">{resumeFile.textContent}</pre>
+                  )}
+                </div>
+              ) : (
+                <div className="border border-dashed border-[var(--ed-rule)] py-16 px-8 flex flex-col items-center gap-3 text-center">
+                  <FileText size={26} className="text-[var(--ed-ink-faint)]" aria-hidden="true" />
+                  <p className="text-[var(--ed-ink-soft)] text-[0.88rem]">No résumé uploaded yet — use the button above.</p>
+                </div>
+              )}
+              {normalizeError && <p className="text-[0.78rem] text-[var(--ed-no)] mt-3">{normalizeError}</p>}
+            </section>
+          )}
         </div>
-        {result && <SaveResult result={result} />}
-      </section>
+      </div>
 
     </div>
     </div>
   );
 }
 
-function FieldGroup({ title, desc, children }: { title: string; desc?: string; children: React.ReactNode }) {
+function SidebarTab({ active, onClick, icon, label }: { active: boolean; onClick: () => void; icon: React.ReactNode; label: string }) {
   return (
-    <div className="mt-7">
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex items-center gap-[0.65rem] py-[0.65rem] px-[0.9rem] rounded-lg text-[0.84rem] font-medium transition-colors text-left ${
+        active
+          ? 'bg-[var(--ed-accent)]/12 text-[var(--ed-accent)]'
+          : 'text-[var(--ed-ink-soft)] hover:bg-[var(--ed-panel)]/50 hover:text-[var(--ed-ink)]'
+      }`}
+    >
+      {icon}
+      {label}
+    </button>
+  );
+}
+
+// Replaces the browser's native PDF viewer chrome (toolbar + the floating
+// "Page X of Y" scroll-nav pill) with a plain prev/next bar — the embed is
+// locked to one page at a time via the `view=Fit&page=N` URL fragment, so
+// there's nothing left to scroll past.
+function PdfPager({ page, pageCount, onChange }: { page: number; pageCount: number; onChange: (page: number) => void }) {
+  return (
+    <div className="flex items-center justify-center gap-4 py-[0.6rem] border-t border-[var(--ed-rule)]">
+      <button
+        type="button"
+        onClick={() => onChange(page - 1)}
+        disabled={page <= 1}
+        aria-label="Previous page"
+        className="text-[var(--ed-ink-soft)] hover:text-[var(--ed-accent)] transition-colors disabled:opacity-30 disabled:pointer-events-none"
+      >
+        <ChevronLeft size={18} />
+      </button>
+      <span className={META_TEXT}>Page {page} of {pageCount}</span>
+      <button
+        type="button"
+        onClick={() => onChange(page + 1)}
+        disabled={page >= pageCount}
+        aria-label="Next page"
+        className="text-[var(--ed-ink-soft)] hover:text-[var(--ed-accent)] transition-colors disabled:opacity-30 disabled:pointer-events-none"
+      >
+        <ChevronRight size={18} />
+      </button>
+    </div>
+  );
+}
+
+// The primary action for the Resume tab — upload/replace. Bigger and more
+// tactile than the standard Button: filled pill, soft accent glow that
+// intensifies on hover/lift, icon that nudges up on hover. Lives in the
+// TabHeader's top-right slot rather than buried under the preview.
+function ResumeActionButton({ hasResume, pending, onClick }: { hasResume: boolean; pending: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={pending}
+      className="group inline-flex items-center gap-2 rounded-full bg-[var(--ed-accent)] text-[var(--ed-paper)] pl-4 pr-5 py-[0.6rem] text-[0.76rem] font-semibold uppercase tracking-[0.06em] shadow-[0_2px_14px_-4px_color-mix(in_oklab,var(--ed-accent)_60%,transparent)] transition-all duration-200 hover:bg-[var(--ed-accent-deep)] hover:-translate-y-[1.5px] hover:shadow-[0_8px_22px_-4px_color-mix(in_oklab,var(--ed-accent)_70%,transparent)] active:translate-y-0 disabled:opacity-50 disabled:pointer-events-none disabled:translate-y-0 disabled:shadow-none"
+    >
+      {pending ? (
+        <RefreshCw size={15} className="animate-spin" aria-hidden="true" />
+      ) : (
+        <Upload size={15} className="transition-transform duration-200 group-hover:-translate-y-[1.5px]" aria-hidden="true" />
+      )}
+      {pending ? 'Parsing…' : hasResume ? 'Replace résumé' : 'Upload résumé'}
+    </button>
+  );
+}
+
+function TabHeader({ icon, name, right }: { icon: React.ReactNode; name: string; right?: React.ReactNode }) {
+  return (
+    <div className="flex items-center gap-[0.65rem] mb-8 pb-[0.85rem] border-b border-[var(--ed-rule-strong)]">
+      <span className="text-[var(--ed-ink-faint)]" aria-hidden="true">{icon}</span>
+      <h1 className="ed-display text-[1.5rem] font-bold text-[var(--ed-ink)] tracking-[-0.012em]">{name}</h1>
+      {right && <span className="ml-auto">{right}</span>}
+    </div>
+  );
+}
+
+// Row with an inline "Edit" toggle — click Edit, type, Enter/blur to confirm
+// and auto-save; Escape reverts. Matches the dreamworkhq "About you" pattern.
+function ContactRow(
+  { label, value, onSave, type = 'text' }:
+  { label: string; value?: string | null; onSave: (v: string) => void; type?: string },
+) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value ?? '');
+
+  useEffect(() => {
+    if (!editing) setDraft(value ?? '');
+  }, [value, editing]);
+
+  function confirm(): void {
+    setEditing(false);
+    const trimmed = draft.trim();
+    if (trimmed !== (value ?? '')) onSave(trimmed);
+  }
+
+  function cancel(): void {
+    setDraft(value ?? '');
+    setEditing(false);
+  }
+
+  return (
+    <div className="flex items-center justify-between gap-3 py-[1.1rem] px-[1.4rem]">
+      <span className={FIELD_LABEL}>{label}</span>
+      {editing ? (
+        <input
+          autoFocus
+          type={type}
+          className={`${FIELD_INPUT} max-w-[300px]`}
+          value={draft}
+          dir="auto"
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={confirm}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') confirm();
+            if (e.key === 'Escape') cancel();
+          }}
+        />
+      ) : (
+        <button
+          type="button"
+          onClick={() => setEditing(true)}
+          className="inline-flex items-center gap-3 text-[0.88rem] text-[var(--ed-ink)] hover:text-[var(--ed-accent)] transition-colors"
+        >
+          <span dir="auto">{value || <span className="text-[var(--ed-ink-faint)] italic font-normal">Not set</span>}</span>
+          <span className="text-[0.6rem] uppercase tracking-[0.1em] text-[var(--ed-ink-faint)] font-semibold">Edit</span>
+        </button>
+      )}
+    </div>
+  );
+}
+
+function FieldGroup({ title, desc, children, first }: { title: string; desc?: string; children: React.ReactNode; first?: boolean }) {
+  return (
+    <div className={first ? '' : 'mt-9'}>
       <h3 className="ed-display text-[1.15rem] font-semibold text-[var(--ed-ink)] tracking-[-0.005em]">{title}</h3>
-      {desc && <p className="text-[0.82rem] text-[var(--ed-ink-soft)] leading-[1.6] mt-[0.2rem] mb-3 max-w-[640px]">{desc}</p>}
-      {!desc && <div className="mb-3" />}
+      {desc && <p className="text-[0.82rem] text-[var(--ed-ink-soft)] leading-[1.6] mt-[0.3rem] mb-4 max-w-[640px]">{desc}</p>}
+      {!desc && <div className="mb-4" />}
       {children}
-    </div>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/* Section Header — numbered §-mark                                    */
-/* ------------------------------------------------------------------ */
-function SectionHeader({ num, name, right }: { num: string; name: string; right?: React.ReactNode }) {
-  return (
-    <div className="flex items-end gap-4 mb-[0.65rem] flex-wrap pb-[0.55rem] border-b border-[var(--ed-rule-strong)] relative">
-      <span className="absolute bottom-[-2px] left-0 w-12 h-[2px] bg-[var(--ed-accent)]" aria-hidden="true" />
-      <span className="ed-display text-[2.6rem] font-black text-[var(--ed-ink-faint)] tracking-[-0.03em] tabular-nums leading-[0.78] shrink-0">{num}</span>
-      <span className="ed-display text-[1.6rem] font-semibold text-[var(--ed-ink)] tracking-[-0.012em] leading-[1.15] pb-[0.1rem]">{name}</span>
-      {right && <span className="ml-auto mb-[0.25rem]">{right}</span>}
     </div>
   );
 }
@@ -455,56 +462,39 @@ function MetaPill({ children }: { children: React.ReactNode }) {
 }
 
 /* ------------------------------------------------------------------ */
-/* History Button + dropdown                                          */
-/* ------------------------------------------------------------------ */
-function HistoryButton({ field, onRestored }: { field: HistoryField; onRestored: (data: ProfileResponse) => void }) {
-  return (
-    <HistoryDropdown<HistoryField, ProfileResponse>
-      field={field}
-      onRestored={onRestored}
-      useHistory={useProfileHistory}
-      useRestore={useRestoreHistory}
-    />
-  );
-}
-
-/* ------------------------------------------------------------------ */
 /* Loading Skeleton                                                   */
 /* ------------------------------------------------------------------ */
 function SettingsLoadingSkeleton() {
   return (
     <div className="editorial editorial-grain min-h-screen">
-    <div className="relative z-[1] max-w-[960px] mx-auto px-8 pt-14 pb-32 animate-in fade-in slide-in-from-bottom-1 duration-500 max-sm:px-5" role="status" aria-live="polite" aria-label="Loading profile">
-      <header className="mb-12 relative" aria-hidden="true">
-        <div className="pb-[10px] border-b border-[var(--ed-rule)] text-[0.62rem] font-semibold uppercase tracking-[0.22em] text-[var(--ed-ink-faint)]">The Standards Desk</div>
-        <h1 className="ed-display text-[clamp(2.6rem,6.5vw,4.4rem)] font-black text-[var(--ed-ink)] leading-[0.9] pt-4 mb-4 tracking-[-0.022em] animate-in fade-in duration-300">
-          Profile
-        </h1>
-        <Skeleton className="w-[62%] h-[14px] rounded-[4px] mt-2" />
-        <div className="mt-[1.4rem] border-t-[3px] border-double border-[var(--ed-rule-strong)]" />
-      </header>
+    <div className="relative z-[1] max-w-[1000px] mx-auto px-8 pt-14 pb-32 animate-in fade-in slide-in-from-bottom-1 duration-500 max-sm:px-5" role="status" aria-live="polite" aria-label="Loading profile">
+      <div className="grid grid-cols-[220px_1fr] gap-14 max-sm:grid-cols-1" aria-hidden="true">
+        <aside>
+          <div className="flex flex-col items-start gap-[0.4rem] mb-6">
+            <Skeleton className="w-14 h-14 rounded-full mb-1" />
+            <Skeleton className="w-[110px] h-4 rounded-[4px]" />
+            <Skeleton className="w-[80px] h-3 rounded-[4px]" />
+          </div>
+          <div className="flex flex-col gap-2">
+            <Skeleton className="w-full h-8 rounded-lg" />
+            <Skeleton className="w-full h-8 rounded-lg" />
+          </div>
+        </aside>
 
-      <section className="mb-10 pb-8 border-b border-[var(--ed-rule)] animate-in fade-in slide-in-from-bottom-2 duration-300" style={{ animationDelay: '280ms' }} aria-hidden="true">
-        <div className="flex items-baseline gap-[0.85rem] mb-4">
-          <span className="ed-display text-[2.4rem] font-black text-[var(--ed-ink-faint)] tracking-[-0.03em] leading-none tabular-nums relative">
-            01
-            <span className="absolute bottom-[-0.35rem] left-0 w-[2rem] h-[2px] bg-[var(--ed-accent)]" />
-          </span>
-          <Skeleton className="w-[180px] h-5 rounded-[4px]" />
-          <Skeleton className="w-[92px] h-[18px] rounded-[4px] ml-auto max-[720px]:hidden" />
-        </div>
-        <Skeleton className="w-[68%] h-3 rounded-[4px]" />
-        <div className="bg-[var(--ed-panel)]/40 border border-[var(--ed-rule)] p-[1.2rem] mt-4 flex flex-col gap-[0.85rem]">
-          <Skeleton className="h-3 rounded-[4px] w-3/4" />
-          <Skeleton className="h-3 rounded-[4px] w-full" />
-          <Skeleton className="h-3 rounded-[4px] w-[45%]" />
-        </div>
-      </section>
+        <section className="animate-in fade-in slide-in-from-bottom-2 duration-300" style={{ animationDelay: '180ms' }}>
+          <Skeleton className="w-[140px] h-6 rounded-[4px] mb-5" />
+          <div className="bg-[var(--ed-panel)]/40 border border-[var(--ed-rule)] p-[1.2rem] flex flex-col gap-[0.85rem]">
+            <Skeleton className="h-3 rounded-[4px] w-3/4" />
+            <Skeleton className="h-3 rounded-[4px] w-full" />
+            <Skeleton className="h-3 rounded-[4px] w-[45%]" />
+          </div>
+        </section>
+      </div>
 
       <div className="mt-11 pt-[1.4rem] border-t border-dashed border-[var(--ed-rule)] flex items-center gap-[0.7rem] ed-display text-[1rem] text-[var(--ed-ink-faint)] italic tracking-[-0.005em] relative">
         <span className="ed-display text-[1.2rem] text-[var(--ed-accent)] opacity-80 not-italic" aria-hidden="true">§</span>
         <span aria-hidden="true">Loading...</span>
-        <span className="sr-only">Loading settings</span>
+        <span className="sr-only">Loading profile</span>
       </div>
     </div>
     </div>

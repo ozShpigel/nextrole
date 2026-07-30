@@ -4,6 +4,7 @@ using ApplicationTracker.Core.Models;
 using ApplicationTracker.Core.Profile;
 using ApplicationTracker.Core.Repositories;
 using ApplicationTracker.Infrastructure.AI;
+using ApplicationTracker.Infrastructure.Pdf;
 using ApplicationTracker.Infrastructure.Profile;
 using ApplicationTracker.Infrastructure.Repositories;
 using Microsoft.Extensions.Options;
@@ -26,7 +27,8 @@ public static class ServiceExtensions
             var interviews = sp.GetRequiredService<IMongoCollection<Interview>>();
             var notes = sp.GetRequiredService<IMongoCollection<Note>>();
             var statusUpdates = sp.GetRequiredService<IMongoCollection<StatusUpdate>>();
-            return new ApplicationRepository(client, apps, interviews, notes, statusUpdates);
+            var resumePacks = sp.GetRequiredService<IMongoCollection<ResumePack>>();
+            return new ApplicationRepository(client, apps, interviews, notes, statusUpdates, resumePacks);
         });
         services.AddScoped<IInterviewRepository>(sp =>
             new InterviewRepository(sp.GetRequiredService<IMongoCollection<Interview>>()));
@@ -38,6 +40,21 @@ public static class ServiceExtensions
             new MockInterviewRepository(sp.GetRequiredService<IMongoCollection<MockInterviewSession>>()));
         services.AddScoped<IInterviewInsightRepository>(sp =>
             new InterviewInsightRepository(sp.GetRequiredService<IMongoCollection<InterviewInsight>>()));
+        services.AddScoped<IResumePackRepository>(sp =>
+            new ResumePackRepository(sp.GetRequiredService<IMongoCollection<ResumePack>>()));
+        services.AddSingleton<IResumePdfRenderer, QuestPdfResumeRenderer>();
+
+        // ResumeFile lives in the "jobmatch" DB alongside the profile (same
+        // MongoDB:ProfileDatabase resolution MongoProfileProvider uses) — not
+        // job-tracker where MongoExtensions' other collections live.
+        services.AddSingleton(sp =>
+        {
+            var client = sp.GetRequiredService<IMongoClient>();
+            var dbName = configuration["MongoDB:ProfileDatabase"] ?? configuration["MongoDB:Database"] ?? "jobmatch";
+            return client.GetDatabase(dbName).GetCollection<ResumeFile>("resumeFile");
+        });
+        services.AddScoped<IResumeFileRepository>(sp =>
+            new ResumeFileRepository(sp.GetRequiredService<IMongoCollection<ResumeFile>>()));
 
         // Read-only scoring configuration (Options pattern). Prompts default from
         // PromptSeeds (code); scoring config values live in appsettings "Scoring".

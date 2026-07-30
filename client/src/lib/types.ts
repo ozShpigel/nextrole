@@ -216,6 +216,29 @@ export interface InterviewInsightResponse {
   insufficientData: boolean;        // totalRetroCount < 2
 }
 
+// Messages — mailbot-parsed emails, persisted so the Messages tab can show the
+// thread behind each status update. ApplicationId is null when the parser
+// recognized the email but couldn't tie it to a tracked application.
+export type MessageUpdateType =
+  | 'ApplicationReceived'
+  | 'InterviewScheduled'
+  | 'Rejected'
+  | 'OfferReceived'
+  | 'FollowUp'
+  | string;
+
+export interface MessageItem {
+  id: string;
+  applicationId: string | null;
+  company: string;
+  jobTitle?: string | null;
+  subject: string;
+  from: string;
+  updateType: MessageUpdateType;
+  snippet: string;
+  receivedAt: string;
+}
+
 // Generate Pack — an AI-tailored résumé for one specific application. Reorders/
 // re-emphasizes the candidate's real profile toward the job description; the
 // PDF itself is rendered server-side on demand (GET /applications/{id}/pack/pdf),

@@ -42,6 +42,8 @@ public static class ServiceExtensions
             new InterviewInsightRepository(sp.GetRequiredService<IMongoCollection<InterviewInsight>>()));
         services.AddScoped<IResumePackRepository>(sp =>
             new ResumePackRepository(sp.GetRequiredService<IMongoCollection<ResumePack>>()));
+        services.AddScoped<ITrackedEmailRepository>(sp =>
+            new TrackedEmailRepository(sp.GetRequiredService<IMongoCollection<TrackedEmail>>()));
         services.AddSingleton<IResumePdfRenderer, QuestPdfResumeRenderer>();
 
         // ResumeFile lives in the "jobmatch" DB alongside the profile (same

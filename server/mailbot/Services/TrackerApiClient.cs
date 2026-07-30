@@ -139,6 +139,41 @@ public sealed class TrackerApiClient : ITrackerApiClient
         return false;
     }
 
+    public async Task<bool> AddMessageAsync(AddMessageRequest message, CancellationToken ct = default)
+    {
+        using var response = await SendWithRetryAsync(
+            () => _http.PostAsJsonAsync(
+                "/api/messages",
+                new
+                {
+                    gmailMessageId = message.GmailMessageId,
+                    applicationId = message.ApplicationId,
+                    company = message.Company,
+                    jobTitle = message.JobTitle,
+                    subject = message.Subject,
+                    from = message.From,
+                    updateType = message.UpdateType,
+                    snippet = message.Snippet,
+                    receivedAt = message.ReceivedAt
+                },
+                ct),
+            "AddMessageAsync",
+            ct);
+
+        if (response is null)
+            return false;
+
+        if (response.IsSuccessStatusCode)
+        {
+            _logger.LogInformation("Persisted message '{Subject}' ({UpdateType})", message.Subject, message.UpdateType);
+            return true;
+        }
+
+        _logger.LogWarning("Failed to persist message '{Subject}'. Status: {HttpStatus}",
+            message.Subject, response.StatusCode);
+        return false;
+    }
+
     private async Task<HttpResponseMessage?> SendWithRetryAsync(
         Func<Task<HttpResponseMessage>> send,
         string operationName,

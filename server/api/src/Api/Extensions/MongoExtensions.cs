@@ -53,6 +53,11 @@ public static class MongoExtensions
             var database = sp.GetRequiredService<IMongoDatabase>();
             return database.GetCollection<ResumePack>("resumePacks");
         });
+        services.AddSingleton(sp =>
+        {
+            var database = sp.GetRequiredService<IMongoDatabase>();
+            return database.GetCollection<TrackedEmail>("messages");
+        });
 
         return services;
     }

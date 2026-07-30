@@ -10,6 +10,7 @@ import type {
   InterviewInsightResponse,
   ResumePack,
   ResumeFileMeta,
+  MessageItem,
 } from './types';
 
 // The cached HyDE search facets — powers the Search page's focus chips.
@@ -141,5 +142,13 @@ export function useInterviewInsight() {
   return useQuery<InterviewInsightResponse>({
     queryKey: ['interview-insights', 'insight'],
     queryFn: () => api('/interview-insights'),
+  });
+}
+
+// Mailbot-parsed emails, most recent first — powers the Messages tab.
+export function useMessages() {
+  return useQuery<MessageItem[]>({
+    queryKey: ['messages'],
+    queryFn: () => api('/messages'),
   });
 }

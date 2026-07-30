@@ -264,6 +264,25 @@ public sealed class MailbotOrchestrator
                 parsed++;
 
                 var app = MatchApplication(candidates, update);
+
+                // Persist the email regardless of match outcome — an unmatched
+                // parse (ApplicationId null) still belongs on the Messages tab,
+                // rather than vanishing silently. Failure here never blocks the
+                // tracker update below; AddMessageAsync already swallows and
+                // logs its own transport errors.
+                await _tracker.AddMessageAsync(new AddMessageRequest
+                {
+                    GmailMessageId = email.GmailMessageId,
+                    ApplicationId = app?.Id,
+                    Company = update.Company,
+                    JobTitle = update.JobTitle,
+                    Subject = email.Subject,
+                    From = email.From,
+                    UpdateType = update.UpdateType,
+                    Snippet = Snippet(email.Body),
+                    ReceivedAt = email.ReceivedAt
+                }, ct);
+
                 if (app == null)
                 {
                     _logger.LogWarning("Parsed email from {Company} but no matching app found", update.Company);
@@ -284,6 +303,18 @@ public sealed class MailbotOrchestrator
         }
 
         return (parsed, updated);
+    }
+
+    // Short preview for the Messages list — the full body (up to 50K chars,
+    // HTML already stripped by GmailEmailService) is never persisted.
+    private const int SnippetMaxChars = 400;
+
+    private static string Snippet(string body)
+    {
+        var collapsed = System.Text.RegularExpressions.Regex.Replace(body.Trim(), @"\s+", " ");
+        return collapsed.Length > SnippetMaxChars
+            ? collapsed[..SnippetMaxChars] + "…"
+            : collapsed;
     }
 
     /// <summary>

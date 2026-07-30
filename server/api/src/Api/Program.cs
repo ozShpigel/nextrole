@@ -212,6 +212,7 @@ app.MapInterviewEndpoints();
 app.MapInterviewInsightsEndpoints();
 app.MapResumePackEndpoints();
 app.MapNoteEndpoints();
+app.MapMessageEndpoints();
 app.MapStatsEndpoints();
 app.MapMatchEndpoints();
 app.MapMockInterviewEndpoints();

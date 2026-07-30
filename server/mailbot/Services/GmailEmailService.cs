@@ -213,6 +213,7 @@ public sealed class GmailEmailService : IGmailEmailService
 
         return new EmailMessage
         {
+            GmailMessageId = message.Id,
             Subject = subject,
             From = from,
             Body = body,

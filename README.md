@@ -5,7 +5,7 @@
 <br clear="left">
 
 
-[![License: MIT](https://img.shields.io/github/license/ozShpigel/nextrole)](LICENSE)
+[![License: FSL-1.1-MIT](https://img.shields.io/badge/License-FSL--1.1--MIT-blue)](LICENSE)
 ![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white)
 ![.NET](https://img.shields.io/badge/.NET-10-512BD4?logo=dotnet&logoColor=white)
 ![Python](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)
@@ -160,7 +160,7 @@ This started as a personal tool and is now open for others to use, fork, or exte
 
 ## License
 
-[MIT](LICENSE)
+[FSL-1.1-MIT](LICENSE) — converts to plain MIT two years after each version is released.
 
 ---
 

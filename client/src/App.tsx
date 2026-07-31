@@ -4,7 +4,7 @@ import { useConfig } from './lib/queries';
 import { BrandMark } from './components/BrandMark';
 
 const navLinkClass = ({ isActive }: { isActive: boolean }): string =>
-  `relative py-[0.45rem] px-4 rounded-full text-[0.82rem] font-medium transition-all ${isActive ? 'text-foreground bg-accent' : 'text-muted-foreground hover:text-foreground hover:bg-accent'}`;
+  `shrink-0 relative py-[0.45rem] px-4 rounded-full text-[0.82rem] font-medium transition-all ${isActive ? 'text-foreground bg-accent' : 'text-muted-foreground hover:text-foreground hover:bg-accent'}`;
 
 /* BrowserRouter keeps the window scroll offset across navigations, so opening
  * a page from deep in a long list (e.g. tracker → application detail) landed
@@ -29,12 +29,15 @@ export default function App() {
         </div>
       )}
       <nav data-app-nav className="bg-background/80 backdrop-blur-[20px] border-b border-border sticky top-0 z-50">
-        <div className="max-w-[1100px] mx-auto px-6 flex items-center justify-between h-14">
-          <NavLink to="/" className="inline-flex items-center gap-[0.4rem] font-serif font-bold text-[1rem] text-foreground tracking-[-0.01em] transition-opacity hover:opacity-75">
+        <div className="max-w-[1100px] mx-auto px-6 flex items-center justify-between gap-3 h-14">
+          <NavLink to="/" className="shrink-0 inline-flex items-center gap-[0.4rem] font-serif font-bold text-[1rem] text-foreground tracking-[-0.01em] transition-opacity hover:opacity-75">
             <BrandMark size={15} className="text-primary" />
             NextRole<span className="text-primary" aria-hidden="true">.</span>
           </NavLink>
-          <div className="flex items-center gap-[0.15rem]">
+          {/* min-w-0 lets this shrink below its content width inside the flex
+              row instead of forcing the whole page to scroll horizontally;
+              overflow-x-auto then scrolls just this strip on narrow screens. */}
+          <div className="ed-scroll flex items-center gap-[0.15rem] min-w-0 overflow-x-auto">
             <NavLink to="/search" className={navLinkClass}>Matches</NavLink>
             <NavLink to="/tracker" className={navLinkClass}>Active</NavLink>
             <NavLink to="/messages" className={navLinkClass}>Messages</NavLink>

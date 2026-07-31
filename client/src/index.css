@@ -243,6 +243,29 @@
   .ed-fill { transform: scaleX(var(--p, 0)); }
 }
 
+/* Thin, rounded scrollbar everywhere — applied globally (not just to a
+   `.ed-scroll` opt-in class) because the biggest offender was the plain
+   page-level scroll: Windows Chrome/Edge renders that one with its chunky,
+   square, classic up/down-arrow buttons by default, and no class on <aside>
+   or <nav> touches that — only styling html/body does. `.ed-scroll` stays
+   as an explicit marker for the same look on inner scroll containers. */
+html, .ed-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--ed-rule-strong) transparent;
+}
+html::-webkit-scrollbar, .ed-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
+html::-webkit-scrollbar-track, .ed-scroll::-webkit-scrollbar-track { background: transparent; }
+html::-webkit-scrollbar-thumb, .ed-scroll::-webkit-scrollbar-thumb {
+  background: var(--ed-rule-strong);
+  border-radius: 999px;
+  border: 2px solid var(--ed-paper);
+  background-clip: padding-box;
+}
+html::-webkit-scrollbar-thumb:hover, .ed-scroll::-webkit-scrollbar-thumb:hover { background: var(--ed-ink-faint); }
+/* Kill the classic up/down-arrow buttons — the flat, button-less thumb is
+   what makes it read as "themed" instead of a bolted-on OS control. */
+html::-webkit-scrollbar-button, .ed-scroll::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
+
 /* ------------------------------------------------------------
    Homepage-only ambient motion — kept off the shared .editorial-grain
    layer so other pages stay calm and readable while you're working.

@@ -1,0 +1,21 @@
+# Private-instance build — identical to Dockerfile except it ships
+# nginx.private.conf (adds HTTP Basic Auth) instead of the shared nginx.conf
+# used by the public demo. Kept as a separate file rather than an ARG-toggled
+# shared template so the public demo's build is never at risk of picking up
+# an auth-gated (or, worse, mis-toggled and un-gated) config by accident.
+FROM node:20-alpine AS build
+WORKDIR /app
+COPY client/package.json client/bun.lock* ./
+RUN npm install
+COPY client/ .
+# Point these at your private API/scraper services (e.g. api-private-*.onrender.com).
+ARG VITE_SCRAPER_URL=""
+ARG VITE_API_URL=""
+ENV VITE_SCRAPER_URL=${VITE_SCRAPER_URL}
+ENV VITE_API_URL=${VITE_API_URL}
+RUN npm run build
+
+FROM nginx:alpine
+COPY --from=build /app/dist /usr/share/nginx/html
+COPY client/nginx.private.conf /etc/nginx/templates/default.conf.template
+EXPOSE 80

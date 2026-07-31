@@ -1,7 +1,30 @@
 import { useEffect } from 'react';
-import { NavLink, Outlet, useLocation, useNavigationType } from 'react-router-dom';
-import { useConfig } from './lib/queries';
+import { Navigate, NavLink, Outlet, useLocation, useNavigationType } from 'react-router-dom';
+import { useConfig, useProfile, useResumeFile } from './lib/queries';
 import { BrandMark } from './components/BrandMark';
+
+// Routes exempt from the onboarding redirect: "/" is the onboarding screen
+// itself (nowhere to redirect to), "/settings" is where profile setup
+// actually happens, "/score" works standalone without a saved profile.
+const ONBOARDING_EXEMPT_PATHS = new Set(['/', '/settings', '/score']);
+
+// A brand-new profile means every other page (Matches, Active, Messages,
+// Preparation) would otherwise show its own empty state with no shared
+// "start here" cue. Route straight to the landing page's upload CTA instead
+// — one clear next action instead of four disconnected blank screens.
+function OnboardingGate() {
+  const { pathname } = useLocation();
+  const profileQuery = useProfile();
+  const resumeQuery = useResumeFile();
+
+  if (ONBOARDING_EXEMPT_PATHS.has(pathname)) return <Outlet />;
+  if (profileQuery.isLoading || resumeQuery.isLoading) return null;
+
+  const hasProfile = !!resumeQuery.data || !!profileQuery.data?.content?.trim();
+  if (!hasProfile) return <Navigate to="/" replace />;
+
+  return <Outlet />;
+}
 
 const navLinkClass = ({ isActive }: { isActive: boolean }): string =>
   `shrink-0 relative py-[0.45rem] px-4 rounded-full text-[0.82rem] font-medium transition-all ${isActive ? 'text-foreground bg-accent' : 'text-muted-foreground hover:text-foreground hover:bg-accent'}`;
@@ -47,7 +70,7 @@ export default function App() {
         </div>
       </nav>
       <ScrollToTop />
-      <Outlet />
+      <OnboardingGate />
     </div>
   );
 }

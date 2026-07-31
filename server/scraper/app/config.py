@@ -6,6 +6,11 @@ class Settings(BaseSettings):
     mongodb_connection_string: str = ""
     mongodb_database_name: str = "job-tracker"
     api_base_url: str = "http://localhost:5002"
+    # Sent as X-Api-Key on every call to api_base_url — required when that API
+    # has its own ApiKey gate set (see Program.cs), e.g. a private scraper
+    # talking to api-private. Empty = no header sent (matches the demo/local
+    # API, which leaves its own ApiKey unset).
+    api_key: str = ""
     # OpenAI key for job/profile embeddings (text-embedding-3-small).
     # Empty = embedding calls fail per-chunk and jobs are stored without
     # embeddings (invisible to semantic search).

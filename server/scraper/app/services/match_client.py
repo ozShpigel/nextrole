@@ -25,6 +25,7 @@ async def triage_titles(
     resp = await _request_with_retry(
         "POST",
         f"{settings.api_base_url}/api/match/title-triage",
+        settings=settings,
         timeout=120.0,
         operation="title-triage",
         retry_on_timeout=False,
@@ -65,6 +66,7 @@ async def advise(settings: Settings, jobs: list[dict]) -> dict | None:
     resp = await _request_with_retry(
         "POST",
         f"{settings.api_base_url}/api/match/advise",
+        settings=settings,
         timeout=300.0,
         operation="advise",
         retry_on_timeout=False,

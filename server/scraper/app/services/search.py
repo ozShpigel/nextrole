@@ -24,6 +24,7 @@ async def get_profile_text(settings: Settings) -> str | None:
     resp = await _request_with_retry(
         "GET",
         f"{settings.api_base_url}/api/match/profile",
+        settings=settings,
         timeout=60.0,
         operation="profile",
     )
@@ -47,6 +48,7 @@ async def get_search_queries(settings: Settings) -> tuple[list[dict], str]:
     resp = await _request_with_retry(
         "GET",
         f"{settings.api_base_url}/api/match/profile/search-query",
+        settings=settings,
         # Cache miss triggers a Claude generation — allow for it.
         timeout=120.0,
         operation="search-query",

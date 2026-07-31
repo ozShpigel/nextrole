@@ -41,6 +41,7 @@ async def _request_with_retry(
     method: str,
     url: str,
     *,
+    settings: Settings,
     timeout: float,
     operation: str,
     retry_on_timeout: bool = True,
@@ -55,6 +56,10 @@ async def _request_with_retry(
     certainly means the downstream op is too slow — retrying just wedges the caller
     for another full timeout window each attempt.
     """
+    if settings.api_key:
+        headers = request_kwargs.pop("headers", None) or {}
+        headers["X-Api-Key"] = settings.api_key
+        request_kwargs["headers"] = headers
     async with httpx.AsyncClient(timeout=timeout) as client:
         for attempt in range(_MAX_RETRIES + 1):
             try:
@@ -159,6 +164,7 @@ async def check_duplicate(settings: Settings, company: str, job_title: str) -> b
     resp = await _request_with_retry(
         "GET",
         f"{settings.api_base_url}/api/applications/exists",
+        settings=settings,
         timeout=10.0,
         operation="dedup check",
         params={"company": company, "jobTitle": job_title},
@@ -215,6 +221,7 @@ async def save_to_tracker(
     resp = await _request_with_retry(
         "POST",
         f"{settings.api_base_url}/api/applications",
+        settings=settings,
         timeout=15.0,
         operation="save",
         json=payload,

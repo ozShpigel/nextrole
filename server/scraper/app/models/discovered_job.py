@@ -18,6 +18,7 @@ class DiscoveredJob(BaseModel):
     site: str = "linkedin"
     job_level: str | None = None  # jobspy "job_level" (LinkedIn-populated; null elsewhere)
     is_remote: bool | None = None  # jobspy "is_remote"
+    company_logo: str | None = None  # jobspy "company_logo" — not always present
     # Semantic search: OpenAI embedding of the job text (title/company/location/
     # level/description). None = embedding failed or job was triaged out — the
     # doc is simply invisible to $vectorSearch.

@@ -99,6 +99,7 @@ async def run_discovery(db: AsyncIOMotorDatabase, settings: Settings, criteria_i
                     "site": job_data.get("site", "linkedin"),
                     "job_level": job_data.get("job_level"),
                     "is_remote": job_data.get("is_remote"),
+                    "company_logo": job_data.get("company_logo"),
                 }
 
                 if not _is_relevant(i):

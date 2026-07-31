@@ -76,6 +76,7 @@ def scrape_for_criteria(criteria: SearchCriteria) -> tuple[list[dict], dict]:
                         "site": str(row.get("site", "linkedin")),
                         "job_level": str(row.get("job_level")) if row.get("job_level") else None,
                         "is_remote": bool(row.get("is_remote")) if row.get("is_remote") is not None else None,
+                        "company_logo": str(row.get("company_logo")) if row.get("company_logo") else None,
                     })
                     new_count += 1
 

@@ -40,16 +40,26 @@ interface RankedResult {
   hit: SearchHit | undefined;
 }
 
-// Deterministic hue from the company name — no real logos in our data, so
-// every card gets a distinct, stable colored initial instead of a broken
-// image or a generic placeholder.
+// Deterministic hue from the company name — used for the colored-initial
+// fallback when a job has no scraped logo (or the logo URL 404s/goes stale).
 function hashHue(str: string): number {
   let hash = 0;
   for (let i = 0; i < str.length; i++) hash = (hash * 31 + str.charCodeAt(i)) >>> 0;
   return hash % 360;
 }
 
-function CompanyAvatar({ name }: { name: string }) {
+function CompanyAvatar({ name, logo }: { name: string; logo?: string | null }) {
+  const [logoFailed, setLogoFailed] = useState(false);
+  if (logo && !logoFailed) {
+    return (
+      <img
+        src={logo}
+        alt=""
+        className="w-11 h-11 rounded-full shrink-0 object-contain border border-[var(--ed-rule)] bg-white"
+        onError={() => setLogoFailed(true)}
+      />
+    );
+  }
   const hue = hashHue(name || '?');
   const initial = (name.trim()[0] || '?').toUpperCase();
   return (
@@ -139,7 +149,7 @@ function MatchCard({ brief, hit, index, saved, dismissed, demoMode, demoTitle, o
       style={{ animationDelay: `${index * 60}ms` }}
     >
       <div className="flex items-start justify-between gap-3 mb-3">
-        <CompanyAvatar name={hit?.company ?? '?'} />
+        <CompanyAvatar name={hit?.company ?? '?'} logo={hit?.company_logo} />
         {percent != null && <MatchRing percent={percent} tone={tone} brief={brief} />}
       </div>
 

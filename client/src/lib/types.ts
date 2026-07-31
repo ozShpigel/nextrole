@@ -119,6 +119,7 @@ export interface SearchHit {
   site?: string;
   job_level?: string | null;
   is_remote?: boolean | null;
+  company_logo?: string | null;
   similarity?: number;
   saved_to_tracker?: boolean;
   is_duplicate?: boolean;

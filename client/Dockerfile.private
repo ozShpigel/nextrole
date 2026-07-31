@@ -18,4 +18,6 @@ RUN npm run build
 FROM nginx:alpine
 COPY --from=build /app/dist /usr/share/nginx/html
 COPY client/nginx.private.conf /etc/nginx/templates/default.conf.template
+COPY client/docker-entrypoint.d/40-copy-htpasswd.sh /docker-entrypoint.d/40-copy-htpasswd.sh
+RUN chmod +x /docker-entrypoint.d/40-copy-htpasswd.sh
 EXPOSE 80

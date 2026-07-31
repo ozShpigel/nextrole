@@ -129,7 +129,7 @@ public static class MatchEndpoints
                 return Results.Problem(detail: "An error occurred while generating the advisor brief", statusCode: 500);
             }
         })
-        .RequireRateLimiting("match")
+        .RequireRateLimiting("search")
         .WithName("AdviseJobs")
         .WithSummary("Rank top-N vector-search hits as a career-advisor brief (one Sonnet call)");
 
@@ -247,7 +247,7 @@ public static class MatchEndpoints
                 return Results.Problem("An internal error occurred.", statusCode: 500);
             }
         })
-        .RequireRateLimiting("match")
+        .RequireRateLimiting("search")
         .WithName("GetProfileSearchQuery")
         .WithSummary("Get the cached HyDE search-query facets (profile as 1-3 ideal job postings), regenerating when the profile changed");
 

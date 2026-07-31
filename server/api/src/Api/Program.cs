@@ -66,6 +66,18 @@ builder.Services.AddRateLimiter(options =>
         cfg.Window = TimeSpan.FromMinutes(1);
         cfg.QueueLimit = 0;
     });
+    // The RAG search page (advise + its HyDE query-facet lookup) shares its own
+    // bucket, separate from the manual "Score a Job" page above — a single
+    // search click already costs 2+ calls against whatever bucket it's in, so
+    // sharing "match"'s 10/min (sized for one-off manual scoring) made normal
+    // search usage trip 429s. Kept apart rather than just raising "match" so
+    // the manual scorer keeps its tighter cost ceiling.
+    options.AddFixedWindowLimiter("search", cfg =>
+    {
+        cfg.PermitLimit = 30;
+        cfg.Window = TimeSpan.FromMinutes(1);
+        cfg.QueueLimit = 0;
+    });
     // Mock interview is conversational — one call per turn (5–8 per session)
     // plus a debrief — so it needs more headroom than the scoring endpoint.
     options.AddFixedWindowLimiter("mock", cfg =>

@@ -1,7 +1,8 @@
 import { useNavigate } from 'react-router-dom';
 import { useApplications, useStats, useUpcomingInterviews } from '../lib/queries';
 import { formatDate, formatDateTime } from '../lib/format';
-import { StatusBadge } from './Status';
+import { STATUS_LABELS } from '../lib/tracker';
+import { StatusBadge, STATUS_TONE } from './Status';
 import { StatCard } from './Stats';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -97,6 +98,38 @@ export default function Dashboard() {
           ))
         )}
       </section>
+
+      {stats && (
+        <section className="mb-4">
+          <div className="flex items-baseline justify-between gap-3 mb-1">
+            <span className="ed-display italic font-semibold text-[1.4rem] tracking-[-0.01em] text-[var(--ed-ink)]">Status Breakdown</span>
+            <span className="text-[0.6rem] font-semibold uppercase tracking-[0.2em] text-[var(--ed-ink-faint)]">Section 03</span>
+          </div>
+          <div className="border-t border-[var(--ed-rule-strong)] mb-4" />
+          <div>
+            {Object.entries(STATUS_LABELS).map(([key, label], i) => {
+              const breakdown: Record<string, number> = stats.statusBreakdown || {};
+              const max = Math.max(...Object.values(breakdown), 1);
+              const count = breakdown[key] || 0;
+              const color = STATUS_TONE[key] || 'var(--ed-ink-faint)';
+              return (
+                <div key={key} className="ed-rise flex items-center gap-3 py-[0.45rem] border-b border-[var(--ed-rule)] last:border-b-0" style={{ animationDelay: `${i * 60}ms` }}>
+                  <span className="min-w-[130px] text-[0.78rem] text-[var(--ed-ink-soft)] uppercase tracking-[0.06em] font-medium">{label}</span>
+                  <div className="relative flex-1 h-[18px] bg-[var(--ed-rule)]/40 overflow-hidden">
+                    <div
+                      className="ed-fill h-full flex items-center justify-end pr-2 text-[0.68rem] font-semibold text-[var(--ed-paper)]"
+                      style={{ ['--p' as string]: count / max, background: color }}
+                    >
+                      {count > 0 ? count : ''}
+                    </div>
+                  </div>
+                  <span className="min-w-[26px] text-left ed-display text-[0.85rem] text-[var(--ed-ink)] tabular-nums">{count}</span>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
     </>
   );
 }

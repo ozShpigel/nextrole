@@ -672,7 +672,17 @@ public sealed class ClaudeClient : IClaudeClient
     {
         var p = new MessageParameters
         {
-            System = new List<SystemMessage> { new(systemPrompt) },
+            System = new List<SystemMessage>
+            {
+                // Extended TTL: this is a single-user tool with searches spaced
+                // minutes-to-hours apart, well past the default 5-minute cache
+                // window — every call was writing a fresh cache entry that
+                // expired before the next one could read it (confirmed via the
+                // Anthropic console: 0 cache reads despite caching being on).
+                // The 1-hour TTL costs a slightly pricier write but actually
+                // survives the gap between real single-user calls.
+                new(systemPrompt, new CacheControl { Type = CacheControlType.ephemeral, TTL = CacheDuration.OneHour }),
+            },
             Messages = new List<Message> { new(RoleType.User, userMessage) },
             MaxTokens = cfg.MaxTokens,
             Model = cfg.Model,
@@ -680,7 +690,7 @@ public sealed class ClaudeClient : IClaudeClient
             Temperature = cfg.Temperature,
             // Static system prompt (evaluator instructions + injected profile) is
             // identical across a run — cache it so reads cost ~0.1x of input.
-            PromptCaching = PromptCacheType.AutomaticToolsAndSystem,
+            PromptCaching = PromptCacheType.FineGrained,
         };
         if (cfg.ThinkingEnabled && cfg.ThinkingBudget > 0 && cfg.MaxTokens > cfg.ThinkingBudget)
         {

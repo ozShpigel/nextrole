@@ -150,7 +150,12 @@ function MatchCard({ brief, hit, index, saved, dismissed, demoMode, demoTitle, o
     >
       <div className="flex items-start justify-between gap-3 mb-3">
         <CompanyAvatar name={hit?.company ?? '?'} logo={hit?.company_logo} />
-        {percent != null && <MatchRing percent={percent} tone={tone} brief={brief} />}
+        <div className="flex flex-col items-center gap-1 shrink-0">
+          {percent != null && <MatchRing percent={percent} tone={tone} brief={brief} />}
+          <span className="text-[0.56rem] font-bold uppercase tracking-[0.14em]" style={{ color: tone }}>
+            {VERDICT_LABEL[brief.verdict] ?? brief.verdict}
+          </span>
+        </div>
       </div>
 
       <span className="text-[0.78rem] font-bold text-[var(--ed-accent)] mb-1 truncate">{hit?.company ?? '—'}</span>
@@ -160,17 +165,9 @@ function MatchCard({ brief, hit, index, saved, dismissed, demoMode, demoTitle, o
         {hit?.job_level && <><span className="w-[3px] h-[3px] rounded-full bg-[var(--ed-rule)]" /><span>{hit.job_level}</span></>}
       </div>
 
-      <h3 className="ed-display font-semibold text-[1.05rem] leading-[1.3] tracking-[-0.01em] text-[var(--ed-ink)] mb-3 line-clamp-2 min-h-[2.6em]">
+      <h3 className="ed-display font-semibold text-[1.05rem] leading-[1.3] tracking-[-0.01em] text-[var(--ed-ink)] mb-4 line-clamp-2 min-h-[2.6em]">
         {hit?.title ?? brief.jobId}
       </h3>
-
-      <div
-        className="text-[0.58rem] font-bold uppercase tracking-[0.18em] inline-flex items-center gap-[0.4rem] mb-4"
-        style={{ color: tone }}
-      >
-        <span className="w-[6px] h-[6px] rounded-full" style={{ background: tone }} />
-        {VERDICT_LABEL[brief.verdict] ?? brief.verdict}
-      </div>
 
       <div className="mt-auto flex gap-2 items-center flex-wrap">
         {hit?.job_url && <a href={hit.job_url} target="_blank" rel="noopener noreferrer" className={`${ED_GHOST} text-[0.64rem] px-3 py-[0.45rem]`}>View Job</a>}
@@ -236,6 +233,12 @@ export default function SearchPage() {
 
   const [result, setResult] = useState<SemanticSearchResponse | null>(persisted?.result ?? null);
   const [error, setError] = useState<string | null>(null);
+  // Search focus and Seniority are power-user narrowing, not needed for a
+  // typical search — start collapsed so the default filter panel is short,
+  // but auto-expand if a persisted search actually used one of them.
+  const [showMoreFilters, setShowMoreFilters] = useState(
+    () => !!persisted?.filters.facet || (persisted?.filters.levels.length ?? 0) > 0,
+  );
   const [savedIds, setSavedIds] = useState<Set<string>>(() => new Set(persisted?.savedIds ?? []));
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(() => new Set(persisted?.dismissedIds ?? []));
 
@@ -338,8 +341,7 @@ export default function SearchPage() {
             Search your <span className="italic font-medium text-[var(--ed-accent)]">Matches</span>
           </h1>
           <p className="mt-3 text-[var(--ed-ink-soft)] text-[0.95rem] max-w-[620px] leading-[1.6]">
-            Your profile is matched against every collected job by meaning, not keywords.
-            The top results get one AI career-advisor pass — ranked, with a verdict and rationale each.
+            Ranked by meaning, with an AI verdict and rationale for each.
           </p>
         </header>
 
@@ -398,41 +400,54 @@ export default function SearchPage() {
               </div>
             </div>
 
-            {facetNames.length > 1 && (
-              <div className="flex flex-col gap-[0.45rem] mb-5 pt-5 border-t border-[var(--ed-rule)]">
-                <span className={fieldLabel}>Search focus</span>
-                <span className="text-[0.72rem] text-[var(--ed-ink-faint)] leading-[1.5] -mt-1">Your profile's role facets.</span>
-                <div className="flex flex-wrap gap-2">
-                  <button type="button" className={chip(facet === null)} onClick={() => setFacet(null)} aria-pressed={facet === null}>
-                    All roles
-                  </button>
-                  {facetNames.map((name) => (
-                    <button
-                      key={name}
-                      type="button"
-                      title={name}
-                      className={`${chip(facet === name)} max-w-full truncate block`}
-                      onClick={() => setFacet(facet === name ? null : name)}
-                      aria-pressed={facet === name}
-                    >
-                      {name}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
+            <button
+              type="button"
+              className="text-[0.68rem] font-semibold uppercase tracking-[0.12em] text-[var(--ed-ink-faint)] hover:text-[var(--ed-ink)] mb-5 pt-5 border-t border-[var(--ed-rule)] text-left transition-colors"
+              onClick={() => setShowMoreFilters((v) => !v)}
+              aria-expanded={showMoreFilters}
+            >
+              {showMoreFilters ? '− Fewer filters' : '+ More filters'}
+            </button>
 
-            <div className="flex flex-col gap-[0.45rem] mb-6 pt-5 border-t border-[var(--ed-rule)]">
-              <span className={fieldLabel}>Seniority</span>
-              <span className="text-[0.72rem] text-[var(--ed-ink-faint)] leading-[1.5] -mt-1">LinkedIn jobs only.</span>
-              <div className="flex flex-wrap gap-2">
-                {JOB_LEVELS.map((level) => (
-                  <button key={level} type="button" className={chip(levels.has(level))} onClick={() => toggleLevel(level)} aria-pressed={levels.has(level)}>
-                    {level}
-                  </button>
-                ))}
-              </div>
-            </div>
+            {showMoreFilters && (
+              <>
+                {facetNames.length > 1 && (
+                  <div className="flex flex-col gap-[0.45rem] mb-5">
+                    <span className={fieldLabel}>Search focus</span>
+                    <span className="text-[0.72rem] text-[var(--ed-ink-faint)] leading-[1.5] -mt-1">Your profile's role facets.</span>
+                    <div className="flex flex-wrap gap-2">
+                      <button type="button" className={chip(facet === null)} onClick={() => setFacet(null)} aria-pressed={facet === null}>
+                        All roles
+                      </button>
+                      {facetNames.map((name) => (
+                        <button
+                          key={name}
+                          type="button"
+                          title={name}
+                          className={`${chip(facet === name)} max-w-full truncate block`}
+                          onClick={() => setFacet(facet === name ? null : name)}
+                          aria-pressed={facet === name}
+                        >
+                          {name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex flex-col gap-[0.45rem] mb-6">
+                  <span className={fieldLabel}>Seniority</span>
+                  <span className="text-[0.72rem] text-[var(--ed-ink-faint)] leading-[1.5] -mt-1">LinkedIn jobs only.</span>
+                  <div className="flex flex-wrap gap-2">
+                    {JOB_LEVELS.map((level) => (
+                      <button key={level} type="button" className={chip(levels.has(level))} onClick={() => toggleLevel(level)} aria-pressed={levels.has(level)}>
+                        {level}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
 
             <div className="flex flex-col items-stretch gap-2 pt-5 border-t border-[var(--ed-rule-strong)]">
               <button type="button" className={ED_PRIMARY} onClick={handleSearch} disabled={search.isPending}>

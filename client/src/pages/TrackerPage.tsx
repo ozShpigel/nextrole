@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import Dashboard from '../components/Dashboard';
 import ApplicationList from '../components/ApplicationList';
-import Statistics from '../components/Statistics';
 
 interface Tab {
   key: string;
@@ -12,7 +11,6 @@ interface Tab {
 const TABS: Tab[] = [
   { key: 'dashboard', label: 'Dashboard' },
   { key: 'list', label: 'Applications' },
-  { key: 'stats', label: 'Statistics' },
 ];
 
 const TODAY = new Date().toLocaleDateString('en-US', {
@@ -34,15 +32,12 @@ export default function TrackerPage() {
         {/* Masthead */}
         <header className="mb-7">
           <div className="flex items-baseline justify-between gap-4 pb-[10px] border-b border-[var(--ed-rule)] text-[0.62rem] font-semibold uppercase tracking-[0.22em] text-[var(--ed-ink-faint)]">
-            <span>Tracker</span>
+            <span>Active</span>
             <span className="tabular-nums">{TODAY}</span>
           </div>
           <h1 className="ed-display font-black text-[clamp(2.4rem,6vw,4rem)] leading-[0.92] tracking-[-0.02em] text-[var(--ed-ink)] pt-4">
-            Application <span className="italic font-medium text-[var(--ed-accent)]">Tracker</span>
+            Active
           </h1>
-          <p className="mt-3 max-w-[560px] text-[0.95rem] leading-[1.6] text-[var(--ed-ink-soft)]">
-            Manage and track your hiring processes
-          </p>
           <div className="mt-5 border-t-[3px] border-double border-[var(--ed-rule-strong)]" />
         </header>
 
@@ -61,7 +56,6 @@ export default function TrackerPage() {
 
         {activeTab === 'dashboard' && <Dashboard />}
         {activeTab === 'list' && <ApplicationList />}
-        {activeTab === 'stats' && <Statistics />}
       </div>
     </div>
   );

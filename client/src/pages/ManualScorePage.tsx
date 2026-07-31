@@ -194,7 +194,7 @@ export default function ManualScorePage() {
             {saved ? (
               <>
                 <span className="text-[0.88rem] text-[var(--ed-yes)] font-semibold uppercase tracking-[0.06em]">
-                  Saved to your tracker.{interviewScheduled ? ' Interview scheduled.' : ''}
+                  Saved.{interviewScheduled ? ' Interview scheduled.' : ''}
                 </span>
                 <div className="flex items-center gap-2 flex-wrap">
                   {!interviewScheduled && (
@@ -202,15 +202,15 @@ export default function ManualScorePage() {
                       Schedule Interview
                     </button>
                   )}
-                  <Link to={`/tracker/${saved.id}`} className={ED_PRIMARY}>View in Tracker</Link>
+                  <Link to={`/tracker/${saved.id}`} className={ED_PRIMARY}>View in Active</Link>
                 </div>
               </>
             ) : (
               <>
                 <div className="text-[0.85rem] text-[var(--ed-ink-soft)] leading-[1.5]">
                   {canSave
-                    ? <>Save <span className="text-[var(--ed-ink)] font-semibold">{resolvedTitle}</span> at <span className="text-[var(--ed-ink)] font-semibold">{resolvedCompany}</span> to your tracker.</>
-                    : 'Add a job title and company above to save this to your tracker.'}
+                    ? <>Save <span className="text-[var(--ed-ink)] font-semibold">{resolvedTitle}</span> at <span className="text-[var(--ed-ink)] font-semibold">{resolvedCompany}</span>.</>
+                    : 'Add a job title and company above to save it.'}
                 </div>
                 <div className="flex items-center gap-3 flex-wrap">
                   <div className="flex items-center gap-2">
@@ -227,7 +227,7 @@ export default function ManualScorePage() {
                     </Select>
                   </div>
                   <button type="button" className={ED_PRIMARY} onClick={handleSave} disabled={!canSave}>
-                    {addApplication.isPending ? 'Saving…' : 'Save to Tracker'}
+                    {addApplication.isPending ? 'Saving…' : 'Save'}
                   </button>
                 </div>
               </>

@@ -9,4 +9,5 @@ public interface ITrackedEmailRepository
     // re-processing idempotent instead of piling up duplicate rows.
     Task<TrackedEmail> UpsertAsync(TrackedEmail email, CancellationToken ct = default);
     Task<List<TrackedEmail>> GetAllAsync(CancellationToken ct = default);
+    Task DeleteAsync(Guid id, CancellationToken ct = default);
 }

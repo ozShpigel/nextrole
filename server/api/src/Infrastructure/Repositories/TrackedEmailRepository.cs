@@ -29,4 +29,9 @@ public sealed class TrackedEmailRepository : ITrackedEmailRepository
             .SortByDescending(e => e.ReceivedAt)
             .ToListAsync(ct);
     }
+
+    public async Task DeleteAsync(Guid id, CancellationToken ct = default)
+    {
+        await _emails.DeleteOneAsync(e => e.Id == id, ct);
+    }
 }

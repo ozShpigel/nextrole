@@ -1,7 +1,11 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMessages } from '../lib/queries';
+import { useDeleteMessage } from '../lib/mutations';
 import type { MessageItem, MessageUpdateType } from '../lib/types';
 import { Skeleton } from '../components/ui/skeleton';
+import { Button } from '../components/ui/button';
+import ConfirmDialog from '../components/ConfirmDialog';
 import { relativeTime } from '../lib/format';
 
 const UPDATE_TYPE_META: Record<string, { label: string; tone: string }> = {
@@ -16,10 +20,10 @@ function updateTypeMeta(updateType: MessageUpdateType): { label: string; tone: s
   return UPDATE_TYPE_META[updateType] ?? { label: updateType, tone: 'var(--ed-ink-faint)' };
 }
 
-function MessageCard({ message }: { message: MessageItem }) {
+function MessageCard({ message, onDelete }: { message: MessageItem; onDelete: (id: string) => void }) {
   const { label, tone } = updateTypeMeta(message.updateType);
   const card = (
-    <div className="border border-[var(--ed-rule)] p-[1.1rem_1.3rem] bg-[var(--ed-panel)] transition-colors hover:border-[var(--ed-ink-faint)]">
+    <div className="group relative border border-[var(--ed-rule)] p-[1.1rem_1.3rem] bg-[var(--ed-panel)] transition-colors hover:border-[var(--ed-ink-faint)]">
       <div className="flex items-start justify-between gap-3 mb-1.5 flex-wrap">
         <div className="min-w-0">
           <p className="text-[0.88rem] font-semibold text-[var(--ed-ink)]">
@@ -28,12 +32,22 @@ function MessageCard({ message }: { message: MessageItem }) {
           </p>
           <p className="text-[0.82rem] text-[var(--ed-ink-soft)] mt-0.5 truncate" dir="auto">{message.subject}</p>
         </div>
-        <span
-          className="shrink-0 inline-flex items-center text-[0.6rem] font-semibold uppercase tracking-[0.1em] py-[0.2rem] px-[0.55rem] rounded-full border"
-          style={{ color: tone, borderColor: `color-mix(in oklab, ${tone} 40%, transparent)`, background: `color-mix(in oklab, ${tone} 10%, transparent)` }}
-        >
-          {label}
-        </span>
+        <div className="flex items-center gap-2 shrink-0">
+          <span
+            className="inline-flex items-center text-[0.6rem] font-semibold uppercase tracking-[0.1em] py-[0.2rem] px-[0.55rem] rounded-full border"
+            style={{ color: tone, borderColor: `color-mix(in oklab, ${tone} 40%, transparent)`, background: `color-mix(in oklab, ${tone} 10%, transparent)` }}
+          >
+            {label}
+          </span>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="opacity-0 group-hover:opacity-100 h-6 px-2 text-[0.7rem] text-[var(--ed-ink-faint)] hover:text-[var(--ed-no)]"
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onDelete(message.id); }}
+          >
+            Delete
+          </Button>
+        </div>
       </div>
       <p className="text-[0.8rem] leading-[1.6] text-[var(--ed-ink-faint)] mt-2" dir="auto">{message.snippet}</p>
       <p className="text-[0.7rem] text-[var(--ed-ink-faint)] mt-2.5 pt-2 border-t border-dashed border-[var(--ed-rule)]">
@@ -62,6 +76,16 @@ function MessagesLoadingSkeleton() {
 
 export default function MessagesPage() {
   const { data: messages, isLoading, error } = useMessages();
+  const deleteMessageMutation = useDeleteMessage();
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+
+  function confirmDelete() {
+    if (!deleteId) return;
+    deleteMessageMutation.mutate(deleteId, {
+      onError: (e) => alert('Failed to delete message: ' + e.message),
+    });
+    setDeleteId(null);
+  }
 
   return (
     <div className="editorial editorial-grain min-h-screen">
@@ -90,11 +114,17 @@ export default function MessagesPage() {
         ) : (
           <div className="flex flex-col gap-3">
             {messages.map((m) => (
-              <MessageCard key={m.id} message={m} />
+              <MessageCard key={m.id} message={m} onDelete={setDeleteId} />
             ))}
           </div>
         )}
       </div>
+      <ConfirmDialog
+        open={!!deleteId}
+        description="Delete this message?"
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteId(null)}
+      />
     </div>
   );
 }

@@ -34,6 +34,19 @@ public static class MessageEndpoints
         .WithName("GetMessages")
         .WithSummary("List mailbot-parsed emails, most recent first");
 
+        // Same demo-allowlist stance as the POST above — a real mutation, not
+        // non-persisting analysis.
+        app.MapDelete("/api/messages/{id:guid}", async (
+            Guid id,
+            ITrackedEmailRepository repo,
+            CancellationToken ct) =>
+        {
+            await repo.DeleteAsync(id, ct);
+            return Results.NoContent();
+        })
+        .WithName("DeleteMessage")
+        .WithSummary("Delete a mailbot-parsed email");
+
         return app;
     }
 }

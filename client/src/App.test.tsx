@@ -81,4 +81,12 @@ describe('App onboarding gate', () => {
     await waitFor(() => expect(matchApi).toHaveBeenCalled());
     expect(screen.getByText('Settings content')).toBeInTheDocument();
   });
+
+  it('fails open on a query error instead of redirecting a real user home', async () => {
+    vi.mocked(api).mockResolvedValue({ demoMode: false });
+    vi.mocked(matchApi).mockRejectedValue(new Error('502 Bad Gateway'));
+    renderAppAt('/search');
+
+    expect(await screen.findByText('Search content')).toBeInTheDocument();
+  });
 });

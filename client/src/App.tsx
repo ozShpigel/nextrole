@@ -19,6 +19,10 @@ function OnboardingGate() {
 
   if (ONBOARDING_EXEMPT_PATHS.has(pathname)) return <Outlet />;
   if (profileQuery.isLoading || resumeQuery.isLoading) return null;
+  // Fail OPEN on error — a transient cold-start/network blip on either query
+  // must never lock a real user out of the app by misreading "errored" as
+  // "no profile". Only a confirmed, successfully-loaded empty state redirects.
+  if (profileQuery.isError || resumeQuery.isError) return <Outlet />;
 
   const hasProfile = !!resumeQuery.data || !!profileQuery.data?.content?.trim();
   if (!hasProfile) return <Navigate to="/" replace />;

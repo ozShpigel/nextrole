@@ -42,10 +42,14 @@ export function useDemoMode(): boolean {
 
 export const DEMO_DISABLED_TITLE = 'Disabled in the read-only demo';
 
+// staleTime on both: the App-level onboarding gate calls these on every
+// route, not just Settings, so without one they'd refetch far more often
+// than profile/résumé data (which only changes on an explicit edit) needs.
 export function useProfile() {
   return useQuery<ProfileResponse>({
     queryKey: ['match', 'profile'],
     queryFn: () => matchApi('/profile'),
+    staleTime: 5 * 60 * 1000,
   });
 }
 
@@ -63,6 +67,7 @@ export function useResumeFile() {
         throw e;
       }
     },
+    staleTime: 5 * 60 * 1000,
   });
 }
 

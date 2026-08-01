@@ -61,5 +61,5 @@ cd server/scraper
 ## Security
 
 - CORS defaults to restrictive (empty) — set `CorsOrigins` env var explicitly
-- `/api/match` is rate-limited (10 req/min fixed window) with 50K char max on job descriptions
+- Two rate-limit buckets (`Program.cs`): `match` (10/min — manual "Score a Job" page, normalize, interview-prep cues) and `search` (30/min — the RAG search path's `/api/match/advise` + `/api/match/profile/search-query`, since one search costs 2+ calls). 50K char max on job descriptions.
 - Nginx adds `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, and `Content-Security-Policy` headers

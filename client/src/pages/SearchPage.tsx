@@ -241,6 +241,10 @@ export default function SearchPage() {
   );
   const [savedIds, setSavedIds] = useState<Set<string>>(() => new Set(persisted?.savedIds ?? []));
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(() => new Set(persisted?.dismissedIds ?? []));
+  // Real content (the advisor's cross-job synthesis), but a dense paragraph
+  // that shouldn't force a full read before the cards are even visible —
+  // collapsed by default, same pattern as "+ More filters".
+  const [showAdvisorTake, setShowAdvisorTake] = useState(false);
 
   // Keep the persisted snapshot in sync with everything that affects what's
   // rendered — clearing (`result === null`) drops the snapshot entirely.
@@ -479,13 +483,22 @@ export default function SearchPage() {
               <>
                 {result.advisor?.overallRecommendation && (
                   <div className="mb-10">
-                    <div className="flex items-baseline justify-between gap-3 mb-1">
-                      <span className="ed-display italic font-semibold text-[1.5rem] tracking-[-0.01em] text-[var(--ed-ink)]">The advisor's take</span>
+                    <button
+                      type="button"
+                      className="w-full flex items-baseline justify-between gap-3 mb-1 text-left"
+                      onClick={() => setShowAdvisorTake((v) => !v)}
+                      aria-expanded={showAdvisorTake}
+                    >
+                      <span className="ed-display italic font-semibold text-[1.5rem] tracking-[-0.01em] text-[var(--ed-ink)]">
+                        {showAdvisorTake ? '− ' : '+ '}The advisor's take
+                      </span>
                       <span className="text-[0.6rem] font-semibold uppercase tracking-[0.2em] text-[var(--ed-ink-faint)]">One pass · {ranked.length} roles</span>
-                    </div>
-                    <div dir="rtl" className="border-t border-[var(--ed-rule-strong)] pt-4 text-[0.95rem] text-[var(--ed-ink)] leading-[1.8] pr-4 border-r-2 border-r-[var(--ed-accent)] text-right">
-                      {result.advisor.overallRecommendation}
-                    </div>
+                    </button>
+                    {showAdvisorTake && (
+                      <div dir="rtl" className="border-t border-[var(--ed-rule-strong)] pt-4 text-[0.95rem] text-[var(--ed-ink)] leading-[1.8] pr-4 border-r-2 border-r-[var(--ed-accent)] text-right">
+                        {result.advisor.overallRecommendation}
+                      </div>
+                    )}
                   </div>
                 )}
 

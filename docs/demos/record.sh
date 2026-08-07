@@ -4,9 +4,10 @@
 # Usage: ./record.sh <clip-name>     e.g. ./record.sh search
 #        (looks for specs/<clip-name>.spec.ts, writes output/<clip-name>.gif)
 #
-# Prereqs (see README.md): demo-recording databases seeded (including the
-# Atlas jobs_vector_index — semantic search silently returns nothing without
-# it), and either your own dev servers already running (this config's
+# Prereqs (see README.md): demo-recording databases seeded (python -m app.cli
+# seed-demo-jobs — scores the fictional postings via the real batched
+# Evaluator path, no Atlas vector index needed), and either your own dev
+# servers already running (this config's
 # webServer entries reuse an already-running server on each port, same
 # convention as /e2e), or nothing on :5002/:8000/:5173 so Playwright launches
 # its own against the demo-recording DBs.

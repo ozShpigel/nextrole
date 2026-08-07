@@ -239,8 +239,8 @@ public static class MatchEndpoints
                 return Results.BadRequest(new { error = "a structured profile is required" });
 
             // Strengths/core values are the manual matching signal; capping them
-            // keeps each one carrying real weight in the HyDE search queries and
-            // the advisor ranking instead of diluting into a wish list.
+            // keeps each one carrying real weight in the Evaluator's scoring
+            // instead of diluting into a wish list.
             if (request.Strengths.Length > MaxSignalItems)
                 return Results.BadRequest(new { error = $"at most {MaxSignalItems} strengths — keep the ones that should steer matching" });
             if (request.CoreValues.Length > MaxSignalItems)

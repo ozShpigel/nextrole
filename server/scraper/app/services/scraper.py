@@ -2,11 +2,26 @@ import logging
 import random
 import time
 
+import pandas as pd
 from jobspy import scrape_jobs
 
 from app.models.search_criteria import SearchCriteria
 
 logger = logging.getLogger(__name__)
+
+
+def _clean(value) -> str | None:
+    """Stringify a scraped DataFrame cell, treating pandas NaN as missing.
+
+    `row.get(field)` on a missing cell returns float NaN, not None — and NaN
+    is truthy in Python, so a plain `if row.get(field)` guard stringifies it
+    into the literal text "nan" instead of treating it as absent.
+    """
+    if value is None or (isinstance(value, float) and pd.isna(value)):
+        return None
+    text = str(value).strip()
+    return text or None
+
 
 # Human-ish gap between consecutive job-board searches. LinkedIn rate-limits
 # tight bursts from a single IP (soft block: 429s / empty pages for hours);
@@ -66,17 +81,32 @@ def scrape_for_criteria(criteria: SearchCriteria) -> tuple[list[dict], dict]:
                     if url:
                         seen_urls.add(url)
 
+                    company_profile = {
+                        "industry": _clean(row.get("company_industry")),
+                        "description": _clean(row.get("company_description")),
+                        "numEmployees": _clean(row.get("company_num_employees")),
+                        "revenue": _clean(row.get("company_revenue")),
+                        "url": _clean(row.get("company_url")),
+                    }
+                    company_profile = {k: v for k, v in company_profile.items() if v} or None
+
                     all_jobs.append({
                         "title": str(row.get("title", "")),
                         "company": str(row.get("company", "")),
                         "location": str(row.get("location", "")),
                         "description": str(row.get("description", "")),
                         "job_url": url,
-                        "date_posted": str(row.get("date_posted", "")) if row.get("date_posted") else None,
+                        "date_posted": _clean(row.get("date_posted")),
                         "site": str(row.get("site", "linkedin")),
-                        "job_level": str(row.get("job_level")) if row.get("job_level") else None,
+                        "job_level": _clean(row.get("job_level")),
                         "is_remote": bool(row.get("is_remote")) if row.get("is_remote") is not None else None,
-                        "company_logo": str(row.get("company_logo")) if row.get("company_logo") else None,
+                        "company_logo": _clean(row.get("company_logo")),
+                        # Company profile fields jobspy already returns on every
+                        # scrape (no extra HTTP call) — industry/size/description,
+                        # kept as its own structured block (never fused into
+                        # `description`) so it stays a distinct, labeled input to
+                        # the Evaluator rather than polluting the parsed job text.
+                        "company_profile": company_profile,
                     })
                     new_count += 1
 

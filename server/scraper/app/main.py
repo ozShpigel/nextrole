@@ -1,7 +1,8 @@
 import json
 import logging
+import re
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import certifi
 from fastapi import BackgroundTasks, FastAPI, HTTPException
@@ -17,9 +18,8 @@ from app.schemas.criteria import (
     pairs_error,
     search_pairs,
 )
-from app.schemas.search import SearchRequest
 from app.models.search_criteria import SearchCriteria
-from app.services import orchestrator, search, tracker_client
+from app.services import orchestrator, tracker_client
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -49,9 +49,10 @@ async def lifespan(app: FastAPI):
     # process. Render free-tier restarts (deploys, idle eviction, OOM) leave
     # in-process phases frozen forever, showing up as phantom "in-progress"
     # rows. Single-instance service, so on startup any in-process phase is
-    # orphaned. (scoring/parsing/finalizing/awaiting_batch are retired batch-era
-    # statuses — included so any leftover row from before the RAG migration is
-    # also cleaned up.)
+    # orphaned. ("scoring" is the live per-job-scoring ingest phase again;
+    # "parsing"/"finalizing"/"awaiting_batch" are retired batch-era statuses —
+    # included so any leftover row from before the RAG migration is also
+    # cleaned up. "embedding" is retired RAG-era, same reason.)
     reconciled = await db.discovery_runs.update_many(
         {"status": {"$in": ["pending", "scraping", "embedding",
                             "parsing", "scoring", "finalizing", "awaiting_batch"]}},
@@ -91,7 +92,7 @@ app = FastAPI(title="Scraper Service", lifespan=lifespan)
 # runs/jobs/criteria) still work. Off by default. Exact-path allowlist for
 # POSTs that are pure analysis (no persistence) — mirrors the API's
 # analysisAllowlist in Program.cs.
-DEMO_ANALYSIS_ALLOWLIST = {"/api/search"}
+DEMO_ANALYSIS_ALLOWLIST: set[str] = set()
 
 
 @app.middleware("http")
@@ -218,15 +219,74 @@ async def get_run(run_id: str):
 
 @app.get("/api/discovery/runs/{run_id}/jobs")
 async def get_run_jobs(run_id: str):
-    # Exclude the raw vector (~12KB/doc); expose an `embedded` flag instead so
-    # the UI can surface jobs that silently fell out of the searchable pool.
-    docs = await db.discovered_jobs.find(
-        {"run_id": run_id}, {"job_embedding": 0}
-    ).sort("score", -1).to_list(200)
+    docs = await db.discovered_jobs.find({"run_id": run_id}).sort("score", -1).to_list(200)
     for d in docs:
         d.pop("_id", None)
-        d["embedded"] = d.get("embedding_model") is not None
     return docs
+
+
+@app.get("/api/discovery/jobs")
+async def list_scored_jobs(
+    min_score: int | None = None,
+    verdict: str | None = None,  # comma-separated, e.g. "STRONG_YES,YES"
+    days_back: int = 14,
+    criteria_id: str | None = None,
+    location: str | None = None,  # free-text substring, case-insensitive
+    is_remote: bool | None = None,
+    actual_job_level: str | None = None,  # comma-separated
+    include_dismissed: bool = False,
+    include_saved: bool = True,
+    limit: int = 50,
+    offset: int = 0,
+):
+    """Cross-run browse: the Matches page's primary data source, replacing
+    the old on-demand RAG search. Every discovered job is scored at ingest
+    time now, so "search" is really "filter/sort what's already scored" —
+    this is the query surface for that, distinct from the per-run drill-down
+    at GET /api/discovery/runs/{run_id}/jobs.
+
+    Defaults exclude triaged-out and unscored/score-failed jobs (nothing
+    useful to show) and dismissed jobs (acted-on, same spirit as the old
+    RAG search's acted-on exclusion) — saved jobs stay visible by default
+    since "already in my Tracker" isn't the same signal as "not interested."
+    """
+    limit = max(1, min(limit, 200))
+    offset = max(0, offset)
+
+    query: dict = {
+        "triaged_out": {"$ne": True},
+        "score": {"$ne": None},
+        "discovered_at": {"$gte": datetime.now(timezone.utc) - timedelta(days=max(1, days_back))},
+    }
+    if min_score is not None:
+        query["score"]["$gte"] = min_score
+    if verdict:
+        query["verdict"] = {"$in": [v.strip() for v in verdict.split(",") if v.strip()]}
+    if criteria_id:
+        query["criteria_id"] = criteria_id
+    if location and location.strip():
+        query["location"] = {"$regex": re.escape(location.strip()), "$options": "i"}
+    if is_remote is not None:
+        query["is_remote"] = is_remote
+    if actual_job_level:
+        query["actual_job_level"] = {"$in": [lvl.strip() for lvl in actual_job_level.split(",") if lvl.strip()]}
+    if not include_dismissed:
+        query["dismissed"] = {"$ne": True}
+    if not include_saved:
+        query["saved_to_tracker"] = {"$ne": True}
+
+    total = await db.discovered_jobs.count_documents(query)
+    docs = await (
+        db.discovered_jobs.find(query)
+        .sort("score", -1)
+        .skip(offset)
+        .limit(limit)
+        .to_list(limit)
+    )
+    for d in docs:
+        d.pop("_id", None)
+        _tag_utc(d)
+    return {"jobs": docs, "total": total, "limit": limit, "offset": offset}
 
 
 @app.post("/api/discovery/runs/{run_id}/abort")
@@ -237,7 +297,7 @@ async def abort_run(run_id: str):
     # writes are guarded with `status != cancelled`, so a still-alive zombie
     # task can no longer resurrect the row back to scoring/completed/failed.
     result = await db.discovery_runs.update_one(
-        {"id": run_id, "status": {"$in": ["pending", "scraping", "embedding"]}},
+        {"id": run_id, "status": {"$in": ["pending", "scraping", "scoring"]}},
         {"$set": {
             "status": "cancelled",
             "error": "Aborted by user",
@@ -247,19 +307,6 @@ async def abort_run(run_id: str):
     if result.matched_count == 0:
         raise HTTPException(404, "Run not found or already finished")
     return {"status": "cancelled"}
-
-
-# ---------------------------------------------------------------------------
-# Semantic Search (RAG)
-# ---------------------------------------------------------------------------
-
-@app.post("/api/search")
-async def search_endpoint(req: SearchRequest):
-    """On-demand semantic job search: the user's profile is embedded and
-    matched against stored jobs via Atlas $vectorSearch (hard filters applied
-    in-index), then ONE Claude call ranks the top-N as a career-advisor brief.
-    Read-only analysis — nothing is persisted."""
-    return await search.search_jobs(db, settings, req)
 
 
 # ---------------------------------------------------------------------------

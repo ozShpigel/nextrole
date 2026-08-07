@@ -32,14 +32,6 @@ public interface IProfileProvider
     // (self_presentation_hr | self_presentation_technical). Stored alongside the
     // text so they survive reloads; invalidated when the text changes on save.
     Task SetPresentationCuesAsync(string field, IReadOnlyList<string> cues, CancellationToken cancellationToken = default);
-
-    // Cached HyDE search-query facets (the profile rewritten as 1-3 ideal job
-    // postings, one per role facet, each embedded as its own vector-search
-    // query). Keyed to the profile's updated_at: Get returns null when missing
-    // or when the profile changed since generation, so callers regenerate
-    // exactly once per profile version.
-    Task<IReadOnlyList<Matching.SearchQueryFacet>?> GetSearchQueryAsync(CancellationToken cancellationToken = default);
-    Task SetSearchQueryAsync(IReadOnlyList<Matching.SearchQueryFacet> facets, CancellationToken cancellationToken = default);
 }
 
 public sealed record QaEntry

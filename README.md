@@ -12,13 +12,13 @@
 ![MongoDB Atlas](https://img.shields.io/badge/MongoDB-Atlas-47A248?logo=mongodb&logoColor=white)
 ![Claude](https://img.shields.io/badge/Claude-Anthropic-D97757)
 
-**NextRole** is an AI-powered platform that runs your job hunt end-to-end: it discovers listings from LinkedIn and Indeed, matches them to your professional profile *by meaning*, watches your inbox for replies, and tracks every role from first application to final outcome — with Claude working as analyst, career advisor, and interview coach along the way.
+**NextRole** is an AI-powered platform that runs your job hunt end-to-end: it discovers listings from LinkedIn and Indeed, scores every one against your professional profile as it's found, watches your inbox for replies, and tracks every role from first application to final outcome — with Claude working as analyst, evaluator, and interview coach along the way.
 
 Built as a four-service monorepo (C#, Python, React), deployed to production on Render.
 
 > **Single-tenant by design** — one user, no login. NextRole is your private tool, running against your own database.
 
-> **Cost**: Claude (Anthropic) and OpenAI (embeddings) are both pay-as-you-go — running your own instance has an ongoing cost proportional to how much you scrape and search, not a one-time fee. MongoDB Atlas's free tier is enough to get started.
+> **Cost**: Claude (Anthropic) is pay-as-you-go — running your own instance has an ongoing cost proportional to how much you scrape, not a one-time fee. MongoDB Atlas's free tier is enough to get started.
 
 ### Contents
 
@@ -28,11 +28,11 @@ Built as a four-service monorepo (C#, Python, React), deployed to production on 
 
 ## Highlighted Features
 
-### Semantic job search
+### Ingest-time job scoring
 
-Every collected job is matched against your profile *by meaning* via MongoDB Atlas Vector Search (retrieval-augmented generation, or RAG), and a single Claude "career advisor" call ranks the results with apply/maybe/skip verdicts. [Details](#job-discovery--semantic-search)
+Every collected job is scored against your profile the moment it's discovered — a full breakdown (technical fit, execution fit, sustainability) and a verdict from STRONG_YES to STRONG_NO, not a similarity ranking. The Matches page is a filtered, sorted browse over what's already been scored. [Details](#job-discovery--scoring)
 
-<img alt="Search Matches: ranked job results with similarity scores, apply/maybe/skip verdicts, and the AI advisor's rationale" src="docs/demos/output/search.gif" width="760">
+<img alt="Matches: scored job results with verdict badges and the AI evaluator's breakdown" src="docs/demos/output/search.gif" width="760">
 
 ### Application tracking
 
@@ -60,28 +60,32 @@ A few more things NextRole does:
 
 NextRole consists of four loosely-coupled services, communicating over HTTP:
 
-1. **Client** — the React single-page app: semantic search, scoring, interview prep, and the application tracker in one dashboard, behind an Nginx reverse proxy in production.
-2. **API** — the unified backend and **the only service that calls Claude**: job scoring, the search advisor, email parsing, profile normalization, and all tracking data. Keeping every AI call here keeps the API key and prompt logic in one place.
-3. **Scraper** — the ingest & search engine: scrapes LinkedIn/Indeed, filters titles with AI triage, embeds jobs, and serves semantic matching via MongoDB Atlas `$vectorSearch` — delegating its AI needs to the API.
+1. **Client** — the React single-page app: Matches, scoring, interview prep, and the application tracker in one dashboard, behind an Nginx reverse proxy in production.
+2. **API** — the unified backend and **the only service that calls Claude**: job scoring (manual and ingest-time batched), email parsing, profile normalization, and all tracking data. Keeping every AI call here keeps the API key and prompt logic in one place.
+3. **Scraper** — the ingest engine: scrapes LinkedIn/Indeed, filters titles with AI triage, classifies seniority, and scores every relevant job against your profile in batches — delegating its AI needs to the API.
 4. **Mailbot** — a one-shot cron process (not a service): reads Gmail, has the API parse each email with Claude, and applies status/interview updates to the tracker.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/architecture-dark.svg">
-  <img alt="NextRole architecture — the Client on top; the Scraper, API, and Mailbot services in the middle with the API as the AI hub; external providers (job boards, OpenAI, MongoDB Atlas, Claude, Gmail) along the bottom" src="docs/images/architecture-light.svg">
+  <img alt="NextRole architecture — the Client on top; the Scraper, API, and Mailbot services in the middle with the API as the AI hub; external providers (job boards, MongoDB Atlas, Claude, Gmail) along the bottom" src="docs/images/architecture-light.svg">
 </picture>
 
-**The life of a job** ties the parts together: the scraper discovers it, AI triage checks the title is on-target, and it's embedded into a searchable pool. When you search, your profile is embedded too, and the closest matches get ranked by **one** Claude *advisor* call with apply/maybe/skip verdicts. Saving a result copies it into the tracker database — and from there the mailbot keeps its status current from your inbox.
+> Diagram note: the SVGs above still depict the retired vector-search/OpenAI-embeddings flow — pending a redraw to match the ingest-time batched-scoring architecture described in the text.
+
+**The life of a job** ties the parts together: the scraper discovers it, AI triage checks the title is on-target, and it's scored against your profile — in batches of up to 5, one shared Claude call per batch — the moment it's found. Saving a result copies it into the tracker database — and from there the mailbot keeps its status current from your inbox.
 
 The diagrams below break the three core engines down — *how* each feature moves data through the services (dashed nodes are external systems).
 
-### Job discovery & semantic search
+### Job discovery & scoring
 
-This is how NextRole finds jobs and figures out which ones actually fit you. Two decoupled halves. **Ingest** (per discovery run): scrape → AI title triage → embed → store. **Search** (on demand): the DB does the semantic matching, and Claude runs **once** over the top-N as a career advisor — instead of two Claude calls per scraped job.
+This is how NextRole finds jobs and figures out which ones actually fit you, in one pass — no separate on-demand search step. **Per discovery run**: scrape → AI title triage → seniority classification → company/news enrichment prefetch → batched Evaluator scoring (up to 5 jobs sharing one Claude call, each still judged independently against your profile) → store. The Matches page then just filters and sorts what's already been scored.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/flow-search-dark.svg">
-  <img alt="Discovery & search flow — an ingest lane (scrape, AI title triage, embed) feeding the discovered_jobs vector store, and an on-demand search lane (vector search, top-N enrichment, one Claude advisor call) producing a ranked brief" src="docs/images/flow-search-light.svg">
+  <img alt="Discovery & scoring flow — scrape, AI title triage, seniority classification, enrichment prefetch, and batched Evaluator scoring, storing fully-scored jobs the Matches page browses" src="docs/images/flow-search-light.svg">
 </picture>
+
+> Diagram note: the SVG above still depicts the retired vector-search/advisor flow — pending a redraw.
 
 ### Mock interview (stateless turn engine)
 
@@ -105,11 +109,10 @@ Keeps your tracker up to date without you lifting a finger. A one-shot cron proc
 
 ## Getting started
 
-For the Docker path you only need [Docker](https://www.docker.com/), a [MongoDB](https://www.mongodb.com/) instance (Atlas free tier works), an [Anthropic API key](https://console.anthropic.com/), and an [OpenAI API key](https://platform.openai.com/api-keys) (embeddings for semantic search):
+For the Docker path you only need [Docker](https://www.docker.com/), a [MongoDB](https://www.mongodb.com/) instance (Atlas free tier works), and an [Anthropic API key](https://console.anthropic.com/):
 
 ```bash
 export ANTHROPIC_API_KEY=your-key-here
-export OPENAI_API_KEY=your-key-here
 export MONGODB_CONNECTION_STRING=mongodb://your-connection-string
 
 docker compose up --build

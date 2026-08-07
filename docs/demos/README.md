@@ -66,12 +66,11 @@ Seeds the sample persona profile + interview-prep, a handful of fictional
 tracked applications across varied statuses, and one discovery run with
 scored jobs (`server/api/src/Seeder/Program.cs`).
 
-### 2. Seed the fictional search pool (scraper)
+### 2. Seed the fictional Matches pool (scraper)
 
-The Search page's vector search needs embedded job postings. With the
-scraper's own `OPENAI_API_KEY` (reuse the one in `server/scraper/.env` —
-needed once, to embed ~30 fictional postings) and `MONGODB_DATABASE_NAME`
-pointed at the recording DB:
+The Matches page needs scored job postings. With `MONGODB_DATABASE_NAME`
+pointed at the recording DB and the API reachable (scoring goes through
+`POST /api/match/discovery-score-batch`):
 
 ```powershell
 $env:MONGODB_DATABASE_NAME = "job-tracker-demo-recording"
@@ -79,12 +78,11 @@ cd server/scraper
 .\.venv\Scripts\python.exe -m app.cli seed-demo-jobs
 ```
 
-This embeds and inserts the fictional postings in
-`server/scraper/app/services/demo_seed.py` (~30 postings spanning strong
-matches, partial matches, culture red flags, and clear mismatches — enough
-for the advisor to make real ranking decisions). `MONGODB_CONNECTION_STRING`
-and `OPENAI_API_KEY` come from `server/scraper/.env` as usual; only the
-database name is overridden.
+This scores (batches of 4, real Evaluator calls) and inserts the fictional
+postings in `server/scraper/app/services/demo_seed.py` (~24 postings spanning
+strong matches, partial matches, culture red flags, and clear mismatches —
+enough for the Evaluator to make real scoring decisions). `MONGODB_CONNECTION_STRING`
+comes from `server/scraper/.env` as usual; only the database name is overridden.
 
 Because the seeded jobs' `discovered_at` needs to stay inside the Search
 page's days-back window, the scraper refreshes it automatically on every

@@ -17,24 +17,28 @@ class DiscoveredJob(BaseModel):
     date_posted: str | None = None
     site: str = "linkedin"
     job_level: str | None = None  # jobspy "job_level" (LinkedIn-populated; null elsewhere)
+    # AI-classified seniority band (source-agnostic, judged from the posting's
+    # own title+description) — replaces reliance on job_level above, which is
+    # LinkedIn-only and frequently missing/wrong. One of the five JOB_LEVELS
+    # client vocabulary strings, or None when the classifier wasn't confident
+    # (never excludes — see PromptSeeds.SeniorityClassification).
+    actual_job_level: str | None = None
     is_remote: bool | None = None  # jobspy "is_remote"
     company_logo: str | None = None  # jobspy "company_logo" — not always present
-    # Semantic search: OpenAI embedding of the job text (title/company/location/
-    # level/description). None = embedding failed or job was triaged out — the
-    # doc is simply invisible to $vectorSearch.
-    job_embedding: list[float] | None = None
-    embedding_model: str | None = None
-    # Historic fields — per-job scoring was retired in favor of on-demand vector
-    # search + a single advisor call; kept so pre-migration docs still render.
+    # Company profile fields jobspy captures on every scrape (industry, size,
+    # revenue, description, url) — free, no extra HTTP call. Captured at scrape
+    # time (unlike company_news/glassdoor_data below, fetched fresh per use) so
+    # it's stable for as long as the job document lives.
+    company_profile: dict | None = None
+    # Per-job Evaluator score, populated by the batched-scoring ingest step.
+    # None = not yet scored, scoring failed, or the job was triaged out.
     # (rich MatchResponse is stored in match_analysis; score/verdict/should_apply
     # are copied out for sorting/filtering).
     score: int | None = None
     verdict: str | None = None
     should_apply: bool | None = None
     match_analysis: dict | None = None
-    # Raw Claude call artifacts — null for the Analyst pair on scraper-
-    # discovered jobs because we pass title/company from JobSpy and skip
-    # the Analyst call entirely.
+    # Raw Claude call artifacts from the Analyst+Evaluator pair.
     analyst_snapshot_input: str | None = None
     analyst_snapshot_output: str | None = None
     evaluator_snapshot_input: str | None = None

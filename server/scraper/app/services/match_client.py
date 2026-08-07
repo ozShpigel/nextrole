@@ -51,29 +51,107 @@ async def triage_titles(
     return triage
 
 
-async def advise(settings: Settings, jobs: list[dict]) -> dict | None:
-    """One Sonnet call over the top-N vector-search hits: the API loads the
-    profile server-side and returns a ranked advisor brief
-    {overallRecommendation, rankings:[{jobId, rank, verdict, rationale, ...}]}.
+async def classify_seniority(settings: Settings, jobs: list[dict]) -> dict[int, str | None] | None:
+    """One Haiku call per run: classifies each relevant scraped job's actual
+    seniority band from title+description — source-agnostic, unlike jobspy's
+    LinkedIn-only job_level tag.
 
-    Returns None on any failure — the search endpoint surfaces that as 502.
-    """
+    Returns {job_index: level | None}, or None on any failure — the caller
+    MUST fail open (actual_job_level stays None everywhere, which never
+    excludes) on None."""
     if not jobs:
         return None
-    # Budget covers a warm Render instance doing one Sonnet call over ~10
-    # postings. Timeouts mean the single call is too slow — retrying would
-    # double the wait, so surface the failure instead.
+    items = [
+        {"index": i, "title": j.get("title") or "", "description": j.get("description")}
+        for i, j in enumerate(jobs)
+    ]
     resp = await _request_with_retry(
         "POST",
-        f"{settings.api_base_url}/api/match/advise",
+        f"{settings.api_base_url}/api/match/seniority-classify",
         settings=settings,
-        timeout=300.0,
-        operation="advise",
+        timeout=120.0,
+        operation="seniority-classify",
         retry_on_timeout=False,
-        json={"jobs": jobs},
+        json={"jobs": items},
+    )
+    if resp is None or resp.status_code != 200:
+        logger.warning("Seniority classification failed (%s) — leaving actual_job_level unset",
+                       resp.status_code if resp is not None else "no response")
+        return None
+    try:
+        results = (resp.json() or {}).get("results") or []
+        levels = {
+            r["index"]: r.get("level")
+            for r in results
+            if isinstance(r.get("index"), int)
+        }
+    except Exception as e:
+        logger.warning("Seniority classification response unparseable (%s) — leaving actual_job_level unset", e)
+        return None
+    labeled = sum(1 for v in levels.values() if v)
+    logger.info("Seniority classification: %d/%d jobs labeled", labeled, len(jobs))
+    return levels
+
+
+async def score_job(settings: Settings, job_description: str) -> dict | None:
+    """One Analyst+Evaluator call pair against a single job description —
+    the same path the manual "Score a Job" page uses (`POST /api/match`,
+    jobDescription only, letting the Analyst extract title/company).
+
+    Returns the raw MatchResponse dict, or None on any failure.
+    """
+    if not job_description:
+        return None
+    resp = await _request_with_retry(
+        "POST",
+        f"{settings.api_base_url}/api/match",
+        settings=settings,
+        timeout=120.0,
+        operation="score-job",
+        retry_on_timeout=False,
+        json={"jobDescription": job_description},
     )
     if resp is not None and resp.status_code == 200:
         return resp.json()
-    logger.error("Advise call failed (%s)",
+    logger.error("Score-job call failed (%s)",
                  resp.status_code if resp is not None else "no response")
     return None
+
+
+async def score_job_batch(settings: Settings, jobs: list[dict]) -> dict[str, dict] | None:
+    """Scores up to 5 jobs in ONE Evaluator call — the primary ingest-time
+    scoring path (`POST /api/match/discovery-score-batch`). Each job is still
+    scored independently against the fixed rubric; batching only shares the
+    Evaluator call's input cost, never compares jobs to each other.
+
+    Each item in `jobs` needs: id, jobDescription, and the same optional
+    fields as `score_job` plus companyNews/glassdoorData/companyProfile.
+
+    Returns {id: MatchResponse dict}, or None on any failure — the caller
+    MUST fail open (store the whole batch unscored, retry next cycle) on
+    None, matching the "batches are small, don't retry at single-job
+    granularity" simplicity principle.
+    """
+    if not jobs:
+        return None
+    resp = await _request_with_retry(
+        "POST",
+        f"{settings.api_base_url}/api/match/discovery-score-batch",
+        settings=settings,
+        timeout=240.0,
+        operation="discovery-score-batch",
+        retry_on_timeout=False,
+        json={"jobs": jobs},
+    )
+    if resp is None or resp.status_code != 200:
+        logger.error("Discovery batch-score call failed (%s)",
+                     resp.status_code if resp is not None else "no response")
+        return None
+    try:
+        results = (resp.json() or {}).get("results") or []
+        return {r["id"]: r["response"] for r in results if r.get("id") and r.get("response")}
+    except Exception as e:
+        logger.error("Discovery batch-score response unparseable (%s)", e)
+        return None
+
+

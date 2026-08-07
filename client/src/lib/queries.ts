@@ -1,11 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
-import { api, matchApi } from './api';
+import { api, discoveryApi, matchApi } from './api';
 import type {
   ProfileResponse,
   InterviewPrepResponse,
   MockSessionListItem,
   MockSession,
-  SearchQueryResponse,
+  ScoredJobsQuery,
+  ScoredJobsResponse,
   InterviewRetroListItem,
   InterviewInsightResponse,
   ResumePack,
@@ -13,15 +14,21 @@ import type {
   MessageItem,
 } from './types';
 
-// The cached HyDE search facets — powers the Search page's focus chips.
-// Usually a cache hit on the profile doc; a miss regenerates via one Claude
-// call, hence the generous staleTime. Chips simply don't render on error.
-export function useSearchFacets() {
-  return useQuery<SearchQueryResponse>({
-    queryKey: ['match', 'search-facets'],
-    queryFn: () => matchApi('/profile/search-query'),
-    staleTime: 5 * 60 * 1000,
-    retry: 1,
+// The Matches page's primary data source — every discovered job is scored at
+// ingest time now, so this is a filtered/sorted browse over already-scored
+// jobs, not an on-demand search. Short staleTime: scoring happens on a cron,
+// so results only change between discovery runs, but a save/dismiss should
+// still feel responsive on refetch.
+export function useScoredJobs(query: ScoredJobsQuery) {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    if (value !== undefined && value !== null && value !== '') params.set(key, String(value));
+  }
+  const qs = params.toString();
+  return useQuery<ScoredJobsResponse>({
+    queryKey: ['discovery', 'jobs', query],
+    queryFn: () => discoveryApi(`/jobs${qs ? `?${qs}` : ''}`),
+    staleTime: 30 * 1000,
   });
 }
 

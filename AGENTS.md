@@ -1,6 +1,6 @@
 # NextRole — Agent Guide
 
-NextRole is a single-user job application platform that automates the job hunt end-to-end: it discovers listings from LinkedIn/Indeed, matches them against the user's profile with AI (vector search + advisor), monitors Gmail for application updates, and tracks everything — discovery through interviews — in one dashboard. See `project-scope.md` and `implementation-plan.md` for full detail.
+NextRole is a single-user job application platform that automates the job hunt end-to-end: it discovers listings from LinkedIn/Indeed, scores every one against the user's profile with AI at ingest time, monitors Gmail for application updates, and tracks everything — discovery through interviews — in one dashboard. See `project-scope.md` and `implementation-plan.md` for full detail.
 
 ## Stack & structure
 
@@ -8,10 +8,10 @@ NextRole is a single-user job application platform that automates the job hunt e
 |---|---|
 | `/client` | React + Vite + shadcn/ui + Tailwind v4 (TypeScript, Bun) |
 | `/server/api` | ASP.NET Core (C#) — **all Claude/Anthropic calls live here** |
-| `/server/scraper` | Python FastAPI — scraping, embeddings, vector search |
+| `/server/scraper` | Python FastAPI — scraping, ingest-time AI scoring |
 | `/server/mailbot` | .NET console app — one-shot Gmail sync (cron), not a service |
 
-Database: MongoDB Atlas (+ Atlas Vector Search index `jobs_vector_index`).
+Database: MongoDB Atlas.
 
 ## Running locally
 
@@ -32,7 +32,7 @@ cd server/scraper
 - Frontend: TypeScript everywhere; **Bun** (not npm/yarn); shadcn/ui components (`@/components/ui/*`); **Axios** (not fetch); **TanStack React Query** for server state (not useEffect + useState).
 - **Never hardcode Tailwind palette colors** (emerald/amber/red…). Use design tokens: `--ed-*` inside editorial pages, shadcn semantic tokens in neutral/shared chrome (nav, portaled dialogs). Theme spec + portal caveat: `docs/design-system.md`.
 - The frontend is English LTR, but content can be mixed Hebrew RTL (AI summaries, interview text) — render those nodes with `dir="rtl"`/`dir="auto"`.
-- All Claude/Anthropic calls live in the API; the scraper delegates via HTTP. **One exception**: OpenAI embeddings are called directly from the scraper (`app/services/embeddings.py`, env `OPENAI_API_KEY`).
+- All Claude/Anthropic calls live in the API; the scraper delegates via HTTP.
 - AI prompts use system/user separation: trusted instructions in the system prompt; untrusted external data (job descriptions, emails, scraped titles) XML-wrapped in the user message.
 - `scoring_config` + the agent prompts are **read-only server configuration** (Options pattern, env overrides, change = redeploy). The candidate **profile is the user-editable input** — stored as `StructuredProfile`, rendered to the `content` string prompts consume; **never hand-edit `content`**. Keep prompts generic/objective; candidate signal comes only from the injected profile. Detail: `docs/scoring-and-search.md`.
 - **Single-tenant, no auth (intentional).** Public exposure = private instance + seeded demo instance. `DemoMode=true` 403s writes via an allowlist middleware — **new mutating endpoints must be allowlisted in `Program.cs` / `main.py` to work in demo**. Never set `ApiKey` on the demo. Detail: `docs/demo-mode.md`; ops: `docs/hosting-a-public-demo.md`.
@@ -42,7 +42,7 @@ cd server/scraper
 
 | Area | Doc |
 |---|---|
-| Scoring pipeline, semantic search (RAG), title triage, company enrichment, on-demand AI | `docs/scoring-and-search.md` |
+| Scoring pipeline, ingest-time batched scoring, title triage, company enrichment, on-demand AI | `docs/scoring-and-search.md` |
 | Editorial Broadsheet theme (tokens, page pattern, portal caveat, status colors) | `docs/design-system.md` |
 | Tracker list projection + Applications tab buckets | `docs/tracker.md` |
 | Generate Pack — AI-tailored résumé PDF per application | `docs/resume-pack.md` |
@@ -61,5 +61,5 @@ cd server/scraper
 ## Security
 
 - CORS defaults to restrictive (empty) — set `CorsOrigins` env var explicitly
-- Two rate-limit buckets (`Program.cs`): `match` (10/min — manual "Score a Job" page, normalize, interview-prep cues) and `search` (30/min — the RAG search path's `/api/match/advise` + `/api/match/profile/search-query`, since one search costs 2+ calls). 50K char max on job descriptions.
+- Rate-limit buckets (`Program.cs`): `match` (10/min — manual "Score a Job" page, normalize, interview-prep cues) and `discovery` (20/min — the batched ingest-time scoring endpoint `/api/match/discovery-score-batch`, kept separate so a big discovery run never starves the manual page). 50K char max on job descriptions.
 - Nginx adds `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, and `Content-Security-Policy` headers

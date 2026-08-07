@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { api, matchApi, discoveryApi, scraperApi } from './api';
+import { api, matchApi, discoveryApi } from './api';
 import type {
   InterviewPrepHistoryField,
   MockTurn,
@@ -9,8 +9,6 @@ import type {
   ManualMatchRequest,
   MatchResponse,
   NormalizedProfile,
-  SemanticSearchRequest,
-  SemanticSearchResponse,
   InterviewInsightResponse,
   ResumePack,
 } from './types';
@@ -37,19 +35,6 @@ export function useDismissJob() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['discovery'] });
     },
-  });
-}
-
-// Semantic search: $vectorSearch over stored jobs + one advisor Claude call.
-// Read-only analysis (nothing persisted) — a mutation because it's on-demand
-// and expensive, not because it writes.
-export function useSemanticSearch() {
-  return useMutation({
-    mutationFn: (body: SemanticSearchRequest) =>
-      scraperApi('/search', {
-        method: 'POST',
-        body: JSON.stringify(body),
-      }) as Promise<SemanticSearchResponse>,
   });
 }
 

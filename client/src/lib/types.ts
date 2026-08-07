@@ -93,22 +93,22 @@ export interface MatchResponse {
   evaluatorSnapshotOutput?: string | null;
 }
 
-// Semantic search (RAG) — POST /api/search on the scraper: the profile is
-// embedded and matched against stored jobs via Atlas $vectorSearch, then one
-// Claude call ranks the top-N as a career-advisor brief. Nothing is persisted.
-export interface SemanticSearchRequest {
-  limit: number;
-  days_back: number;
-  location?: string | null;
-  is_remote?: boolean | null;
-  job_levels?: string[] | null;
-  sites?: string[] | null;
-  // Focus on one HyDE facet by name; null/omitted = fused search (default).
-  facet?: string | null;
+// Matches page — GET /api/discovery/jobs on the scraper: every discovered job
+// is scored at ingest time now (batched Evaluator calls), so "search" is
+// really "filter/sort what's already scored". Replaces the retired RAG
+// semantic-search path.
+export interface CompanyProfileInfo {
+  industry?: string | null;
+  description?: string | null;
+  numEmployees?: string | null;
+  revenue?: string | null;
+  url?: string | null;
 }
 
-// A $vectorSearch hit — a discovered_jobs doc (snake_case, embedding stripped).
-export interface SearchHit {
+// A discovered_jobs doc (snake_case, as stored) — score/verdict/match_analysis
+// are populated by the batched ingest-time scoring path; null when a job is
+// still unscored (score-call failed) rather than "not yet searched".
+export interface DiscoveredJobSummary {
   id: string;
   title: string;
   company: string;
@@ -118,45 +118,39 @@ export interface SearchHit {
   date_posted?: string | null;
   site?: string;
   job_level?: string | null;
+  actual_job_level?: string | null;
   is_remote?: boolean | null;
   company_logo?: string | null;
-  similarity?: number;
+  company_profile?: CompanyProfileInfo | null;
+  score?: number | null;
+  verdict?: string | null;
+  should_apply?: boolean | null;
+  match_analysis?: MatchResponse | null;
   saved_to_tracker?: boolean;
   is_duplicate?: boolean;
-  // Per-facet $vectorSearch position, e.g. { "backend-dotnet": 2 } — set by
-  // the fusion step; single-facet searches carry just that facet's rank.
-  facet_ranks?: Record<string, number>;
+  dismissed?: boolean;
+  discovered_at?: string;
 }
 
-// GET /api/match/profile/search-query — the cached HyDE facets. The Search
-// page shows facet names as focus chips; content is the ideal-posting text.
-export interface SearchQueryFacet {
-  name: string;
-  content: string;
+export interface ScoredJobsQuery {
+  min_score?: number;
+  verdict?: string; // comma-separated, e.g. "STRONG_YES,YES"
+  days_back?: number;
+  criteria_id?: string;
+  location?: string; // free-text substring, case-insensitive
+  is_remote?: boolean;
+  actual_job_level?: string; // comma-separated
+  include_dismissed?: boolean;
+  include_saved?: boolean;
+  limit?: number;
+  offset?: number;
 }
 
-export interface SearchQueryResponse {
-  facets: SearchQueryFacet[];
-  cached?: boolean;
-}
-
-export interface AdvisorJobBrief {
-  jobId: string;
-  rank: number;
-  verdict: 'apply' | 'maybe' | 'skip' | string;
-  rationale: string; // Hebrew
-  greenFlags: string[];
-  redFlags: string[];
-}
-
-export interface AdvisorBrief {
-  overallRecommendation: string; // Hebrew
-  rankings: AdvisorJobBrief[];
-}
-
-export interface SemanticSearchResponse {
-  jobs: SearchHit[];
-  advisor: AdvisorBrief | null;
+export interface ScoredJobsResponse {
+  jobs: DiscoveredJobSummary[];
+  total: number;
+  limit: number;
+  offset: number;
 }
 
 // Interview prep — standalone authored content (self-presentation, Q&A rubric,

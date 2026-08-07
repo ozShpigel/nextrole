@@ -2,12 +2,12 @@
 
 Unlike the FastAPI endpoints (which kick work into BackgroundTasks on the
 long-running web service), this runs a discovery ingest (scrape -> triage ->
-embed -> store) to completion in its own process and exits — the mailbot
+score -> store) to completion in its own process and exits — the mailbot
 pattern. Run it as a Render Cron Job using the scraper image:
 
     python -m app.cli run-all             # every is_active criteria (cron)
     python -m app.cli run <criteria_id>   # one specific criteria
-    python -m app.cli eval-recall         # golden-set retrieval recall report
+    python -m app.cli eval-verdict        # golden-set Evaluator verdict report
     python -m app.cli seed-demo-jobs      # (re)seed the demo search pool
 
 Because nothing is exposed over HTTP, no X-Cron-Key guard is needed and there's
@@ -24,7 +24,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 
 from app.config import Settings
 from app.indexes import ensure_ttl_index
-from app.services import demo_seed, orchestrator, recall_eval
+from app.services import demo_seed, orchestrator, verdict_eval
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("cli")
@@ -81,35 +81,40 @@ async def _seed_demo_jobs():
     await _with_db(_r)
 
 
-async def _eval_recall(ks: tuple[int, ...], tracker_db: str | None):
-    async def _r(db, settings):
-        report = await recall_eval.run_eval(db, settings, ks=ks, tracker_db=tracker_db)
-        print(report)
-    await _with_db(_r)
+async def _eval_verdict(runs: int):
+    # No Mongo needed — this calls the API directly against the golden set.
+    settings = Settings()
+    cases = verdict_eval.load_golden_set()
+    if runs <= 1:
+        results = await verdict_eval.run_eval(settings, cases)
+        print(verdict_eval.format_report(results))
+    else:
+        all_results = []
+        for i in range(runs):
+            logger.info("eval-verdict: run %d/%d", i + 1, runs)
+            all_results.append(await verdict_eval.run_eval(settings, cases))
+        print(verdict_eval.format_multi_run_report(all_results))
 
 
 def main():
     parser = argparse.ArgumentParser(prog="app.cli", description="Discovery ingest cron entrypoint")
     sub = parser.add_subparsers(dest="command", required=True)
 
-    run = sub.add_parser("run", help="Scrape, triage, embed, and store jobs for one criteria")
+    run = sub.add_parser("run", help="Scrape, triage, score, and store jobs for one criteria")
     run.add_argument("criteria_id", help="SearchCriteria id to run")
 
     sub.add_parser("run-all", help="Run every criteria with is_active=true, sequentially")
 
     sub.add_parser(
         "seed-demo-jobs",
-        help="(Re)seed the fictional demo search pool: embed the curated postings and insert them")
+        help="(Re)seed the fictional demo search pool: score the curated postings and insert them")
 
-    ev = sub.add_parser(
-        "eval-recall",
-        help="Golden-set retrieval recall: where do tracker-saved jobs rank in vector search?")
-    ev.add_argument(
-        "--k", default=",".join(str(k) for k in recall_eval.DEFAULT_KS),
-        help="comma-separated recall@K cutoffs (default: %(default)s)")
-    ev.add_argument(
-        "--tracker-db", default=None,
-        help="tracker DB name when it differs from the scraper DB")
+    everdict = sub.add_parser(
+        "eval-verdict",
+        help="Golden-set Evaluator verdict report: does /api/match score known postings correctly?")
+    everdict.add_argument(
+        "--runs", type=int, default=1,
+        help="repeat N times and report a noise baseline (pass-rate spread + flaky cases)")
 
     args = parser.parse_args()
 
@@ -119,9 +124,8 @@ def main():
         asyncio.run(_run_all())
     elif args.command == "seed-demo-jobs":
         asyncio.run(_seed_demo_jobs())
-    elif args.command == "eval-recall":
-        ks = tuple(int(k) for k in args.k.split(",") if k.strip())
-        asyncio.run(_eval_recall(ks or recall_eval.DEFAULT_KS, args.tracker_db))
+    elif args.command == "eval-verdict":
+        asyncio.run(_eval_verdict(args.runs))
     else:  # pragma: no cover — argparse enforces a valid command
         parser.print_help()
         sys.exit(1)

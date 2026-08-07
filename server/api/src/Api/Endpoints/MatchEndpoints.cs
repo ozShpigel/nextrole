@@ -93,28 +93,36 @@ public static class MatchEndpoints
         .WithName("AnalyzeJobMatch")
         .WithSummary("Analyze job match");
 
-        // RAG search path: ONE Sonnet call ranks the top-N $vectorSearch hits as
-        // a career-advisor brief. The profile is loaded server-side — the scraper
-        // only sends the job postings (untrusted, XML-wrapped in the prompt).
-        app.MapPost("/api/match/advise", async (
-            [FromBody] AdviseRequest request,
-            ApplicationTracker.Core.AI.IClaudeClient claude,
+        // Batched ingest-time scoring: the scraper's primary matching path
+        // (replaces the retired RAG search). N jobs (cap 5) share ONE Evaluator
+        // call — each still scored independently, never ranked against its
+        // batch-mates (see PromptSeeds.Evaluator's batch-mode addendum). Own
+        // rate-limit bucket ("discovery") so a big discovery run never starves
+        // the interactive "match" bucket the manual Score-a-Job page uses.
+        app.MapPost("/api/match/discovery-score-batch", async (
+            [FromBody] MatchBatchRequest request,
+            IJobMatchService jobMatchService,
             ILogger<Program> logger,
             CancellationToken ct) =>
         {
             if (request?.Jobs is not { Count: > 0 })
                 return Results.BadRequest(new { error = "at least one job is required" });
-            if (request.Jobs.Count > 15)
-                return Results.BadRequest(new { error = "too many jobs (max 15)" });
+            if (request.Jobs.Count > 5)
+                return Results.BadRequest(new { error = "too many jobs (max 5)" });
             if (request.Jobs.Any(j => string.IsNullOrWhiteSpace(j.Id)))
                 return Results.BadRequest(new { error = "every job needs an id" });
-            if (request.Jobs.Any(j => j.Description is { Length: > 50_000 }))
+            if (request.Jobs.Any(j => string.IsNullOrWhiteSpace(j.JobDescription)))
+                return Results.BadRequest(new { error = "every job needs a jobDescription" });
+            if (request.Jobs.Any(j => j.JobDescription.Length > 50_000))
                 return Results.BadRequest(new { error = "a job description exceeds maximum length of 50,000 characters" });
+            var duplicateIds = request.Jobs.GroupBy(j => j.Id).Where(g => g.Count() > 1).Select(g => g.Key).ToList();
+            if (duplicateIds.Count > 0)
+                return Results.BadRequest(new { error = $"duplicate job id(s): {string.Join(", ", duplicateIds)}" });
 
             try
             {
-                var brief = await claude.AdviseAsync(request.Jobs, ct);
-                return Results.Ok(brief);
+                var response = await jobMatchService.AnalyzeMatchBatchAsync(request, ct);
+                return Results.Ok(response);
             }
             catch (InvalidOperationException ex) when (ex.Message.Contains("ApiKey"))
             {
@@ -125,13 +133,14 @@ public static class MatchEndpoints
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "Error generating advisor brief");
-                return Results.Problem(detail: "An error occurred while generating the advisor brief", statusCode: 500);
+                logger.LogError(ex, "Error processing batch match request");
+                return Results.Problem(detail: "An error occurred while processing the batch request", statusCode: 500);
             }
         })
-        .RequireRateLimiting("search")
-        .WithName("AdviseJobs")
-        .WithSummary("Rank top-N vector-search hits as a career-advisor brief (one Sonnet call)");
+        .RequireRateLimiting("discovery")
+        .WithName("AnalyzeJobMatchBatch")
+        .WithSummary("Score a batch of jobs (up to 5) independently against the rubric in one Evaluator call");
+
 
         // Title triage: one Haiku call per discovery run, before any embedding.
         // Scraper-internal — called once per run, so no
@@ -163,6 +172,37 @@ public static class MatchEndpoints
         .WithName("TriageTitles")
         .WithSummary("Filter scraped job titles by search-intent relevance (one Haiku call per run)");
 
+        // Seniority classification: one Haiku call per discovery run, batched
+        // like title-triage above. Classifies each relevant scraped job's
+        // ACTUAL seniority band from title+description — source-agnostic,
+        // replacing reliance on jobspy's LinkedIn-only job_level tag as the
+        // client-side filter. Scraper-internal — called once per run, no rate
+        // limiting; fails open (every job gets actualSeniority=null, which
+        // never excludes) when this call errors.
+        app.MapPost("/api/match/seniority-classify", async (
+            [FromBody] SeniorityClassifyRequest request,
+            ApplicationTracker.Core.AI.IClaudeClient claude,
+            ILogger<Program> logger,
+            CancellationToken ct) =>
+        {
+            if (request?.Jobs is not { Count: > 0 })
+                return Results.BadRequest(new { error = "at least one job is required" });
+            if (request.Jobs.Count > 200)
+                return Results.BadRequest(new { error = "too many jobs (max 200)" });
+            try
+            {
+                var result = await claude.ClassifySeniorityAsync(request, ct);
+                return Results.Ok(result);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Error classifying job seniority");
+                return Results.Problem(detail: "An error occurred while classifying job seniority", statusCode: 500);
+            }
+        })
+        .WithName("ClassifySeniority")
+        .WithSummary("Classify scraped jobs' actual seniority band from title+description (one Haiku call per run)");
+
         static object ToProfileResponse(ProfileDocument doc) => new
         {
             content = doc.Content,
@@ -188,68 +228,6 @@ public static class MatchEndpoints
         })
         .WithName("GetProfile")
         .WithSummary("Get the stored professional profile (rendered content + structured fields)");
-
-        // HyDE search queries for the RAG search: the profile rewritten as the
-        // 1-3 ideal job postings it matches (one per role facet). The scraper
-        // embeds each facet's posting as its own $vectorSearch query and
-        // rank-fuses the results — posting-vs-posting comparison closes the
-        // résumé↔posting genre gap, and per-facet queries stop secondary
-        // facets being averaged away into one centroid. Cached on the profile
-        // doc keyed to the profile's updated_at — regenerated on profile change
-        // or ?force=true. Consumed by the scraper's /api/search, which falls
-        // back to the raw profile on error.
-        app.MapGet("/api/match/profile/search-query", async (
-            bool? force,
-            IProfileProvider provider,
-            ApplicationTracker.Core.AI.IClaudeClient claude,
-            IConfiguration config,
-            ILogger<Program> logger,
-            CancellationToken ct) =>
-        {
-            static object ToResponse(IReadOnlyList<SearchQueryFacet> facets, bool cached) => new
-            {
-                facets = facets.Select(f => new { name = f.Name, content = f.Posting }),
-                cached
-            };
-
-            // This is a GET, so Program.cs's demo write-block never sees it — but a
-            // cache miss both bills a Claude call and persists via SetSearchQueryAsync.
-            // In demo mode: ignore `force` (no unauthenticated visitor can force a
-            // regeneration) and never persist, so a cache miss costs at most one
-            // Claude call per request and never touches the seeded data.
-            var isDemoMode = config.GetValue<bool>("DemoMode");
-
-            try
-            {
-                var cachedFacets = (force == true && !isDemoMode) ? null : await provider.GetSearchQueryAsync(ct);
-                if (cachedFacets is not null)
-                    return Results.Ok(ToResponse(cachedFacets, cached: true));
-
-                var profile = await provider.GetProfileAsync(ct);
-                if (string.IsNullOrWhiteSpace(profile))
-                    return Results.BadRequest(new { error = "profile is empty — set it up in Settings first" });
-
-                var facets = await claude.GenerateIdealPostingsAsync(profile, ct);
-                if (!isDemoMode)
-                    await provider.SetSearchQueryAsync(facets, ct);
-                return Results.Ok(ToResponse(facets, cached: false));
-            }
-            catch (InvalidOperationException ex) when (ex.Message.Contains("ApiKey"))
-            {
-                logger.LogError(ex, "Anthropic API key not configured");
-                return Results.Problem(
-                    detail: "Anthropic API key is not configured. Please set Anthropic:ApiKey in configuration.",
-                    statusCode: 500);
-            }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, "Failed to build the HyDE search query");
-                return Results.Problem("An internal error occurred.", statusCode: 500);
-            }
-        })
-        .RequireRateLimiting("search")
-        .WithName("GetProfileSearchQuery")
-        .WithSummary("Get the cached HyDE search-query facets (profile as 1-3 ideal job postings), regenerating when the profile changed");
 
         app.MapPut("/api/match/profile", async (
             [FromBody] StructuredProfile request,

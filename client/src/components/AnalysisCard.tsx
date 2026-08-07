@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { VERDICT_LABELS } from '../lib/scoring';
 
 // Editorial score tint (var(--ed-*), valid only inside the .editorial scope)
-function edScoreColor(score: number | null | undefined, max?: number | null): string {
+export function edScoreColor(score: number | null | undefined, max?: number | null): string {
   if (score == null) return 'var(--ed-ink-faint)';
   const pct = max != null && max > 0 ? score / max : score / 100;
   if (pct >= 0.6) return 'var(--ed-yes)';
@@ -100,10 +100,19 @@ interface MatchAnalysis {
   companyNewsAnalysis?: SignalAnalysis;
   employeeReviewsAnalysis?: SignalAnalysis;
   honestAssessment?: string;
+  hardBlockers?: string[];
+  mustClarify?: string[];
+  stackedGaps?: string[];
 }
 
 interface AnalysisCardProps {
-  matchAnalysisJson: string | MatchAnalysis | null | undefined;
+  // Accepts a raw JSON string, an already-parsed MatchAnalysis, or (from the
+  // Matches page) the API's own MatchResponse shape — a structurally
+  // compatible but more loosely-typed object (nullable overallScore,
+  // untyped breakdown/recommendation). Parsing below is already defensive
+  // (every section checks its own fields before rendering), so a wider
+  // input type here doesn't weaken anything at runtime.
+  matchAnalysisJson: string | MatchAnalysis | Record<string, unknown> | null | undefined;
 }
 
 const SUBLABEL = 'block text-[0.62rem] text-[var(--ed-ink-faint)] uppercase tracking-[0.14em] font-semibold mb-[0.4rem]';
@@ -135,7 +144,7 @@ export default function AnalysisCard({ matchAnalysisJson }: AnalysisCardProps) {
 
   if (!matchAnalysisJson) return null;
   let a: MatchAnalysis;
-  try { a = typeof matchAnalysisJson === 'string' ? JSON.parse(matchAnalysisJson) : matchAnalysisJson; } catch { return null; }
+  try { a = typeof matchAnalysisJson === 'string' ? JSON.parse(matchAnalysisJson) : (matchAnalysisJson as MatchAnalysis); } catch { return null; }
 
   const b = a.breakdown;
   const rec = a.recommendation;
@@ -177,6 +186,27 @@ export default function AnalysisCard({ matchAnalysisJson }: AnalysisCardProps) {
             </div>
           </div>
 
+          {/* Hard blockers — mechanical gate, not narrative: non-empty always
+              means the verdict was forced to STRONG_NO server-side. */}
+          {a.hardBlockers && a.hardBlockers.length > 0 && (
+            <div className="mb-6 p-[0.9rem_1.1rem] border" style={{ borderColor: 'color-mix(in oklab, var(--ed-no) 35%, transparent)', background: 'color-mix(in oklab, var(--ed-no) 6%, transparent)' }}>
+              <span className={SUBLABEL} style={{ color: 'var(--ed-no)' }}>Hard Blockers</span>
+              <ul dir="rtl" className="list-disc pr-5 m-0 text-right">
+                {a.hardBlockers.map((item, i) => <li key={i} className="text-[0.84rem] mb-[0.3rem] text-[var(--ed-ink)] leading-[1.6] marker:text-[var(--ed-no)]">{item}</li>)}
+              </ul>
+            </div>
+          )}
+
+          {/* Must clarify — genuinely ambiguous requirements, narrative only. */}
+          {a.mustClarify && a.mustClarify.length > 0 && (
+            <div className="mb-6 p-[0.9rem_1.1rem] border border-[var(--ed-rule)]">
+              <span className={SUBLABEL}>Worth Clarifying</span>
+              <ul dir="rtl" className="list-disc pr-5 m-0 text-right">
+                {a.mustClarify.map((item, i) => <li key={i} className="text-[0.84rem] mb-[0.3rem] text-[var(--ed-ink)] leading-[1.6]">{item}</li>)}
+              </ul>
+            </div>
+          )}
+
           {/* Dimension cards */}
           {b && (
             <>
@@ -197,6 +227,17 @@ export default function AnalysisCard({ matchAnalysisJson }: AnalysisCardProps) {
                   );
                 })}
               </div>
+
+              {/* Stacked gaps — literal inventory backing the Core Stack score
+                  (mechanically capped server-side once 4+ accumulate). */}
+              {a.stackedGaps && a.stackedGaps.length > 0 && (
+                <div className="mt-3 p-[0.9rem_1.1rem] border border-[var(--ed-rule)]">
+                  <span className={SUBLABEL}>Stacked Gaps ({a.stackedGaps.length})</span>
+                  <ul dir="rtl" className="list-disc pr-5 m-0 text-right">
+                    {a.stackedGaps.map((item, i) => <li key={i} className="text-[0.84rem] mb-[0.3rem] text-[var(--ed-ink)] leading-[1.6] marker:text-[var(--ed-no)]">{item}</li>)}
+                  </ul>
+                </div>
+              )}
 
               {active && (
                 <div className="mt-3 p-[1.1rem_1.25rem] bg-[var(--ed-panel)] border border-[var(--ed-rule)] animate-in fade-in duration-200" key={activeDim}>

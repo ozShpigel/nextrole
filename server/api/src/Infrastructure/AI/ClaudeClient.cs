@@ -118,8 +118,6 @@ public sealed class ClaudeClient : IClaudeClient
         string.IsNullOrWhiteSpace(_prompts.Analyzer) ? PromptSeeds.Analyst : _prompts.Analyzer;
     private string EvaluatorPrompt =>
         string.IsNullOrWhiteSpace(_prompts.Evaluator) ? PromptSeeds.Evaluator : _prompts.Evaluator;
-    private string AdvisorPrompt =>
-        string.IsNullOrWhiteSpace(_prompts.Advisor) ? PromptSeeds.Advisor : _prompts.Advisor;
 
     public Task<(ParsedJob Parsed, ClaudeCallSnapshot Snapshot)> ParseJobDescriptionAsync(string jobDescription, CancellationToken cancellationToken = default)
         => ParseJobDescriptionAsync(jobDescription, AnalystPrompt, _scoring.Analyst, cancellationToken);
@@ -135,19 +133,58 @@ public sealed class ClaudeClient : IClaudeClient
         return (result, snapshot);
     }
 
-    public Task<(MatchResponse Response, ClaudeCallSnapshot Snapshot)> EvaluateMatchAsync(string profile, ParsedJob parsedJob, List<CompanyNewsItem>? companyNews = null, GlassdoorData? glassdoorData = null, CancellationToken cancellationToken = default)
-        => EvaluateMatchAsync(profile, parsedJob, EvaluatorPrompt, _scoring.Evaluator, companyNews, glassdoorData, cancellationToken);
+    public Task<(MatchResponse Response, ClaudeCallSnapshot Snapshot)> EvaluateMatchAsync(string profile, ParsedJob parsedJob, List<CompanyNewsItem>? companyNews = null, GlassdoorData? glassdoorData = null, CompanyProfile? companyProfile = null, CancellationToken cancellationToken = default)
+        => EvaluateMatchAsync(profile, parsedJob, EvaluatorPrompt, _scoring.Evaluator, companyNews, glassdoorData, companyProfile, cancellationToken);
 
-    public async Task<(MatchResponse Response, ClaudeCallSnapshot Snapshot)> EvaluateMatchAsync(string profile, ParsedJob parsedJob, string evaluatorPrompt, RoleScoringConfig evaluatorConfig, List<CompanyNewsItem>? companyNews = null, GlassdoorData? glassdoorData = null, CancellationToken cancellationToken = default)
+    public async Task<(MatchResponse Response, ClaudeCallSnapshot Snapshot)> EvaluateMatchAsync(string profile, ParsedJob parsedJob, string evaluatorPrompt, RoleScoringConfig evaluatorConfig, List<CompanyNewsItem>? companyNews = null, GlassdoorData? glassdoorData = null, CompanyProfile? companyProfile = null, CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Evaluating job match: {Title} at {Company}", parsedJob.JobTitle, parsedJob.Company);
 
-        var (systemPrompt, userMessage) = _promptBuilder.BuildEvaluationPrompt(profile, parsedJob, evaluatorPrompt, companyNews, glassdoorData);
+        var (systemPrompt, userMessage) = _promptBuilder.BuildEvaluationPrompt(profile, parsedJob, evaluatorPrompt, companyNews, glassdoorData, companyProfile);
 
         var (result, snapshot) = await CallClaudeAsync<MatchResponse>(systemPrompt, userMessage, evaluatorConfig, "evaluate", cancellationToken);
         _logger.LogInformation("Match evaluation completed. Verdict: {Verdict}, Score: {Score}",
             result.Verdict, result.OverallScore);
         return (result, snapshot);
+    }
+
+    public async Task<(List<MatchBatchResult> Results, ClaudeCallSnapshot Snapshot)> EvaluateMatchBatchAsync(string profile, IReadOnlyList<EvaluationBatchItem> jobs, CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Evaluating {Count} jobs in one batch call", jobs.Count);
+
+        var (systemPrompt, userMessage) = _promptBuilder.BuildEvaluationBatchPrompt(profile, jobs, EvaluatorPrompt);
+
+        var (envelope, snapshot) = await CallClaudeAsync<MatchBatchApiEnvelope>(systemPrompt, userMessage, _scoring.EvaluatorBatch, "evaluate-batch", cancellationToken);
+
+        var byId = (envelope.Results ?? [])
+            .Where(r => !string.IsNullOrWhiteSpace(r.Id) && r.Response is not null)
+            .ToDictionary(r => r.Id!, r => r.Response!);
+
+        // Fail loud rather than silently drop a job — a missing id means every
+        // job in this batch stays unscored on the caller's retry-next-cycle
+        // path (orchestrator.py), which is safer than guessing.
+        var missing = jobs.Select(j => j.Id).Where(id => !byId.ContainsKey(id)).ToList();
+        if (missing.Count > 0)
+            throw new InvalidOperationException(
+                $"Batch evaluation response is missing job id(s): {string.Join(", ", missing)}");
+
+        var results = jobs.Select(j => new MatchBatchResult { Id = j.Id, Response = byId[j.Id] }).ToList();
+        _logger.LogInformation("Batch evaluation completed: {Count} results", results.Count);
+        return (results, snapshot);
+    }
+
+    private sealed record MatchBatchApiEnvelope
+    {
+        [JsonPropertyName("results")]
+        public List<MatchBatchApiItem>? Results { get; init; }
+    }
+
+    private sealed record MatchBatchApiItem
+    {
+        [JsonPropertyName("id")]
+        public string? Id { get; init; }
+        [JsonPropertyName("response")]
+        public MatchResponse? Response { get; init; }
     }
 
     public async Task<EmailParseResult?> ParseEmailAsync(
@@ -212,55 +249,6 @@ public sealed class ClaudeClient : IClaudeClient
 
         _logger.LogInformation("Company summary generated for: {Company}", companyName);
         return content;
-    }
-
-    public async Task<List<SearchQueryFacet>> GenerateIdealPostingsAsync(string profile, CancellationToken cancellationToken = default)
-    {
-        _logger.LogInformation("Generating ideal-posting search queries ({Length} chars profile)", profile.Length);
-
-        // The profile is the user's own (trusted) data, but it's still the
-        // input payload — XML-wrapped in the user message per convention.
-        var userMessage = $"<professional_profile>\n{profile.Trim()}\n</professional_profile>";
-
-        var parameters = new MessageParameters
-        {
-            System = new List<SystemMessage> { new(PromptSeeds.IdealPostings) },
-            Messages = new List<Message> { new(RoleType.User, userMessage) },
-            // Up to 3 postings of ~350 words each, wrapped in JSON.
-            MaxTokens = 4096,
-            Model = "claude-sonnet-4-6",
-            Temperature = 0.4m,
-            Stream = false
-        };
-
-        var response = await _client.Messages.GetClaudeMessageAsync(parameters, cancellationToken);
-        var content = response.Message?.ToString()?.Trim()
-            ?? throw new InvalidOperationException("Empty response from Claude API");
-
-        var json = ExtractJson(content);
-        var parsed = JsonSerializer.Deserialize<IdealPostingsResult>(json, CaseInsensitive);
-        var facets = (parsed?.Facets ?? [])
-            .Where(f => !string.IsNullOrWhiteSpace(f?.Posting))
-            .Select((f, i) => new SearchQueryFacet
-            {
-                Name = string.IsNullOrWhiteSpace(f!.Name) ? $"facet-{i + 1}" : f.Name.Trim(),
-                Posting = f.Posting.Trim(),
-            })
-            .Take(3)
-            .ToList();
-        if (facets.Count == 0)
-            throw new InvalidOperationException("Ideal-posting response contained no facets");
-
-        _logger.LogInformation(
-            "Ideal-posting search queries generated: {Facets}",
-            string.Join(", ", facets.Select(f => f.Name)));
-        return facets;
-    }
-
-    private sealed record IdealPostingsResult
-    {
-        [JsonPropertyName("facets")]
-        public SearchQueryFacet[]? Facets { get; init; }
     }
 
     public async Task<string> GenerateWhyWorkHereAsync(Application app, string profile, InterviewPrepDocument prep, CancellationToken cancellationToken = default)
@@ -381,6 +369,40 @@ public sealed class ClaudeClient : IClaudeClient
 
         _logger.LogInformation("Title triage: {Kept}/{Total} kept",
             parsed.Results.Count(r => r.Relevant), request.Titles.Count);
+        return parsed;
+    }
+
+    public async Task<SeniorityClassifyResponse> ClassifySeniorityAsync(SeniorityClassifyRequest request, CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Classifying seniority for {Count} scraped jobs", request.Jobs.Count);
+
+        var jobsJson = JsonSerializer.Serialize(
+            request.Jobs.Select(j => new { j.Index, j.Title, j.Description }),
+            new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+
+        // Scraped postings — untrusted, XML-wrapped as data.
+        var userMessage = $"<scraped_jobs>\n{jobsJson}\n</scraped_jobs>";
+
+        var parameters = new MessageParameters
+        {
+            System = new List<SystemMessage> { new(PromptSeeds.SeniorityClassification) },
+            Messages = new List<Message> { new(RoleType.User, userMessage) },
+            MaxTokens = 2000,
+            Model = _scoring.Analyst.Model,
+            Temperature = 0.2m,
+            Stream = false
+        };
+
+        var response = await _client.Messages.GetClaudeMessageAsync(parameters, cancellationToken);
+        var content = response.Message?.ToString()?.Trim()
+            ?? throw new InvalidOperationException("Empty response from Claude API");
+
+        var json = ExtractJson(content);
+        var parsed = JsonSerializer.Deserialize<SeniorityClassifyResponse>(json, CaseInsensitive)
+            ?? throw new InvalidOperationException("Could not parse seniority classification response");
+
+        _logger.LogInformation("Seniority classification: {Labeled}/{Total} labeled",
+            parsed.Results.Count(r => r.Level is not null), request.Jobs.Count);
         return parsed;
     }
 
@@ -698,20 +720,6 @@ public sealed class ClaudeClient : IClaudeClient
             p.Temperature = 1m;
         }
         return p;
-    }
-
-    // RAG search path: one call ranks the top-N vector-search hits. Streaming,
-    // prompt-cached system, and the JSON-repair retry all come from CallClaudeAsync.
-    public async Task<AdvisorResponse> AdviseAsync(IReadOnlyList<AdvisorJobInput> jobs, CancellationToken cancellationToken = default)
-    {
-        _logger.LogInformation("Advising over {Count} vector-search hits", jobs.Count);
-
-        var profile = await _profileProvider.GetProfileAsync(cancellationToken);
-        var (systemPrompt, userMessage) = _promptBuilder.BuildAdvisorPrompt(profile, jobs, AdvisorPrompt);
-
-        var (result, _) = await CallClaudeAsync<AdvisorResponse>(systemPrompt, userMessage, _scoring.Advisor, "advise", cancellationToken);
-        _logger.LogInformation("Advisor brief completed: {Rankings} rankings", result.Rankings.Count);
-        return result;
     }
 
     private async Task<(T Result, ClaudeCallSnapshot Snapshot)> CallClaudeAsync<T>(

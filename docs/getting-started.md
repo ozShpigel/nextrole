@@ -16,7 +16,6 @@ Full setup for [NextRole](../README.md) — running the stack with Docker or per
 
 ```bash
 export ANTHROPIC_API_KEY=your-key-here
-export OPENAI_API_KEY=your-key-here
 export MONGODB_CONNECTION_STRING=mongodb://your-connection-string
 
 docker compose up --build
@@ -72,16 +71,15 @@ The Mongo connection string and the Anthropic key are read **only** from the env
 | `MongoDB__DatabaseName` | no | `job-tracker` | Application-tracking DB |
 | `MongoDB__ProfileDatabase` | no | `jobmatch` | Profile/scoring DB |
 | `CorsOrigins` | no | `""` (none) | Comma-separated allowed browser origins; `*` for dev |
-| `Scoring__*`, `Prompts__Analyzer`, `Prompts__Evaluator`, `Prompts__Advisor` | no | see `appsettings.json` / `PromptSeeds.cs` | Read-only scoring/advisor config & prompt overrides |
+| `Scoring__*`, `Prompts__Analyzer`, `Prompts__Evaluator` | no | see `appsettings.json` / `PromptSeeds.cs` | Read-only scoring config & prompt overrides |
 
 ### Scraper (Python FastAPI)
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `MONGODB_CONNECTION_STRING` | **yes** | — | MongoDB connection string |
-| `OPENAI_API_KEY` | **yes** | — | OpenAI key for job/profile embeddings (`text-embedding-3-small`) |
 | `MONGODB_DATABASE_NAME` | no | `job-tracker` | Database name |
-| `API_BASE_URL` | no | `http://localhost:5002` | Unified API URL (triage, advisor, dedup, save) |
+| `API_BASE_URL` | no | `http://localhost:5002` | Unified API URL (triage, seniority classification, batched scoring, dedup, save) |
 | `CORS_ORIGINS` | no | `*` | Comma-separated allowed browser origins |
 
 **Scheduled ingest (Render Cron Job).** Discovery can run daily without the UI: create a Render **Cron Job** service from this repo — Docker runtime, Dockerfile `server/scraper/Dockerfile`, schedule `0 5 * * *`, command `python -m app.cli run-all` — with the scraper env vars above (`CORS_ORIGINS` not needed; point `API_BASE_URL` at your deployed API). `run-all` ingests every criteria with `is_active=true` sequentially, ensures the retention TTL index, and exits non-zero when no criteria are active so failed runs are visible in Render's history.

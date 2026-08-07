@@ -15,6 +15,17 @@ public sealed record MatchResponse
     public string? AnalystSnapshotOutput { get; init; }
     public string? EvaluatorSnapshotInput { get; init; }
     public string? EvaluatorSnapshotOutput { get; init; }
+
+    // Mechanical hard-filter gate: non-empty => Correct() forces Verdict to
+    // STRONG_NO regardless of score or the model's own verdict field.
+    public string[] HardBlockers { get; init; } = [];
+    // Genuinely ambiguous requirements worth asking about rather than
+    // scoring against — narrative only, no server-side consequence.
+    public string[] MustClarify { get; init; } = [];
+    // Literal inventory of missing REQUIRED (not "nice to have") named
+    // tech/skills, independent of the narrative Core Stack score. Checked
+    // mechanically by Correct(): >=4 caps Core Stack's score server-side.
+    public string[] StackedGaps { get; init; } = [];
 }
 
 public sealed record Breakdown

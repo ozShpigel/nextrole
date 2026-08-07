@@ -66,15 +66,14 @@ builder.Services.AddRateLimiter(options =>
         cfg.Window = TimeSpan.FromMinutes(1);
         cfg.QueueLimit = 0;
     });
-    // The RAG search page (advise + its HyDE query-facet lookup) shares its own
-    // bucket, separate from the manual "Score a Job" page above — a single
-    // search click already costs 2+ calls against whatever bucket it's in, so
-    // sharing "match"'s 10/min (sized for one-off manual scoring) made normal
-    // search usage trip 429s. Kept apart rather than just raising "match" so
-    // the manual scorer keeps its tighter cost ceiling.
-    options.AddFixedWindowLimiter("search", cfg =>
+    // Batched ingest-time scoring gets its own bucket, separate from the
+    // interactive "match" bucket above — a discovery run scoring dozens of
+    // jobs in batches of 5 must never starve the manual Score-a-Job page.
+    // Sized to the scraper's own concurrency (Semaphore(2) over batches) —
+    // a starting estimate, not yet measured against a real run.
+    options.AddFixedWindowLimiter("discovery", cfg =>
     {
-        cfg.PermitLimit = 30;
+        cfg.PermitLimit = 20;
         cfg.Window = TimeSpan.FromMinutes(1);
         cfg.QueueLimit = 0;
     });
@@ -87,7 +86,7 @@ builder.Services.AddRateLimiter(options =>
         cfg.QueueLimit = 0;
     });
     // Interview Insights synthesis is a "regenerate" click, not a hot loop —
-    // same order-of-magnitude cost as a single match/advise call.
+    // same order-of-magnitude cost as a single match call.
     options.AddFixedWindowLimiter("insights", cfg =>
     {
         cfg.PermitLimit = 10;
@@ -176,7 +175,8 @@ if (demoMode)
     // on "/api/match" would wrongly allow PUT /api/match/profile).
     var analysisAllowlist = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
     {
-        "/api/match", "/api/match/advise", "/api/match/title-triage",
+        "/api/match", "/api/match/title-triage", "/api/match/seniority-classify",
+        "/api/match/discovery-score-batch",
         // normalize-file removed — it now persists the uploaded ResumeFile, so
         // it must 403 in demo like every other write; normalize (paste-text)
         // stays allowlisted since it's still purely ephemeral analysis.

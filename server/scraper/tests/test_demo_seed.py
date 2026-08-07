@@ -1,6 +1,5 @@
 """Integrity checks for the demo seed postings and doc construction."""
 from app.services.demo_seed import POSTINGS, SEED_MARKER, SEED_RUN_ID, build_seed_docs
-from app.services.embeddings import EMBEDDING_MODEL
 
 
 def test_postings_are_well_formed_and_unique():
@@ -20,17 +19,41 @@ def test_postings_cover_levels_for_the_seniority_filter():
     assert "entry level" in levels
 
 
-def test_build_seed_docs_pairs_vectors_and_marks_docs():
-    vectors: list[list[float] | None] = [[0.1, 0.2]] * (len(POSTINGS) - 1) + [None]
-    docs = build_seed_docs(vectors)
+def _fake_response(score: int, verdict: str) -> dict:
+    return {
+        "overallScore": score, "verdict": verdict,
+        "recommendation": {"shouldApply": score >= 70},
+        "breakdown": {}, "honestAssessment": "",
+        "analystSnapshotInput": "in", "analystSnapshotOutput": "out",
+        "evaluatorSnapshotInput": "ein", "evaluatorSnapshotOutput": "eout",
+    }
+
+
+def test_build_seed_docs_marks_docs_and_applies_scores():
+    scored_url = POSTINGS[0]["job_url"]
+    scores = {scored_url: _fake_response(82, "YES")}
+    docs = build_seed_docs(scores)
     assert len(docs) == len(POSTINGS)
+
+    by_url = {d["job_url"]: d for d in docs}
+    scored_doc = by_url[scored_url]
+    assert scored_doc["score"] == 82
+    assert scored_doc["verdict"] == "YES"
+    assert scored_doc["should_apply"] is True
+    assert scored_doc["analyst_snapshot_input"] == "in"
+    assert scored_doc["evaluator_snapshot_output"] == "eout"
+    # Snapshots live in their own columns — not duplicated inside match_analysis.
+    assert "analystSnapshotInput" not in scored_doc["match_analysis"]
+    assert "evaluatorSnapshotOutput" not in scored_doc["match_analysis"]
+    assert scored_doc["match_analysis"]["overallScore"] == 82
+
     for doc in docs:
         assert doc[SEED_MARKER] is True
         assert doc["run_id"] == SEED_RUN_ID
         assert doc["site"] == "demo"
         assert doc["discovered_at"] is not None
-    assert docs[0]["job_embedding"] == [0.1, 0.2]
-    assert docs[0]["embedding_model"] == EMBEDDING_MODEL
-    # A failed embedding stays visible in the doc but invisible to search.
-    assert docs[-1]["job_embedding"] is None
-    assert docs[-1]["embedding_model"] is None
+
+    # Postings absent from `scores` (their batch failed) stay unscored, not dropped.
+    unscored = [d for d in docs if d["job_url"] != scored_url]
+    assert len(unscored) == len(POSTINGS) - 1
+    assert all(d["score"] is None for d in unscored)

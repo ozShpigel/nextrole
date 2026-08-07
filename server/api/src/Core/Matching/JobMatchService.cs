@@ -40,7 +40,7 @@ public sealed class JobMatchService : IJobMatchService
         var profile = await _profileProvider.GetProfileAsync(cancellationToken);
 
         var (parsedJob, analystSnap) = await ParseAsync(request, cancellationToken);
-        var (matchResponse, evalSnap) = await _claudeClient.EvaluateMatchAsync(profile, parsedJob, request.CompanyNews, request.GlassdoorData, cancellationToken);
+        var (matchResponse, evalSnap) = await _claudeClient.EvaluateMatchAsync(profile, parsedJob, request.CompanyNews, request.GlassdoorData, request.CompanyProfile, cancellationToken);
 
         var corrected = Correct(matchResponse, _scoring, ReviewCap(request.GlassdoorData?.ReviewCount)) with
         {
@@ -54,6 +54,55 @@ public sealed class JobMatchService : IJobMatchService
         _logger.LogInformation("Match evaluation completed. Verdict: {Verdict}, Score: {Score}",
             corrected.Verdict, corrected.OverallScore);
         return corrected;
+    }
+
+    public async Task<MatchBatchResponse> AnalyzeMatchBatchAsync(MatchBatchRequest request, CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Starting batch job match analysis ({Count} jobs)", request.Jobs.Count);
+
+        var profile = await _profileProvider.GetProfileAsync(cancellationToken);
+
+        // Analyst pass per job, in parallel — cheap (Haiku), keeps per-job
+        // title/company extraction accurate. Only the Evaluator call is shared.
+        var parsed = await Task.WhenAll(request.Jobs.Select(async item =>
+        {
+            var matchRequest = new MatchRequest { JobDescription = item.JobDescription, Title = item.Title, Company = item.Company };
+            var (parsedJob, snap) = await ParseAsync(matchRequest, cancellationToken);
+            return (Item: item, ParsedJob: parsedJob, AnalystSnapshot: snap);
+        }));
+
+        var evaluationItems = parsed.Select(p => new EvaluationBatchItem
+        {
+            Id = p.Item.Id,
+            ParsedJob = p.ParsedJob,
+            CompanyNews = p.Item.CompanyNews,
+            GlassdoorData = p.Item.GlassdoorData,
+            CompanyProfile = p.Item.CompanyProfile,
+        }).ToList();
+
+        var (batchResults, evalSnap) = await _claudeClient.EvaluateMatchBatchAsync(profile, evaluationItems, cancellationToken);
+        var responseById = batchResults.ToDictionary(r => r.Id, r => r.Response);
+
+        var results = parsed.Select(p =>
+        {
+            var raw = responseById[p.Item.Id];
+            var corrected = Correct(raw, _scoring, ReviewCap(p.Item.GlassdoorData?.ReviewCount)) with
+            {
+                JobTitle = p.ParsedJob.JobTitle,
+                Company = p.ParsedJob.Company,
+                AnalystSnapshotInput = p.AnalystSnapshot.Input,
+                AnalystSnapshotOutput = p.AnalystSnapshot.Output,
+                // The whole batch shares one Evaluator call — every job's
+                // snapshot is the same shared request/response, honestly
+                // reflecting that this job wasn't scored in isolation.
+                EvaluatorSnapshotInput = evalSnap.Input,
+                EvaluatorSnapshotOutput = evalSnap.Output,
+            };
+            return new MatchBatchResult { Id = p.Item.Id, Response = corrected };
+        }).ToList();
+
+        _logger.LogInformation("Batch job match analysis completed: {Count} jobs", results.Count);
+        return new MatchBatchResponse { Results = results };
     }
 
     // Analyst pass only. Always run even when the caller pre-supplies
@@ -76,10 +125,55 @@ public sealed class JobMatchService : IJobMatchService
     private MatchResponse Correct(MatchResponse r, ScoringConfig cfg, int reviewCap)
     {
         r = EnforceReviewCaps(r, reviewCap);
+        r = EnforceStackedGapsCap(r);
         var verdict = VerdictFromScore(r.OverallScore, cfg.VerdictBands) ?? r.Verdict;
-        var shouldApply = r.OverallScore >= cfg.MinScoreToSave;
+        // The model reliably identifies a disqualifying condition in its
+        // reasoning but doesn't reliably apply the consequence to its own
+        // verdict field — same pattern as the review-cap enforcement below,
+        // enforced here instead of trusted from the prompt alone.
+        if (r.HardBlockers.Length > 0)
+            verdict = "STRONG_NO";
+        var shouldApply = r.OverallScore >= cfg.MinScoreToSave && verdict != "STRONG_NO";
         var rec = r.Recommendation is null ? null : r.Recommendation with { ShouldApply = shouldApply };
         return r with { Verdict = verdict, Recommendation = rec! };
+    }
+
+    // A posting with many individually-minor stack gaps was scored too
+    // generously as an overall Core Stack match — tuning the verdict
+    // threshold alone couldn't separate this pattern from genuinely strong
+    // matches (their real scores overlap the same band). StackedGaps is a
+    // separate, literal inventory the model fills independently of its own
+    // Core Stack narrative score; when enough gaps stack up, cap the score
+    // server-side rather than trust the model to self-discount it.
+    private const int StackedGapsThreshold = 4;
+    private const int StackedGapsCoreStackCeiling = 11;
+
+    private MatchResponse EnforceStackedGapsCap(MatchResponse r)
+    {
+        if (r.StackedGaps.Length < StackedGapsThreshold) return r;
+        var components = r.Breakdown.TechnicalFit.Components;
+        var idx = Array.FindIndex(components, c => c.Name.Equals("Core Stack", StringComparison.OrdinalIgnoreCase));
+        if (idx < 0 || components[idx].Score is not int score || score <= StackedGapsCoreStackCeiling)
+            return r;
+
+        var newComponents = (ScoreComponent[])components.Clone();
+        newComponents[idx] = components[idx] with { Score = StackedGapsCoreStackCeiling };
+        _logger.LogInformation(
+            "Stacked-gaps cap enforcement: 'Core Stack' {Old} -> {New} ({GapCount} stacked gaps)",
+            score, StackedGapsCoreStackCeiling, r.StackedGaps.Length);
+
+        var techFit = r.Breakdown.TechnicalFit with
+        {
+            Components = newComponents,
+            Score = newComponents.Sum(c => c.Score ?? 0),
+        };
+        var breakdown = r.Breakdown with { TechnicalFit = techFit };
+        var overall = breakdown.TechnicalFit.Score is int t
+                   && breakdown.EngineeringExecutionFit.Score is int e
+                   && breakdown.SustainabilityPaceFit.Score is int s
+            ? t + e + s
+            : r.OverallScore;
+        return r with { Breakdown = breakdown, OverallScore = overall };
     }
 
     // Evidence-volume cap from the EMPLOYEE REVIEW EVIDENCE prompt section.

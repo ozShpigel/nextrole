@@ -96,7 +96,6 @@ MONGODB_DATABASE_NAME     = job-tracker-demo
 DEMO_MODE                 = true
 API_BASE_URL              = https://<your-public-api-host>
 CORS_ORIGINS              = https://<your-public-frontend-host>
-OPENAI_API_KEY            = <your key>   # embeds the search query at request time
 ```
 
 **Client service** (Vite bakes `VITE_*` at **build** time — redeploy with the build
@@ -150,23 +149,26 @@ Don't set `Gmail__Query` — the mailbot builds the company-names query itself.
 
 If this private frontend also needs real (non-demo) job search, the **scraper** needs the same treatment: it now supports an `API_KEY` setting (sent as `X-Api-Key` on every call to `api_base_url`) so a private scraper instance can talk to a key-gated private API. Point the frontend's `VITE_SCRAPER_URL` **directly at the scraper** (like the public demo does), not through nginx — proxying scraper calls through nginx causes Render/Cloudflare to throttle with a `hibernate-rate-limited` 429 whenever the free-tier scraper is cold and gets hit through the extra hop (see Gotchas below).
 
-## Demo search pool (seeded, not scraped)
+## Demo Matches pool (seeded, not scraped)
 
-Semantic search is demo-allowlisted, but scraping real boards from a datacenter
-IP is unreliable and would mix real jobs into the fictional demo data. Instead,
-the search pool is **seeded with fictional postings** written for the demo
-profile:
+Scoring is demo-allowlisted (`/api/match/discovery-score-batch`, non-persisting
+analysis), but scraping real boards from a datacenter IP is unreliable and
+would mix real jobs into the fictional demo data. Instead, the pool is
+**seeded with fictional postings** written for the demo profile, scored via
+the real batched Evaluator path:
 
-1. Create the Atlas **vector index** on the *demo* `discovered_jobs` collection —
-   same `jobs_vector_index` definition as the private one (this step is easy to
-   forget; without it `$vectorSearch` silently returns nothing).
-2. One-time (or whenever the postings change), with the demo env:
+1. One-time (or whenever the postings change), with the demo env:
    `MONGODB_DATABASE_NAME=job-tracker-demo python -m app.cli seed-demo-jobs` —
-   embeds `app/services/demo_seed.py`'s postings (one OpenAI call) and inserts
-   them (idempotent; replaces previously seeded docs, never touches scraped ones).
-3. Freshness is automatic: on every demo web-service startup (`DEMO_MODE=true`)
+   scores `app/services/demo_seed.py`'s ~24 postings via `POST
+   /api/match/discovery-score-batch` (batches of 4, pennies total) and inserts
+   them as fully-scored `DiscoveredJob` docs (idempotent; replaces previously
+   seeded docs, never touches scraped ones). No Atlas vector index or OpenAI
+   key needed anymore — this used to require creating a `jobs_vector_index`
+   on the demo DB first (an easy-to-forget manual Atlas UI step); that
+   requirement is gone along with `$vectorSearch` itself.
+2. Freshness is automatic: on every demo web-service startup (`DEMO_MODE=true`)
    the seeded jobs' `discovered_at` is bumped to now, so they always sit inside
-   the Search page's days-back window and never TTL out. Free-tier cold starts
+   the Matches page's days-back window and never TTL out. Free-tier cold starts
    happen whenever a visitor arrives — exactly when freshness matters.
 
 ## Gotchas

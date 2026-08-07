@@ -8,28 +8,32 @@ namespace ApplicationTracker.Core.AI;
 public interface IClaudeClient
 {
     Task<(ParsedJob Parsed, ClaudeCallSnapshot Snapshot)> ParseJobDescriptionAsync(string jobDescription, CancellationToken cancellationToken = default);
-    Task<(MatchResponse Response, ClaudeCallSnapshot Snapshot)> EvaluateMatchAsync(string profile, ParsedJob parsedJob, List<CompanyNewsItem>? companyNews = null, GlassdoorData? glassdoorData = null, CancellationToken cancellationToken = default);
+    Task<(MatchResponse Response, ClaudeCallSnapshot Snapshot)> EvaluateMatchAsync(string profile, ParsedJob parsedJob, List<CompanyNewsItem>? companyNews = null, GlassdoorData? glassdoorData = null, CompanyProfile? companyProfile = null, CancellationToken cancellationToken = default);
 
     // Explicit-override variants: the prompt and per-role config are supplied
     // directly instead of being read from configuration. The parameterless
     // variants above delegate to these with the configured prompt/config.
     Task<(ParsedJob Parsed, ClaudeCallSnapshot Snapshot)> ParseJobDescriptionAsync(string jobDescription, string analystPrompt, RoleScoringConfig analystConfig, CancellationToken cancellationToken = default);
-    Task<(MatchResponse Response, ClaudeCallSnapshot Snapshot)> EvaluateMatchAsync(string profile, ParsedJob parsedJob, string evaluatorPrompt, RoleScoringConfig evaluatorConfig, List<CompanyNewsItem>? companyNews = null, GlassdoorData? glassdoorData = null, CancellationToken cancellationToken = default);
+    Task<(MatchResponse Response, ClaudeCallSnapshot Snapshot)> EvaluateMatchAsync(string profile, ParsedJob parsedJob, string evaluatorPrompt, RoleScoringConfig evaluatorConfig, List<CompanyNewsItem>? companyNews = null, GlassdoorData? glassdoorData = null, CompanyProfile? companyProfile = null, CancellationToken cancellationToken = default);
 
-    // RAG search path: ONE Sonnet call ranking the top-N vector-search hits as
-    // a career-advisor brief. The profile is loaded server-side.
-    Task<AdvisorResponse> AdviseAsync(IReadOnlyList<AdvisorJobInput> jobs, CancellationToken cancellationToken = default);
+    // Batched ingest-time scoring: ONE Evaluator call scores every job in the
+    // batch independently against the same fixed rubric — never a comparative
+    // ranking. Throws if the model's response doesn't cover every job id in
+    // the batch (fail loud rather than silently drop one — mirrors the
+    // eval-verdict tool's "no partial results" discipline, now on the
+    // production path too).
+    Task<(List<MatchBatchResult> Results, ClaudeCallSnapshot Snapshot)> EvaluateMatchBatchAsync(string profile, IReadOnlyList<EvaluationBatchItem> jobs, CancellationToken cancellationToken = default);
 
     // One cheap Haiku call per discovery run: flags scraped titles that are
     // clearly off-target for the search intent, so the scraper skips
     // enrichment + scoring for them (lean-permissive — uncertain titles pass).
     Task<TitleTriageResponse> TriageTitlesAsync(TitleTriageRequest request, CancellationToken cancellationToken = default);
 
-    // HyDE query generator: rewrites the candidate profile as the ideal job
-    // posting(s) it matches — one per distinct role facet (1-3). The scraper
-    // embeds each posting as its own vector-search query and rank-fuses the
-    // results, so secondary facets aren't averaged away into one centroid.
-    Task<List<SearchQueryFacet>> GenerateIdealPostingsAsync(string profile, CancellationToken cancellationToken = default);
+    // One cheap Haiku call per discovery run: classifies each relevant scraped
+    // job's actual seniority band from title+description, source-agnostic
+    // (replaces reliance on jobspy's LinkedIn-only job_level tag). Labels
+    // only — same batched-per-run, fail-open contract as TriageTitlesAsync.
+    Task<SeniorityClassifyResponse> ClassifySeniorityAsync(SeniorityClassifyRequest request, CancellationToken cancellationToken = default);
 
     Task<EmailParseResult?> ParseEmailAsync(string subject, string from, string body, List<string> knownCompanies, DateTime? referenceDate = null, CancellationToken cancellationToken = default);
     Task<string> SummarizeCompanyAsync(string companyName, CancellationToken cancellationToken = default);

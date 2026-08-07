@@ -20,10 +20,15 @@ public sealed record RoleScoringConfig
 // verdict. Below `No` => STRONG_NO; a null score => INSUFFICIENT_DATA.
 public sealed record VerdictBands
 {
-    public int StrongYes { get; init; } = 80;
-    public int Yes { get; init; } = 60;
-    public int Maybe { get; init; } = 40;
-    public int No { get; init; } = 20;
+    // Golden-set-validated (3x run, 45/45 pass-points, 0% spread, no flaky
+    // cases): Yes alone at 72 fixed the accumulated-gaps pattern but
+    // destabilized two rock-solid "strong" cases sitting right at that
+    // boundary; 68 holds both — the gaps fix comes from StackedGaps
+    // (JobMatchService.EnforceStackedGapsCap), not from this threshold.
+    public int StrongYes { get; init; } = 85;
+    public int Yes { get; init; } = 68;
+    public int Maybe { get; init; } = 50;
+    public int No { get; init; } = 25;
 }
 
 public sealed record ScoringConfig
@@ -41,9 +46,12 @@ public sealed record ScoringConfig
     // only generated tokens are billed.
     public RoleScoringConfig Evaluator { get; init; } = new() { MaxTokens = 8192 };
 
-    // Advisor: ONE Sonnet call ranking the top-N vector-search hits (RAG search
-    // path). 8192 like the Evaluator — the brief covers up to 15 jobs.
-    public RoleScoringConfig Advisor { get; init; } = new() { MaxTokens = 8192 };
+    // Batched ingest-time scoring: same rubric/model as Evaluator, N jobs (cap
+    // 5, see MatchEndpoints) in ONE call — each job gets a full breakdown, so
+    // output scales with batch size (~3-3.5K tokens/job observed for a single
+    // job). 16000 covers a 5-job batch with real headroom; still one shared
+    // system-prompt/profile input cost instead of N, which is the entire point.
+    public RoleScoringConfig EvaluatorBatch { get; init; } = new() { MaxTokens = 16000 };
 
     // Interview Insights: one-shot batch synthesis of recurring themes across
     // all of the user's interview retros. Infrequent ("regenerate" click, not

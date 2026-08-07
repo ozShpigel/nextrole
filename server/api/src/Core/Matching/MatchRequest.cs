@@ -16,6 +16,20 @@ public sealed record MatchRequest
 
     // Glassdoor rating scraped from Google search snippets
     public GlassdoorData? GlassdoorData { get; init; }
+
+    // Company profile fields jobspy captures on every scrape (industry, size,
+    // revenue, description, url) — free, no extra HTTP call. Context/narrative
+    // only, like GlassdoorData's overall rating — never changes numeric scores.
+    public CompanyProfile? CompanyProfile { get; init; }
+}
+
+public sealed record CompanyProfile
+{
+    public string? Industry { get; init; }
+    public string? Description { get; init; }
+    public string? NumEmployees { get; init; }
+    public string? Revenue { get; init; }
+    public string? Url { get; init; }
 }
 
 public sealed record GlassdoorData

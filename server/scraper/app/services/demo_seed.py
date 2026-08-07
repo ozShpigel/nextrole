@@ -1,19 +1,22 @@
-"""Fictional job postings for the public demo's vector search pool.
+"""Fictional job postings for the public demo's Matches pool.
 
 The demo's Discovery data is deliberately fictional, and scraping real boards
-from a datacenter IP is unreliable — so the demo search pool is seeded instead:
-`python -m app.cli seed-demo-jobs` embeds these postings once (one OpenAI call)
-and inserts them as DiscoveredJob docs. On every demo web-service startup
-(DEMO_MODE=true), `refresh_seed_timestamps` bumps their `discovered_at` so they
-always sit inside the Search page's days-back window and never TTL out —
-visitors get deterministic, populated search results with zero scraping.
+from a datacenter IP is unreliable — so the demo pool is seeded instead:
+`python -m app.cli seed-demo-jobs` scores these postings via the real batched
+Evaluator path (same POST /api/match/discovery-score-batch the live ingest
+flow uses) and inserts them as scored DiscoveredJob docs — a one-time cost
+(~24 postings / batches of 4 ≈ 6 calls, pennies). On every demo web-service
+startup (DEMO_MODE=true), `refresh_seed_timestamps` bumps their
+`discovered_at` so they always sit inside the Matches page's days-back window
+and never TTL out — visitors get deterministic, populated, pre-scored results
+with zero scraping and zero live Claude cost per visit.
 
 The postings are written for the seeded demo profile (senior full-stack
 engineer — TypeScript/React/Node, Python, Java/Spring, AWS, PostgreSQL,
 e-commerce + healthtech, values sustainable pace and mentoring): a spread of
-strong matches, partial matches, and clear mismatches so the advisor has real
-ranking decisions to show off — including topically-strong postings with
-culture red flags. Companies and URLs are fictional.
+strong matches, partial matches, and clear mismatches so scoring has real
+decisions to show off — including topically-strong postings with culture red
+flags. Companies and URLs are fictional.
 """
 import logging
 from datetime import datetime, timezone
@@ -22,7 +25,7 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.config import Settings
 from app.models.discovered_job import DiscoveredJob
-from app.services import embeddings
+from app.services import match_client
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +33,18 @@ logger = logging.getLogger(__name__)
 # refresh cheap, without ever touching genuinely scraped jobs.
 SEED_MARKER = "demo_seed"
 SEED_RUN_ID = "demo-seed"
+
+# Same batch size the live orchestrator uses, safely under the API's hard cap
+# of 5 jobs/call.
+SEED_BATCH_SIZE = 4
+
+# Snapshot fields live in their own DiscoveredJob columns — stripped out of
+# match_analysis to avoid storing them twice (mirrors orchestrator.py and the
+# manual Score-a-Job page's Save-to-Tracker convention).
+_SNAPSHOT_KEYS = (
+    "analystSnapshotInput", "analystSnapshotOutput",
+    "evaluatorSnapshotInput", "evaluatorSnapshotOutput",
+)
 
 
 def _p(title: str, company: str, location: str, level: str | None,
@@ -158,20 +173,39 @@ Requirements: 4+ years Python backend; interest in owning features through the U
 ]
 
 
-def build_seed_docs(vectors: list[list[float] | None]) -> list[dict]:
-    """Pair POSTINGS with their vectors into insert-ready DiscoveredJob dicts."""
+def build_seed_docs(scores: dict[str, dict]) -> list[dict]:
+    """Turn POSTINGS into insert-ready DiscoveredJob dicts, scored via
+    `scores` (keyed by each posting's job_url — POSTINGS has no id of its
+    own). A posting missing from `scores` (its batch failed) is inserted
+    unscored rather than dropped, same fail-open spirit as a real ingest run.
+    """
     now = datetime.now(timezone.utc)
     docs = []
-    for posting, vector in zip(POSTINGS, vectors):
-        job = DiscoveredJob(
+    for posting in POSTINGS:
+        base = dict(
             run_id=SEED_RUN_ID,
             criteria_id=SEED_RUN_ID,
             site="demo",
             date_posted=now.date().isoformat(),
-            job_embedding=vector,
-            embedding_model=embeddings.EMBEDDING_MODEL if vector else None,
             **posting,
         )
+        match_response = scores.get(posting["job_url"])
+        if match_response is None:
+            job = DiscoveredJob(**base)
+        else:
+            recommendation = match_response.get("recommendation") or {}
+            analysis = {k: v for k, v in match_response.items() if k not in _SNAPSHOT_KEYS}
+            job = DiscoveredJob(
+                **base,
+                score=match_response.get("overallScore"),
+                verdict=match_response.get("verdict"),
+                should_apply=recommendation.get("shouldApply"),
+                match_analysis=analysis,
+                analyst_snapshot_input=match_response.get("analystSnapshotInput"),
+                analyst_snapshot_output=match_response.get("analystSnapshotOutput"),
+                evaluator_snapshot_input=match_response.get("evaluatorSnapshotInput"),
+                evaluator_snapshot_output=match_response.get("evaluatorSnapshotOutput"),
+            )
         doc = job.model_dump()
         doc[SEED_MARKER] = True
         doc["discovered_at"] = now
@@ -180,25 +214,41 @@ def build_seed_docs(vectors: list[list[float] | None]) -> list[dict]:
 
 
 async def seed_demo_jobs(db: AsyncIOMotorDatabase, settings: Settings) -> dict:
-    """Replace the seeded demo pool: embed POSTINGS and insert them fresh.
+    """Replace the seeded demo pool: score POSTINGS via the real batched
+    Evaluator path and insert them fresh.
 
     Idempotent — previously seeded docs (SEED_MARKER) are deleted first;
-    genuinely scraped jobs are never touched. One OpenAI embeddings call.
+    genuinely scraped jobs are never touched.
     """
-    texts = [embeddings.build_job_embedding_text(p) for p in POSTINGS]
-    vectors = await embeddings.embed_texts(settings, texts)
-    embedded = sum(1 for v in vectors if v is not None)
-    if embedded == 0:
-        raise RuntimeError("No postings could be embedded — check OPENAI_API_KEY")
+    scores: dict[str, dict] = {}
+    for i in range(0, len(POSTINGS), SEED_BATCH_SIZE):
+        chunk = POSTINGS[i:i + SEED_BATCH_SIZE]
+        items = [
+            {"id": p["job_url"], "jobDescription": p["description"], "title": p["title"], "company": p["company"]}
+            for p in chunk
+        ]
+        batch_scores = await match_client.score_job_batch(settings, items)
+        if batch_scores:
+            scores.update(batch_scores)
+        else:
+            logger.warning(
+                "Demo seed: batch scoring failed for postings %d-%d — will insert unscored",
+                i, i + len(chunk) - 1,
+            )
+
+    scored_count = sum(1 for p in POSTINGS if p["job_url"] in scores)
+    if scored_count == 0:
+        raise RuntimeError(
+            "No postings could be scored — check the API is reachable and Anthropic:ApiKey is configured")
 
     removed = await db.discovered_jobs.delete_many({SEED_MARKER: True})
-    docs = build_seed_docs(vectors)
+    docs = build_seed_docs(scores)
     await db.discovered_jobs.insert_many(docs)
     logger.info(
-        "Seeded %d demo jobs (%d embedded), replaced %d previously seeded",
-        len(docs), embedded, removed.deleted_count,
+        "Seeded %d demo jobs (%d scored), replaced %d previously seeded",
+        len(docs), scored_count, removed.deleted_count,
     )
-    return {"seeded": len(docs), "embedded": embedded, "replaced": removed.deleted_count}
+    return {"seeded": len(docs), "scored": scored_count, "replaced": removed.deleted_count}
 
 
 async def refresh_seed_timestamps(db: AsyncIOMotorDatabase) -> int:

@@ -386,11 +386,14 @@ You may only select, reorder, and rephrase what already exists in the candidate'
 1. Write one tailored 2-3 sentence professional summary that reframes — not fabricates — the candidate's genuine background toward this specific posting.
 2. Select and order the most relevant experience entries for this posting (drop ones that add no value for this specific role only if there are enough strong ones without them — otherwise keep all of them). For each kept entry, select and reorder its most relevant highlights so the strongest, most applicable ones lead; you may lightly rephrase a highlight for clarity or emphasis, but never change what it claims happened.
 3. Select the subset of the candidate's skills most relevant to this posting.
+4. If the candidate's profile lists side projects, select the ones (if any) worth surfacing for this posting and you may lightly rephrase each for relevance — same hard rule as above, never invent a project, technology, or outcome that isn't already stated. Omit entirely (empty array) if none are relevant or none exist.
+
+Education, military/national service, and spoken languages are NOT part of your output — those render verbatim from the profile elsewhere, unedited.
 
 Write in the same language as the candidate's profile content (do not translate it).
 
 Return JSON only, no markdown, in this exact shape:
-{"tailoredSummary": "...", "experience": [{"title": "...", "company": "...", "dates": "...", "highlights": ["...", "..."]}], "highlightedSkills": ["...", "..."]}
+{"tailoredSummary": "...", "experience": [{"title": "...", "company": "...", "dates": "...", "highlights": ["...", "..."]}], "highlightedSkills": ["...", "..."], "sideProjects": ["...", "..."]}
 """;
 
 

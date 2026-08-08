@@ -15,6 +15,10 @@ public sealed record ResumePack
     public string TailoredSummary { get; init; } = "";
     public List<TailoredExperienceItem> Experience { get; init; } = new();
     public List<string> HighlightedSkills { get; init; } = new();
+    // AI-selected subset of the candidate's StructuredProfile.SideProjects, tailored
+    // to this posting. Education/MilitaryService/SpokenLanguages are NOT persisted
+    // here — the PDF renders those straight from StructuredProfile, unedited.
+    public List<string> SideProjects { get; init; } = new();
     public DateTime GeneratedAt { get; init; } = DateTime.UtcNow;
 }
 
@@ -33,4 +37,5 @@ public sealed record ResumePackSynthesis
     public string TailoredSummary { get; init; } = "";
     public List<TailoredExperienceItem> Experience { get; init; } = new();
     public List<string> HighlightedSkills { get; init; } = new();
+    public List<string> SideProjects { get; init; } = new();
 }

@@ -9,7 +9,7 @@ vi.mock('../lib/api', async () => {
 });
 
 describe('ResumePackModal', () => {
-  it('renders the persisted pack content and a PDF download link', async () => {
+  it('renders the persisted pack as a PDF preview and a download link', async () => {
     vi.mocked(api).mockResolvedValue({
       tailoredSummary: 'A grounded, tailored summary.',
       experience: [
@@ -23,10 +23,11 @@ describe('ResumePackModal', () => {
       <ResumePackModal appId="app-1" jobTitle="Staff Engineer" company="Acme" open onClose={() => {}} />,
     );
 
-    expect(await screen.findByText('A grounded, tailored summary.')).toBeInTheDocument();
-    expect(screen.getByText('Shipped the thing')).toBeInTheDocument();
-    expect(screen.getByText('Owned the pipeline')).toBeInTheDocument();
-    expect(screen.getByText(/TypeScript.*React/)).toBeInTheDocument();
+    expect(await screen.findByText(/generated/i)).toBeInTheDocument();
+
+    const embed = document.querySelector('embed[type="application/pdf"]');
+    expect(embed).toBeInTheDocument();
+    expect(embed).toHaveAttribute('src', expect.stringContaining('/applications/app-1/pack/pdf'));
 
     const downloadLink = screen.getByRole('link', { name: /download pdf/i });
     expect(downloadLink).toHaveAttribute('href', expect.stringContaining('/applications/app-1/pack/pdf'));

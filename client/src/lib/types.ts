@@ -259,7 +259,12 @@ export interface ResumePack {
   tailoredSummary: string;
   experience: TailoredExperienceItem[];
   highlightedSkills: string[];
+  // AI-selected subset of the profile's side projects, tailored to this posting.
+  // Education/militaryService/spokenLanguages render straight from the profile in
+  // the PDF and are intentionally not part of this pack.
+  sideProjects?: string[];
   generatedAt: string;
+  pageCount?: number | null;
 }
 
 export interface InterviewPrepResponse {

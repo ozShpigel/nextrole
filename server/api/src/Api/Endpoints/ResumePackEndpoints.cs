@@ -10,14 +10,35 @@ public static class ResumePackEndpoints
 {
     public static WebApplication MapResumePackEndpoints(this WebApplication app)
     {
-        // Pure read — never demo-gated.
+        // Pure read — never demo-gated. Also renders the PDF once just to
+        // count its pages (cheap, no AI call — same renderer the /pdf route
+        // uses) so the preview's pager knows how many pages exist upfront,
+        // without persisting a PageCount field that could drift from the
+        // template if it ever changes independently of the pack content.
         app.MapGet("/api/applications/{id:guid}/pack", async (
             Guid id,
             IResumePackRepository packRepo,
+            IProfileProvider profileProvider,
+            IResumePdfRenderer renderer,
             CancellationToken ct) =>
         {
             var pack = await packRepo.GetByApplicationIdAsync(id, ct);
-            return pack is null ? Results.NotFound() : Results.Ok(pack);
+            if (pack is null) return Results.NotFound();
+
+            var profileDoc = await profileProvider.GetProfileDocumentAsync(ct);
+            var pdfBytes = renderer.Render(pack, profileDoc.Structured);
+            var pageCount = PdfPageCounter.CountPages(pdfBytes);
+
+            return Results.Ok(new
+            {
+                pack.ApplicationId,
+                pack.TailoredSummary,
+                pack.Experience,
+                pack.HighlightedSkills,
+                pack.SideProjects,
+                pack.GeneratedAt,
+                pageCount,
+            });
         })
         .WithName("GetResumePack")
         .WithSummary("Get the persisted résumé pack for an application, if generated");
@@ -47,6 +68,7 @@ public static class ResumePackEndpoints
                     TailoredSummary = synthesis.TailoredSummary,
                     Experience = synthesis.Experience,
                     HighlightedSkills = synthesis.HighlightedSkills,
+                    SideProjects = synthesis.SideProjects,
                     GeneratedAt = DateTime.UtcNow,
                 }, ct);
                 return Results.Ok(saved);
@@ -70,8 +92,17 @@ public static class ResumePackEndpoints
 
         // Renders the PDF from the persisted pack — no AI call, so it's cheap
         // and can be requested freely (e.g. re-downloading). Pure read.
+        //
+        // `inline=true` is used by the <embed> preview (ResumePackModal) —
+        // Results.File's fileDownloadName arg sets Content-Disposition:
+        // attachment, which forces a save-file prompt even for an <embed>
+        // src, so the preview path omits the filename entirely (no
+        // Content-Disposition header at all, browser default is to render
+        // application/pdf inline). The plain "Download PDF" link keeps the
+        // named-attachment behavior so it still saves as resume-{company}.pdf.
         app.MapGet("/api/applications/{id:guid}/pack/pdf", async (
             Guid id,
+            bool? inline,
             IApplicationRepository appRepo,
             IResumePackRepository packRepo,
             IProfileProvider profileProvider,
@@ -86,6 +117,8 @@ public static class ResumePackEndpoints
 
             var profileDoc = await profileProvider.GetProfileDocumentAsync(ct);
             var pdfBytes = renderer.Render(pack, profileDoc.Structured);
+
+            if (inline == true) return Results.File(pdfBytes, "application/pdf");
 
             var fileName = $"resume-{SanitizeFileName(application.Company)}.pdf";
             return Results.File(pdfBytes, "application/pdf", fileName);

@@ -185,7 +185,9 @@ describe('ApplicationList — résumé pack action (To Apply only)', () => {
 
     await user.click(screen.getByRole('button', { name: 'Review résumé pack for QueueCo' }));
 
-    expect(await screen.findByText('Grounded tailored summary')).toBeInTheDocument();
-    expect(screen.getByText('Did the thing')).toBeInTheDocument();
+    expect(await screen.findByText(/generated/i)).toBeInTheDocument();
+    const embed = document.querySelector('embed[type="application/pdf"]');
+    expect(embed).toBeInTheDocument();
+    expect(embed).toHaveAttribute('src', expect.stringContaining('/applications/t1/pack/pdf'));
   });
 });

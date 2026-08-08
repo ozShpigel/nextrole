@@ -128,7 +128,10 @@ The candidate's free text is provided in the user message inside <candidate_text
     "databases": ["string"],
     "other": ["string"]
   },
-  "education": ["string"]
+  "education": ["string"],
+  "militaryService": ["string"],
+  "sideProjects": ["string"],
+  "spokenLanguages": ["string"]
 }
 
 ---
@@ -142,6 +145,13 @@ The candidate's free text is provided in the user message inside <candidate_text
 - `education`: one entry per stated degree/diploma/certification, in the form
   "<degree>, <institution>, <years>" with whichever parts the text provides
   (e.g. "B.Sc. Computer Science, Open University, 2015"). Empty array if none stated.
+- `militaryService`: one entry per stated military/national service role, in the form
+  "<role/rank>, <unit/branch>, <years>" with whichever parts the text provides. Empty array if
+  none stated — do not infer service from location or age.
+- `sideProjects`: one entry per personal/side project mentioned outside of paid roles (not already
+  captured in `experience`), in the form "<name> — <one-line description>". Empty array if none stated.
+- `spokenLanguages`: HUMAN/SPOKEN languages only (e.g. "Hebrew (native)", "English (professional)") —
+  never programming languages, those belong in `skills.languages`. Empty array if none stated.
 - `experience[]`: one entry per role, newest first if order is discernible. `dates` may be a range
   ("2021–Present") or empty. `highlights`: concrete accomplishments/responsibilities from the text.
 - `skills`: split stated technologies into the groups; anything that doesn't fit a group goes in `other`.

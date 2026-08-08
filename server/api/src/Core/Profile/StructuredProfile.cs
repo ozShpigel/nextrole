@@ -25,6 +25,12 @@ public sealed record StructuredProfile
     public SkillGroups Skills { get; init; } = new();
     // One entry per degree/certification, e.g. "B.Sc. Computer Science, Open University, 2015".
     public string[] Education { get; init; } = [];
+    // One entry per stated military/national service role, e.g. "Team Lead, 8200, 2010-2013".
+    public string[] MilitaryService { get; init; } = [];
+    // One entry per personal/side project, e.g. "NextRole — AI-assisted job search platform".
+    public string[] SideProjects { get; init; } = [];
+    // Spoken/human languages (not programming languages — see Skills.Languages), e.g. "Hebrew (native)".
+    public string[] SpokenLanguages { get; init; } = [];
     public string[] Strengths { get; init; } = [];
     public string[] CoreValues { get; init; } = [];
     public string RawExperienceText { get; init; } = "";
@@ -66,4 +72,7 @@ public sealed record NormalizedProfile
     public ExperienceItem[] Experience { get; init; } = [];
     public SkillGroups Skills { get; init; } = new();
     public string[] Education { get; init; } = [];
+    public string[] MilitaryService { get; init; } = [];
+    public string[] SideProjects { get; init; } = [];
+    public string[] SpokenLanguages { get; init; } = [];
 }

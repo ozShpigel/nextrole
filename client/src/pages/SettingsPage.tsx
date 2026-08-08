@@ -25,7 +25,8 @@ const EMPTY_SKILLS: SkillGroups = { languages: [], frameworks: [], infrastructur
 const EMPTY_PROFILE: StructuredProfile = {
   fullName: '', email: '', phone: '', location: '',
   summary: '', seniority: '', domains: [], experience: [], skills: EMPTY_SKILLS,
-  education: [], strengths: [], coreValues: [], rawExperienceText: '',
+  education: [], militaryService: [], sideProjects: [], spokenLanguages: [],
+  strengths: [], coreValues: [], rawExperienceText: '',
 };
 
 // Manual, never auto-extracted — kept editable even though everything else
@@ -50,6 +51,9 @@ function hydrate(p?: StructuredProfile | null): StructuredProfile {
     experience: p?.experience ?? [],
     domains: p?.domains ?? [],
     education: p?.education ?? [],
+    militaryService: p?.militaryService ?? [],
+    sideProjects: p?.sideProjects ?? [],
+    spokenLanguages: p?.spokenLanguages ?? [],
     strengths: p?.strengths ?? [],
     coreValues: p?.coreValues ?? [],
   };
@@ -126,6 +130,9 @@ export default function SettingsPage() {
         experience: n.experience ?? [],
         skills: { ...EMPTY_SKILLS, ...(n.skills ?? {}) },
         education: n.education ?? [],
+        militaryService: n.militaryService ?? [],
+        sideProjects: n.sideProjects ?? [],
+        spokenLanguages: n.spokenLanguages ?? [],
       });
       resumeFileQuery.refetch();
     } catch (e) {

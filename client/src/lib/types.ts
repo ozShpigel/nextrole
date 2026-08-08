@@ -41,13 +41,20 @@ export interface StructuredProfile {
   skills: SkillGroups;
   // One entry per degree/certification, e.g. "B.Sc. Computer Science, Open University, 2015".
   education: string[];
+  // One entry per stated military/national service role, e.g. "Team Lead, 8200, 2010-2013".
+  militaryService: string[];
+  // One entry per personal/side project, e.g. "NextRole — AI-assisted job search platform".
+  sideProjects: string[];
+  // Spoken/human languages (not programming languages — see skills.languages), e.g. "Hebrew (native)".
+  spokenLanguages: string[];
   strengths: string[];
   coreValues: string[];
   rawExperienceText: string;
 }
 
-// Output of POST /api/match/profile/normalize (experience/skills/education;
-// strengths/core values are never auto-generated).
+// Output of POST /api/match/profile/normalize (experience/skills/education/
+// militaryService/sideProjects/spokenLanguages; strengths/core values are
+// never auto-generated).
 export interface NormalizedProfile {
   fullName?: string | null;
   email?: string | null;
@@ -59,6 +66,9 @@ export interface NormalizedProfile {
   experience: ExperienceItem[];
   skills: SkillGroups;
   education: string[];
+  militaryService: string[];
+  sideProjects: string[];
+  spokenLanguages: string[];
 }
 
 export interface ProfileResponse {

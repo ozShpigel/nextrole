@@ -66,6 +66,9 @@ public static class ProfileRenderer
         }
 
         AppendList(sb, "education", p.Education);
+        AppendList(sb, "military_service", p.MilitaryService);
+        AppendList(sb, "side_projects", p.SideProjects);
+        AppendList(sb, "spoken_languages", p.SpokenLanguages);
 
         sb.AppendLine();
         sb.Append("</professional_profile>");

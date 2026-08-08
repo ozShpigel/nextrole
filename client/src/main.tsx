@@ -9,6 +9,7 @@ import { ErrorBoundary } from './components/Error';
 import LandingPage from './pages/LandingPage';
 import SearchPage from './pages/SearchPage';
 import ManualScorePage from './pages/ManualScorePage';
+import ActivePage from './pages/ActivePage';
 import TrackerPage from './pages/TrackerPage';
 import MessagesPage from './pages/MessagesPage';
 import ApplicationDetailPage from './pages/ApplicationDetailPage';
@@ -28,6 +29,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
             <Route path="/" element={<LandingPage />} />
             <Route path="/search" element={<SearchPage />} />
             <Route path="/score" element={<ManualScorePage />} />
+            <Route path="/active" element={<ActivePage />} />
             <Route path="/tracker" element={<TrackerPage />} />
             <Route path="/tracker/:id" element={<ApplicationDetailPage />} />
             <Route path="/messages" element={<MessagesPage />} />

@@ -8,10 +8,10 @@ import { BrandMark } from './components/BrandMark';
 // actually happens, "/score" works standalone without a saved profile.
 const ONBOARDING_EXEMPT_PATHS = new Set(['/', '/settings', '/score']);
 
-// A brand-new profile means every other page (Matches, Applications, Messages,
-// Preparation) would otherwise show its own empty state with no shared
-// "start here" cue. Route straight to the landing page's upload CTA instead
-// — one clear next action instead of four disconnected blank screens.
+// A brand-new profile means every other page (Matches, Active, Applications,
+// Messages, Preparation) would otherwise show its own empty state with no
+// shared "start here" cue. Route straight to the landing page's upload CTA
+// instead — one clear next action instead of five disconnected blank screens.
 function OnboardingGate() {
   const { pathname } = useLocation();
   const profileQuery = useProfile();
@@ -66,6 +66,7 @@ export default function App() {
               overflow-x-auto then scrolls just this strip on narrow screens. */}
           <div className="ed-scroll flex items-center gap-[0.15rem] min-w-0 overflow-x-auto">
             <NavLink to="/search" className={navLinkClass}>Matches</NavLink>
+            <NavLink to="/active" className={navLinkClass}>Active</NavLink>
             <NavLink to="/tracker" className={navLinkClass}>Applications</NavLink>
             <NavLink to="/messages" className={navLinkClass}>Messages</NavLink>
             <NavLink to="/interview-prep" className={navLinkClass}>Preparation</NavLink>

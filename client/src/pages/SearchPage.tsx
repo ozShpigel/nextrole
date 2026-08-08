@@ -166,7 +166,7 @@ function MatchCard({ job, index, expanded, saved, dismissed, demoMode, demoTitle
 
       <div className="mt-auto flex gap-2 items-center flex-wrap" onClick={(e) => e.stopPropagation()}>
         {!saved && !dismissed && (
-          <button type="button" disabled={demoMode} title={demoTitle} className={`${ED_BTN} border-[var(--ed-accent)] bg-[var(--ed-accent)] text-[var(--ed-paper)] hover:bg-[var(--ed-accent-deep)] text-[0.64rem] px-3 py-[0.45rem] disabled:cursor-not-allowed`} onClick={() => onSave(job.id)}>Save</button>
+          <button type="button" disabled={demoMode} title={demoTitle} className={`${ED_BTN} border-[var(--ed-accent)] bg-[var(--ed-accent)] text-[var(--ed-paper)] hover:bg-[var(--ed-accent-deep)] text-[0.64rem] px-3 py-[0.45rem] disabled:cursor-not-allowed`} onClick={() => onSave(job.id)}>Add</button>
         )}
         {!saved && !dismissed && (
           <button
@@ -180,7 +180,7 @@ function MatchCard({ job, index, expanded, saved, dismissed, demoMode, demoTitle
             <X className="w-4 h-4" strokeWidth={2.5} />
           </button>
         )}
-        {saved && <span className="text-[0.62rem] font-semibold uppercase tracking-[0.08em] text-[var(--ed-yes)] py-[0.35rem] px-[0.6rem] border border-[var(--ed-yes)]/40">Saved</span>}
+        {saved && <span className="text-[0.62rem] font-semibold uppercase tracking-[0.08em] text-[var(--ed-yes)] py-[0.35rem] px-[0.6rem] border border-[var(--ed-yes)]/40">Added</span>}
         {dismissed && <span className="text-[0.62rem] font-semibold uppercase tracking-[0.08em] text-[var(--ed-no)] py-[0.35rem] px-[0.6rem] border border-[var(--ed-no)]/40">Dismissed</span>}
       </div>
 

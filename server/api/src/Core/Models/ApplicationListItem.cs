@@ -11,6 +11,7 @@ public sealed record ApplicationListItem
     public required ApplicationStatus Status { get; init; }
     public int? MatchScore { get; init; }
     public string? MatchVerdict { get; init; }
+    public string? JobUrl { get; init; }
     public DateTime CreatedAt { get; init; }
     public DateTime UpdatedAt { get; init; }
     // Soonest upcoming (future, not-completed) interview, if any — surfaced on the

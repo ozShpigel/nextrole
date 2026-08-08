@@ -74,6 +74,7 @@ public sealed class ApplicationRepository : IApplicationRepository
             .Include(a => a.Status)
             .Include(a => a.MatchScore)
             .Include(a => a.MatchVerdict)
+            .Include(a => a.JobUrl)
             .Include(a => a.CreatedAt)
             .Include(a => a.UpdatedAt);
 

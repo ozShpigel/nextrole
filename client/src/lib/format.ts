@@ -58,6 +58,29 @@ export function barColor(score: number | null | undefined, max: number | null | 
   return 'red';
 }
 
+export function isNew(discoveredAt: string | null | undefined): boolean {
+  if (!discoveredAt) return false;
+  const d = new Date(discoveredAt);
+  if (isNaN(d.getTime())) return false;
+  return Date.now() - d.getTime() < 24 * 60 * 60 * 1000;
+}
+
+export function cityOnly(location: string | null | undefined): string | null {
+  if (!location) return null;
+  const city = location.split(',')[0]?.trim();
+  return city || null;
+}
+
+export function formatPostedAgo(dateStr: string | null | undefined): string | null {
+  if (!dateStr) return null;
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return null;
+  const days = Math.floor((Date.now() - d.getTime()) / 86400000);
+  if (days < 1) return 'Posted today';
+  if (days < 7) return `Posted ${days}d ago`;
+  return `Posted ${Math.floor(days / 7)}w ago`;
+}
+
 export function relativeTime(iso: string | null | undefined): string {
   if (!iso) return '—';
   const then = new Date(iso).getTime();

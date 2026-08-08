@@ -26,9 +26,10 @@ class DiscoveredJob(BaseModel):
     is_remote: bool | None = None  # jobspy "is_remote"
     company_logo: str | None = None  # jobspy "company_logo" — not always present
     # Company profile fields jobspy captures on every scrape (industry, size,
-    # revenue, description, url) — free, no extra HTTP call. Captured at scrape
-    # time (unlike company_news/glassdoor_data below, fetched fresh per use) so
-    # it's stable for as long as the job document lives.
+    # revenue, description, url) — free, no extra HTTP call. jobspy's LinkedIn
+    # scraper never fills numEmployees though (only Indeed does), so relevant
+    # jobs get that one gap backfilled from company_size_client's DDG-based
+    # prefetch (see orchestrator._enrich_company_profile) before scoring.
     company_profile: dict | None = None
     # Per-job Evaluator score, populated by the batched-scoring ingest step.
     # None = not yet scored, scoring failed, or the job was triaged out.

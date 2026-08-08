@@ -1,9 +1,11 @@
 import { useState, useEffect, useMemo } from 'react';
+import { X } from 'lucide-react';
 import { useScoredJobs } from '../lib/queries';
 import { useSaveJob, useDismissJob } from '../lib/mutations';
 import { useDemoMode, DEMO_DISABLED_TITLE } from '../lib/queries';
 import type { DiscoveredJobSummary } from '../lib/types';
 import { VERDICT_LABELS } from '../lib/scoring';
+import { cityOnly, formatPostedAgo, isNew } from '../lib/format';
 import AnalysisCard, { edScoreColor } from '../components/AnalysisCard';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -77,17 +79,12 @@ function CompanyAvatar({ name, logo }: { name: string; logo?: string | null }) {
 function MatchRing({ job }: { job: DiscoveredJobSummary }) {
   const score = job.score ?? 0;
   const tone = edScoreColor(job.score, 100);
-  const rec = job.match_analysis?.recommendation as { greenFlags?: string[]; redFlags?: string[] } | undefined;
-  const greenFlags = rec?.greenFlags ?? [];
-  const redFlags = rec?.redFlags ?? [];
-  const assessment = job.match_analysis?.honestAssessment;
-  const hasReasons = !!assessment || greenFlags.length > 0 || redFlags.length > 0;
   const r = 19;
   const c = 2 * Math.PI * r;
   const offset = c * (1 - Math.min(100, Math.max(0, score)) / 100);
 
   return (
-    <div className="group relative w-11 h-11 shrink-0">
+    <div className="relative w-11 h-11 shrink-0">
       <svg viewBox="0 0 44 44" className="w-11 h-11 -rotate-90">
         <circle cx="22" cy="22" r={r} fill="none" stroke="var(--ed-rule)" strokeWidth="3.5" />
         <circle
@@ -98,35 +95,6 @@ function MatchRing({ job }: { job: DiscoveredJobSummary }) {
       <span className="absolute inset-0 flex items-center justify-center text-[0.72rem] font-bold tabular-nums" style={{ color: tone }}>
         {job.score ?? '—'}
       </span>
-
-      {hasReasons && (
-        <div
-          role="tooltip"
-          className="invisible opacity-0 group-hover:visible group-hover:opacity-100 transition-opacity duration-150 pointer-events-none absolute z-20 right-0 top-[calc(100%+0.6rem)] w-72 max-w-[80vw] p-4 rounded-lg border border-[var(--ed-rule)] bg-[var(--ed-panel)] shadow-[0_16px_36px_-10px_rgba(0,0,0,0.7)]"
-        >
-          <span className="block text-[0.6rem] font-semibold uppercase tracking-[0.16em] text-[var(--ed-ink-faint)] mb-2">Why this score</span>
-          <ul dir="rtl" className="flex flex-col gap-[0.4rem]">
-            {assessment && (
-              <li className="flex items-start gap-2 text-[0.78rem] text-[var(--ed-ink)] leading-[1.5] text-right">
-                <span className="mt-[0.5em] w-[5px] h-[5px] rounded-full shrink-0" style={{ background: tone }} />
-                <span className="flex-1 line-clamp-4">{assessment}</span>
-              </li>
-            )}
-            {greenFlags.map((s, i) => (
-              <li key={`g${i}`} className="flex items-start gap-2 text-[0.78rem] text-[var(--ed-yes)] leading-[1.5] text-right">
-                <span className="mt-[0.5em] w-[5px] h-[5px] rounded-full bg-[var(--ed-yes)] shrink-0" />
-                <span className="flex-1">{s}</span>
-              </li>
-            ))}
-            {redFlags.map((s, i) => (
-              <li key={`r${i}`} className="flex items-start gap-2 text-[0.78rem] text-[var(--ed-no)] leading-[1.5] text-right">
-                <span className="mt-[0.5em] w-[5px] h-[5px] rounded-full bg-[var(--ed-no)] shrink-0" />
-                <span className="flex-1">{s}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
     </div>
   );
 }
@@ -147,13 +115,36 @@ interface MatchCardProps {
 function MatchCard({ job, index, expanded, saved, dismissed, demoMode, demoTitle, onToggleExpand, onSave, onDismiss }: MatchCardProps) {
   const tone = edVerdictColor(job.verdict);
 
+  const clickable = !!job.match_analysis;
+
+  function handleCardActivate(): void {
+    if (clickable) onToggleExpand(job.id);
+  }
+
   return (
     <article
-      className={`ed-rise flex flex-col border border-[var(--ed-rule)] bg-[var(--ed-panel)]/40 p-5 transition-colors hover:border-[var(--ed-ink-faint)] ${expanded ? 'col-span-full' : ''} ${dismissed ? 'opacity-40' : ''}`}
+      className={`ed-rise flex flex-col border border-[var(--ed-rule)] bg-[var(--ed-panel)]/40 p-5 transition-colors hover:border-[var(--ed-ink-faint)] ${expanded ? 'col-span-full' : ''} ${dismissed ? 'opacity-40' : ''} ${clickable ? 'cursor-pointer' : ''}`}
       style={{ animationDelay: `${Math.min(index, 12) * 60}ms` }}
+      role={clickable ? 'button' : undefined}
+      tabIndex={clickable ? 0 : undefined}
+      aria-expanded={clickable ? expanded : undefined}
+      onClick={handleCardActivate}
+      onKeyDown={(e) => {
+        if (clickable && (e.key === 'Enter' || e.key === ' ')) {
+          e.preventDefault();
+          handleCardActivate();
+        }
+      }}
     >
       <div className="flex items-start justify-between gap-3 mb-3">
-        <CompanyAvatar name={job.company} logo={job.company_logo} />
+        <div className="flex items-center gap-2 min-w-0">
+          <CompanyAvatar name={job.company} logo={job.company_logo} />
+          {isNew(job.date_posted) && (
+            <span className="text-[0.58rem] font-bold uppercase tracking-[0.1em] text-[var(--ed-accent)] border border-[var(--ed-accent)]/40 bg-[var(--ed-accent)]/10 rounded-full px-[0.55rem] py-[0.2rem] shrink-0">
+              New
+            </span>
+          )}
+        </div>
         <div className="flex flex-col items-center gap-1 shrink-0">
           <MatchRing job={job} />
           <span className="text-[0.56rem] font-bold uppercase tracking-[0.14em]" style={{ color: tone }}>
@@ -164,34 +155,37 @@ function MatchCard({ job, index, expanded, saved, dismissed, demoMode, demoTitle
 
       <span className="text-[0.78rem] font-bold text-[var(--ed-accent)] mb-1 truncate">{job.company}</span>
       <div className="flex items-center gap-x-2 flex-wrap text-[0.7rem] text-[var(--ed-ink-faint)] mb-2">
-        {job.location && <span>{job.location}</span>}
+        {cityOnly(job.location) && <span>{cityOnly(job.location)}</span>}
         {job.is_remote && <><span className="w-[3px] h-[3px] rounded-full bg-[var(--ed-rule)]" /><span>Remote</span></>}
-        {job.actual_job_level && <><span className="w-[3px] h-[3px] rounded-full bg-[var(--ed-rule)]" /><span>{job.actual_job_level}</span></>}
+        {formatPostedAgo(job.date_posted) && <><span className="w-[3px] h-[3px] rounded-full bg-[var(--ed-rule)]" /><span>{formatPostedAgo(job.date_posted)}</span></>}
       </div>
 
       <h3 className="ed-display font-semibold text-[1.05rem] leading-[1.3] tracking-[-0.01em] text-[var(--ed-ink)] mb-4 line-clamp-2 min-h-[2.6em]">
         {job.title}
       </h3>
 
-      <div className="mt-auto flex gap-2 items-center flex-wrap">
-        {job.match_analysis && (
-          <button type="button" className={`${ED_GHOST} text-[0.64rem] px-3 py-[0.45rem]`} onClick={() => onToggleExpand(job.id)} aria-expanded={expanded}>
-            {expanded ? 'Hide analysis' : 'View analysis'}
-          </button>
-        )}
-        {job.job_url && <a href={job.job_url} target="_blank" rel="noopener noreferrer" className={`${ED_GHOST} text-[0.64rem] px-3 py-[0.45rem]`}>View Job</a>}
+      <div className="mt-auto flex gap-2 items-center flex-wrap" onClick={(e) => e.stopPropagation()}>
         {!saved && !dismissed && (
           <button type="button" disabled={demoMode} title={demoTitle} className={`${ED_BTN} border-[var(--ed-accent)] bg-[var(--ed-accent)] text-[var(--ed-paper)] hover:bg-[var(--ed-accent-deep)] text-[0.64rem] px-3 py-[0.45rem] disabled:cursor-not-allowed`} onClick={() => onSave(job.id)}>Save</button>
         )}
         {!saved && !dismissed && (
-          <button type="button" disabled={demoMode} title={demoTitle} className={`${ED_BTN} text-[0.64rem] px-3 py-[0.45rem] border-[var(--ed-rule)] text-[var(--ed-no)] hover:border-[var(--ed-no)] hover:bg-[var(--ed-no)]/10 disabled:cursor-not-allowed`} onClick={() => onDismiss(job.id)}>Dismiss</button>
+          <button
+            type="button"
+            disabled={demoMode}
+            title={demoTitle ?? 'Dismiss'}
+            aria-label="Dismiss"
+            className="shrink-0 w-9 h-9 rounded-full border border-[var(--ed-rule)] flex items-center justify-center text-[var(--ed-no)] transition-all hover:border-[var(--ed-no)] hover:bg-[var(--ed-no)]/10 disabled:opacity-50 disabled:pointer-events-none disabled:cursor-not-allowed"
+            onClick={() => onDismiss(job.id)}
+          >
+            <X className="w-4 h-4" strokeWidth={2.5} />
+          </button>
         )}
         {saved && <span className="text-[0.62rem] font-semibold uppercase tracking-[0.08em] text-[var(--ed-yes)] py-[0.35rem] px-[0.6rem] border border-[var(--ed-yes)]/40">Saved</span>}
         {dismissed && <span className="text-[0.62rem] font-semibold uppercase tracking-[0.08em] text-[var(--ed-no)] py-[0.35rem] px-[0.6rem] border border-[var(--ed-no)]/40">Dismissed</span>}
       </div>
 
       {expanded && job.match_analysis && (
-        <div className="mt-6 pt-6 border-t border-[var(--ed-rule)] max-w-[720px]">
+        <div className="mt-6 pt-6 border-t border-[var(--ed-rule)] max-w-[720px]" onClick={(e) => e.stopPropagation()}>
           <AnalysisCard matchAnalysisJson={job.match_analysis as unknown as Record<string, unknown>} />
         </div>
       )}

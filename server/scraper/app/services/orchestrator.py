@@ -7,7 +7,7 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.config import Settings
 from app.models.discovered_job import DiscoveredJob
-from app.services import glassdoor_client, match_client, news_client, scraper, tracker_client
+from app.services import company_size_client, glassdoor_client, match_client, news_client, scraper, tracker_client
 
 logger = logging.getLogger(__name__)
 
@@ -66,6 +66,24 @@ async def run_discovery(db: AsyncIOMotorDatabase, settings: Settings, criteria_i
             }},
         )
 
+        # Skip jobs already discovered in a previous run — before any Haiku/
+        # DDG/Sonnet cost, not just before scoring. Overlapping search windows
+        # across runs (widened backfills, daily cron re-covering yesterday's
+        # tail) would otherwise re-triage/re-score/re-insert the exact same
+        # posting every time. Matched by job_url, so it only catches same-
+        # platform reposts/overlap — the same job cross-listed on a different
+        # site gets a different URL and isn't caught by this.
+        scraped_urls = [j["job_url"] for j in jobs if j.get("job_url")]
+        existing_urls = set()
+        if scraped_urls:
+            cursor = db.discovered_jobs.find({"job_url": {"$in": scraped_urls}}, {"job_url": 1})
+            existing_urls = {doc["job_url"] async for doc in cursor}
+        before_dedup = len(jobs)
+        jobs = [j for j in jobs if not (j.get("job_url") and j["job_url"] in existing_urls)]
+        run.jobs_already_known = before_dedup - len(jobs)
+        if run.jobs_already_known:
+            logger.info("Run %s: skipping %d jobs already discovered in a previous run", run.id, run.jobs_already_known)
+
         # Wake the API before triage/duplicate checks. On Render free tier the
         # per-call retry budget (~15s) is too small to cover a 30-60s cold start.
         if not await tracker_client.warm_up_api(settings):
@@ -82,18 +100,44 @@ async def run_discovery(db: AsyncIOMotorDatabase, settings: Settings, criteria_i
             t = triage.get(idx)
             return t is None or t["relevant"]
 
+        relevant_indices = [i for i in range(len(jobs)) if _is_relevant(i)]
+
+        # Enrichment prefetch: unique companies across every relevant job,
+        # deduped once up front — same prefetch-then-cache pattern the old RAG
+        # search path used per-search, just applied to the whole run's
+        # relevant set instead of a top-N slice.
+        relevant_companies = [jobs[i]["company"] for i in relevant_indices if jobs[i].get("company")]
+        news_cache, glassdoor_cache, company_size_cache = await asyncio.gather(
+            news_client.prefetch_company_news(relevant_companies),
+            glassdoor_client.prefetch_glassdoor_ratings(relevant_companies),
+            company_size_client.prefetch_company_sizes(relevant_companies),
+        )
+
+        def _enrich_company_profile(job_data: dict, key: str) -> dict | None:
+            # jobspy's LinkedIn scraper never populates numEmployees (only
+            # Indeed does) — fill the gap from the DDG-scraped prefetch above,
+            # but never overwrite a real jobspy-sourced value. Narrative
+            # context for the Evaluator only (PromptSeeds.Evaluator documents
+            # company_profile as never changing a numeric score) — company
+            # size is not used as a hard filter here.
+            profile = dict(job_data.get("company_profile") or {})
+            if not profile.get("numEmployees"):
+                size = company_size_cache.get(key)
+                if size:
+                    profile["numEmployees"] = size
+            return profile or None
+
         # Seniority classification: one Haiku call flags each relevant job's
         # actual seniority band (source-agnostic — replaces jobspy's
         # LinkedIn-only job_level as the client-side filter). Only classify
         # jobs that survived triage; fails open (None everywhere) on error.
-        relevant_jobs = [j for i, j in enumerate(jobs) if _is_relevant(i)]
+        relevant_jobs = [jobs[i] for i in relevant_indices]
         seniority = await match_client.classify_seniority(settings, relevant_jobs) or {}
         # classify_seniority is indexed against relevant_jobs, not the
         # original jobs list (triaged-out jobs were never sent) — remap back
         # to the original indices used everywhere else below.
-        relevant_original_indices = [i for i, j in enumerate(jobs) if _is_relevant(i)]
         seniority_by_original_index = {
-            relevant_original_indices[i]: level for i, level in seniority.items()
+            relevant_indices[i]: level for i, level in seniority.items()
         }
 
         # Duplicate check is cheap and still useful as a flag (the job stays
@@ -130,18 +174,6 @@ async def run_discovery(db: AsyncIOMotorDatabase, settings: Settings, criteria_i
             except Exception as e:
                 logger.error("Error ingesting triaged-out job %d '%s': %s", i, job_data.get("title"), e)
 
-        relevant_indices = [i for i in range(len(jobs)) if _is_relevant(i)]
-
-        # Enrichment prefetch: unique companies across every relevant job,
-        # deduped once up front — same prefetch-then-cache pattern the old RAG
-        # search path used per-search, just applied to the whole run's
-        # relevant set instead of a top-N slice.
-        relevant_companies = [jobs[i]["company"] for i in relevant_indices if jobs[i].get("company")]
-        news_cache, glassdoor_cache = await asyncio.gather(
-            news_client.prefetch_company_news(relevant_companies),
-            glassdoor_client.prefetch_glassdoor_ratings(relevant_companies),
-        )
-
         # Job ids are generated up front (not left to DiscoveredJob's default
         # factory) so the batch-score response can be correlated back to the
         # right document before it's ever constructed.
@@ -150,8 +182,11 @@ async def run_discovery(db: AsyncIOMotorDatabase, settings: Settings, criteria_i
 
         async def _score_and_insert_batch(chunk: list[tuple[int, dict, str]]):
             items = []
+            enriched_profiles: dict[str, dict | None] = {}
             for i, job_data, job_id in chunk:
                 key = (job_data.get("company") or "").strip().lower()
+                profile = _enrich_company_profile(job_data, key)
+                enriched_profiles[job_id] = profile
                 items.append({
                     "id": job_id,
                     "jobDescription": job_data.get("description") or "",
@@ -162,7 +197,7 @@ async def run_discovery(db: AsyncIOMotorDatabase, settings: Settings, criteria_i
                     "site": job_data.get("site"),
                     "companyNews": news_cache.get(key) or None,
                     "glassdoorData": glassdoor_cache.get(key),
-                    "companyProfile": job_data.get("company_profile"),
+                    "companyProfile": profile,
                 })
 
             async with batch_sem:
@@ -171,6 +206,8 @@ async def run_discovery(db: AsyncIOMotorDatabase, settings: Settings, criteria_i
             for i, job_data, job_id in chunk:
                 try:
                     key = (job_data.get("company") or "").strip().lower()
+                    base = _base_job(i, job_data)
+                    base["company_profile"] = enriched_profiles.get(job_id, base["company_profile"])
                     async with dup_sem:
                         is_dup = await tracker_client.check_duplicate(
                             settings, job_data["company"], job_data["title"]
@@ -181,7 +218,7 @@ async def run_discovery(db: AsyncIOMotorDatabase, settings: Settings, criteria_i
                     match_response = (scores or {}).get(job_id)
                     if match_response is None:
                         run.jobs_score_failed += 1
-                        disc_job = DiscoveredJob(id=job_id, **_base_job(i, job_data), is_duplicate=is_dup)
+                        disc_job = DiscoveredJob(id=job_id, **base, is_duplicate=is_dup)
                     else:
                         run.jobs_scored += 1
                         recommendation = match_response.get("recommendation") or {}
@@ -196,7 +233,7 @@ async def run_discovery(db: AsyncIOMotorDatabase, settings: Settings, criteria_i
                         }
                         disc_job = DiscoveredJob(
                             id=job_id,
-                            **_base_job(i, job_data),
+                            **base,
                             is_duplicate=is_dup,
                             score=match_response.get("overallScore"),
                             verdict=match_response.get("verdict"),
@@ -234,11 +271,12 @@ async def run_discovery(db: AsyncIOMotorDatabase, settings: Settings, criteria_i
                 "jobs_score_failed": run.jobs_score_failed,
                 "jobs_skipped_duplicate": run.jobs_skipped_duplicate,
                 "jobs_triaged_out": run.jobs_triaged_out,
+                "jobs_already_known": run.jobs_already_known,
             }},
         )
         logger.info(
-            "Run %s completed: %d scraped, %d scored, %d score-failed, %d duplicates, %d triaged out",
-            run.id, run.jobs_scraped, run.jobs_scored, run.jobs_score_failed,
+            "Run %s completed: %d scraped, %d already known, %d scored, %d score-failed, %d duplicates, %d triaged out",
+            run.id, run.jobs_scraped, run.jobs_already_known, run.jobs_scored, run.jobs_score_failed,
             run.jobs_skipped_duplicate, run.jobs_triaged_out,
         )
 

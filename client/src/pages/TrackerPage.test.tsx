@@ -14,14 +14,14 @@ describe("TrackerPage", () => {
   it("renders page title", () => {
     renderWithRouter(<TrackerPage />);
     expect(
-      screen.getByRole("heading", { name: "Active" }),
+      screen.getByRole("heading", { name: "Applications" }),
     ).toBeInTheDocument();
   });
 
   it("renders both tab buttons", () => {
     renderWithRouter(<TrackerPage />);
     expect(screen.getByRole("button", { name: "Dashboard" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Applications" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "List" })).toBeInTheDocument();
   });
 
   it("shows Dashboard tab content by default", () => {
@@ -29,11 +29,11 @@ describe("TrackerPage", () => {
     expect(screen.getByTestId("dashboard")).toBeInTheDocument();
   });
 
-  it("clicking Applications tab shows application list", async () => {
+  it("clicking List tab shows application list", async () => {
     const user = userEvent.setup();
     renderWithRouter(<TrackerPage />);
 
-    await user.click(screen.getByRole("button", { name: "Applications" }));
+    await user.click(screen.getByRole("button", { name: "List" }));
     expect(screen.getByTestId("application-list")).toBeInTheDocument();
   });
 });

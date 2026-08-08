@@ -16,13 +16,13 @@
       "id": "g-02",
       "title": "Senior DevOps Engineer, Radware",
       "jdText": "About the job\nRadware is a global leader of cyber security and application delivery solutions for physical, cloud, and software defined data centers.\n\nAt Radware, we live and breathe cybersecurity. It is our passion. Each day, our international team works to earn the trust of more than 12,500 organizations around the globe. Keeping them safe is our mission. To that end, we go head-to-head with politically motivated hacktivists, dangerous nation-state threat actors and other notorious cyber attackers — these are not your average adversaries. Backed by nearly 30 years of experience, Radware is best known for its technical excellence and innovative network and application security solutions. That is why it is so important that we build our team with bold and bright talent.\n\nAbout the Team:\n\nWe are looking for a talented Senior DevOps to join its Cloud R&D Team. Radware’s Cloud-based security services combine Big Data analytics, machine learning technologies, and behavioral analysis for cyber threat detection, assessment, and mitigation.\n\nAs a Senior DevOps in our team, you will have the opportunity to lead and work with cutting-edge cloud technologies and best-in-class DevOps practices.\n\nWhat is the job:\n\nBe in charge of complex, distributed, high-scale production cloud systems\nDevelop and maintain a modern state-of-the-art CI/CD pipeline to improve R&D processes\nTake responsibility and implement automated build and deployment processes\nManage and create automated configurations for our Cloud environments\nIntegrate test automation into the CI/CD cycle\nTake part in building cloud-based big data solution\nBuild cloud-based monitoring and alerting capabilities\nMaintain overall industry knowledge of the latest trends, technology, etc.\nAct as the coach and mentor to team members and technical staff\nWhat you need:\n\nBachelor's Degree in Software Engineering, Computer Science, Information Technology, Information Systems, or similar\nExperience as a DevOps lead in cloud-based environments (Minimum of 5 years)\nExperience in building CI/CD processes and pipelines (Jenkins, k8s, etc.)\nExperience with Linux and networking\nExperience with monitoring, maintaining, and optimizing production systems\nStrong Shell/Bash/Python scripting skills and experience\nProven hands-on experience with Containers (Docker) and Orchestration tools (Kubernetes).\nExperience with infrastructure as code, ideally Terraform\nStrong working knowledge of AWS and Azure\nExperience with version control systems (Git, Bitbucket)\nAbility to use a wide variety of open-source technologies and tools\nAbility to clearly articulate design and implementation choices\nTeam player and excellent interpersonal skills\nPrimary Location\n\nIL-IL-Tel Aviv\n\nWork Locations\n\nRadware Israel, Tel Aviv",
-      "expected": "reject",
-      "why": "Stack and culture fit, but requires DevOps lead experience - hidden in requirements, not the title.",
+      "expected": "weak",
+      "why": "Strong stack and culture fit at a product company in Tel Aviv. The role itself is IC work plus mentoring. One requirement line reads 'Experience as a DevOps lead' but no people-management duties appear anywhere in the role description — likely loose Israeli phrasing for 'senior'. Worth caution, not rejection.",
       "tags": [
-        "trap",
-        "leadership-required",
-        "product-company"
-      ]
+        "product-company",
+        "role-ambiguity"
+      ],
+      "uncertain": true
     },
     {
       "id": "g-03",
@@ -129,8 +129,7 @@
       "expected": "reject",
       "why": "Strong content fit - backend with explicit DevOps ownership, K8s, CI/CD, API design. Blocked by company stage: early startup, 'one of the first 20 employees', 0-to-1 environment.",
       "tags": [
-        "early-stage-startup",
-        "platform-backend"
+        "early-stage-startup"
       ]
     }
   ]

@@ -1,20 +1,12 @@
 import asyncio
 import logging
-import random
 import re
 from html import unescape
-from urllib.parse import quote_plus, unquote
+from urllib.parse import unquote
 
-import httpx
+from app.services.ddg_search import search_ddg as _search_ddg
 
 logger = logging.getLogger(__name__)
-
-_TIMEOUT = 10.0
-_HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9",
-    "Accept-Language": "en-US,en;q=0.9",
-}
 
 _RATING_SLASH_RE = re.compile(r"(\d\.\d)\s*/\s*5")
 _RATING_STARS_RE = re.compile(r"(\d\.\d)\s*(?:out of|stars?)", re.IGNORECASE)
@@ -37,24 +29,6 @@ _SUB_RATING_KEYS = {
 }
 _RECOMMEND_RE = re.compile(r"(\d{1,3})\s*%\s*of[^.%]{0,80}?would recommend", re.IGNORECASE)
 _SNIPPET_PHRASES = ("also rated", "would recommend")
-
-# DDG politeness: the prefetch fans out over all companies at once and each
-# company is now up to 3 queries — bound concurrency and jitter the requests.
-_DDG_SEMAPHORE = asyncio.Semaphore(4)
-
-
-async def _search_ddg(query: str) -> str | None:
-    url = f"https://html.duckduckgo.com/html/?q={quote_plus(query)}"
-    try:
-        async with _DDG_SEMAPHORE:
-            await asyncio.sleep(random.uniform(0.1, 0.4))
-            async with httpx.AsyncClient() as client:
-                resp = await client.get(url, headers=_HEADERS, timeout=_TIMEOUT, follow_redirects=True)
-                resp.raise_for_status()
-                return resp.text
-    except Exception as e:
-        logger.debug("DuckDuckGo search failed for '%s': %s", query, e)
-        return None
 
 
 def _clean_text(html: str) -> str:

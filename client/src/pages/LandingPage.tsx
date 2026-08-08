@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Upload } from 'lucide-react';
 import { BrandMark } from '../components/BrandMark';
 
-// Company marks for the "Matching roles from…" marquee — simplified but
+// Company marks for the "Companies like these" marquee — simplified but
 // recognizable, self-contained (each carries its own backing shape/color
 // where the real brand mark has one, transparent where it doesn't) so no
 // outer frame is needed around them.
@@ -181,7 +181,7 @@ export default function Landing() {
         </h1>
 
         <p className="ed-display mt-[1.6rem] text-[clamp(1rem,1.5vw,1.15rem)] text-[var(--ed-ink-soft)] font-normal">
-          Discover, match, and track your next role.
+          Find it. Know it fits. Apply.
         </p>
 
         <div className="mt-9 flex flex-wrap items-center justify-center gap-5">
@@ -202,11 +202,11 @@ export default function Landing() {
           </Link>
         </div>
 
-        {/* Company marks cycling independently per slot — a living sample of
-            where matched roles come from, not a fixed source list. */}
+        {/* Company marks cycling independently per slot — illustrative
+            examples, not a claim about actual data sources. */}
         <div className="mt-16 pt-9 border-t border-dashed border-[var(--ed-rule)]">
           <p className="text-[0.62rem] tracking-[0.26em] uppercase text-[var(--ed-ink-faint)] font-semibold mb-6">
-            Matching roles from&hellip;
+            Companies like these
           </p>
           <LogoMarquee />
         </div>
@@ -216,9 +216,9 @@ export default function Landing() {
       <footer
         className={`relative z-[2] mt-auto pt-[clamp(3rem,6vw,5rem)] pb-6 flex flex-col items-center gap-[0.85rem] text-[var(--ed-ink-faint)] transition-opacity duration-[1100ms] ease-in-out delay-1000 ${loaded ? 'opacity-100' : 'opacity-0'}`}
       >
-        <span className="nr-footer-mono ed-display text-[1.35rem] tracking-[0.4em] font-semibold inline-flex items-center gap-[0.55rem] max-sm:text-[1.1rem] max-sm:tracking-[0.3em]" aria-hidden="true">
+        <span className="nr-footer-mono ed-display text-[1.35rem] font-semibold inline-flex items-center gap-[0.55rem] max-sm:text-[1.1rem]" aria-hidden="true">
           <BrandMark size={11} className="text-[var(--ed-accent)]" />
-          N<span className="font-normal">R</span>
+          <span className="tracking-[0.05em]">N<span className="font-normal">R</span></span>
           <BrandMark size={11} className="text-[var(--ed-accent)]" />
         </span>
       </footer>

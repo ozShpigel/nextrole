@@ -267,6 +267,8 @@ export interface ResumePack {
   sideProjects?: string[];
   generatedAt: string;
   pageCount?: number | null;
+  pageWidth?: number | null; // in points — real single-page aspect ratio
+  pageHeight?: number | null;
 }
 
 export interface InterviewPrepResponse {

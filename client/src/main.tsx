@@ -13,6 +13,7 @@ import ActivePage from './pages/ActivePage';
 import TrackerPage from './pages/TrackerPage';
 import MessagesPage from './pages/MessagesPage';
 import ApplicationDetailPage from './pages/ApplicationDetailPage';
+import ResumePackPage from './pages/ResumePackPage';
 import SettingsPage from './pages/SettingsPage';
 import InterviewPrepPage from './pages/InterviewPrepPage';
 import MockInterviewPage from './pages/MockInterviewPage';
@@ -32,6 +33,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
             <Route path="/active" element={<ActivePage />} />
             <Route path="/tracker" element={<TrackerPage />} />
             <Route path="/tracker/:id" element={<ApplicationDetailPage />} />
+            <Route path="/tracker/:id/pack" element={<ResumePackPage />} />
             <Route path="/messages" element={<MessagesPage />} />
             <Route path="/interview-prep" element={<InterviewPrepPage />} />
             <Route path="/practice-interview" element={<MockInterviewPage />} />

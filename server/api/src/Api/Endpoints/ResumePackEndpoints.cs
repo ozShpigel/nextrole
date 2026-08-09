@@ -28,6 +28,10 @@ public static class ResumePackEndpoints
             var profileDoc = await profileProvider.GetProfileDocumentAsync(ct);
             var pdfBytes = renderer.Render(pack, profileDoc.Structured);
             var pageCount = PdfPageCounter.CountPages(pdfBytes);
+            // Real page size (not assumed A4/Letter) — lets the preview size its
+            // container to the exact aspect ratio so a fit-to-width single page
+            // exactly fills it, same fix as the Profile tab's résumé preview.
+            var pageSize = PdfPageCounter.GetFirstPageSize(pdfBytes);
 
             return Results.Ok(new
             {
@@ -38,6 +42,8 @@ public static class ResumePackEndpoints
                 pack.SideProjects,
                 pack.GeneratedAt,
                 pageCount,
+                pageWidth = pageSize?.Width,
+                pageHeight = pageSize?.Height,
             });
         })
         .WithName("GetResumePack")

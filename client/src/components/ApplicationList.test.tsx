@@ -168,26 +168,17 @@ describe('ApplicationList — résumé pack action (To Apply only)', () => {
     expect(generateBtn).toHaveAttribute('title', 'Disabled in the read-only demo');
   });
 
-  it('opens the pack modal with the persisted content when Review Pack is clicked', async () => {
+  it('navigates to the dedicated Résumé Pack page when Review Pack is clicked', async () => {
     const user = userEvent.setup();
     mockRoutes({
       'GET /config': { demoMode: false },
       'GET /applications': [{ ...toApplyApp, hasPack: true }],
-      'GET /applications/t1/pack': {
-        tailoredSummary: 'Grounded tailored summary',
-        experience: [{ title: 'Engineer', company: 'Co', dates: '2020–2022', highlights: ['Did the thing'] }],
-        highlightedSkills: ['TypeScript'],
-        generatedAt: '2026-01-01T00:00:00Z',
-      },
     });
     renderWithRouter(<ApplicationList />);
     await waitFor(() => expect(screen.getByText('Queue Role')).toBeInTheDocument());
 
     await user.click(screen.getByRole('button', { name: 'Review résumé pack for QueueCo' }));
 
-    expect(await screen.findByText(/generated/i)).toBeInTheDocument();
-    const embed = document.querySelector('embed[type="application/pdf"]');
-    expect(embed).toBeInTheDocument();
-    expect(embed).toHaveAttribute('src', expect.stringContaining('/applications/t1/pack/pdf'));
+    await waitFor(() => expect(window.location.pathname).toBe('/tracker/t1/pack'));
   });
 });

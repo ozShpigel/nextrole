@@ -1,9 +1,9 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useMemo, type ReactNode } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Sparkles, RefreshCw, ExternalLink } from 'lucide-react';
 import { useApplications, useDemoMode, DEMO_DISABLED_TITLE } from '../lib/queries';
 import { useGeneratePack, useUpdateAppStatus } from '../lib/mutations';
 import { verdictLabel } from '../lib/format';
-import { ResumePackModal } from '../components/ResumePackModal';
 
 interface Application {
   id: string;
@@ -77,11 +77,11 @@ function Column({ label, count, emptyText, children }: { label: string; count: n
 }
 
 export default function ActivePage() {
+  const navigate = useNavigate();
   const { data: apps = [], isLoading, error } = useApplications();
   const demoMode = useDemoMode();
   const generatePack = useGeneratePack();
   const updateStatus = useUpdateAppStatus();
-  const [reviewApp, setReviewApp] = useState<Application | null>(null);
 
   const { added, ready, applied } = useMemo(() => {
     const all = apps as Application[];
@@ -161,7 +161,7 @@ export default function ActivePage() {
             <Column label="Ready" count={ready.length} emptyText="Generate a pack from Added to see it here.">
               {ready.map((a, i) => (
                 <Card key={a.id} app={a} index={i}>
-                  <button type="button" className={`${ED_GHOST} text-[0.64rem] px-3 py-[0.45rem]`} onClick={() => setReviewApp(a)}>
+                  <button type="button" className={`${ED_GHOST} text-[0.64rem] px-3 py-[0.45rem]`} onClick={() => navigate(`/tracker/${a.id}/pack`)}>
                     Review
                   </button>
                   <IAppliedLink appId={a.id} />
@@ -193,16 +193,6 @@ export default function ActivePage() {
           </div>
         )}
       </div>
-
-      {reviewApp && (
-        <ResumePackModal
-          appId={reviewApp.id}
-          jobTitle={reviewApp.jobTitle}
-          company={reviewApp.company}
-          open={!!reviewApp}
-          onClose={() => setReviewApp(null)}
-        />
-      )}
     </div>
   );
 }

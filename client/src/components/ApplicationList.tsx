@@ -6,7 +6,6 @@ import { useDeleteApplication, useGeneratePack } from '../lib/mutations';
 import { formatDate, formatTime, verdictLabel } from '../lib/format';
 import { StatusBadge, STATUS_TONE } from './Status';
 import ConfirmDialog from './ConfirmDialog';
-import { ResumePackModal } from './ResumePackModal';
 import { Skeleton } from '@/components/ui/skeleton';
 
 interface Application {
@@ -16,6 +15,7 @@ interface Application {
   status: string;
   matchScore: number | null;
   matchVerdict: string | null;
+  jobUrl?: string | null;
   createdAt: string;
   updatedAt?: string;
   nextInterviewAt?: string | null;
@@ -210,7 +210,6 @@ export default function ApplicationList() {
   const demoMode = useDemoMode();
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [showAllAwaiting, setShowAllAwaiting] = useState(false);
-  const [packModalApp, setPackModalApp] = useState<Application | null>(null);
 
   if (error) {
     return <div className="border border-[var(--ed-no)]/30 bg-[var(--ed-no)]/10 p-6 mb-4"><p className="text-center py-12 text-[var(--ed-no)] text-[0.88rem]">Failed to load applications: {error.message}</p></div>;
@@ -297,7 +296,7 @@ export default function ApplicationList() {
               onOpen={() => open(a.id)}
               onDelete={() => setDeleteId(a.id)}
               onGeneratePack={() => generatePackMutation.mutate(a.id)}
-              onReviewPack={() => setPackModalApp(a)}
+              onReviewPack={() => navigate(`/tracker/${a.id}/pack`)}
               packGenerating={generatePackMutation.isPending && generatePackMutation.variables === a.id}
               demoMode={demoMode}
             />
@@ -363,16 +362,6 @@ export default function ApplicationList() {
       }}
       onCancel={() => setDeleteId(null)}
     />
-
-    {packModalApp && (
-      <ResumePackModal
-        appId={packModalApp.id}
-        jobTitle={packModalApp.jobTitle}
-        company={packModalApp.company}
-        open={!!packModalApp}
-        onClose={() => setPackModalApp(null)}
-      />
-    )}
     </>
   );
 }

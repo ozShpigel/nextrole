@@ -33,11 +33,16 @@ const EMPTY_PROFILE: StructuredProfile = {
 const STRENGTH_SUGGESTIONS = [
   'Complexity reduction', 'Reliability mindset', 'Understanding-to-enablement', 'Automation leverage',
   'End-to-end ownership', 'Persistent depth', 'Sustainable delivery', 'Trade-off thinking',
+  'Cross-team collaboration', 'Mentorship and growth', 'Systems thinking', 'Incident response',
+  'Technical communication', 'Deep debugging', 'Documentation discipline', 'Pragmatic problem-solving',
 ];
 const VALUE_SUGGESTIONS = [
   'Clarity over complexity', 'Reliability over shortcuts', 'Ownership and accountability',
   'Perseverance and follow-through', 'Honesty and transparency', 'Continuous growth',
   'Enabling others', 'Respect for focus', 'Sustainability over heroics', 'Pragmatism over perfection',
+  'Depth over breadth', 'Curiosity and continuous learning', 'Team success over individual credit',
+  'Long-term thinking over quick wins', 'Quality over speed', 'Trust through consistency',
+  'Empathy in collaboration', 'Autonomy with alignment',
 ];
 
 // Normalize a profile loaded from the API into a fully-populated shape so the
@@ -231,7 +236,7 @@ export default function SettingsPage() {
                   the search queries and the advisor ranking. Nothing else auto-
                   extracts these, so they stay editable even though the rest of
                   the structured profile no longer shows in this UI. */}
-              <FieldGroup title="Strengths" desc="Manual, max 3 — pick the ones that should steer job matching." first>
+              <FieldGroup title="Strengths" first>
                 <ChipInput
                   value={profile.strengths}
                   onChange={(v) => saveChips('strengths', v)}
@@ -242,7 +247,7 @@ export default function SettingsPage() {
                 />
               </FieldGroup>
 
-              <FieldGroup title="Core values" desc="Manual, max 3 — pick the ones that should steer job matching.">
+              <FieldGroup title="Core values">
                 <ChipInput
                   value={profile.coreValues}
                   onChange={(v) => saveChips('coreValues', v)}

@@ -82,9 +82,12 @@ function MatchRing({ job }: { job: DiscoveredJobSummary }) {
   const r = 19;
   const c = 2 * Math.PI * r;
   const offset = c * (1 - Math.min(100, Math.max(0, score)) / 100);
+  // Absent on jobs scored before this field existed — no tooltip for those,
+  // rather than showing an empty box on hover.
+  const highlights = job.match_analysis?.quickHighlights;
 
   return (
-    <div className="relative w-11 h-11 shrink-0">
+    <div className="group relative w-11 h-11 shrink-0">
       <svg viewBox="0 0 44 44" className="w-11 h-11 -rotate-90">
         <circle cx="22" cy="22" r={r} fill="none" stroke="var(--ed-rule)" strokeWidth="3.5" />
         <circle
@@ -95,6 +98,20 @@ function MatchRing({ job }: { job: DiscoveredJobSummary }) {
       <span className="absolute inset-0 flex items-center justify-center text-[0.72rem] font-bold tabular-nums" style={{ color: tone }}>
         {job.score ?? '—'}
       </span>
+      {highlights && highlights.length > 0 && (
+        <div className="pointer-events-none absolute z-20 bottom-full right-0 mb-2 w-56 origin-bottom-right scale-95 opacity-0 transition-all duration-150 group-hover:scale-100 group-hover:opacity-100">
+          <div className="bg-[var(--ed-paper)] border border-[var(--ed-rule)] shadow-xl p-3">
+            <span className="block text-[0.58rem] uppercase tracking-[0.18em] font-semibold text-[var(--ed-ink-faint)] mb-2">
+              Match Rationale
+            </span>
+            <ul dir="rtl" className="list-disc pr-4 m-0 space-y-1 text-right">
+              {highlights.map((h, i) => (
+                <li key={i} className="text-[0.78rem] text-[var(--ed-ink)] leading-[1.4]">{h}</li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

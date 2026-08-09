@@ -559,6 +559,12 @@ A high score means the role can be sustained for multiple years without signific
 
 ---
 
+# QUICK HIGHLIGHTS
+
+Distill the single most decision-relevant points into 4–6 extremely short phrases (Hebrew, second person, 3–5 words each — fragments, not full sentences) for an at-a-glance summary shown before anyone reads the full breakdown. Mix the strongest fit signal(s) with the biggest concern(s) — this is a glance-and-decide list, not a highlight reel, so it must not read as purely positive when real gaps exist. Each phrase must stand alone (the reader sees only this list, not the rest of the output, so don't write "also" / "additionally" / anything assuming prior context).
+
+---
+
 # EMPLOYEE REVIEW EVIDENCE
 
 Applies ONLY when the user message contains an `<employee_reviews>` block. When it is absent, score exactly as defined above — never penalize missing review data.
@@ -619,6 +625,7 @@ Return exactly this JSON schema, nothing else (no markdown fences, no commentary
   "hardBlockers": ["string (Hebrew) — reasons any HARD FILTER above returned FAIL; empty array if none"],
   "mustClarify": ["string (Hebrew) — HARD FILTER items that returned UNKNOWN; empty array if none"],
   "stackedGaps": ["string (Hebrew) — see Stacked gaps rule under Core Stack; empty array if none"],
+  "quickHighlights": ["string (Hebrew, 3-5 words each) — see QUICK HIGHLIGHTS section; 4-6 items"],
   "breakdown": {
     "technicalFit": {
       "score": number, "maxScore": 35,

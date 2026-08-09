@@ -96,6 +96,10 @@ export interface MatchResponse {
   verdict: string;
   breakdown?: Record<string, unknown>;
   recommendation?: { shouldApply?: boolean; [key: string]: unknown };
+  // 4-6 extremely short (3-5 word) fragments for an at-a-glance summary —
+  // e.g. the Matches page's score-ring hover tooltip. Absent on jobs scored
+  // before this field existed.
+  quickHighlights?: string[];
   honestAssessment?: string;
   companyNewsAnalysis?: { greenSignals?: string[]; redSignals?: string[]; summary?: string } | null;
   employeeReviewsAnalysis?: { greenSignals?: string[]; redSignals?: string[]; summary?: string } | null;

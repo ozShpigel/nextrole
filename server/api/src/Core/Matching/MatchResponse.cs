@@ -26,6 +26,11 @@ public sealed record MatchResponse
     // tech/skills, independent of the narrative Core Stack score. Checked
     // mechanically by Correct(): >=4 caps Core Stack's score server-side.
     public string[] StackedGaps { get; init; } = [];
+    // 4-6 extremely short (3-5 word) fragments for an at-a-glance summary
+    // before the full breakdown — e.g. a hover tooltip on the Matches page's
+    // score ring. Mixes the strongest fit signal(s) with the biggest
+    // concern(s); not a subset of any other field, its own literal output.
+    public string[] QuickHighlights { get; init; } = [];
 }
 
 public sealed record Breakdown

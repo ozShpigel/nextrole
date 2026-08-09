@@ -19,7 +19,6 @@ function initials(name: string): string {
 
 const FIELD_INPUT = 'w-full py-[0.5rem] px-[0.75rem] bg-transparent border border-[var(--ed-rule)] text-[var(--ed-ink)] text-[0.85rem] font-code text-left transition-colors hover:border-[var(--ed-ink-faint)] focus:border-[var(--ed-accent)] focus:outline-none';
 const FIELD_LABEL = 'text-[0.62rem] text-[var(--ed-ink-faint)] tracking-[0.16em] uppercase font-semibold';
-const META_TEXT = 'text-[0.72rem] text-[var(--ed-ink-faint)] tabular-nums tracking-[0.05em] font-medium';
 
 const EMPTY_SKILLS: SkillGroups = { languages: [], frameworks: [], infrastructure: [], databases: [], other: [] };
 const EMPTY_PROFILE: StructuredProfile = {
@@ -170,6 +169,9 @@ export default function SettingsPage() {
 
   const resumeFile = resumeFileQuery.data;
   const latestTitle = profile.experience[0]?.title || null;
+  const pageAspect = resumeFile?.pageWidth && resumeFile?.pageHeight
+    ? `${resumeFile.pageWidth} / ${resumeFile.pageHeight}`
+    : null;
 
   return (
     <div className="editorial editorial-grain min-h-screen">
@@ -279,21 +281,60 @@ export default function SettingsPage() {
               {resumeFile ? (
                 <div className="bg-[var(--ed-panel)]/40 border border-[var(--ed-rule)] overflow-hidden">
                   {resumeFile.contentType === 'application/pdf' ? (
-                    <>
+                    <div
+                      className={`relative overflow-hidden w-full ${pageAspect ? '' : 'h-[85vh] min-h-[700px]'}`}
+                      style={pageAspect ? { aspectRatio: pageAspect } : undefined}
+                    >
+                      {/* pointer-events-none: `#page=N` only sets the PDF
+                          viewer's *initial* scroll position — Chrome's native
+                          viewer still lets wheel/trackpad scroll drift onto
+                          neighboring pages afterward. Blocking all pointer
+                          interaction with the embed is what actually locks
+                          display to a single page; paging is exclusively via
+                          the floating button below.
+                          Chrome's viewer also ignores `#scrollbar=0` (an
+                          Adobe-only param) and always paints both a vertical
+                          AND a horizontal native scrollbar regardless — the
+                          wrapper above is the fixed-size visible box, and the
+                          embed is 20px taller/wider than it on every side, so
+                          `overflow-hidden` clips both scrollbars outside the
+                          crop without touching the rendered page content.
+                          When the real page aspect ratio is known, the
+                          wrapper's height is derived from it (not guessed) so
+                          a fit-to-width single page exactly fills the
+                          container — otherwise the native viewer's
+                          continuous-scroll layout bleeds the top of the next
+                          page into whatever vertical space is left over. */}
                       <embed
                         key={pdfPage}
-                        src={`${apiUrl('/match/profile/resume-file/download')}#toolbar=0&navpanes=0&scrollbar=0&view=Fit&page=${pdfPage}`}
+                        src={`${apiUrl('/match/profile/resume-file/download')}#toolbar=0&navpanes=0&scrollbar=0&view=${pageAspect ? 'FitH' : 'Fit'}&page=${pdfPage}`}
                         type="application/pdf"
-                        className="w-full h-[85vh] min-h-[700px] block"
+                        className="w-[calc(100%+20px)] h-[calc(100%+20px)] block pointer-events-none"
                       />
                       {(resumeFile.pageCount ?? 1) > 1 && (
-                        <PdfPager
-                          page={pdfPage}
-                          pageCount={resumeFile.pageCount!}
-                          onChange={setPdfPage}
-                        />
+                        <>
+                          <span className="absolute top-4 right-4 px-3 py-[0.35rem] rounded-full bg-[var(--ed-paper)]/80 text-[var(--ed-ink)] text-[0.7rem] font-semibold tabular-nums shadow-lg">
+                            Page {pdfPage} of {resumeFile.pageCount}
+                          </span>
+                          {/* Locked to the résumé page itself (absolute
+                              within this container), vertically centered on
+                              its right/left edge — like a carousel arrow —
+                              rather than the browser viewport. Scrolls away
+                              with the document if the page underneath it
+                              scrolls, same as the "Page X of Y" pill above. */}
+                          {pdfPage > 1 && (
+                            <div className="absolute top-1/2 left-4 -translate-y-1/2 z-10">
+                              <PdfNavButton direction="prev" onClick={() => setPdfPage((p) => p - 1)} />
+                            </div>
+                          )}
+                          {pdfPage < resumeFile.pageCount! && (
+                            <div className="absolute top-1/2 right-4 -translate-y-1/2 z-10">
+                              <PdfNavButton direction="next" onClick={() => setPdfPage((p) => p + 1)} />
+                            </div>
+                          )}
+                        </>
                       )}
-                    </>
+                    </div>
                   ) : (
                     <pre className="p-5 max-h-[600px] overflow-y-auto text-[0.82rem] text-[var(--ed-ink)] font-code leading-[1.7] whitespace-pre-wrap">{resumeFile.textContent}</pre>
                   )}
@@ -333,32 +374,21 @@ function SidebarTab({ active, onClick, icon, label }: { active: boolean; onClick
 }
 
 // Replaces the browser's native PDF viewer chrome (toolbar + the floating
-// "Page X of Y" scroll-nav pill) with a plain prev/next bar — the embed is
-// locked to one page at a time via the `view=Fit&page=N` URL fragment, so
-// there's nothing left to scroll past.
-function PdfPager({ page, pageCount, onChange }: { page: number; pageCount: number; onChange: (page: number) => void }) {
+// "Page X of Y" scroll-nav pill) with our own floating chevron — fixed to the
+// viewport by the caller (not to the embed), so it stays reachable without
+// scrolling regardless of how tall the embed itself is. Solid dark circle
+// (not a shadcn neutral token) since it sits on top of the rendered white PDF
+// page, not the app's own dark canvas.
+function PdfNavButton({ direction, onClick }: { direction: 'prev' | 'next'; onClick: () => void }) {
   return (
-    <div className="flex items-center justify-center gap-4 py-[0.6rem] border-t border-[var(--ed-rule)]">
-      <button
-        type="button"
-        onClick={() => onChange(page - 1)}
-        disabled={page <= 1}
-        aria-label="Previous page"
-        className="text-[var(--ed-ink-soft)] hover:text-[var(--ed-accent)] transition-colors disabled:opacity-30 disabled:pointer-events-none"
-      >
-        <ChevronLeft size={18} />
-      </button>
-      <span className={META_TEXT}>Page {page} of {pageCount}</span>
-      <button
-        type="button"
-        onClick={() => onChange(page + 1)}
-        disabled={page >= pageCount}
-        aria-label="Next page"
-        className="text-[var(--ed-ink-soft)] hover:text-[var(--ed-accent)] transition-colors disabled:opacity-30 disabled:pointer-events-none"
-      >
-        <ChevronRight size={18} />
-      </button>
-    </div>
+    <button
+      type="button"
+      aria-label={direction === 'next' ? 'Next page' : 'Previous page'}
+      onClick={onClick}
+      className="w-10 h-10 rounded-full bg-[var(--ed-paper)]/80 text-[var(--ed-ink)] flex items-center justify-center shadow-lg hover:bg-[var(--ed-accent)] hover:text-[var(--ed-paper)] transition-colors"
+    >
+      {direction === 'next' ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
+    </button>
   );
 }
 

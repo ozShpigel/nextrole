@@ -258,11 +258,12 @@ describe('SettingsPage', () => {
     await gotoResumeTab(user);
 
     expect(await screen.findByText('Page 1 of 2')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /previous page/i })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: /previous page/i })).not.toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: /next page/i }));
     expect(screen.getByText('Page 2 of 2')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /next page/i })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: /next page/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /previous page/i })).toBeInTheDocument();
   });
 
   it('shows error state when the initial profile load fails', async () => {

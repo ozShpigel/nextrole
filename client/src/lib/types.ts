@@ -26,6 +26,8 @@ export interface ResumeFileMeta {
   uploadedAt: string;
   textContent: string | null; // populated only for .txt uploads
   pageCount: number | null; // PDF only — powers the Resume tab's custom pager
+  pageWidth?: number | null; // PDF only, in points — real single-page aspect ratio
+  pageHeight?: number | null;
 }
 
 export interface StructuredProfile {

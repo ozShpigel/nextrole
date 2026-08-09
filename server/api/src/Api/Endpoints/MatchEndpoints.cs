@@ -344,12 +344,21 @@ public static class MatchEndpoints
             var file = await resumeFileRepo.GetAsync(ct);
             if (file is null) return Results.NotFound();
 
+            // Computed on the fly rather than persisted — the preview needs
+            // the real page aspect ratio so its container's height exactly
+            // matches a fit-to-width single page, or Chrome's native PDF
+            // viewer bleeds the top of the next page into the leftover
+            // vertical space underneath.
+            var pageSize = file.ContentType == "application/pdf" ? PdfPageCounter.GetFirstPageSize(file.Bytes) : null;
+
             return Results.Ok(new
             {
                 fileName = file.FileName,
                 contentType = file.ContentType,
                 uploadedAt = file.UploadedAt,
                 pageCount = file.PageCount,
+                pageWidth = pageSize?.Width,
+                pageHeight = pageSize?.Height,
                 // Small enough to inline for TXT; PDF is fetched separately via
                 // /resume-file/download and rendered inline in an <embed>.
                 textContent = file.ContentType == "text/plain"

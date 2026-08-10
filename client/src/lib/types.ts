@@ -265,14 +265,25 @@ export interface TailoredExperienceItem {
   highlights: string[];
 }
 
+export interface SkillCategory {
+  category: string;
+  items: string[];
+}
+
+export interface SideProjectItem {
+  name: string;
+  description: string;
+  links: string[];
+}
+
 export interface ResumePack {
   tailoredSummary: string;
   experience: TailoredExperienceItem[];
-  highlightedSkills: string[];
+  highlightedSkills: SkillCategory[];
   // AI-selected subset of the profile's side projects, tailored to this posting.
   // Education/militaryService/spokenLanguages render straight from the profile in
   // the PDF and are intentionally not part of this pack.
-  sideProjects?: string[];
+  sideProjects?: SideProjectItem[];
   generatedAt: string;
   pageCount?: number | null;
   pageWidth?: number | null; // in points — real single-page aspect ratio

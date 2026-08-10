@@ -595,6 +595,13 @@ public sealed class ClaudeClient : IClaudeClient
         var (result, _) = await CallClaudeAsync<ResumePackSynthesis>(
             systemBuilder.ToString(), userBuilder.ToString(), _scoring.ResumePack, "resume-pack", cancellationToken);
 
+        // Provenance isn't persisted with the pack — logged here so a
+        // fabrication complaint can be traced back to what the model claimed
+        // its source was, without carrying that audit trail into the DB/PDF.
+        _logger.LogInformation(
+            "Resume pack generated for {Company}: {ExperienceCount} experience entries, {SkillCategories} skill categories, {ProvenanceRows} provenance rows",
+            app.Company, result.Experience.Count, result.HighlightedSkills.Count, result.Provenance.Count);
+
         return result;
     }
 

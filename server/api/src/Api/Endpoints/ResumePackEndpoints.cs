@@ -105,7 +105,7 @@ public static class ResumePackEndpoints
         // src, so the preview path omits the filename entirely (no
         // Content-Disposition header at all, browser default is to render
         // application/pdf inline). The plain "Download PDF" link keeps the
-        // named-attachment behavior so it still saves as resume-{company}.pdf.
+        // named-attachment behavior so it still saves as FirstName_LastName_Role.pdf.
         app.MapGet("/api/applications/{id:guid}/pack/pdf", async (
             Guid id,
             bool? inline,
@@ -126,7 +126,7 @@ public static class ResumePackEndpoints
 
             if (inline == true) return Results.File(pdfBytes, "application/pdf");
 
-            var fileName = $"resume-{SanitizeFileName(application.Company)}.pdf";
+            var fileName = BuildDownloadFileName(profileDoc.Structured.FullName, application.JobTitle);
             return Results.File(pdfBytes, "application/pdf", fileName);
         })
         .WithName("DownloadResumePackPdf")
@@ -135,10 +135,23 @@ public static class ResumePackEndpoints
         return app;
     }
 
-    private static string SanitizeFileName(string value)
+    // FirstName_LastName_Role.pdf — falls back to just whichever part is
+    // present (or a bare "resume.pdf") when the profile has no name set yet.
+    private static string BuildDownloadFileName(string? fullName, string jobTitle)
+    {
+        var namePart = SanitizeFileNamePart(fullName ?? "");
+        var rolePart = SanitizeFileNamePart(jobTitle);
+        var core = string.Join('_', new[] { namePart, rolePart }.Where(p => p.Length > 0));
+        return (core.Length > 0 ? core : "resume") + ".pdf";
+    }
+
+    // Strips filesystem-invalid characters, then collapses whitespace runs
+    // into single underscores — "Oz Shpigel" -> "Oz_Shpigel", "Backend
+    // developer" -> "Backend_developer". Used for both the name and role.
+    private static string SanitizeFileNamePart(string value)
     {
         var invalid = Path.GetInvalidFileNameChars();
-        var cleaned = new string(value.Where(c => !invalid.Contains(c)).ToArray()).Trim();
-        return string.IsNullOrEmpty(cleaned) ? "role" : cleaned.Replace(' ', '-').ToLowerInvariant();
+        var cleaned = new string(value.Where(c => !invalid.Contains(c)).ToArray());
+        return string.Join('_', cleaned.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
     }
 }

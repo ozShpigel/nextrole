@@ -40,7 +40,7 @@ describe('ResumePackPage', () => {
         experience: [
           { title: 'Senior Engineer', company: 'Acme', dates: '2021–2024', highlights: ['Shipped the thing'] },
         ],
-        highlightedSkills: ['TypeScript', 'React'],
+        highlightedSkills: [{ category: 'Languages', items: ['TypeScript', 'React'] }],
         generatedAt: '2026-01-15T00:00:00Z',
       },
     });

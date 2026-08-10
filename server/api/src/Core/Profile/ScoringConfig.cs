@@ -60,8 +60,11 @@ public sealed record ScoringConfig
 
     // Resume Pack: reorder/re-emphasize the candidate's real experience toward
     // one specific job posting. "Regenerate" click, not a hot loop — lower
-    // temperature than free-form prose since this must stay grounded, not creative.
-    public RoleScoringConfig ResumePack { get; init; } = new() { MaxTokens = 3072, Temperature = 0.3m };
+    // temperature than free-form prose since this must stay grounded, not
+    // creative. 4096 (vs the 3072 v1 default): v2 adds a provenance row per
+    // rephrased clause on top of the grouped-skills/side-project objects,
+    // pushing typical output past 3072 before truncation.
+    public RoleScoringConfig ResumePack { get; init; } = new() { MaxTokens = 4096, Temperature = 0.3m };
 
     public int MinScoreToSave { get; init; } = 70;
 

@@ -21,6 +21,37 @@ SCORE_BATCH_SIZE = 4
 MAX_CONCURRENT_SCORE_BATCHES = 2
 
 
+def _parse_date_posted(value: str | None):
+    """Best-effort YYYY-MM-DD parse for comparing two date_posted strings.
+    Returns None on anything unparseable rather than raising — a comparison
+    that can't be made safely should be skipped, not guessed at."""
+    if not value:
+        return None
+    try:
+        return datetime.strptime(value[:10], "%Y-%m-%d").date()
+    except (ValueError, TypeError):
+        return None
+
+
+def _backfill_date_posted(new_date_posted: str | None, existing_date_posted: str | None) -> str | None:
+    """Decide whether a re-scraped job's date_posted should refresh the
+    already-stored value. Returns the value to write, or None to leave the
+    stored record untouched.
+
+    Must only ever move forward in time. A re-scrape that came back with no
+    date at all (jobspy's LinkedIn date_posted extraction is intermittently
+    unreliable) must never blow away a good stored date — that's the whole
+    point of this function existing instead of a bare overwrite.
+    """
+    new_date = _parse_date_posted(new_date_posted)
+    if new_date is None:
+        return None
+    existing_date = _parse_date_posted(existing_date_posted)
+    if existing_date is not None and new_date <= existing_date:
+        return None
+    return new_date_posted
+
+
 async def run_discovery(db: AsyncIOMotorDatabase, settings: Settings, criteria_id: str, run_id: str | None = None):
     """Execute a discovery run: scrape, triage, classify seniority, store.
 
@@ -74,15 +105,36 @@ async def run_discovery(db: AsyncIOMotorDatabase, settings: Settings, criteria_i
         # platform reposts/overlap — the same job cross-listed on a different
         # site gets a different URL and isn't caught by this.
         scraped_urls = [j["job_url"] for j in jobs if j.get("job_url")]
-        existing_urls = set()
+        existing_by_url = {}
         if scraped_urls:
-            cursor = db.discovered_jobs.find({"job_url": {"$in": scraped_urls}}, {"job_url": 1})
-            existing_urls = {doc["job_url"] async for doc in cursor}
+            cursor = db.discovered_jobs.find({"job_url": {"$in": scraped_urls}}, {"job_url": 1, "date_posted": 1})
+            existing_by_url = {doc["job_url"]: doc.get("date_posted") async for doc in cursor}
         before_dedup = len(jobs)
-        jobs = [j for j in jobs if not (j.get("job_url") and j["job_url"] in existing_urls)]
+        already_known_jobs = [j for j in jobs if j.get("job_url") in existing_by_url]
+        jobs = [j for j in jobs if j.get("job_url") not in existing_by_url]
         run.jobs_already_known = before_dedup - len(jobs)
+
+        # An "already known" job is otherwise fully discarded here — free
+        # opportunity to backfill/refresh its stored date_posted from this
+        # scrape's fresher attempt (e.g. LinkedIn's own date_posted extraction
+        # is intermittently unreliable — see the null-date_posted investigation
+        # — so a later re-scrape sometimes succeeds where an earlier one
+        # didn't). Only ever moves forward in time: a flaky re-scrape that
+        # returns nothing, or an older date than what's already stored, must
+        # not regress good data.
+        for job in already_known_jobs:
+            new_value = _backfill_date_posted(job.get("date_posted"), existing_by_url.get(job.get("job_url")))
+            if new_value is None:
+                continue
+            await db.discovered_jobs.update_one(
+                {"job_url": job["job_url"]}, {"$set": {"date_posted": new_value}}
+            )
+            run.jobs_date_backfilled += 1
+
         if run.jobs_already_known:
             logger.info("Run %s: skipping %d jobs already discovered in a previous run", run.id, run.jobs_already_known)
+        if run.jobs_date_backfilled:
+            logger.info("Run %s: backfilled/refreshed date_posted on %d already-known jobs", run.id, run.jobs_date_backfilled)
 
         # Wake the API before triage/duplicate checks. On Render free tier the
         # per-call retry budget (~15s) is too small to cover a 30-60s cold start.
@@ -272,12 +324,14 @@ async def run_discovery(db: AsyncIOMotorDatabase, settings: Settings, criteria_i
                 "jobs_skipped_duplicate": run.jobs_skipped_duplicate,
                 "jobs_triaged_out": run.jobs_triaged_out,
                 "jobs_already_known": run.jobs_already_known,
+                "jobs_date_backfilled": run.jobs_date_backfilled,
             }},
         )
         logger.info(
-            "Run %s completed: %d scraped, %d already known, %d scored, %d score-failed, %d duplicates, %d triaged out",
-            run.id, run.jobs_scraped, run.jobs_already_known, run.jobs_scored, run.jobs_score_failed,
-            run.jobs_skipped_duplicate, run.jobs_triaged_out,
+            "Run %s completed: %d scraped, %d already known (%d date-backfilled), %d scored, "
+            "%d score-failed, %d duplicates, %d triaged out",
+            run.id, run.jobs_scraped, run.jobs_already_known, run.jobs_date_backfilled, run.jobs_scored,
+            run.jobs_score_failed, run.jobs_skipped_duplicate, run.jobs_triaged_out,
         )
 
     except Exception as e:

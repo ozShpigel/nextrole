@@ -19,6 +19,7 @@ class DiscoveryRun(BaseModel):
     jobs_skipped_duplicate: int = 0
     jobs_triaged_out: int = 0  # dropped by AI title triage before scoring
     jobs_already_known: int = 0  # skipped — job_url already in discovered_jobs from a prior run
+    jobs_date_backfilled: int = 0  # already-known job's date_posted refreshed from this scrape
     # Per-search outcomes — throttling visibility. jobspy swallows rate-limit
     # errors, so failed/empty searches are the only signal a run was blocked.
     searches_total: int = 0

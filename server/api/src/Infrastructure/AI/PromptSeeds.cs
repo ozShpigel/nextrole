@@ -489,6 +489,16 @@ Evaluate only against a work-arrangement constraint the candidate has EXPLICITLY
 
 ---
 
+## 4. Candidate-Stated Dealbreakers
+
+Evaluate only against dealbreakers the candidate has EXPLICITLY listed in their profile's `<red_flags>` (skip this filter entirely when the profile lists none — never invent a dealbreaker the candidate didn't state).
+
+- The posting clearly exhibits a listed dealbreaker (an explicit statement in the posting, not an inference from silence) → FAIL, name the specific dealbreaker (in the candidate's own words) in `hardBlockers`
+- The posting doesn't say enough to tell whether a listed dealbreaker applies → UNKNOWN (add to `mustClarify`; do not FAIL)
+- None of the listed dealbreakers apply → PASS
+
+---
+
 # SCORING MODEL (TOTAL 100 POINTS)
 
 Score each dimension by explicitly scoring its sub-components, then summing them.

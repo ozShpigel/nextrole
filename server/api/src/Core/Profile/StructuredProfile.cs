@@ -33,6 +33,10 @@ public sealed record StructuredProfile
     public string[] SpokenLanguages { get; init; } = [];
     public string[] Strengths { get; init; } = [];
     public string[] CoreValues { get; init; } = [];
+    // Explicit manual dealbreakers (e.g. "Early-stage startup") — checked by the
+    // Evaluator's 4th Hard Filter (Candidate-Stated Dealbreakers) and mechanically
+    // enforced via hardBlockers, same as the other hard filters. Never auto-generated.
+    public string[] RedFlags { get; init; } = [];
     public string RawExperienceText { get; init; } = "";
 }
 

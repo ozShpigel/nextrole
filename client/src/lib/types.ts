@@ -51,6 +51,10 @@ export interface StructuredProfile {
   spokenLanguages: string[];
   strengths: string[];
   coreValues: string[];
+  // Explicit manual dealbreakers (e.g. "Early-stage startup") — checked by the
+  // Evaluator's Candidate-Stated Dealbreakers hard filter, same enforcement as
+  // the other hard filters (forces STRONG_NO on a match). Never auto-generated.
+  redFlags: string[];
   rawExperienceText: string;
 }
 

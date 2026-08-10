@@ -35,6 +35,7 @@ public static class ProfileRenderer
 
         AppendList(sb, "core_values", p.CoreValues);
         AppendList(sb, "strengths", p.Strengths);
+        AppendList(sb, "red_flags", p.RedFlags);
 
         var skills = RenderSkills(p.Skills);
         if (skills.Count > 0)

@@ -25,7 +25,7 @@ const EMPTY_PROFILE: StructuredProfile = {
   fullName: '', email: '', phone: '', location: '',
   summary: '', seniority: '', domains: [], experience: [], skills: EMPTY_SKILLS,
   education: [], militaryService: [], sideProjects: [], spokenLanguages: [],
-  strengths: [], coreValues: [], rawExperienceText: '',
+  strengths: [], coreValues: [], redFlags: [], rawExperienceText: '',
 };
 
 // Manual, never auto-extracted — kept editable even though everything else
@@ -44,6 +44,13 @@ const VALUE_SUGGESTIONS = [
   'Long-term thinking over quick wins', 'Quality over speed', 'Trust through consistency',
   'Empathy in collaboration', 'Autonomy with alignment',
 ];
+// Dealbreakers — checked by the Evaluator's Candidate-Stated Dealbreakers hard
+// filter (forces STRONG_NO on a clear match), not just weighed as soft context
+// like Strengths/Core values above.
+const RED_FLAG_SUGGESTIONS = [
+  'Early-stage startup', 'No remote option', 'Heavy on-call rotation', 'People-management required',
+  'Frequent reorgs', '5-day return to office', 'Agency / consulting model', 'Unpaid overtime culture',
+];
 
 // Normalize a profile loaded from the API into a fully-populated shape so the
 // controlled inputs never see undefined.
@@ -60,6 +67,7 @@ function hydrate(p?: StructuredProfile | null): StructuredProfile {
     spokenLanguages: p?.spokenLanguages ?? [],
     strengths: p?.strengths ?? [],
     coreValues: p?.coreValues ?? [],
+    redFlags: p?.redFlags ?? [],
   };
 }
 
@@ -111,7 +119,7 @@ export default function SettingsPage() {
     persist({ ...profile, [field]: value });
   }
 
-  function saveChips(field: 'strengths' | 'coreValues', value: string[]): void {
+  function saveChips(field: 'strengths' | 'coreValues' | 'redFlags', value: string[]): void {
     persist({ ...profile, [field]: value });
   }
 
@@ -255,6 +263,17 @@ export default function SettingsPage() {
                   ariaLabel="Add a core value"
                   suggestions={VALUE_SUGGESTIONS}
                   max={3}
+                />
+              </FieldGroup>
+
+              <FieldGroup title="Red flags" desc="Dealbreakers — a clear match rejects the job outright, not just a lower score.">
+                <ChipInput
+                  value={profile.redFlags}
+                  onChange={(v) => saveChips('redFlags', v)}
+                  placeholder="e.g. Early-stage startup"
+                  ariaLabel="Add a red flag"
+                  suggestions={RED_FLAG_SUGGESTIONS}
+                  max={5}
                 />
               </FieldGroup>
             </section>

@@ -8,6 +8,7 @@ import certifi
 from fastapi import BackgroundTasks, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
+from pydantic import BaseModel
 
 from app.config import Settings
 from app.indexes import ensure_ttl_index
@@ -352,3 +353,24 @@ async def dismiss_job(job_id: str):
     if result.matched_count == 0:
         raise HTTPException(404, "Job not found")
     return {"status": "dismissed"}
+
+
+class UnsaveJobRequest(BaseModel):
+    job_url: str
+
+
+@app.post("/api/discovery/jobs/unsave")
+async def unsave_job(request: UnsaveJobRequest):
+    # Reverse of save_job. The tracker Application has no reference back to
+    # the discovered_jobs _id — only the job's URL (Application.JobUrl) — so
+    # when the API deletes an Application it can't clear this flag itself;
+    # the client calls this right after DELETE /applications/{id} so the job
+    # doesn't stay permanently hidden from Search/re-add. update_many (not
+    # update_one): job_url isn't a unique index, so a re-scraped posting can
+    # legitimately have more than one discovered_jobs doc.
+    if not request.job_url.strip():
+        raise HTTPException(400, "job_url is required")
+    result = await db.discovered_jobs.update_many(
+        {"job_url": request.job_url}, {"$set": {"saved_to_tracker": False}}
+    )
+    return {"status": "unsaved", "modified": result.modified_count}

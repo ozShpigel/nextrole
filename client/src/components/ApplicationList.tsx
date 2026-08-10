@@ -208,7 +208,7 @@ export default function ApplicationList() {
   const deleteAppMutation = useDeleteApplication();
   const generatePackMutation = useGeneratePack();
   const demoMode = useDemoMode();
-  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; jobUrl: string | null } | null>(null);
   const [showAllAwaiting, setShowAllAwaiting] = useState(false);
 
   if (error) {
@@ -294,7 +294,7 @@ export default function ApplicationList() {
               app={a}
               index={i}
               onOpen={() => open(a.id)}
-              onDelete={() => setDeleteId(a.id)}
+              onDelete={() => setDeleteTarget({ id: a.id, jobUrl: a.jobUrl ?? null })}
               onGeneratePack={() => generatePackMutation.mutate(a.id)}
               onReviewPack={() => navigate(`/tracker/${a.id}/pack`)}
               packGenerating={generatePackMutation.isPending && generatePackMutation.variables === a.id}
@@ -311,7 +311,7 @@ export default function ApplicationList() {
           {awaiting.length > 0 && (
             <>
               <TableHead />
-              {awaitingVisible.map((a, i) => <Row key={a.id} app={a} index={i} onOpen={() => open(a.id)} onDelete={() => setDeleteId(a.id)} />)}
+              {awaitingVisible.map((a, i) => <Row key={a.id} app={a} index={i} onOpen={() => open(a.id)} onDelete={() => setDeleteTarget({ id: a.id, jobUrl: a.jobUrl ?? null })} />)}
               {awaiting.length > AWAITING_VISIBLE && (
                 <button
                   type="button"
@@ -331,7 +331,7 @@ export default function ApplicationList() {
                 <span className="text-[0.66rem] text-[var(--ed-ink-faint)]/70 tabular-nums">· {ghosted.length} silent {GHOST_DAYS}d+</span>
               </summary>
               <div className="border-t border-[var(--ed-rule)] pt-1">
-                {ghosted.map((a, i) => <Row key={a.id} app={a} index={i} muted onOpen={() => open(a.id)} onDelete={() => setDeleteId(a.id)} />)}
+                {ghosted.map((a, i) => <Row key={a.id} app={a} index={i} muted onOpen={() => open(a.id)} onDelete={() => setDeleteTarget({ id: a.id, jobUrl: a.jobUrl ?? null })} />)}
               </div>
             </details>
           )}
@@ -347,20 +347,20 @@ export default function ApplicationList() {
             <span className="text-[0.66rem] text-[var(--ed-ink-faint)]/70 tabular-nums">· {archive.length} closed</span>
           </summary>
           <div className="border-t border-[var(--ed-rule)] pt-1">
-            {archive.map((a, i) => <Row key={a.id} app={a} index={i} muted onOpen={() => open(a.id)} onDelete={() => setDeleteId(a.id)} />)}
+            {archive.map((a, i) => <Row key={a.id} app={a} index={i} muted onOpen={() => open(a.id)} onDelete={() => setDeleteTarget({ id: a.id, jobUrl: a.jobUrl ?? null })} />)}
           </div>
         </details>
       )}
     </div>
 
     <ConfirmDialog
-      open={!!deleteId}
+      open={!!deleteTarget}
       description="Delete this application? All interviews and notes will also be deleted."
       onConfirm={() => {
-        if (deleteId) deleteAppMutation.mutate(deleteId);
-        setDeleteId(null);
+        if (deleteTarget) deleteAppMutation.mutate(deleteTarget);
+        setDeleteTarget(null);
       }}
-      onCancel={() => setDeleteId(null)}
+      onCancel={() => setDeleteTarget(null)}
     />
     </>
   );

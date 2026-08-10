@@ -267,10 +267,25 @@ export function useGeneratePack() {
 export function useDeleteApplication() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) =>
-      api(`/applications/${id}`, { method: 'DELETE' }),
+    // jobUrl is optional (older applications may predate JobUrl being
+    // populated) — when present, also clears the originating discovered
+    // job's saved_to_tracker flag so it doesn't stay permanently hidden
+    // from Search/re-add. The API has no reference back to the scraper's
+    // discovered_jobs doc, so this is a second, best-effort client call
+    // rather than something the API delete can cascade itself.
+    mutationFn: async ({ id, jobUrl }: { id: string; jobUrl?: string | null }) => {
+      await api(`/applications/${id}`, { method: 'DELETE' });
+      if (jobUrl) {
+        try {
+          await discoveryApi('/jobs/unsave', { method: 'POST', body: JSON.stringify({ job_url: jobUrl }) });
+        } catch {
+          // Best-effort — the application delete already succeeded either way.
+        }
+      }
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['applications'] });
+      queryClient.invalidateQueries({ queryKey: ['discovery'] });
     },
   });
 }

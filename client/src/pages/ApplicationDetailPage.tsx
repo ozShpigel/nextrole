@@ -114,7 +114,8 @@ export default function ApplicationDetail() {
 
   function confirmDeleteApp(): void {
     setShowDeleteConfirm(false);
-    deleteApplicationMutation.mutate(id!, {
+    const jobUrl = (detailQuery.data as ApplicationDetailData | undefined)?.application.jobUrl ?? null;
+    deleteApplicationMutation.mutate({ id: id!, jobUrl }, {
       onSuccess: () => window.history.back(),
       onError: (e) => alert('Delete failed: ' + (e as Error).message),
     });

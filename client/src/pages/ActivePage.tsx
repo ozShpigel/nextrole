@@ -1,9 +1,10 @@
-import { useMemo, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Sparkles, RefreshCw, ExternalLink } from 'lucide-react';
+import { Sparkles, RefreshCw, ExternalLink, X } from 'lucide-react';
 import { useApplications, useDemoMode, DEMO_DISABLED_TITLE } from '../lib/queries';
-import { useGeneratePack, useUpdateAppStatus } from '../lib/mutations';
+import { useGeneratePack, useUpdateAppStatus, useDeleteApplication } from '../lib/mutations';
 import { verdictLabel } from '../lib/format';
+import ConfirmDialog from '../components/ConfirmDialog';
 
 interface Application {
   id: string;
@@ -82,6 +83,8 @@ export default function ActivePage() {
   const demoMode = useDemoMode();
   const generatePack = useGeneratePack();
   const updateStatus = useUpdateAppStatus();
+  const deleteApp = useDeleteApplication();
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; jobUrl: string | null } | null>(null);
 
   const { added, ready, applied } = useMemo(() => {
     const all = apps as Application[];
@@ -108,6 +111,21 @@ export default function ActivePage() {
         onClick={() => markApplied(appId)}
       >
         I applied &rarr;
+      </button>
+    );
+  }
+
+  function RemoveButton({ appId, company, jobUrl }: { appId: string; company: string; jobUrl: string | null }) {
+    return (
+      <button
+        type="button"
+        disabled={demoMode}
+        title={demoMode ? DEMO_DISABLED_TITLE : 'Remove'}
+        aria-label={`Remove application at ${company}`}
+        className="ml-auto w-6 h-6 flex items-center justify-center text-[var(--ed-ink-faint)] hover:text-[var(--ed-no)] transition-colors disabled:opacity-40 disabled:pointer-events-none"
+        onClick={() => setDeleteTarget({ id: appId, jobUrl })}
+      >
+        <X size={13} aria-hidden="true" />
       </button>
     );
   }
@@ -154,6 +172,7 @@ export default function ActivePage() {
                     Generate Pack
                   </button>
                   <IAppliedLink appId={a.id} />
+                  <RemoveButton appId={a.id} company={a.company} jobUrl={a.jobUrl} />
                 </Card>
               ))}
             </Column>
@@ -164,7 +183,19 @@ export default function ActivePage() {
                   <button type="button" className={`${ED_GHOST} text-[0.64rem] px-3 py-[0.45rem]`} onClick={() => navigate(`/tracker/${a.id}/pack`)}>
                     Review
                   </button>
+                  <button
+                    type="button"
+                    disabled={demoMode || (generatePack.isPending && generatePack.variables === a.id)}
+                    title={demoMode ? DEMO_DISABLED_TITLE : 'Regenerate the résumé pack'}
+                    aria-label={`Regenerate résumé pack for ${a.company}`}
+                    className={`${ED_GHOST} text-[0.64rem] px-3 py-[0.45rem] inline-flex items-center gap-[0.35rem]`}
+                    onClick={() => generatePack.mutate(a.id)}
+                  >
+                    <RefreshCw size={12} className={generatePack.isPending && generatePack.variables === a.id ? 'animate-spin' : ''} aria-hidden="true" />
+                    Regenerate
+                  </button>
                   <IAppliedLink appId={a.id} />
+                  <RemoveButton appId={a.id} company={a.company} jobUrl={a.jobUrl} />
                 </Card>
               ))}
             </Column>
@@ -193,6 +224,16 @@ export default function ActivePage() {
           </div>
         )}
       </div>
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        description="Remove this application? All interviews and notes will also be deleted."
+        onConfirm={() => {
+          if (deleteTarget) deleteApp.mutate(deleteTarget);
+          setDeleteTarget(null);
+        }}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </div>
   );
 }

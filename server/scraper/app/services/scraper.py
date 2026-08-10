@@ -1,5 +1,6 @@
 import logging
 import random
+import re
 import time
 
 import pandas as pd
@@ -8,6 +9,34 @@ from jobspy import scrape_jobs
 from app.models.search_criteria import SearchCriteria
 
 logger = logging.getLogger(__name__)
+
+# Scraped description text carries noise between words that read as adjacent
+# to a human: markdown-escaping (backslash-escaped punctuation, stray "**"
+# bold markers, blank lines — real Genpact text: "Remote Type \-**\n\nOffice")
+# and digits (real Check Point text: "hybrid, 3 days a week from the office").
+# `[\W_]` alone excludes digits (they're \w); `[^a-zA-Z]` bridges both.
+_NOISE = r"[^a-zA-Z]{0,15}"
+
+# "hybrid" alone is too broad — "hybrid environments"/"hybrid cloud"/"hybrid
+# app" are common *technical* usages unrelated to work arrangement. Requiring
+# one of these neighboring words scopes the match to the work-arrangement
+# sense ("hybrid model", "hybrid work", "hybrid role", "3 days hybrid", …).
+_HYBRID_WORK_ARRANGEMENT_RE = re.compile(
+    rf"hybrid{_NOISE}(work|model|role|office|day)", re.IGNORECASE
+)
+# A posting's own structured field can explicitly self-declare non-remote
+# (e.g. "Remote type - Office") — jobspy's substring match still fires on the
+# word "remote" in the label and misses the "Office" value right after it.
+_REMOTE_TYPE_OFFICE_RE = re.compile(rf"remote{_NOISE}type{_NOISE}office", re.IGNORECASE)
+# "Mainly/primarily/mostly in-office, with flexible WFH when needed" — the
+# stated PRIMARY arrangement is in-office; WFH/remote is an occasional
+# exception, not the job's actual work location. Requires the qualifying
+# adverb (not a bare "in-office" substring) so it doesn't false-negative a
+# genuinely remote role that also mentions optional in-office days.
+_PRIMARILY_OFFICE_RE = re.compile(
+    rf"(mainly|primarily|mostly){_NOISE}(in{_NOISE}office|on{_NOISE}site|from{_NOISE}office)",
+    re.IGNORECASE,
+)
 
 
 def _clean(value) -> str | None:
@@ -28,6 +57,50 @@ def _clean(value) -> str | None:
 # the same volume spread over minutes stays under the radar. The nightly cron
 # doesn't care that the run is slower.
 PACING_SECONDS = (8.0, 20.0)
+
+
+def _correct_is_remote(is_remote: bool | None, title: str, description: str) -> bool | None:
+    """jobspy's own is_remote heuristic (jobspy/linkedin/util.py) does a naive
+    substring match on ["remote", "work from home", "wfh"] across title +
+    description + location, with no understanding of what the surrounding
+    text actually says. Confirmed false-positive patterns on real data:
+
+    1. A hybrid posting spells out its split ("Hybrid Work Model - 2 days
+       WFH, 3 days in office") — "wfh" substring-matches with no literal
+       "remote" mention at all.
+    2. A hybrid posting describes its remote *portion* using the word
+       "remote" itself ("nice-flex hybrid model... 2 office / 3 remote
+       days") — the overall arrangement is hybrid, but a literal "remote"
+       mention is also present, so pattern 1's check alone misses it. The
+       fix: an explicit "hybrid work/model/role/..." phrase always wins,
+       regardless of whether "remote" also appears elsewhere.
+    3. The posting's own structured field explicitly self-declares non-remote
+       ("Remote type - Office") — the label contains "remote", the value
+       right after it says the opposite, and jobspy's substring match only
+       sees the label.
+    4. The posting states its PRIMARY arrangement is in-office, with WFH
+       carved out as an occasional exception ("mainly in-office, with
+       flexible work from home when needed") — "work from home" still
+       substring-matches jobspy's keyword list regardless of the "mainly
+       in-office" qualifier right before it.
+
+    Deliberately narrow to work-arrangement phrasing (see
+    _HYBRID_WORK_ARRANGEMENT_RE, _PRIMARILY_OFFICE_RE) rather than bare
+    "hybrid"/"in-office" substrings, since "hybrid environments"/"hybrid
+    cloud" are common unrelated technical usages, and "in-office" alone could
+    describe optional in-office days for an otherwise genuinely remote role —
+    both would otherwise false-*negative* a genuinely remote role.
+    """
+    if not is_remote:
+        return is_remote
+    text = f"{title} {description}"
+    if _REMOTE_TYPE_OFFICE_RE.search(text):
+        return False
+    if _HYBRID_WORK_ARRANGEMENT_RE.search(text):
+        return False
+    if _PRIMARILY_OFFICE_RE.search(text):
+        return False
+    return is_remote
 
 
 def scrape_for_criteria(criteria: SearchCriteria) -> tuple[list[dict], dict]:
@@ -99,7 +172,11 @@ def scrape_for_criteria(criteria: SearchCriteria) -> tuple[list[dict], dict]:
                         "date_posted": _clean(row.get("date_posted")),
                         "site": str(row.get("site", "linkedin")),
                         "job_level": _clean(row.get("job_level")),
-                        "is_remote": bool(row.get("is_remote")) if row.get("is_remote") is not None else None,
+                        "is_remote": _correct_is_remote(
+                            bool(row.get("is_remote")) if row.get("is_remote") is not None else None,
+                            str(row.get("title", "")),
+                            str(row.get("description", "")),
+                        ),
                         "company_logo": _clean(row.get("company_logo")),
                         # Company profile fields jobspy already returns on every
                         # scrape (no extra HTTP call) — industry/size/description,

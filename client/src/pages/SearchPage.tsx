@@ -405,7 +405,7 @@ export default function SearchPage() {
             </div>
 
             <div className="flex flex-col gap-[0.45rem] mb-5 pt-5 border-t border-[var(--ed-rule)]">
-              <span className={fieldLabel}>Posted</span>
+              <span className={fieldLabel}>Discovered</span>
               <span className="text-[0.72rem] text-[var(--ed-ink-faint)] leading-[1.5] -mt-1">How far back jobs entered your pool, not their posting date.</span>
               <div className="flex flex-wrap gap-2">
                 {DAYS_PRESETS.map(({ days, label }) => (

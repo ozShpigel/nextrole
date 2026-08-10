@@ -31,7 +31,7 @@ function OnboardingGate() {
 }
 
 const navLinkClass = ({ isActive }: { isActive: boolean }): string =>
-  `shrink-0 relative py-[0.45rem] px-4 rounded-full text-[0.82rem] font-medium transition-all ${isActive ? 'text-foreground bg-accent' : 'text-muted-foreground hover:text-foreground hover:bg-accent'}`;
+  `shrink-0 relative py-[0.4rem] px-[0.7rem] rounded-full text-[0.8rem] font-medium transition-all ${isActive ? 'text-foreground bg-accent' : 'text-muted-foreground hover:text-foreground hover:bg-accent'}`;
 
 /* BrowserRouter keeps the window scroll offset across navigations, so opening
  * a page from deep in a long list (e.g. tracker → application detail) landed
@@ -64,12 +64,12 @@ export default function App() {
           {/* min-w-0 lets this shrink below its content width inside the flex
               row instead of forcing the whole page to scroll horizontally;
               overflow-x-auto then scrolls just this strip on narrow screens. */}
-          <div className="ed-scroll flex items-center gap-[0.15rem] min-w-0 overflow-x-auto">
+          <div className="ed-scroll flex items-center gap-0 min-w-0 overflow-x-auto">
             <NavLink to="/search" className={navLinkClass}>Matches</NavLink>
             <NavLink to="/active" className={navLinkClass}>Active</NavLink>
-            <NavLink to="/tracker" className={navLinkClass}>Applications</NavLink>
+            <NavLink to="/tracker" className={navLinkClass}>Apps</NavLink>
             <NavLink to="/messages" className={navLinkClass}>Messages</NavLink>
-            <NavLink to="/interview-prep" className={navLinkClass}>Preparation</NavLink>
+            <NavLink to="/interview-prep" className={navLinkClass}>Prep</NavLink>
             <NavLink to="/settings" className={navLinkClass}>Profile</NavLink>
           </div>
         </div>

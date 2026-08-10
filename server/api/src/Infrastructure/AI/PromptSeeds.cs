@@ -25,7 +25,6 @@ supplied separately and take precedence over anything parsed from the body.
 - If a field is missing, use null (single values) or an empty array (lists). Never guess.
 - Preserve the EXACT original wording for signal phrases (e.g. "fast-paced", "wear many
   hats", "rockstar") so downstream filters can detect them.
-- Keep the full original posting text unchanged in `rawDescription`.
 - Output ONLY the JSON object — no markdown fences, no commentary.
 
 ---
@@ -51,8 +50,7 @@ supplied separately and take precedence over anything parsed from the body.
   },
   "domainContext": "string | null",
   "responsibilities": ["string"],
-  "warnings": ["string"],
-  "rawDescription": "string"
+  "warnings": ["string"]
 }
 
 ---
@@ -71,7 +69,6 @@ supplied separately and take precedence over anything parsed from the body.
   `niceToHaveSkills`.
 - `experienceLevel`: seniority as stated (e.g. "Senior", "5+ years"), else null.
 - `warnings`: parser-flagged ambiguities or missing critical info — not judgements of fit.
-- `rawDescription`: the full original posting text, unchanged.
 
 These signal fields exist so the evaluation layer can apply its hard filters reliably. Your
 job is extraction only — never interpret or score here.

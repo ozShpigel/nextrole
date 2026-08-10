@@ -115,7 +115,6 @@ public sealed class JobMatchService : IJobMatchService
         {
             JobTitle = !string.IsNullOrWhiteSpace(request.Title) ? request.Title! : parsed.JobTitle,
             Company = !string.IsNullOrWhiteSpace(request.Company) ? request.Company : parsed.Company,
-            RawDescription = request.JobDescription
         };
         return (parsedJob, snap);
     }

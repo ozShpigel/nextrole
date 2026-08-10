@@ -12,7 +12,6 @@ public sealed record ParsedJob
     public string? DomainContext { get; init; }
     public string[] Responsibilities { get; init; } = [];
     public string[] Warnings { get; init; } = [];
-    public string? RawDescription { get; init; }
 }
 
 public sealed record CulturalSignals

@@ -36,6 +36,7 @@ export interface StructuredProfile {
   email?: string | null;
   phone?: string | null;
   location?: string | null;
+  linkedIn?: string | null;
   summary: string;
   seniority?: string | null;
   domains: string[];
@@ -45,8 +46,10 @@ export interface StructuredProfile {
   education: string[];
   // One entry per stated military/national service role, e.g. "Team Lead, 8200, 2010-2013".
   militaryService: string[];
-  // One entry per personal/side project, e.g. "NextRole — AI-assisted job search platform".
-  sideProjects: string[];
+  // One entry per personal/side project. Links are never auto-extracted from an
+  // uploaded résumé (a PDF hyperlink's target isn't visible text) — always empty
+  // until added manually in Settings.
+  sideProjects: SideProjectItem[];
   // Spoken/human languages (not programming languages — see skills.languages), e.g. "Hebrew (native)".
   spokenLanguages: string[];
   strengths: string[];
@@ -66,6 +69,7 @@ export interface NormalizedProfile {
   email?: string | null;
   phone?: string | null;
   location?: string | null;
+  linkedIn?: string | null;
   summary: string;
   seniority?: string | null;
   domains: string[];
@@ -73,7 +77,7 @@ export interface NormalizedProfile {
   skills: SkillGroups;
   education: string[];
   militaryService: string[];
-  sideProjects: string[];
+  sideProjects: SideProjectItem[];
   spokenLanguages: string[];
 }
 

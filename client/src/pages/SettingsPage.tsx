@@ -22,7 +22,7 @@ const FIELD_LABEL = 'text-[0.62rem] text-[var(--ed-ink-faint)] tracking-[0.16em]
 
 const EMPTY_SKILLS: SkillGroups = { languages: [], frameworks: [], infrastructure: [], databases: [], other: [] };
 const EMPTY_PROFILE: StructuredProfile = {
-  fullName: '', email: '', phone: '', location: '',
+  fullName: '', email: '', phone: '', location: '', linkedIn: '',
   summary: '', seniority: '', domains: [], experience: [], skills: EMPTY_SKILLS,
   education: [], militaryService: [], sideProjects: [], spokenLanguages: [],
   strengths: [], coreValues: [], redFlags: [], rawExperienceText: '',
@@ -115,12 +115,20 @@ export default function SettingsPage() {
     }
   }
 
-  function saveContact(field: 'fullName' | 'email' | 'phone' | 'location', value: string): void {
+  function saveContact(field: 'fullName' | 'email' | 'phone' | 'location' | 'linkedIn', value: string): void {
     persist({ ...profile, [field]: value });
   }
 
   function saveChips(field: 'strengths' | 'coreValues' | 'redFlags', value: string[]): void {
     persist({ ...profile, [field]: value });
+  }
+
+  // Links are never auto-extracted from an uploaded résumé (a PDF hyperlink's
+  // target isn't visible text — see the field comment on StructuredProfile),
+  // so this is the only way a side project's links ever get populated.
+  function saveSideProjectLinks(index: number, links: string[]): void {
+    const next = profile.sideProjects.map((p, i) => (i === index ? { ...p, links } : p));
+    persist({ ...profile, sideProjects: next });
   }
 
   // Merge the extracted experience/skills/education/contact and save
@@ -136,6 +144,7 @@ export default function SettingsPage() {
         email: n.email || profile.email,
         phone: n.phone || profile.phone,
         location: n.location || profile.location,
+        linkedIn: n.linkedIn || profile.linkedIn,
         summary: n.summary ?? '',
         seniority: n.seniority ?? '',
         domains: n.domains ?? [],
@@ -230,8 +239,34 @@ export default function SettingsPage() {
                 <ContactRow label="Email" type="email" value={profile.email} onSave={(v) => saveContact('email', v)} />
                 <ContactRow label="Phone" value={profile.phone} onSave={(v) => saveContact('phone', v)} />
                 <ContactRow label="Location" value={profile.location} onSave={(v) => saveContact('location', v)} />
+                <ContactRow label="LinkedIn" value={profile.linkedIn} onSave={(v) => saveContact('linkedIn', v)} />
               </div>
               {saveError && <p className="text-[0.78rem] text-[var(--ed-no)] mt-2">{saveError}</p>}
+
+              {profile.sideProjects.length > 0 && (
+                <FieldGroup
+                  title="Side projects"
+                  desc="Links aren't picked up automatically from an uploaded résumé — a hyperlink's target isn't visible text, so add them here to have them appear as clickable links on a generated résumé pack."
+                >
+                  <div className="flex flex-col gap-5">
+                    {profile.sideProjects.map((project, i) => (
+                      <div key={`${project.name}-${i}`} className="border border-[var(--ed-rule)] bg-[var(--ed-panel)]/30 p-4">
+                        <div className="ed-display text-[0.92rem] font-semibold text-[var(--ed-ink)]">{project.name || 'Untitled project'}</div>
+                        {project.description && (
+                          <p className="text-[0.8rem] text-[var(--ed-ink-soft)] leading-[1.6] mt-1 mb-3">{project.description}</p>
+                        )}
+                        <ChipInput
+                          value={project.links}
+                          onChange={(v) => saveSideProjectLinks(i, v)}
+                          placeholder="e.g. https://github.com/you/project"
+                          ariaLabel={`Add a link for ${project.name || 'this project'}`}
+                          splitOnComma={false}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </FieldGroup>
+              )}
             </section>
           )}
 

@@ -1,3 +1,5 @@
+using ApplicationTracker.Core.Models;
+
 namespace ApplicationTracker.Core.Profile;
 
 // The candidate profile as a first-class structured input.
@@ -18,6 +20,7 @@ public sealed record StructuredProfile
     public string? Email { get; init; }
     public string? Phone { get; init; }
     public string? Location { get; init; }
+    public string? LinkedIn { get; init; }
     public string Summary { get; init; } = "";
     public string? Seniority { get; init; }
     public string[] Domains { get; init; } = [];
@@ -27,8 +30,11 @@ public sealed record StructuredProfile
     public string[] Education { get; init; } = [];
     // One entry per stated military/national service role, e.g. "Team Lead, 8200, 2010-2013".
     public string[] MilitaryService { get; init; } = [];
-    // One entry per personal/side project, e.g. "NextRole — AI-assisted job search platform".
-    public string[] SideProjects { get; init; } = [];
+    // One entry per personal/side project. Links are never auto-extracted from an
+    // uploaded résumé (a PDF's clickable "Live demo"/"Code" labels carry a hyperlink
+    // annotation, not visible URL text — nothing for text/vision-based extraction to
+    // read), so they're always empty until the user adds them manually in Settings.
+    public SideProjectItem[] SideProjects { get; init; } = [];
     // Spoken/human languages (not programming languages — see Skills.Languages), e.g. "Hebrew (native)".
     public string[] SpokenLanguages { get; init; } = [];
     public string[] Strengths { get; init; } = [];
@@ -70,6 +76,7 @@ public sealed record NormalizedProfile
     public string? Email { get; init; }
     public string? Phone { get; init; }
     public string? Location { get; init; }
+    public string? LinkedIn { get; init; }
     public string Summary { get; init; } = "";
     public string? Seniority { get; init; }
     public string[] Domains { get; init; } = [];
@@ -77,6 +84,6 @@ public sealed record NormalizedProfile
     public SkillGroups Skills { get; init; } = new();
     public string[] Education { get; init; } = [];
     public string[] MilitaryService { get; init; } = [];
-    public string[] SideProjects { get; init; } = [];
+    public SideProjectItem[] SideProjects { get; init; } = [];
     public string[] SpokenLanguages { get; init; } = [];
 }

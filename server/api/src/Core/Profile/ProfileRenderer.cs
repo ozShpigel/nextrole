@@ -68,12 +68,35 @@ public static class ProfileRenderer
 
         AppendList(sb, "education", p.Education);
         AppendList(sb, "military_service", p.MilitaryService);
-        AppendList(sb, "side_projects", p.SideProjects);
+        AppendSideProjects(sb, p.SideProjects);
         AppendList(sb, "spoken_languages", p.SpokenLanguages);
 
         sb.AppendLine();
         sb.Append("</professional_profile>");
         return sb.ToString();
+    }
+
+    // Separate from AppendList because a project's links are part of what the
+    // Generate Pack prompt is told to "pass through exactly as it appears in
+    // the profile" — a bare name/description bullet would give it nothing to
+    // pass through even when the user has added real URLs in Settings.
+    private static void AppendSideProjects(StringBuilder sb, ApplicationTracker.Core.Models.SideProjectItem[]? items)
+    {
+        var clean = (items ?? [])
+            .Where(i => !string.IsNullOrWhiteSpace(i?.Name) || !string.IsNullOrWhiteSpace(i?.Description))
+            .ToList();
+        if (clean.Count == 0) return;
+
+        sb.AppendLine();
+        sb.AppendLine("<side_projects>");
+        foreach (var item in clean)
+        {
+            var line = string.IsNullOrWhiteSpace(item.Description) ? item.Name : $"{item.Name} — {item.Description}";
+            var links = (item.Links ?? []).Where(l => !string.IsNullOrWhiteSpace(l)).ToList();
+            if (links.Count > 0) line += $" ({string.Join(", ", links)})";
+            sb.AppendLine($"- {line}");
+        }
+        sb.AppendLine("</side_projects>");
     }
 
     private static void AppendList(StringBuilder sb, string tag, string[]? items)

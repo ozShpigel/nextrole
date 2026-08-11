@@ -4,7 +4,8 @@ import { Sparkles, FileCheck, RefreshCw } from 'lucide-react';
 import { useApplications, useDemoMode, DEMO_DISABLED_TITLE } from '../lib/queries';
 import { useDeleteApplication, useGeneratePack } from '../lib/mutations';
 import { formatDate, formatTime, verdictLabel } from '../lib/format';
-import { StatusBadge, STATUS_TONE } from './Status';
+import { edVerdictColor } from './AnalysisCard';
+import { StatusBadge } from './Status';
 import ConfirmDialog from './ConfirmDialog';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -23,18 +24,6 @@ interface Application {
   nextInterviewer?: string | null;
   hasPack?: boolean;
   packGeneratedAt?: string | null;
-}
-
-// Editorial verdict tint (var(--ed-*) instead of the emerald/red of lib/format)
-function edVerdictColor(verdict: string | null): string {
-  switch (verdict) {
-    case 'STRONG_YES':
-    case 'YES': return 'var(--ed-yes)';
-    case 'MAYBE': return 'var(--ed-gold)';
-    case 'NO':
-    case 'STRONG_NO': return 'var(--ed-no)';
-    default: return 'var(--ed-ink-faint)';
-  }
 }
 
 // The page reads as a front page: live interview processes get feature cards,
@@ -65,8 +54,8 @@ function daysSince(iso: string | undefined): number | null {
   return iso ? Math.floor((Date.now() - new Date(iso).getTime()) / 86400000) : null;
 }
 
-const COLS = 'grid-cols-[1fr_1fr] md:grid-cols-[2fr_1.5fr_1fr_0.5fr_0.8fr_0.5fr_4.5rem]';
-const HEAD = 'hidden md:grid grid-cols-[2fr_1.5fr_1fr_0.5fr_0.8fr_0.5fr_4.5rem] gap-4 py-[0.6rem] text-[0.62rem] text-[var(--ed-ink-faint)] border-b border-[var(--ed-rule)] uppercase tracking-[0.14em] font-semibold';
+const COLS = 'grid-cols-[1fr_1fr] md:grid-cols-[2fr_1.3fr_1fr_0.5fr_4rem_0.8fr_4.5rem]';
+const HEAD = 'hidden md:grid grid-cols-[2fr_1.3fr_1fr_0.5fr_4rem_0.8fr_4.5rem] gap-4 py-[0.6rem] text-[13px] text-[var(--ed-ink-faint)] border-b border-[var(--ed-rule)] uppercase tracking-[0.1em] font-medium';
 
 function TableHead() {
   return (
@@ -75,7 +64,7 @@ function TableHead() {
       <span>Company</span>
       <span>Status</span>
       <span>Days</span>
-      <span>Verdict</span>
+      <span>Score</span>
       <span>Date</span>
       <span></span>
     </div>
@@ -86,50 +75,48 @@ function TableHead() {
 function SectionRule({ label, count }: { label: string; count: number }) {
   return (
     <div className="flex items-baseline gap-[0.6rem] border-b border-[var(--ed-rule)] pb-[0.5rem] mb-5">
-      <span className="text-[0.66rem] uppercase tracking-[0.24em] font-semibold text-[var(--ed-ink-faint)]">{label}</span>
-      <span className="text-[0.66rem] text-[var(--ed-ink-faint)]/70 tabular-nums">· {count}</span>
+      <span className="text-[13px] uppercase tracking-[0.16em] font-medium text-[var(--ed-ink-faint)]">{label}</span>
+      <span className="text-[13px] text-[var(--ed-ink-faint)]/70 tabular-nums">· {count}</span>
     </div>
   );
 }
 
 function FeatureCard({ app, index, onOpen }: { app: Application; index: number; onOpen: () => void }) {
-  const tone = STATUS_TONE[app.status] ?? 'var(--ed-ink-soft)';
   const days = daysSince(app.updatedAt);
+  const tone = edVerdictColor(app.matchVerdict);
   return (
     <article
-      className="ed-rise relative bg-[var(--ed-panel)]/35 border border-[var(--ed-rule)] pl-6 pr-5 py-5 cursor-pointer transition-all duration-300 hover:bg-[var(--ed-panel)]/60 hover:border-[var(--ed-rule-strong)]"
-      style={{ animationDelay: `${index * 90}ms` }}
+      className="ed-rise border-b border-[var(--ed-rule)] py-4 cursor-pointer transition-colors hover:bg-[var(--ed-panel)]/50"
+      style={{ animationDelay: `${index * 60}ms` }}
       onClick={onOpen}
     >
-      <span
-        aria-hidden="true"
-        className="absolute left-0 top-4 bottom-4 w-[2px]"
-        style={{ background: `color-mix(in oklab, ${tone} 55%, transparent)` }}
-      />
-      <div className="flex items-start justify-between gap-3">
-        <span className="text-[0.64rem] uppercase tracking-[0.18em] font-medium text-[var(--ed-ink-faint)]">{app.company}</span>
-        <StatusBadge status={app.status} />
-      </div>
-      <h3 className="ed-display font-semibold text-[1.08rem] leading-[1.3] text-[var(--ed-ink)] mt-2">{app.jobTitle}</h3>
-      <div className="mt-4 text-[0.84rem] leading-relaxed">
-        {app.nextInterviewAt ? (
-          <div className="text-[var(--ed-ink-soft)]">
-            <span aria-hidden="true" className="text-[var(--ed-accent)] text-[0.6rem] align-middle mr-2">◆</span>
-            <span className="ed-display italic text-[var(--ed-ink)]">{interviewDayLabel(app.nextInterviewAt)}</span>
-            <span className="tabular-nums">, {formatTime(app.nextInterviewAt)}{app.nextInterviewEndsAt ? `–${formatTime(app.nextInterviewEndsAt)}` : ''}</span>
-            {app.nextInterviewer && <span> — with {app.nextInterviewer}</span>}
+      <div className="flex items-start gap-4">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 flex-wrap mb-[0.15rem]">
+            <span className="text-[13px] text-[var(--ed-ink-faint)] uppercase tracking-[0.06em]">{app.company}</span>
+            <StatusBadge status={app.status} />
           </div>
-        ) : (
-          <div className="italic text-[var(--ed-ink-faint)]">No interview on the calendar</div>
+          <h3 className="text-[16px] font-medium leading-[1.3] text-[var(--ed-ink)]">{app.jobTitle}</h3>
+          <div className="mt-2 text-[13px] leading-relaxed">
+            {app.nextInterviewAt ? (
+              <span className="text-[var(--ed-ink-soft)]">
+                {interviewDayLabel(app.nextInterviewAt)}, {formatTime(app.nextInterviewAt)}{app.nextInterviewEndsAt ? `–${formatTime(app.nextInterviewEndsAt)}` : ''}
+                {app.nextInterviewer && ` — with ${app.nextInterviewer}`}
+              </span>
+            ) : (
+              <span className="italic text-[var(--ed-ink-faint)]">No interview on the calendar</span>
+            )}
+          </div>
+        </div>
+        {app.matchScore != null && (
+          <div className="shrink-0 text-right">
+            <div className="text-[40px] font-medium leading-none tabular-nums" style={{ color: tone }}>{app.matchScore}</div>
+            <div className="text-[13px] text-[var(--ed-ink-faint)] uppercase tracking-[0.04em]">{verdictLabel(app.matchVerdict)}</div>
+          </div>
         )}
       </div>
-      <div className="mt-3 pt-3 border-t border-[var(--ed-rule)]/60 flex items-baseline justify-between text-[0.7rem] text-[var(--ed-ink-faint)]">
-        <span>
-          {app.matchVerdict ? (
-            <>Fit: <span style={{ color: edVerdictColor(app.matchVerdict) }}>{verdictLabel(app.matchVerdict)}</span>{app.matchScore != null && <span className="tabular-nums"> ({app.matchScore})</span>}</>
-          ) : ''}
-        </span>
-        <span className="tabular-nums">{days !== null ? `updated ${days === 0 ? 'today' : `${days}d ago`}` : ''}</span>
+      <div className="mt-2 text-[13px] text-[var(--ed-ink-faint)] tabular-nums">
+        {days !== null ? `updated ${days === 0 ? 'today' : `${days}d ago`}` : ''}
       </div>
     </article>
   );
@@ -151,21 +138,23 @@ interface RowProps {
 
 function Row({ app, index = 0, muted, onOpen, onDelete, onGeneratePack, onReviewPack, packGenerating, demoMode }: RowProps) {
   const days = daysSince(app.updatedAt);
-  // Stay quiet unless the silence is getting long.
-  const daysColor = days !== null && days >= 14 ? 'var(--ed-no)' : days !== null && days >= 7 ? 'var(--ed-gold)' : 'var(--ed-ink-faint)';
   const showPackAction = !!(onGeneratePack || onReviewPack);
+  const tone = edVerdictColor(app.matchVerdict);
   return (
     <div
-      className={`ed-rise group grid ${COLS} items-center gap-4 py-[1.05rem] border-b border-[var(--ed-rule)]/70 cursor-pointer transition-colors duration-300 hover:bg-[var(--ed-panel)]/50 last:border-b-0 ${muted ? 'opacity-65 hover:opacity-90 transition-opacity' : ''}`}
+      className={`ed-rise group grid ${COLS} items-center gap-4 py-3 border-b border-[var(--ed-rule)]/70 cursor-pointer transition-colors duration-300 hover:bg-[var(--ed-panel)]/50 last:border-b-0 ${muted ? 'opacity-65 hover:opacity-90 transition-opacity' : ''}`}
       style={{ animationDelay: `${Math.min(index, 10) * 40}ms` }}
       onClick={onOpen}
     >
-      <div><div className="ed-display font-medium text-[var(--ed-ink)] text-[0.95rem]">{app.jobTitle}</div></div>
-      <div className="text-[var(--ed-ink-soft)] text-[0.84rem]">{app.company}</div>
+      <div className="font-medium text-[var(--ed-ink)] text-[16px] truncate">{app.jobTitle}</div>
+      <div className="text-[var(--ed-ink-soft)] text-[13px] truncate">{app.company}</div>
       <div><StatusBadge status={app.status} /></div>
-      <div className="text-[0.78rem] tabular-nums" style={{ color: daysColor }} title={days !== null ? `${days} day${days === 1 ? '' : 's'} since last update` : 'No update recorded'}>{days !== null ? `${days}d` : '-'}</div>
-      <div className="ed-display text-[0.85rem]" style={{ color: edVerdictColor(app.matchVerdict) }}>{verdictLabel(app.matchVerdict)}{app.matchScore != null ? <span className="text-[var(--ed-ink-faint)] font-normal text-[0.72rem] ml-1">({app.matchScore})</span> : ''}</div>
-      <div className="text-[var(--ed-ink-faint)] text-[0.78rem] tabular-nums" title="Last updated">
+      <div className="text-[13px] text-[var(--ed-ink-faint)] tabular-nums" title={days !== null ? `${days} day${days === 1 ? '' : 's'} since last update` : 'No update recorded'}>{days !== null ? `${days}d` : '-'}</div>
+      <div className="flex flex-col items-start gap-0">
+        <span className="text-[40px] font-medium leading-none tabular-nums" style={{ color: tone }}>{app.matchScore ?? '—'}</span>
+        <span className="text-[13px] text-[var(--ed-ink-faint)] uppercase tracking-[0.04em]">{verdictLabel(app.matchVerdict)}</span>
+      </div>
+      <div className="text-[var(--ed-ink-faint)] text-[13px] tabular-nums" title="Last updated">
         {formatDate(app.updatedAt ?? app.createdAt)}
       </div>
       <div className="justify-self-end flex items-center gap-1">
@@ -212,7 +201,7 @@ export default function ApplicationList() {
   const [showAllAwaiting, setShowAllAwaiting] = useState(false);
 
   if (error) {
-    return <div className="border border-[var(--ed-no)]/30 bg-[var(--ed-no)]/10 p-6 mb-4"><p className="text-center py-12 text-[var(--ed-no)] text-[0.88rem]">Failed to load applications: {error.message}</p></div>;
+    return <div className="border border-[var(--ed-no)]/30 bg-[var(--ed-no)]/10 p-6 mb-4"><p className="text-center py-12 text-[var(--ed-no)] text-[16px]">Failed to load applications: {error.message}</p></div>;
   }
 
   // While the initial fetch is in flight (slow on a cold API), show skeleton
@@ -223,13 +212,13 @@ export default function ApplicationList() {
       <div className="mb-4" aria-hidden="true">
         <TableHead />
         {[0, 1, 2, 3, 4].map((i) => (
-          <div key={i} className={`grid ${COLS} items-center gap-4 py-[0.9rem] border-b border-[var(--ed-rule)] last:border-b-0`}>
-            <Skeleton className="h-[14px] w-[80%] rounded" />
-            <Skeleton className="h-[12px] w-[60%] rounded" />
+          <div key={i} className={`grid ${COLS} items-center gap-4 py-3 border-b border-[var(--ed-rule)] last:border-b-0`}>
+            <Skeleton className="h-[16px] w-[80%] rounded" />
+            <Skeleton className="h-[13px] w-[60%] rounded" />
             <Skeleton className="h-[20px] w-[72px] rounded-full" />
-            <Skeleton className="h-[12px] w-[28px] rounded" />
-            <Skeleton className="h-[12px] w-[50%] rounded" />
-            <Skeleton className="h-[12px] w-[64px] rounded" />
+            <Skeleton className="h-[13px] w-[28px] rounded" />
+            <Skeleton className="h-[40px] w-[3rem] rounded" />
+            <Skeleton className="h-[13px] w-[64px] rounded" />
             <Skeleton className="h-[20px] w-[20px] rounded justify-self-end" />
           </div>
         ))}
@@ -239,7 +228,7 @@ export default function ApplicationList() {
   }
 
   if (apps.length === 0) {
-    return <div className="border border-dashed border-[var(--ed-rule)] p-6 mb-4"><p className="text-center py-12 text-[var(--ed-ink-faint)] text-[0.88rem]">No applications yet. Add a new application!</p></div>;
+    return <div className="border border-dashed border-[var(--ed-rule)] p-6 mb-4"><p className="ed-display italic text-center py-12 text-[var(--ed-ink-faint)] text-[16px]">No applications yet. Add a new application!</p></div>;
   }
 
   const all = apps as Application[];
@@ -275,11 +264,11 @@ export default function ApplicationList() {
       <section aria-label="Applications in motion">
         <SectionRule label="In Motion" count={inMotion.length} />
         {inMotion.length > 0 ? (
-          <div className="grid gap-5 sm:grid-cols-2">
+          <div>
             {inMotion.map((a, i) => <FeatureCard key={a.id} app={a} index={i} onOpen={() => open(a.id)} />)}
           </div>
         ) : (
-          <p className="italic text-[0.85rem] text-[var(--ed-ink-faint)] py-2">Nothing in motion yet — the applications below are waiting on a reply.</p>
+          <p className="ed-display italic text-[16px] text-[var(--ed-ink-faint)] py-2">Nothing in motion yet — the applications below are waiting on a reply.</p>
         )}
       </section>
 
@@ -316,7 +305,7 @@ export default function ApplicationList() {
                 <button
                   type="button"
                   onClick={() => setShowAllAwaiting((v) => !v)}
-                  className="w-full py-[0.6rem] text-[0.68rem] uppercase tracking-[0.14em] font-semibold text-[var(--ed-ink-faint)] hover:text-[var(--ed-ink)] transition-colors border-b border-[var(--ed-rule)]/70"
+                  className="w-full py-[0.6rem] text-[13px] uppercase tracking-[0.1em] font-medium text-[var(--ed-ink-faint)] hover:text-[var(--ed-ink)] transition-colors border-b border-[var(--ed-rule)]/70"
                 >
                   {showAllAwaiting ? 'Show fewer' : `Show all (${awaiting.length})`}
                 </button>
@@ -326,9 +315,9 @@ export default function ApplicationList() {
           {ghosted.length > 0 && (
             <details className="mt-3 group">
               <summary className="cursor-pointer list-none inline-flex items-baseline gap-[0.6rem] py-[0.5rem] text-[var(--ed-ink-faint)] hover:text-[var(--ed-ink-soft)] transition-colors">
-                <span aria-hidden="true" className="text-[0.8rem] leading-none transition-transform group-open:rotate-90">▸</span>
-                <span className="text-[0.66rem] uppercase tracking-[0.24em] font-semibold">Probably ghosted</span>
-                <span className="text-[0.66rem] text-[var(--ed-ink-faint)]/70 tabular-nums">· {ghosted.length} silent {GHOST_DAYS}d+</span>
+                <span aria-hidden="true" className="text-[13px] leading-none transition-transform group-open:rotate-90">▸</span>
+                <span className="text-[13px] uppercase tracking-[0.16em] font-medium">Probably ghosted</span>
+                <span className="text-[13px] text-[var(--ed-ink-faint)]/70 tabular-nums">· {ghosted.length} silent {GHOST_DAYS}d+</span>
               </summary>
               <div className="border-t border-[var(--ed-rule)] pt-1">
                 {ghosted.map((a, i) => <Row key={a.id} app={a} index={i} muted onOpen={() => open(a.id)} onDelete={() => setDeleteTarget({ id: a.id, jobUrl: a.jobUrl ?? null })} />)}
@@ -342,9 +331,9 @@ export default function ApplicationList() {
       {archive.length > 0 && (
         <details className="mt-12 group">
           <summary className="cursor-pointer list-none inline-flex items-baseline gap-[0.6rem] pb-[0.5rem] text-[var(--ed-ink-faint)] hover:text-[var(--ed-ink-soft)] transition-colors">
-            <span aria-hidden="true" className="text-[0.8rem] leading-none transition-transform group-open:rotate-90">▸</span>
-            <span className="text-[0.66rem] uppercase tracking-[0.24em] font-semibold">The Archive</span>
-            <span className="text-[0.66rem] text-[var(--ed-ink-faint)]/70 tabular-nums">· {archive.length} closed</span>
+            <span aria-hidden="true" className="text-[13px] leading-none transition-transform group-open:rotate-90">▸</span>
+            <span className="text-[13px] uppercase tracking-[0.16em] font-medium">The Archive</span>
+            <span className="text-[13px] text-[var(--ed-ink-faint)]/70 tabular-nums">· {archive.length} closed</span>
           </summary>
           <div className="border-t border-[var(--ed-rule)] pt-1">
             {archive.map((a, i) => <Row key={a.id} app={a} index={i} muted onOpen={() => open(a.id)} onDelete={() => setDeleteTarget({ id: a.id, jobUrl: a.jobUrl ?? null })} />)}

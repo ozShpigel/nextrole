@@ -31,22 +31,22 @@ export default function TrackerPage() {
       <div className="relative z-[1] max-w-[1100px] mx-auto px-8 pt-12 pb-16 max-[640px]:px-5 max-[640px]:pt-8">
         {/* Masthead */}
         <header className="mb-7">
-          <div className="flex items-baseline justify-between gap-4 pb-[10px] border-b border-[var(--ed-rule)] text-[0.62rem] font-semibold uppercase tracking-[0.22em] text-[var(--ed-ink-faint)]">
+          <div className="flex items-baseline justify-between gap-4 pb-[10px] border-b border-[var(--ed-rule)] text-[13px] font-medium uppercase tracking-[0.18em] text-[var(--ed-ink-faint)]">
             <span>Applications</span>
             <span className="tabular-nums">{TODAY}</span>
           </div>
-          <h1 className="ed-display font-black text-[clamp(2.4rem,6vw,4rem)] leading-[0.92] tracking-[-0.02em] text-[var(--ed-ink)] pt-4">
+          <h1 className="font-medium text-[40px] leading-[1.1] tracking-[-0.01em] text-[var(--ed-ink)] pt-4">
             Applications
           </h1>
           <div className="mt-5 border-t-[3px] border-double border-[var(--ed-rule-strong)]" />
         </header>
 
-        {/* Editorial tab bar */}
+        {/* Tab bar */}
         <div className="flex gap-7 mb-9 border-b border-[var(--ed-rule)] max-md:gap-5 max-md:flex-wrap">
           {TABS.map((t) => (
             <button
               key={t.key}
-              className={`relative -mb-px pb-3 pt-1 bg-transparent border-none cursor-pointer text-[0.78rem] font-semibold uppercase tracking-[0.1em] transition-colors ${activeTab === t.key ? 'text-[var(--ed-ink)] border-b-2 border-[var(--ed-accent)]' : 'text-[var(--ed-ink-faint)] border-b-2 border-transparent hover:text-[var(--ed-ink)]'}`}
+              className={`relative -mb-px pb-3 pt-1 bg-transparent border-none cursor-pointer text-[13px] font-medium uppercase tracking-[0.08em] transition-colors ${activeTab === t.key ? 'text-[var(--ed-ink)] border-b-2 border-[var(--ed-accent)]' : 'text-[var(--ed-ink-faint)] border-b-2 border-transparent hover:text-[var(--ed-ink)]'}`}
               onClick={() => switchTab(t.key)}
             >
               {t.label}

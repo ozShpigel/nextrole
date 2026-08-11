@@ -41,7 +41,7 @@ export function InterviewList({ interviews, onEdit, onRefresh }: InterviewListPr
   return (
     <>
       {interviews.map((i) => (
-        <div key={i.id} className="bg-muted border border-border rounded p-[1rem_1.25rem] mb-3 transition-all hover:border-border hover:shadow-sm">
+        <div key={i.id} className="bg-muted border border-border rounded p-[1rem_1.25rem] mb-3 transition-all">
           <div className="flex justify-between items-center mb-2">
             <span className="font-semibold text-foreground text-[0.88rem]">Interview: {i.type} {i.completed ? '✅' : ''}</span>
             <div className="flex gap-2 flex-wrap">
@@ -49,7 +49,7 @@ export function InterviewList({ interviews, onEdit, onRefresh }: InterviewListPr
               <Button variant="destructive" size="sm" onClick={() => deleteInterview(i.id)}>Delete</Button>
             </div>
           </div>
-          <div className="text-[0.78rem] text-muted-foreground">{formatDateTime(i.scheduledAt)}{i.endsAt ? `–${formatTime(i.endsAt)}` : ''} {i.interviewer ? `| ${i.interviewer}` : ''}</div>
+          <div className="text-[0.78rem] text-muted-foreground tabular-nums">{formatDateTime(i.scheduledAt)}{i.endsAt ? `–${formatTime(i.endsAt)}` : ''} {i.interviewer ? `| ${i.interviewer}` : ''}</div>
           {i.topics && <div dir="auto" className="text-[0.84rem] text-foreground leading-[1.6] mt-4">Topics: {i.topics}</div>}
           {i.notes && <div dir="auto" className="text-[0.84rem] text-foreground leading-[1.6]">Notes: {i.notes}</div>}
         </div>

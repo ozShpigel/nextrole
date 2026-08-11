@@ -307,7 +307,6 @@ html::-webkit-scrollbar-button, .ed-scroll::-webkit-scrollbar-button { display: 
 .nr-gem {
   animation: nr-gem-spin 13s linear infinite;
   transform-origin: 50% 50%;
-  filter: drop-shadow(0 0 3px color-mix(in oklab, currentColor 45%, transparent));
 }
 .nr-gem-facet {
   animation: nr-gem-glint 3.2s ease-in-out infinite;

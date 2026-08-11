@@ -37,7 +37,7 @@ function RetroCard({ item }: { item: InterviewRetroListItem }) {
           <p className="text-[0.88rem] font-semibold text-[var(--ed-ink)]">
             {interview.type}{company ? ` · ${company}` : ''}{jobTitle ? ` — ${jobTitle}` : ''}
           </p>
-          <p className="text-[0.74rem] text-[var(--ed-ink-faint)] mt-0.5">{formatDateTime(interview.scheduledAt)}</p>
+          <p className="text-[0.74rem] text-[var(--ed-ink-faint)] mt-0.5 tabular-nums">{formatDateTime(interview.scheduledAt)}</p>
         </div>
         {rating !== null && (
           <span
@@ -93,11 +93,11 @@ function InsightPanel({ data, onGenerate, generating, failed }: {
       ) : (
         <div className="border border-[var(--ed-rule)] p-[1rem_1.25rem] bg-[var(--ed-panel)] mb-4">
           <p dir="auto" className="text-[0.9rem] leading-[1.8] text-[var(--ed-ink)] whitespace-pre-wrap">{insight.summary}</p>
-          <p className="text-[0.72rem] text-[var(--ed-ink-faint)] mt-3 pt-2 border-t border-dashed border-[var(--ed-rule)]">
+          <p className="text-[0.72rem] text-[var(--ed-ink-faint)] mt-3 pt-2 border-t border-dashed border-[var(--ed-rule)] tabular-nums">
             Generated from {insight.retroCount} retro{insight.retroCount === 1 ? '' : 's'} · {formatDateTime(insight.generatedAt)}
           </p>
           {newRetroCount > 0 && (
-            <p className="text-[0.72rem] text-[var(--ed-gold)] mt-1">
+            <p className="text-[0.72rem] text-[var(--ed-gold)] mt-1 tabular-nums">
               {newRetroCount} new retro{newRetroCount === 1 ? '' : 's'} since this insight — refresh to include {newRetroCount === 1 ? 'it' : 'them'}.
             </p>
           )}

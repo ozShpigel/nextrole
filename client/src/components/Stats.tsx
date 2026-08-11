@@ -58,12 +58,11 @@ export function StatCard({ value, label, index = 0 }: StatCardProps) {
 
   return (
     <div
-      className="ed-rise group border border-[var(--ed-rule)] bg-[var(--ed-panel)]/40 py-6 px-5 relative overflow-hidden transition-all hover:border-[var(--ed-ink)] hover:-translate-y-[2px]"
+      className="ed-rise border border-[var(--ed-rule)] py-5 px-5 transition-colors hover:border-[var(--ed-ink-faint)]"
       style={{ animationDelay: `${index * 70}ms` }}
     >
-      <span className="absolute top-0 inset-x-0 h-[2px] bg-[var(--ed-accent)] opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
-      <div className="ed-display text-[2.4rem] font-black leading-none text-[var(--ed-ink)] tracking-[-0.02em] tabular-nums">{rendered}</div>
-      <div className="text-[0.62rem] text-[var(--ed-ink-faint)] mt-[0.45rem] uppercase tracking-[0.18em] font-semibold">{label}</div>
+      <div className="text-[40px] font-medium leading-none text-[var(--ed-ink)] tracking-[-0.01em] tabular-nums">{rendered}</div>
+      <div className="text-[13px] text-[var(--ed-ink-faint)] mt-[0.45rem] uppercase tracking-[0.1em] font-medium">{label}</div>
     </div>
   );
 }

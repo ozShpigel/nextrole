@@ -19,7 +19,7 @@ export default function CollapsibleSection({ title, defaultOpen = true, children
   }
 
   return (
-    <div className="bg-card border border-border rounded-lg p-6 mb-4 shadow-sm transition-all hover:border-border hover:shadow-md">
+    <div className="bg-card border border-border rounded-lg p-6 mb-4 transition-all">
       <div
         className="cursor-pointer flex justify-between items-center select-none"
         onClick={toggle}

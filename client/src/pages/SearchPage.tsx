@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef, useLayoutEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { useScoredJobs } from '../lib/queries';
 import { useSaveJob, useDismissJob } from '../lib/mutations';
@@ -6,12 +7,12 @@ import { useDemoMode, DEMO_DISABLED_TITLE } from '../lib/queries';
 import type { DiscoveredJobSummary } from '../lib/types';
 import { VERDICT_LABELS } from '../lib/scoring';
 import { cityOnly, formatPostedAgo, isNew } from '../lib/format';
-import AnalysisCard, { edScoreColor } from '../components/AnalysisCard';
+import AnalysisCard, { edVerdictColor } from '../components/AnalysisCard';
 import { CompanyAvatar } from '../components/CompanyAvatar';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
-const ED_BTN = 'rounded-full border px-4 py-[0.55rem] text-[0.7rem] font-semibold uppercase tracking-[0.1em] transition-all disabled:opacity-50 disabled:pointer-events-none';
+const ED_BTN = 'rounded-full border px-4 py-[0.5rem] text-[13px] font-medium transition-all disabled:opacity-50 disabled:pointer-events-none';
 const ED_GHOST = `${ED_BTN} border-[var(--ed-rule)] text-[var(--ed-ink-soft)] hover:border-[var(--ed-ink)] hover:text-[var(--ed-ink)]`;
 
 // Source-agnostic (Evaluator-classified) seniority band — replaces the old
@@ -31,56 +32,94 @@ const DAYS_PRESETS = [
   { days: 30, label: '30d' },
 ];
 
-function edVerdictColor(verdict: string | null | undefined): string {
-  switch (verdict) {
-    case 'STRONG_YES':
-    case 'YES': return 'var(--ed-yes)';
-    case 'MAYBE': return 'var(--ed-gold)';
-    case 'NO':
-    case 'STRONG_NO': return 'var(--ed-no)';
-    default: return 'var(--ed-ink-faint)';
-  }
+const TOOLTIP_WIDTH = 320;
+const TOOLTIP_GAP = 8;
+
+// Rendered into document.body via a portal — the row it hangs off sits
+// inside a `.ed-rise` list item, and every `.ed-rise` element gets its own
+// stacking context from the entry animation (animation-on-transform/opacity
+// promotes a box to a stacking context), so a same-DOM-order z-index can't
+// win against a later row's score painting over it. Escaping to the body
+// sidesteps that entirely, and lets position be computed in real viewport
+// coordinates instead of guessing at ancestor overflow.
+function RationaleTooltip({ anchorRef, highlights }: { anchorRef: React.RefObject<HTMLElement | null>; highlights: string[] }) {
+  const tooltipRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+
+  useLayoutEffect(() => {
+    const anchor = anchorRef.current;
+    const tip = tooltipRef.current;
+    if (!anchor || !tip) return;
+
+    const anchorRect = anchor.getBoundingClientRect();
+    const tipRect = tip.getBoundingClientRect();
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+
+    // Right-aligned under the anchor by default (the score sits at the row's
+    // right edge); flip to the anchor's left edge if hanging left would run
+    // off the viewport, then clamp so it never overflows either side.
+    let left = anchorRect.right - tipRect.width;
+    if (left < TOOLTIP_GAP) left = anchorRect.left;
+    left = Math.min(Math.max(left, TOOLTIP_GAP), vw - tipRect.width - TOOLTIP_GAP);
+
+    // Opens below the anchor; flips above it if there isn't room below.
+    let top = anchorRect.bottom + TOOLTIP_GAP;
+    if (top + tipRect.height > vh - TOOLTIP_GAP) top = anchorRect.top - TOOLTIP_GAP - tipRect.height;
+    top = Math.max(TOOLTIP_GAP, top);
+
+    setPos({ top, left });
+  }, [anchorRef, highlights]);
+
+  return createPortal(
+    <div
+      ref={tooltipRef}
+      className="fixed z-50 pointer-events-none animate-in fade-in duration-150"
+      style={{ top: pos?.top ?? 0, left: pos?.left ?? 0, width: TOOLTIP_WIDTH, visibility: pos ? 'visible' : 'hidden' }}
+    >
+      {/* Neutral shadcn tokens, not --ed-* — this renders in a portal to
+          document.body, outside the .editorial subtree where --ed-* resolves
+          (docs/design-system.md's portal caveat). --ed-panel there silently
+          fell back to transparent, letting the rows underneath show through. */}
+      <div className="bg-popover text-popover-foreground border-[0.5px] border-border p-3">
+        <span className="block text-[13px] uppercase tracking-[0.14em] font-medium text-muted-foreground mb-2">
+          Match Rationale
+        </span>
+        <ul className="list-disc pl-4 m-0 space-y-1">
+          {highlights.map((h, i) => (
+            <li key={i} className="text-[13px] leading-[1.5]">{h}</li>
+          ))}
+        </ul>
+      </div>
+    </div>,
+    document.body,
+  );
 }
 
-// Circular score meter — same data AnalysisCard's hero ring shows, just in
-// the corner-badge shape a card grid calls for. Hovering it reveals the
-// green/red flags + a honest-assessment excerpt as a floating panel.
-function MatchRing({ job }: { job: DiscoveredJobSummary }) {
-  const score = job.score ?? 0;
-  const tone = edScoreColor(job.score, 100);
-  const r = 19;
-  const c = 2 * Math.PI * r;
-  const offset = c * (1 - Math.min(100, Math.max(0, score)) / 100);
+// Hero score — the strongest element per row (40px/500, colored by band).
+// Everything else on the row is neutral ink, so this is the one thing that
+// pops while scanning. Hovering it reveals the green/red flags + a honest-
+// assessment excerpt as a floating panel.
+function MatchScore({ job }: { job: DiscoveredJobSummary }) {
+  const tone = edVerdictColor(job.verdict);
   // Absent on jobs scored before this field existed — no tooltip for those,
   // rather than showing an empty box on hover.
   const highlights = job.match_analysis?.quickHighlights;
+  const anchorRef = useRef<HTMLDivElement>(null);
+  const [open, setOpen] = useState(false);
+  const hasHighlights = !!highlights && highlights.length > 0;
 
   return (
-    <div className="group relative w-11 h-11 shrink-0">
-      <svg viewBox="0 0 44 44" className="w-11 h-11 -rotate-90">
-        <circle cx="22" cy="22" r={r} fill="none" stroke="var(--ed-rule)" strokeWidth="3.5" />
-        <circle
-          cx="22" cy="22" r={r} fill="none" stroke={tone} strokeWidth="3.5" strokeLinecap="round"
-          strokeDasharray={c} strokeDashoffset={offset} style={{ transition: 'stroke-dashoffset 500ms ease-out' }}
-        />
-      </svg>
-      <span className="absolute inset-0 flex items-center justify-center text-[0.72rem] font-bold tabular-nums" style={{ color: tone }}>
+    <div
+      ref={anchorRef}
+      className="relative shrink-0 flex flex-col items-end gap-[0.1rem] w-[4.5rem] text-right"
+      onMouseEnter={() => hasHighlights && setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
+    >
+      <span className="text-[40px] font-medium leading-none tabular-nums" style={{ color: tone }}>
         {job.score ?? '—'}
       </span>
-      {highlights && highlights.length > 0 && (
-        <div className="pointer-events-none absolute z-20 bottom-full right-0 mb-2 w-56 origin-bottom-right scale-95 opacity-0 transition-all duration-150 group-hover:scale-100 group-hover:opacity-100">
-          <div className="bg-[var(--ed-paper)] border border-[var(--ed-rule)] shadow-xl p-3">
-            <span className="block text-[0.58rem] uppercase tracking-[0.18em] font-semibold text-[var(--ed-ink-faint)] mb-2">
-              Match Rationale
-            </span>
-            <ul dir="rtl" className="list-disc pr-4 m-0 space-y-1 text-right">
-              {highlights.map((h, i) => (
-                <li key={i} className="text-[0.78rem] text-[var(--ed-ink)] leading-[1.4]">{h}</li>
-              ))}
-            </ul>
-          </div>
-        </div>
-      )}
+      {open && hasHighlights && <RationaleTooltip anchorRef={anchorRef} highlights={highlights!} />}
     </div>
   );
 }
@@ -99,8 +138,6 @@ interface MatchCardProps {
 }
 
 function MatchCard({ job, index, expanded, saved, dismissed, demoMode, demoTitle, onToggleExpand, onSave, onDismiss }: MatchCardProps) {
-  const tone = edVerdictColor(job.verdict);
-
   const clickable = !!job.match_analysis;
 
   function handleCardActivate(): void {
@@ -109,8 +146,8 @@ function MatchCard({ job, index, expanded, saved, dismissed, demoMode, demoTitle
 
   return (
     <article
-      className={`ed-rise flex flex-col border border-[var(--ed-rule)] bg-[var(--ed-panel)]/40 p-5 transition-colors hover:border-[var(--ed-ink-faint)] ${expanded ? 'col-span-full' : ''} ${dismissed ? 'opacity-40' : ''} ${clickable ? 'cursor-pointer' : ''}`}
-      style={{ animationDelay: `${Math.min(index, 12) * 60}ms` }}
+      className={`ed-rise group border-b border-[var(--ed-rule)] transition-colors ${dismissed ? 'opacity-40' : ''} ${clickable ? 'cursor-pointer hover:bg-[var(--ed-panel)]/50' : ''}`}
+      style={{ animationDelay: `${Math.min(index, 12) * 40}ms` }}
       role={clickable ? 'button' : undefined}
       tabIndex={clickable ? 0 : undefined}
       aria-expanded={clickable ? expanded : undefined}
@@ -122,56 +159,51 @@ function MatchCard({ job, index, expanded, saved, dismissed, demoMode, demoTitle
         }
       }}
     >
-      <div className="flex items-start justify-between gap-3 mb-3">
-        <div className="flex items-center gap-2 min-w-0">
-          <CompanyAvatar name={job.company} logo={job.company_logo} />
-          {isNew(job.date_posted) && (
-            <span className="text-[0.58rem] font-bold uppercase tracking-[0.1em] text-[var(--ed-accent)] border border-[var(--ed-accent)]/40 bg-[var(--ed-accent)]/10 rounded-full px-[0.55rem] py-[0.2rem] shrink-0">
-              New
-            </span>
+      <div className="flex items-center gap-4 py-3 px-1">
+        <CompanyAvatar name={job.company} logo={job.company_logo} size={36} />
+
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-x-2 flex-wrap text-[13px] text-[var(--ed-ink-faint)] mb-[0.15rem] tabular-nums">
+            <span className="font-medium text-[var(--ed-ink-soft)]">{job.company}</span>
+            {cityOnly(job.location) && <span>{cityOnly(job.location)}</span>}
+            {job.is_remote && <span>Remote</span>}
+            {formatPostedAgo(job.date_posted) && <span>{formatPostedAgo(job.date_posted)}</span>}
+            {isNew(job.date_posted) && (
+              <span className="border border-[var(--ed-rule)] text-[var(--ed-ink-faint)] rounded-full px-[0.5rem] py-[0.05rem]">
+                New
+              </span>
+            )}
+          </div>
+          <h3 className="text-[16px] font-medium leading-[1.3] text-[var(--ed-ink)] truncate">
+            {job.title}
+          </h3>
+        </div>
+
+        <MatchScore job={job} />
+
+        <div className="shrink-0 flex gap-2 items-center" onClick={(e) => e.stopPropagation()}>
+          {!saved && !dismissed && (
+            <button type="button" disabled={demoMode} title={demoTitle} className={`${ED_BTN} border-[var(--ed-accent)] text-[var(--ed-accent)] hover:bg-[var(--ed-accent)] hover:text-[var(--ed-paper)] px-3 py-[0.4rem] disabled:cursor-not-allowed`} onClick={() => onSave(job.id)}>Add</button>
           )}
+          {!saved && !dismissed && (
+            <button
+              type="button"
+              disabled={demoMode}
+              title={demoTitle ?? 'Dismiss'}
+              aria-label="Dismiss"
+              className="shrink-0 w-8 h-8 rounded-full border border-[var(--ed-rule)] flex items-center justify-center text-[var(--ed-ink-faint)] transition-all opacity-0 group-hover:opacity-100 focus-visible:opacity-100 hover:border-[var(--ed-no)] hover:text-[var(--ed-no)] disabled:opacity-50 disabled:pointer-events-none disabled:cursor-not-allowed"
+              onClick={() => onDismiss(job.id)}
+            >
+              <X className="w-4 h-4" strokeWidth={2.5} />
+            </button>
+          )}
+          {saved && <span className="text-[13px] font-medium text-[var(--ed-ink-faint)] py-[0.35rem] px-[0.6rem] border border-[var(--ed-rule)]">Added</span>}
+          {dismissed && <span className="text-[13px] font-medium text-[var(--ed-ink-faint)] py-[0.35rem] px-[0.6rem] border border-[var(--ed-rule)]">Dismissed</span>}
         </div>
-        <div className="flex flex-col items-center gap-1 shrink-0">
-          <MatchRing job={job} />
-          <span className="text-[0.56rem] font-bold uppercase tracking-[0.14em]" style={{ color: tone }}>
-            {VERDICT_LABELS[job.verdict ?? ''] ?? job.verdict ?? '—'}
-          </span>
-        </div>
-      </div>
-
-      <span className="text-[0.78rem] font-bold text-[var(--ed-accent)] mb-1 truncate">{job.company}</span>
-      <div className="flex items-center gap-x-2 flex-wrap text-[0.7rem] text-[var(--ed-ink-faint)] mb-2">
-        {cityOnly(job.location) && <span>{cityOnly(job.location)}</span>}
-        {job.is_remote && <><span className="w-[3px] h-[3px] rounded-full bg-[var(--ed-rule)]" /><span>Remote</span></>}
-        {formatPostedAgo(job.date_posted) && <><span className="w-[3px] h-[3px] rounded-full bg-[var(--ed-rule)]" /><span>{formatPostedAgo(job.date_posted)}</span></>}
-      </div>
-
-      <h3 className="ed-display font-semibold text-[1.05rem] leading-[1.3] tracking-[-0.01em] text-[var(--ed-ink)] mb-4 line-clamp-2 min-h-[2.6em]">
-        {job.title}
-      </h3>
-
-      <div className="mt-auto flex gap-2 items-center flex-wrap" onClick={(e) => e.stopPropagation()}>
-        {!saved && !dismissed && (
-          <button type="button" disabled={demoMode} title={demoTitle} className={`${ED_BTN} border-[var(--ed-accent)] bg-[var(--ed-accent)] text-[var(--ed-paper)] hover:bg-[var(--ed-accent-deep)] text-[0.64rem] px-3 py-[0.45rem] disabled:cursor-not-allowed`} onClick={() => onSave(job.id)}>Add</button>
-        )}
-        {!saved && !dismissed && (
-          <button
-            type="button"
-            disabled={demoMode}
-            title={demoTitle ?? 'Dismiss'}
-            aria-label="Dismiss"
-            className="shrink-0 w-9 h-9 rounded-full border border-[var(--ed-rule)] flex items-center justify-center text-[var(--ed-no)] transition-all hover:border-[var(--ed-no)] hover:bg-[var(--ed-no)]/10 disabled:opacity-50 disabled:pointer-events-none disabled:cursor-not-allowed"
-            onClick={() => onDismiss(job.id)}
-          >
-            <X className="w-4 h-4" strokeWidth={2.5} />
-          </button>
-        )}
-        {saved && <span className="text-[0.62rem] font-semibold uppercase tracking-[0.08em] text-[var(--ed-yes)] py-[0.35rem] px-[0.6rem] border border-[var(--ed-yes)]/40">Added</span>}
-        {dismissed && <span className="text-[0.62rem] font-semibold uppercase tracking-[0.08em] text-[var(--ed-no)] py-[0.35rem] px-[0.6rem] border border-[var(--ed-no)]/40">Dismissed</span>}
       </div>
 
       {expanded && job.match_analysis && (
-        <div className="mt-6 pt-6 border-t border-[var(--ed-rule)] max-w-[720px]" onClick={(e) => e.stopPropagation()}>
+        <div className="pb-6 px-1 max-w-[720px]" onClick={(e) => e.stopPropagation()}>
           <AnalysisCard matchAnalysisJson={job.match_analysis as unknown as Record<string, unknown>} />
         </div>
       )}
@@ -188,7 +220,6 @@ const STORAGE_KEY = 'nextrole:matches-filters';
 interface PersistedFilters {
   daysBack: number;
   location: string;
-  workSetting: 'remote' | 'hybrid' | 'onsite' | null;
   levels: string[];
   verdicts: string[];
   minScore: string;
@@ -209,10 +240,6 @@ export default function SearchPage() {
   const [daysBack, setDaysBack] = useState(persisted?.daysBack ?? 14);
   const [location, setLocation] = useState(persisted?.location ?? '');
   const [locationDebounced, setLocationDebounced] = useState(location);
-  // jobspy only carries a remote boolean — no hybrid signal exists in our data,
-  // so "Hybrid" and "On-site" both filter to is_remote=false; "Remote" is the
-  // only value with a real positive signal. null = no work-setting filter.
-  const [workSetting, setWorkSetting] = useState<'remote' | 'hybrid' | 'onsite' | null>(persisted?.workSetting ?? null);
   const [levels, setLevels] = useState<Set<string>>(() => new Set(persisted?.levels ?? []));
   const [verdicts, setVerdicts] = useState<Set<string>>(() => new Set(persisted?.verdicts ?? []));
   const [minScore, setMinScore] = useState(persisted?.minScore ?? '');
@@ -230,24 +257,23 @@ export default function SearchPage() {
 
   useEffect(() => {
     const snapshot: PersistedFilters = {
-      daysBack, location, workSetting, levels: [...levels], verdicts: [...verdicts], minScore,
+      daysBack, location, levels: [...levels], verdicts: [...verdicts], minScore,
     };
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
     } catch {
       // Storage full/unavailable (e.g. private browsing) — not critical.
     }
-  }, [daysBack, location, workSetting, levels, verdicts, minScore]);
+  }, [daysBack, location, levels, verdicts, minScore]);
 
   const query = useMemo(() => ({
     days_back: daysBack,
     location: locationDebounced.trim() || undefined,
-    is_remote: workSetting === null ? undefined : workSetting === 'remote',
     actual_job_level: levels.size > 0 ? [...levels].join(',') : undefined,
     verdict: verdicts.size > 0 ? [...verdicts].join(',') : undefined,
     min_score: minScore.trim() ? Number(minScore) : undefined,
     limit: 100,
-  }), [daysBack, locationDebounced, workSetting, levels, verdicts, minScore]);
+  }), [daysBack, locationDebounced, levels, verdicts, minScore]);
 
   const jobsQuery = useScoredJobs(query);
   const jobs = jobsQuery.data?.jobs ?? [];
@@ -300,15 +326,14 @@ export default function SearchPage() {
   function clearFilters(): void {
     setDaysBack(14);
     setLocation('');
-    setWorkSetting(null);
     setLevels(new Set());
     setVerdicts(new Set());
     setMinScore('');
   }
 
-  const fieldLabel = 'text-[0.62rem] font-semibold uppercase tracking-[0.16em] text-[var(--ed-ink-faint)]';
+  const fieldLabel = 'text-[13px] font-medium text-[var(--ed-ink-faint)]';
   const chip = (active: boolean) =>
-    `rounded-full border px-3 py-[0.35rem] text-[0.68rem] font-semibold uppercase tracking-[0.06em] transition-all cursor-pointer ${
+    `capitalize rounded-full border px-3 py-[0.35rem] text-[13px] font-medium transition-all cursor-pointer ${
       active
         ? 'border-[var(--ed-accent)] bg-[var(--ed-accent)]/10 text-[var(--ed-accent)]'
         : 'border-[var(--ed-rule)] text-[var(--ed-ink-soft)] hover:border-[var(--ed-ink)] hover:text-[var(--ed-ink)]'
@@ -318,14 +343,11 @@ export default function SearchPage() {
     <div className="editorial editorial-grain min-h-screen">
       <div className="relative z-[1] max-w-[1280px] mx-auto px-8 pt-12 pb-20 animate-in fade-in slide-in-from-bottom-1 duration-500 max-[640px]:px-5 max-[640px]:pt-8 max-[640px]:pb-14">
 
-        <header className="mb-9 relative">
-          <div className="pb-[10px] border-b border-[var(--ed-rule)] text-[0.62rem] font-semibold uppercase tracking-[0.22em] text-[var(--ed-ink-faint)]">
-            <span>Matches</span>
-          </div>
-          <h1 className="ed-display font-black text-[clamp(2.4rem,6vw,4rem)] leading-[0.92] tracking-[-0.02em] text-[var(--ed-ink)] pt-4">
-            Your <span className="italic font-medium text-[var(--ed-accent)]">Matches</span>
+        <header className="mb-9 relative pb-6 border-b border-[var(--ed-rule)]">
+          <h1 className="font-medium text-[40px] leading-[1.1] tracking-[-0.01em] text-[var(--ed-ink)]">
+            Matches
           </h1>
-          <p className="mt-3 text-[var(--ed-ink-soft)] text-[0.95rem] max-w-[620px] leading-[1.6]">
+          <p className="mt-3 text-[var(--ed-ink-soft)] text-[16px] max-w-[620px] leading-[1.6]">
             Every discovered job, scored against your profile as it's found.
           </p>
         </header>
@@ -339,9 +361,9 @@ export default function SearchPage() {
               page into horizontal scroll. */}
           <aside className="ed-scroll col-span-1 min-w-0 sticky top-[4.5rem] border-t-[3px] border-double border-[var(--ed-rule-strong)] pt-6 max-h-[calc(100vh-5.5rem)] overflow-y-auto max-[900px]:static max-[900px]:max-h-none max-[900px]:overflow-visible">
             <div className="flex items-baseline justify-between gap-3 mb-5">
-              <span className="ed-display italic font-semibold text-[1.15rem] tracking-[-0.01em] text-[var(--ed-ink)]">Filters</span>
+              <span className="text-[16px] font-medium tracking-[-0.01em] text-[var(--ed-ink)]">Filters</span>
               {jobsQuery.data && (
-                <span className="text-[0.62rem] font-semibold uppercase tracking-[0.14em] text-[var(--ed-ink-faint)] tabular-nums">{jobsQuery.data.total} match{jobsQuery.data.total === 1 ? '' : 'es'}</span>
+                <span className="text-[13px] font-medium text-[var(--ed-ink-faint)] tabular-nums">{jobsQuery.data.total} match{jobsQuery.data.total === 1 ? '' : 'es'}</span>
               )}
             </div>
 
@@ -356,26 +378,9 @@ export default function SearchPage() {
               />
             </div>
 
-            <div className="flex flex-col gap-[0.45rem] mb-5">
-              <span className={fieldLabel}>Work arrangement</span>
-              <div className="flex flex-wrap gap-2">
-                {(['remote', 'hybrid', 'onsite'] as const).map((setting) => (
-                  <button
-                    key={setting}
-                    type="button"
-                    className={chip(workSetting === setting)}
-                    onClick={() => setWorkSetting((v) => (v === setting ? null : setting))}
-                    aria-pressed={workSetting === setting}
-                  >
-                    {setting === 'onsite' ? 'On-site' : setting}
-                  </button>
-                ))}
-              </div>
-            </div>
-
             <div className="flex flex-col gap-[0.45rem] mb-5 pt-5 border-t border-[var(--ed-rule)]">
               <span className={fieldLabel}>Discovered</span>
-              <span className="text-[0.72rem] text-[var(--ed-ink-faint)] leading-[1.5] -mt-1">How far back jobs entered your pool, not their posting date.</span>
+              <span className="text-[13px] text-[var(--ed-ink-faint)] leading-[1.5] -mt-1">How far back jobs entered your pool, not their posting date.</span>
               <div className="flex flex-wrap gap-2">
                 {DAYS_PRESETS.map(({ days, label }) => (
                   <button key={days} type="button" className={chip(daysBack === days)} onClick={() => setDaysBack(days)} aria-pressed={daysBack === days}>
@@ -387,7 +392,7 @@ export default function SearchPage() {
 
             <button
               type="button"
-              className="text-[0.68rem] font-semibold uppercase tracking-[0.12em] text-[var(--ed-ink-faint)] hover:text-[var(--ed-ink)] mb-5 pt-5 border-t border-[var(--ed-rule)] text-left transition-colors"
+              className="text-[13px] font-medium text-[var(--ed-ink-faint)] hover:text-[var(--ed-ink)] mb-5 pt-5 border-t border-[var(--ed-rule)] text-left transition-colors"
               onClick={() => setShowMoreFilters((v) => !v)}
               aria-expanded={showMoreFilters}
             >
@@ -440,7 +445,7 @@ export default function SearchPage() {
               </button>
             </div>
             {jobsQuery.isError && (
-              <div className="mt-4 p-3 bg-[var(--ed-no)]/10 text-[var(--ed-no)] text-[0.88rem] border border-[var(--ed-no)]/30">
+              <div className="mt-4 p-3 bg-[var(--ed-no)]/10 text-[var(--ed-no)] text-[13px] border border-[var(--ed-no)]/30">
                 {(jobsQuery.error as Error).message}
               </div>
             )}
@@ -450,21 +455,20 @@ export default function SearchPage() {
           <div className="col-span-4 min-w-0 max-[900px]:col-span-1">
             <section>
               {jobsQuery.isLoading ? (
-                <p className="text-center text-[var(--ed-ink-faint)] py-12 text-[0.95rem] border-t border-[var(--ed-rule-strong)]">
+                <p className="ed-display italic text-center text-[var(--ed-ink-faint)] py-12 text-[16px] border-t border-[var(--ed-rule-strong)]">
                   Loading matches…
                 </p>
               ) : jobs.length === 0 ? (
-                <p className="text-center text-[var(--ed-ink-faint)] py-12 text-[0.95rem] border-t border-[var(--ed-rule-strong)]">
+                <p className="ed-display italic text-center text-[var(--ed-ink-faint)] py-12 text-[16px] border-t border-[var(--ed-rule-strong)]">
                   No matches — widen the date range or relax the filters.
                 </p>
               ) : (
                 <>
-                  <div className="flex items-baseline justify-between gap-3 mb-1">
-                    <span className="ed-display italic font-semibold text-[1.5rem] tracking-[-0.01em] text-[var(--ed-ink)]">Matches</span>
-                    <span className="text-[0.6rem] font-semibold uppercase tracking-[0.2em] text-[var(--ed-ink-faint)]">Best first</span>
+                  <div className="flex items-baseline justify-end gap-3 mb-1 pb-2 border-b border-[var(--ed-rule-strong)]">
+                    <span className="text-[13px] font-medium uppercase tracking-[0.1em] text-[var(--ed-ink-faint)]">Best first</span>
                   </div>
 
-                  <div className="grid grid-cols-[repeat(auto-fill,minmax(230px,1fr))] gap-4">
+                  <div>
                     {jobs.map((job, idx) => (
                       <MatchCard
                         key={job.id}

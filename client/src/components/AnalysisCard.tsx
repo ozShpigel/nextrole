@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { VERDICT_LABELS } from '../lib/scoring';
 
-// Editorial score tint (var(--ed-*), valid only inside the .editorial scope)
+// Dimension sub-score tint — a plain percentage split, used only where there's
+// no verdict of its own to key off (the three breakdown components below).
 export function edScoreColor(score: number | null | undefined, max?: number | null): string {
   if (score == null) return 'var(--ed-ink-faint)';
   const pct = max != null && max > 0 ? score / max : score / 100;
@@ -10,8 +11,13 @@ export function edScoreColor(score: number | null | undefined, max?: number | nu
   return 'var(--ed-no)';
 }
 
-function edVerdictColor(verdictKey: string): string {
-  switch (verdictKey) {
+// The overall match score's color always comes from its verdict, never from
+// a raw percentage split — VerdictBands (85/68/50/25) don't land on a flat
+// 60/40 line, so a score-percentage heuristic can color a MAYBE score green.
+// Keying off the verdict the server already computed guarantees the number
+// and the label it sits next to never disagree.
+export function edVerdictColor(verdict: string | null | undefined): string {
+  switch (verdict?.replace(/ /g, '_')) {
     case 'STRONG_YES':
     case 'YES': return 'var(--ed-yes)';
     case 'MAYBE': return 'var(--ed-gold)';
@@ -21,40 +27,20 @@ function edVerdictColor(verdictKey: string): string {
   }
 }
 
-interface ScoreRingProps {
-  score: number | null | undefined;
-  maxScore: number;
-  size?: number;
-  stroke?: number;
-}
-
-function ScoreRing({ score, maxScore, size = 140, stroke = 8 }: ScoreRingProps) {
-  const pct = score != null && maxScore > 0 ? score / maxScore : 0;
-  const half = size / 2;
-  const r = half - stroke / 2 - 2;
-  const C = 2 * Math.PI * r;
-  const offset = C * (1 - pct);
-  const color = edScoreColor(score, maxScore);
-
-  return (
-    <div className="relative shrink-0" style={{ width: size, height: size }}>
-      <svg viewBox={`0 0 ${size} ${size}`} fill="none" className="block">
-        <circle cx={half} cy={half} r={r} stroke="var(--ed-rule)" strokeWidth={stroke} />
-        {score != null && (
-          <circle
-            cx={half} cy={half} r={r}
-            stroke={color} strokeWidth={stroke} strokeLinecap="round"
-            strokeDasharray={C} strokeDashoffset={offset}
-            style={{ transform: 'rotate(-90deg)', transformOrigin: '50% 50%' }}
-          />
-        )}
-      </svg>
-      <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-        <span className="ed-display font-black text-[var(--ed-ink)] leading-none tabular-nums" style={{ fontSize: size * 0.22 }}>{score ?? '—'}</span>
-        <span className="text-[var(--ed-ink-faint)] mt-[0.1rem] font-normal" style={{ fontSize: size * 0.09 }}>/ {maxScore}</span>
+// Hero score — 40px/500, colored by band; the strongest element on the card.
+// A dimension sub-score (smaller, no maxScore caption) uses the same helper
+// at a quieter size so it reads as a component of the same score, not a
+// second competing metric.
+function ScoreNumber({ score, maxScore, hero, color }: { score: number | null | undefined; maxScore: number; hero?: boolean; color: string }) {
+  if (hero) {
+    return (
+      <div className="flex items-baseline gap-1 shrink-0">
+        <span className="text-[40px] font-medium leading-none tabular-nums" style={{ color }}>{score ?? '—'}</span>
+        <span className="text-[13px] text-[var(--ed-ink-faint)]">/ {maxScore}</span>
       </div>
-    </div>
-  );
+    );
+  }
+  return <span className="text-[16px] font-medium tabular-nums" style={{ color }}>{score ?? '—'}<span className="text-[13px] text-[var(--ed-ink-faint)] font-normal"> / {maxScore}</span></span>;
 }
 
 interface DimensionDef {
@@ -115,23 +101,25 @@ interface AnalysisCardProps {
   matchAnalysisJson: string | MatchAnalysis | Record<string, unknown> | null | undefined;
 }
 
-const SUBLABEL = 'block text-[0.62rem] text-[var(--ed-ink-faint)] uppercase tracking-[0.14em] font-semibold mb-[0.4rem]';
+const SUBLABEL = 'block text-[13px] text-[var(--ed-ink-faint)] uppercase tracking-[0.1em] font-medium mb-[0.4rem]';
 
-// Editorial +/- signal footnotes — calmer than filled chips for the long
-// sentence-length flags the evaluator returns.
+// +/- signal footnotes — calmer than filled chips for the long sentence-
+// length flags the evaluator returns. Neutral ink throughout: the +/- glyph
+// itself carries the valence, not a color, so it never competes with the
+// score for attention.
 function SignalRows({ green = [], red = [] }: { green?: string[]; red?: string[] }) {
   return (
     <div className="flex flex-col gap-[0.45rem]" dir="rtl">
       {green.map((s, i) => (
         <div key={`g${i}`} className="flex items-start gap-[0.55rem]">
-          <span className="ed-display text-[0.95rem] font-bold leading-[1.2] text-[var(--ed-yes)] shrink-0" aria-hidden="true">+</span>
-          <span className="text-[0.84rem] text-[var(--ed-ink)] leading-[1.55] text-right">{s}</span>
+          <span className="text-[16px] font-medium leading-[1.2] text-[var(--ed-ink-faint)] shrink-0" aria-hidden="true">+</span>
+          <span className="text-[16px] text-[var(--ed-ink)] leading-[1.55] text-right">{s}</span>
         </div>
       ))}
       {red.map((s, i) => (
         <div key={`r${i}`} className="flex items-start gap-[0.55rem]">
-          <span className="ed-display text-[0.95rem] font-bold leading-[1.2] text-[var(--ed-no)] shrink-0" aria-hidden="true">–</span>
-          <span className="text-[0.84rem] text-[var(--ed-ink)] leading-[1.55] text-right">{s}</span>
+          <span className="text-[16px] font-medium leading-[1.2] text-[var(--ed-ink-faint)] shrink-0" aria-hidden="true">–</span>
+          <span className="text-[16px] text-[var(--ed-ink)] leading-[1.55] text-right">{s}</span>
         </div>
       ))}
     </div>
@@ -148,7 +136,6 @@ export default function AnalysisCard({ matchAnalysisJson }: AnalysisCardProps) {
 
   const b = a.breakdown;
   const rec = a.recommendation;
-  const verdictKey = a.verdict?.replace(/ /g, '_') || 'INSUFFICIENT_DATA';
   const active = activeDim && b?.[activeDim]
     ? { ...DIMS.find(d => d.key === activeDim)!, data: b[activeDim] }
     : null;
@@ -161,25 +148,21 @@ export default function AnalysisCard({ matchAnalysisJson }: AnalysisCardProps) {
         onKeyDown={(e: React.KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen(!open); } }}
         role="button" tabIndex={0} aria-expanded={open}
       >
-        <h3 className="ed-display italic font-semibold text-[1.4rem] tracking-[-0.01em] text-[var(--ed-ink)] m-0">AI Analysis</h3>
-        <span className="text-[var(--ed-accent)] text-[0.9rem]" aria-hidden="true">{open ? '▾' : '▸'}</span>
+        <h3 className="font-medium text-[16px] tracking-[-0.01em] text-[var(--ed-ink)] m-0">AI Analysis</h3>
+        <span className="text-[var(--ed-ink-faint)] text-[13px]" aria-hidden="true">{open ? '▾' : '▸'}</span>
       </div>
       <div className="border-t border-[var(--ed-rule-strong)]" />
       {open && (
         <div className="mt-5">
           {/* Hero */}
-          <div className="flex items-center gap-7 pb-6 max-[480px]:flex-col max-[480px]:items-start">
-            <ScoreRing score={a.overallScore} maxScore={100} size={148} stroke={9} />
-            <div className="flex flex-col gap-[0.7rem]">
-              <div className="ed-display text-[1.7rem] font-bold leading-[1.1] tracking-[-0.02em]" style={{ color: edVerdictColor(verdictKey) }}>
+          <div className="flex items-center gap-5 pb-6 max-[480px]:flex-col max-[480px]:items-start">
+            <ScoreNumber score={a.overallScore} maxScore={100} hero color={edVerdictColor(a.verdict)} />
+            <div className="flex flex-col gap-[0.5rem]">
+              <div className="text-[16px] font-medium leading-[1.2] text-[var(--ed-ink)]">
                 {VERDICT_LABELS[a.verdict] || VERDICT_LABELS.INSUFFICIENT_DATA}
               </div>
               {rec && (
-                <div className="text-[0.7rem] font-semibold uppercase tracking-[0.1em] py-[0.35rem] px-[0.9rem] w-fit border" style={
-                  rec.shouldApply
-                    ? { color: 'var(--ed-yes)', borderColor: 'color-mix(in oklab, var(--ed-yes) 30%, transparent)' }
-                    : { color: 'var(--ed-no)', borderColor: 'color-mix(in oklab, var(--ed-no) 30%, transparent)' }
-                }>
+                <div className="text-[13px] font-medium uppercase tracking-[0.08em] py-[0.35rem] px-[0.9rem] w-fit border border-[var(--ed-rule)] text-[var(--ed-ink-soft)]">
                   {rec.shouldApply ? 'Worth Applying' : 'Not Recommended'}
                 </div>
               )}
@@ -189,10 +172,10 @@ export default function AnalysisCard({ matchAnalysisJson }: AnalysisCardProps) {
           {/* Hard blockers — mechanical gate, not narrative: non-empty always
               means the verdict was forced to STRONG_NO server-side. */}
           {a.hardBlockers && a.hardBlockers.length > 0 && (
-            <div className="mb-6 p-[0.9rem_1.1rem] border" style={{ borderColor: 'color-mix(in oklab, var(--ed-no) 35%, transparent)', background: 'color-mix(in oklab, var(--ed-no) 6%, transparent)' }}>
-              <span className={SUBLABEL} style={{ color: 'var(--ed-no)' }}>Hard Blockers</span>
+            <div className="mb-6 p-[0.9rem_1.1rem] border border-[var(--ed-ink)]">
+              <span className={SUBLABEL}>Hard Blockers</span>
               <ul dir="rtl" className="list-disc pr-5 m-0 text-right">
-                {a.hardBlockers.map((item, i) => <li key={i} className="text-[0.84rem] mb-[0.3rem] text-[var(--ed-ink)] leading-[1.6] marker:text-[var(--ed-no)]">{item}</li>)}
+                {a.hardBlockers.map((item, i) => <li key={i} className="text-[16px] mb-[0.3rem] text-[var(--ed-ink)] leading-[1.6]">{item}</li>)}
               </ul>
             </div>
           )}
@@ -202,7 +185,7 @@ export default function AnalysisCard({ matchAnalysisJson }: AnalysisCardProps) {
             <div className="mb-6 p-[0.9rem_1.1rem] border border-[var(--ed-rule)]">
               <span className={SUBLABEL}>Worth Clarifying</span>
               <ul dir="rtl" className="list-disc pr-5 m-0 text-right">
-                {a.mustClarify.map((item, i) => <li key={i} className="text-[0.84rem] mb-[0.3rem] text-[var(--ed-ink)] leading-[1.6]">{item}</li>)}
+                {a.mustClarify.map((item, i) => <li key={i} className="text-[16px] mb-[0.3rem] text-[var(--ed-ink)] leading-[1.6]">{item}</li>)}
               </ul>
             </div>
           )}
@@ -221,8 +204,8 @@ export default function AnalysisCard({ matchAnalysisJson }: AnalysisCardProps) {
                       className={`flex flex-col items-center gap-2 p-[1rem_0.5rem] border cursor-pointer transition-all ${isActive ? 'border-[var(--ed-ink)] bg-[var(--ed-panel)]/60' : 'border-[var(--ed-rule)] hover:border-[var(--ed-ink-faint)]'}`}
                       onClick={() => setActiveDim(isActive ? null : dim.key)}
                     >
-                      <ScoreRing score={d.score} maxScore={d.maxScore} size={72} stroke={5} />
-                      <span className="text-[0.66rem] text-[var(--ed-ink-soft)] font-semibold uppercase tracking-[0.08em]">{dim.label}</span>
+                      <ScoreNumber score={d.score} maxScore={d.maxScore} color={edScoreColor(d.score, d.maxScore)} />
+                      <span className="text-[13px] text-[var(--ed-ink-soft)] font-medium uppercase tracking-[0.06em]">{dim.label}</span>
                     </button>
                   );
                 })}
@@ -234,19 +217,19 @@ export default function AnalysisCard({ matchAnalysisJson }: AnalysisCardProps) {
                 <div className="mt-3 p-[0.9rem_1.1rem] border border-[var(--ed-rule)]">
                   <span className={SUBLABEL}>Stacked Gaps ({a.stackedGaps.length})</span>
                   <ul dir="rtl" className="list-disc pr-5 m-0 text-right">
-                    {a.stackedGaps.map((item, i) => <li key={i} className="text-[0.84rem] mb-[0.3rem] text-[var(--ed-ink)] leading-[1.6] marker:text-[var(--ed-no)]">{item}</li>)}
+                    {a.stackedGaps.map((item, i) => <li key={i} className="text-[16px] mb-[0.3rem] text-[var(--ed-ink)] leading-[1.6]">{item}</li>)}
                   </ul>
                 </div>
               )}
 
               {active && (
-                <div className="mt-3 p-[1.1rem_1.25rem] bg-[var(--ed-panel)] border border-[var(--ed-rule)] animate-in fade-in duration-200" key={activeDim}>
-                  <h4 className="ed-display text-[1rem] font-semibold text-[var(--ed-ink)] mb-3">{active.label}</h4>
+                <div className="mt-3 p-[1.1rem_1.25rem] border border-[var(--ed-rule)] animate-in fade-in duration-200" key={activeDim}>
+                  <h4 className="font-medium text-[16px] text-[var(--ed-ink)] mb-3">{active.label}</h4>
                   {(active.data[active.posKey] as string[] | undefined)?.length ? (
                     <div className="mb-3 last:mb-0">
                       <span className={SUBLABEL}>{active.posLabel}</span>
                       <ul dir="rtl" className="list-disc pr-5 m-0 text-right">
-                        {(active.data[active.posKey] as string[]).map((item: string, i: number) => <li key={i} className="text-[0.84rem] mb-[0.3rem] text-[var(--ed-ink)] leading-[1.6] marker:text-[var(--ed-yes)]">{item}</li>)}
+                        {(active.data[active.posKey] as string[]).map((item: string, i: number) => <li key={i} className="text-[16px] mb-[0.3rem] text-[var(--ed-ink)] leading-[1.6]">{item}</li>)}
                       </ul>
                     </div>
                   ) : null}
@@ -254,7 +237,7 @@ export default function AnalysisCard({ matchAnalysisJson }: AnalysisCardProps) {
                     <div className="mb-3 last:mb-0">
                       <span className={SUBLABEL}>{active.negLabel}</span>
                       <ul dir="rtl" className="list-disc pr-5 m-0 text-right">
-                        {(active.data[active.negKey] as string[]).map((item: string, i: number) => <li key={i} className="text-[0.84rem] mb-[0.3rem] text-[var(--ed-ink)] leading-[1.6] marker:text-[var(--ed-no)]">{item}</li>)}
+                        {(active.data[active.negKey] as string[]).map((item: string, i: number) => <li key={i} className="text-[16px] mb-[0.3rem] text-[var(--ed-ink)] leading-[1.6]">{item}</li>)}
                       </ul>
                     </div>
                   ) : null}
@@ -266,12 +249,12 @@ export default function AnalysisCard({ matchAnalysisJson }: AnalysisCardProps) {
           {/* Recommendation */}
           {rec && (rec.keyReasons?.length || rec.questionsToAsk?.length || rec.greenFlags?.length || rec.redFlags?.length) && (
             <div className="mt-6 pt-4 border-t border-[var(--ed-rule)]">
-              <h4 className="ed-display text-[1rem] font-semibold text-[var(--ed-ink)] mb-3">Recommendation</h4>
+              <h4 className="font-medium text-[16px] text-[var(--ed-ink)] mb-3">Recommendation</h4>
               {rec.keyReasons?.length ? (
                 <div className="mb-3">
                   <span className={SUBLABEL}>Key Reasons</span>
                   <ul dir="rtl" className="list-disc pr-5 m-0 text-right">
-                    {rec.keyReasons.map((item, i) => <li key={i} className="text-[0.84rem] mb-[0.3rem] text-[var(--ed-ink)] leading-[1.6]">{item}</li>)}
+                    {rec.keyReasons.map((item, i) => <li key={i} className="text-[16px] mb-[0.3rem] text-[var(--ed-ink)] leading-[1.6]">{item}</li>)}
                   </ul>
                 </div>
               ) : null}
@@ -279,7 +262,7 @@ export default function AnalysisCard({ matchAnalysisJson }: AnalysisCardProps) {
                 <div className="mb-3">
                   <span className={SUBLABEL}>Questions to Ask</span>
                   <ul dir="rtl" className="list-disc pr-5 m-0 text-right">
-                    {rec.questionsToAsk.map((item, i) => <li key={i} className="text-[0.84rem] mb-[0.3rem] text-[var(--ed-ink)] leading-[1.6]">{item}</li>)}
+                    {rec.questionsToAsk.map((item, i) => <li key={i} className="text-[16px] mb-[0.3rem] text-[var(--ed-ink)] leading-[1.6]">{item}</li>)}
                   </ul>
                 </div>
               ) : null}
@@ -294,10 +277,10 @@ export default function AnalysisCard({ matchAnalysisJson }: AnalysisCardProps) {
           {/* Company news analysis */}
           {a.companyNewsAnalysis && (a.companyNewsAnalysis.greenSignals?.length || a.companyNewsAnalysis.redSignals?.length) && (
             <div className="mt-6 pt-4 border-t border-[var(--ed-rule)]">
-              <h4 className="ed-display text-[1rem] font-semibold text-[var(--ed-ink)] mb-3">Company News Signals</h4>
+              <h4 className="font-medium text-[16px] text-[var(--ed-ink)] mb-3">Company News Signals</h4>
               <SignalRows green={a.companyNewsAnalysis.greenSignals} red={a.companyNewsAnalysis.redSignals} />
               {a.companyNewsAnalysis.summary && (
-                <p dir="rtl" className="text-[0.84rem] text-[var(--ed-ink-soft)] leading-[1.6] mt-2 text-right">{a.companyNewsAnalysis.summary}</p>
+                <p dir="rtl" className="text-[16px] text-[var(--ed-ink-soft)] leading-[1.6] mt-2 text-right">{a.companyNewsAnalysis.summary}</p>
               )}
             </div>
           )}
@@ -305,10 +288,10 @@ export default function AnalysisCard({ matchAnalysisJson }: AnalysisCardProps) {
           {/* Employee reviews analysis */}
           {a.employeeReviewsAnalysis && (a.employeeReviewsAnalysis.greenSignals?.length || a.employeeReviewsAnalysis.redSignals?.length) && (
             <div className="mt-6 pt-4 border-t border-[var(--ed-rule)]">
-              <h4 className="ed-display text-[1rem] font-semibold text-[var(--ed-ink)] mb-3">Employee Review Signals</h4>
+              <h4 className="font-medium text-[16px] text-[var(--ed-ink)] mb-3">Employee Review Signals</h4>
               <SignalRows green={a.employeeReviewsAnalysis.greenSignals} red={a.employeeReviewsAnalysis.redSignals} />
               {a.employeeReviewsAnalysis.summary && (
-                <p dir="rtl" className="text-[0.84rem] text-[var(--ed-ink-soft)] leading-[1.6] mt-2 text-right">{a.employeeReviewsAnalysis.summary}</p>
+                <p dir="rtl" className="text-[16px] text-[var(--ed-ink-soft)] leading-[1.6] mt-2 text-right">{a.employeeReviewsAnalysis.summary}</p>
               )}
             </div>
           )}
@@ -316,8 +299,8 @@ export default function AnalysisCard({ matchAnalysisJson }: AnalysisCardProps) {
           {/* Honest assessment */}
           {a.honestAssessment && (
             <div className="mt-6 pt-4 border-t border-[var(--ed-rule)]">
-              <h4 className="ed-display text-[1rem] font-semibold text-[var(--ed-ink)] mb-3">Honest Assessment</h4>
-              <p dir="rtl" className="text-[0.9rem] leading-[1.8] text-[var(--ed-ink)] whitespace-pre-wrap pr-4 border-r-2 border-[var(--ed-accent)] m-0 text-right">{a.honestAssessment}</p>
+              <h4 className="font-medium text-[16px] text-[var(--ed-ink)] mb-3">Honest Assessment</h4>
+              <p dir="rtl" className="text-[16px] leading-[1.8] text-[var(--ed-ink)] whitespace-pre-wrap pr-4 border-r-2 border-[var(--ed-rule-strong)] m-0 text-right">{a.honestAssessment}</p>
             </div>
           )}
         </div>

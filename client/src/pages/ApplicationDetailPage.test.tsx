@@ -22,6 +22,7 @@ vi.mock('../components/CollapsibleSection', () => ({
 }));
 vi.mock('../components/AnalysisCard', () => ({
   default: () => <div data-testid="analysis-card" />,
+  edVerdictColor: () => 'var(--ed-ink-faint)',
 }));
 vi.mock('../components/Timeline', () => ({
   default: () => <div data-testid="timeline" />,

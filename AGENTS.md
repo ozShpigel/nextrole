@@ -38,6 +38,26 @@ cd server/scraper
 - **Single-tenant, no auth (intentional).** Public exposure = private instance + seeded demo instance. `DemoMode=true` 403s writes via an allowlist middleware — **new mutating endpoints must be allowlisted in `Program.cs` / `main.py` to work in demo**. Never set `ApiKey` on the demo. Detail: `docs/demo-mode.md`; ops: `docs/hosting-a-public-demo.md`.
 - Use the context7 MCP server to fetch up-to-date library documentation.
 
+## Working agreement
+
+When two instructions conflict, stop and ask — don't pick one silently.
+
+## UI rules
+
+NextRole is a scanning tool, not a reading surface. The match score
+carries the visual weight; typography stays quiet.
+
+- Dark is the only theme. Don't add a light mode or a theme toggle.
+- Flat surfaces only. Exception: `.editorial-grain`/`.home-atmosphere` are intentional ambient layers on Landing/Home. Everywhere else: no gradients, no shadows, no glow.
+- Use tokens from `client/src/index.css` only. Never hardcode hex.
+- `--ed-accent` marks the primary action or the active state of a control. One per view.
+- The score ramp is for any 0-100 or rated score (match score, interview score, per-dimension sub-scores). Never for status or category.
+- Error and destructive states keep their color (`--ed-no`). Everything else that isn't a primary action or a score stays neutral.
+- Two font weights: 400, 500.
+- Display face (`--font-serif`, Schibsted Grotesk) is for the wordmark and empty-state copy only. Page titles and section headers use sans with weight.
+- Type scale: 40 / 16 / 13. No other sizes.
+- RTL: mixed Hebrew content (AI summaries, interview text) gets `dir="rtl"`/`dir="auto"` on those nodes — see `docs/design-system.md`. Physical `pl-`/`pr-`/`ml-`/`mr-` elsewhere, not logical properties.
+
 ## Feature docs (read when working in that area)
 
 | Area | Doc |

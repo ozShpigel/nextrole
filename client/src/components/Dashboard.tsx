@@ -2,7 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import { useApplications, useStats, useUpcomingInterviews } from '../lib/queries';
 import { formatDate, formatDateTime } from '../lib/format';
 import { STATUS_LABELS } from '../lib/tracker';
-import { StatusBadge, STATUS_TONE } from './Status';
+import { StatusBadge } from './Status';
 import { StatCard } from './Stats';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -55,20 +55,20 @@ export default function Dashboard() {
 
       <section className="mb-9">
         <div className="flex items-baseline justify-between gap-3 mb-1">
-          <span className="ed-display italic font-semibold text-[1.4rem] tracking-[-0.01em] text-[var(--ed-ink)]">Upcoming Interviews</span>
-          <span className="text-[0.6rem] font-semibold uppercase tracking-[0.2em] text-[var(--ed-ink-faint)]">Section 01</span>
+          <span className="text-[16px] font-medium tracking-[-0.01em] text-[var(--ed-ink)]">Upcoming Interviews</span>
+          <span className="text-[13px] font-medium uppercase tracking-[0.14em] text-[var(--ed-ink-faint)]">Section 01</span>
         </div>
         <div className="border-t border-[var(--ed-rule-strong)]" />
         {upcoming.length === 0 ? (
-          <p className="text-center py-12 text-[var(--ed-ink-faint)] text-[0.88rem]">No upcoming interviews</p>
+          <p className="ed-display italic text-center py-12 text-[var(--ed-ink-faint)] text-[16px]">No upcoming interviews</p>
         ) : (
           upcoming.map((u, i) => (
             <div key={i} className="ed-rise border-t border-[var(--ed-rule)] py-[0.95rem] first:border-t-0" style={{ animationDelay: `${i * 60}ms` }}>
               <div className="flex justify-between items-baseline gap-3 mb-1">
-                <span className="ed-display font-semibold text-[var(--ed-ink)] text-[1.02rem] tracking-[-0.005em]">{u.interview.type} — {u.company || ''}</span>
-                <span className="text-[0.74rem] text-[var(--ed-ink-faint)] tabular-nums shrink-0">{formatDateTime(u.interview.scheduledAt)}</span>
+                <span className="font-medium text-[var(--ed-ink)] text-[16px]">{u.interview.type} — {u.company || ''}</span>
+                <span className="text-[13px] text-[var(--ed-ink-faint)] tabular-nums shrink-0">{formatDateTime(u.interview.scheduledAt)}</span>
               </div>
-              <div className="text-[0.84rem] text-[var(--ed-ink-soft)] leading-[1.6]">{u.jobTitle || ''} {u.interview.interviewer ? `· ${u.interview.interviewer}` : ''}</div>
+              <div className="text-[13px] text-[var(--ed-ink-soft)] leading-[1.6]">{u.jobTitle || ''} {u.interview.interviewer ? `· ${u.interview.interviewer}` : ''}</div>
             </div>
           ))
         )}
@@ -76,23 +76,23 @@ export default function Dashboard() {
 
       <section className="mb-4">
         <div className="flex items-baseline justify-between gap-3 mb-1">
-          <span className="ed-display italic font-semibold text-[1.4rem] tracking-[-0.01em] text-[var(--ed-ink)]">Recent Activity</span>
-          <span className="text-[0.6rem] font-semibold uppercase tracking-[0.2em] text-[var(--ed-ink-faint)]">Section 02</span>
+          <span className="text-[16px] font-medium tracking-[-0.01em] text-[var(--ed-ink)]">Recent Activity</span>
+          <span className="text-[13px] font-medium uppercase tracking-[0.14em] text-[var(--ed-ink-faint)]">Section 02</span>
         </div>
         <div className="border-t border-[var(--ed-rule-strong)]" />
         {recent.length === 0 ? (
-          <p className="text-center py-12 text-[var(--ed-ink-faint)] text-[0.88rem]">No recent activity</p>
+          <p className="ed-display italic text-center py-12 text-[var(--ed-ink-faint)] text-[16px]">No recent activity</p>
         ) : (
           recent.map((a, i) => (
             <div key={a.id} className="ed-rise group flex items-baseline gap-4 py-[0.9rem] border-t border-[var(--ed-rule)] transition-colors hover:bg-[var(--ed-panel)]/60 cursor-pointer first:border-t-0" style={{ animationDelay: `${i * 60}ms` }} onClick={() => navigate(`/tracker/${a.id}`)}>
-              <span className="ed-display text-[1.05rem] leading-none tabular-nums text-[var(--ed-ink-faint)] shrink-0 w-7">{String(i + 1).padStart(2, '0')}</span>
+                <span className="text-[13px] leading-none tabular-nums text-[var(--ed-ink-faint)] shrink-0 w-7">{String(i + 1).padStart(2, '0')}</span>
               <div className="flex-1 min-w-0">
-                <div className="text-[0.9rem] flex items-center gap-2 flex-wrap">
-                  <span className="ed-display font-semibold text-[var(--ed-ink)] transition-colors group-hover:text-[var(--ed-accent-deep)]">{a.jobTitle}</span>
+                <div className="text-[16px] flex items-center gap-2 flex-wrap">
+                  <span className="font-medium text-[var(--ed-ink)]">{a.jobTitle}</span>
                   <span className="text-[var(--ed-ink-faint)]">— {a.company}</span>
                   <StatusBadge status={a.status} />
                 </div>
-                <div className="text-[0.72rem] text-[var(--ed-ink-faint)] mt-[0.15rem] tabular-nums">{formatDate(a.createdAt)}</div>
+                <div className="text-[13px] text-[var(--ed-ink-faint)] mt-[0.15rem] tabular-nums">{formatDate(a.createdAt)}</div>
               </div>
             </div>
           ))
@@ -102,8 +102,8 @@ export default function Dashboard() {
       {stats && (
         <section className="mb-4">
           <div className="flex items-baseline justify-between gap-3 mb-1">
-            <span className="ed-display italic font-semibold text-[1.4rem] tracking-[-0.01em] text-[var(--ed-ink)]">Status Breakdown</span>
-            <span className="text-[0.6rem] font-semibold uppercase tracking-[0.2em] text-[var(--ed-ink-faint)]">Section 03</span>
+            <span className="text-[16px] font-medium tracking-[-0.01em] text-[var(--ed-ink)]">Status Breakdown</span>
+            <span className="text-[13px] font-medium uppercase tracking-[0.14em] text-[var(--ed-ink-faint)]">Section 03</span>
           </div>
           <div className="border-t border-[var(--ed-rule-strong)] mb-4" />
           <div>
@@ -111,19 +111,18 @@ export default function Dashboard() {
               const breakdown: Record<string, number> = stats.statusBreakdown || {};
               const max = Math.max(...Object.values(breakdown), 1);
               const count = breakdown[key] || 0;
-              const color = STATUS_TONE[key] || 'var(--ed-ink-faint)';
               return (
                 <div key={key} className="ed-rise flex items-center gap-3 py-[0.45rem] border-b border-[var(--ed-rule)] last:border-b-0" style={{ animationDelay: `${i * 60}ms` }}>
-                  <span className="min-w-[130px] text-[0.78rem] text-[var(--ed-ink-soft)] uppercase tracking-[0.06em] font-medium">{label}</span>
+                  <span className="min-w-[130px] text-[13px] text-[var(--ed-ink-soft)] uppercase tracking-[0.04em] font-medium">{label}</span>
                   <div className="relative flex-1 h-[18px] bg-[var(--ed-rule)]/40 overflow-hidden">
                     <div
-                      className="ed-fill h-full flex items-center justify-end pr-2 text-[0.68rem] font-semibold text-[var(--ed-paper)]"
-                      style={{ ['--p' as string]: count / max, background: color }}
+                      className="ed-fill h-full flex items-center justify-end pr-2 text-[13px] font-medium text-[var(--ed-paper)]"
+                      style={{ ['--p' as string]: count / max, background: 'var(--ed-ink-soft)' }}
                     >
                       {count > 0 ? count : ''}
                     </div>
                   </div>
-                  <span className="min-w-[26px] text-left ed-display text-[0.85rem] text-[var(--ed-ink)] tabular-nums">{count}</span>
+                  <span className="min-w-[26px] text-left text-[13px] text-[var(--ed-ink)] tabular-nums">{count}</span>
                 </div>
               );
             })}

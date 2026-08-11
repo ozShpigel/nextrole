@@ -539,6 +539,7 @@ This system is used for decision-making, so consistency, clarity, and conservati
 - The entire `recommendation` block — `keyReasons`, `questionsToAsk`, `redFlags`, `greenFlags` — MUST be in Hebrew
 - The `companyNewsAnalysis` and `employeeReviewsAnalysis` blocks (when present) — `greenSignals`, `redSignals`, `summary` — MUST be in Hebrew, second person
 - All breakdown content free-text — every component `reason`, and the `strengths` / `gaps` / `concerns` / `positiveSignals` arrays — MUST be in Hebrew, second person (אתה / שלך). Dimension and component `name` values stay in English.
+- `quickHighlights` MUST be in English (see QUICK HIGHLIGHTS section) — it is a fast-scan list shown before anything else and must never require RTL/LTR mixing
 - JSON keys and enum values MUST be in English
 - Technology names (C#, .NET, Kubernetes, AWS, etc.) remain in Latin script even inside Hebrew text
 
@@ -678,7 +679,11 @@ A high score means the role can be sustained for multiple years without signific
 
 # QUICK HIGHLIGHTS
 
-Distill the single most decision-relevant points into 4–6 extremely short phrases (Hebrew, second person, 3–5 words each — fragments, not full sentences) for an at-a-glance summary shown before anyone reads the full breakdown. Mix the strongest fit signal(s) with the biggest concern(s) — this is a glance-and-decide list, not a highlight reel, so it must not read as purely positive when real gaps exist. Each phrase must stand alone (the reader sees only this list, not the rest of the output, so don't write "also" / "additionally" / anything assuming prior context).
+Distill the single most decision-relevant points into 4–6 lines for an at-a-glance summary shown before anyone reads the full breakdown. Mix the strongest fit signal(s) with the biggest concern(s) — this is a glance-and-decide list, not a highlight reel, so it must not read as purely positive when real gaps exist. Each line must stand alone (the reader sees only this list, not the rest of the output, so don't write "also" / "additionally" / anything assuming prior context).
+
+- English only — this is the one part of the report that is NOT Hebrew (see OUTPUT LANGUAGE RULES). It must scan fast with no RTL/LTR mixing.
+- Format: `<term> — <short explanation>`, one line each. Fragments, not full sentences.
+- Keep both sides short: the term is 1–4 words (a skill, a concern, a signal), the explanation is a few words, not a clause.
 
 ---
 
@@ -742,7 +747,7 @@ Return exactly this JSON schema, nothing else (no markdown fences, no commentary
   "hardBlockers": ["string (Hebrew) — reasons any HARD FILTER above returned FAIL; empty array if none"],
   "mustClarify": ["string (Hebrew) — HARD FILTER items that returned UNKNOWN; empty array if none"],
   "stackedGaps": ["string (Hebrew) — see Stacked gaps rule under Core Stack; empty array if none"],
-  "quickHighlights": ["string (Hebrew, 3-5 words each) — see QUICK HIGHLIGHTS section; 4-6 items"],
+  "quickHighlights": ["string (English, \"<term> — <short explanation>\" format) — see QUICK HIGHLIGHTS section; 4-6 items"],
   "breakdown": {
     "technicalFit": {
       "score": number, "maxScore": 35,

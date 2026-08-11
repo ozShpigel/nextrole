@@ -57,7 +57,7 @@ export default function Timeline({ statusUpdates, interviews, notes }: TimelineP
               <div className="flex-1">
                 <div className="text-[0.84rem] mt-[0.15rem]"><StatusBadge status={s.fromStatus} /> &rarr; <StatusBadge status={s.toStatus} /></div>
                 {s.note && <div className="text-[0.84rem] mt-[0.15rem] text-muted-foreground">{s.note}</div>}
-                <div className="text-[0.73rem] text-muted-foreground">{formatDateTime(s.timestamp)}</div>
+                <div className="text-[0.73rem] text-muted-foreground tabular-nums">{formatDateTime(s.timestamp)}</div>
               </div>
             </div>
           );
@@ -69,7 +69,7 @@ export default function Timeline({ statusUpdates, interviews, notes }: TimelineP
               <div className="w-[34px] h-[34px] rounded-[9px] flex items-center justify-center text-[0.8rem] shrink-0 transition-transform group-hover:scale-[1.08] bg-emerald-50 text-emerald-600">&#x1F3A4;</div>
               <div className="flex-1">
                 <div className="text-[0.84rem] mt-[0.15rem]">Interview: {i.type} {i.interviewer ? `- ${i.interviewer}` : ''} {i.completed ? '✅' : ''}</div>
-                <div className="text-[0.73rem] text-muted-foreground">{formatDateTime(i.scheduledAt)}{i.endsAt ? `–${formatTime(i.endsAt)}` : ''}</div>
+                <div className="text-[0.73rem] text-muted-foreground tabular-nums">{formatDateTime(i.scheduledAt)}{i.endsAt ? `–${formatTime(i.endsAt)}` : ''}</div>
               </div>
             </div>
           );
@@ -80,7 +80,7 @@ export default function Timeline({ statusUpdates, interviews, notes }: TimelineP
             <div className="w-[34px] h-[34px] rounded-[9px] flex items-center justify-center text-[0.8rem] shrink-0 transition-transform group-hover:scale-[1.08] bg-amber-50 text-amber-600">&#x1F4DD;</div>
             <div className="flex-1">
               <div className="text-[0.84rem] mt-[0.15rem]">{n.content.substring(0, 100)}{n.content.length > 100 ? '...' : ''}</div>
-              <div className="text-[0.73rem] text-muted-foreground">{formatDateTime(n.createdAt)} {n.category ? `| ${NOTE_CATEGORY_LABELS[n.category] || n.category}` : ''}</div>
+              <div className="text-[0.73rem] text-muted-foreground tabular-nums">{formatDateTime(n.createdAt)} {n.category ? `| ${NOTE_CATEGORY_LABELS[n.category] || n.category}` : ''}</div>
             </div>
           </div>
         );

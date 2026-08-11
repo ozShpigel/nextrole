@@ -528,7 +528,7 @@ function SessionRow({ s, onReview }: { s: MockSessionListItem; onReview: (id: st
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-[0.84rem] font-medium text-[var(--ed-ink)]">{s.persona === 'technical' ? 'Technical' : 'HR'}</span>
           {s.jobTitle && <span className="text-[0.78rem] text-[var(--ed-ink-faint)] truncate">· {s.jobTitle}</span>}
-          <span className="text-[0.72rem] text-[var(--ed-ink-faint)]">· {when}</span>
+          <span className="text-[0.72rem] text-[var(--ed-ink-faint)] tabular-nums">· {when}</span>
         </div>
       </button>
       {avg !== null && (

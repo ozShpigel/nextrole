@@ -6,33 +6,25 @@ import { useApplicationDetail } from '../lib/queries';
 import { useDeleteApplication, useUpdateSalary, useGenerateCompanySummary, useGenerateWhyWorkHere } from '../lib/mutations';
 import { StatusBadge, StatusModal } from '../components/Status';
 import CollapsibleSection from '../components/CollapsibleSection';
-import AnalysisCard from '../components/AnalysisCard';
+import AnalysisCard, { edVerdictColor } from '../components/AnalysisCard';
 import Timeline from '../components/Timeline';
 import { InterviewList, InterviewModal } from '../components/Interviews';
 import { NoteList, NoteModal } from '../components/Notes';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { Interview } from '../lib/types';
 
-// Editorial score tint (var(--ed-*), valid only inside the .editorial scope)
-function edScoreColor(score: number | null | undefined): string {
-  if (score == null) return 'var(--ed-ink-faint)';
-  if (score >= 60) return 'var(--ed-yes)';
-  if (score >= 40) return 'var(--ed-gold)';
-  return 'var(--ed-no)';
-}
-
 // Shared editorial button styles
-const ED_BTN = 'rounded-full border px-3.5 py-[0.5rem] text-[0.68rem] font-semibold uppercase tracking-[0.08em] transition-all disabled:opacity-50 disabled:pointer-events-none';
+const ED_BTN = 'rounded-full border px-3.5 py-[0.45rem] text-[13px] font-medium uppercase tracking-[0.06em] transition-all disabled:opacity-50 disabled:pointer-events-none';
 const ED_GHOST = `${ED_BTN} border-[var(--ed-rule)] text-[var(--ed-ink-soft)] hover:border-[var(--ed-ink)] hover:text-[var(--ed-ink)]`;
 const ED_PRIMARY = `${ED_BTN} border-[var(--ed-accent)] bg-[var(--ed-accent)] text-[var(--ed-paper)] hover:bg-[var(--ed-accent-deep)]`;
 const ED_DANGER = `${ED_BTN} border-[var(--ed-rule)] text-[var(--ed-no)] hover:border-[var(--ed-no)] hover:bg-[var(--ed-no)]/10`;
 
-// Editorial section heading (italic serif kicker + heavy rule)
+// Section heading (plain sans + heavy rule — serif stays scoped to the logo/empty states)
 function SectionHead({ title, action }: { title: string; action?: React.ReactNode }) {
   return (
     <>
       <div className="flex items-center justify-between gap-3 mb-1">
-        <span className="ed-display italic font-semibold text-[1.3rem] tracking-[-0.01em] text-[var(--ed-ink)]">{title}</span>
+        <span className="font-medium text-[16px] tracking-[-0.01em] text-[var(--ed-ink)]">{title}</span>
         {action}
       </div>
       <div className="border-t border-[var(--ed-rule-strong)] mb-4" />
@@ -143,22 +135,22 @@ export default function ApplicationDetail() {
   return (
     <div className="editorial editorial-grain min-h-[calc(100vh-56px)] animate-in fade-in slide-in-from-bottom-1 duration-300">
       <div className="relative z-[1] max-w-[1100px] mx-auto px-8 pt-12 pb-16 max-[640px]:px-5">
-        <Link to="/tracker" state={{ tab: 'list' }} className="text-[var(--ed-accent)] cursor-pointer text-[0.72rem] font-semibold uppercase tracking-[0.12em] mb-7 inline-flex items-center gap-[0.4rem] transition-all hover:-translate-x-[3px]">&larr; Back to List</Link>
+        <Link to="/tracker" state={{ tab: 'list' }} className="text-[var(--ed-accent)] cursor-pointer text-[13px] font-medium uppercase tracking-[0.08em] mb-7 inline-flex items-center gap-[0.4rem] transition-all hover:-translate-x-[3px]">&larr; Back to List</Link>
 
         {/* Header masthead */}
         <header className="mb-9">
           <div className="flex justify-between items-start gap-6 flex-wrap pb-4 border-b border-[var(--ed-rule-strong)]">
             <div className="min-w-0">
-              <div className="text-[0.7rem] font-bold uppercase tracking-[0.16em] text-[var(--ed-accent)] mb-2">{app.company}</div>
-              <h2 className="ed-display font-black text-[clamp(1.9rem,4.5vw,3rem)] leading-[0.98] tracking-[-0.02em] text-[var(--ed-ink)]">{app.jobTitle}</h2>
+              <div className="text-[13px] font-medium uppercase tracking-[0.1em] text-[var(--ed-ink-faint)] mb-2">{app.company}</div>
+              <h2 className="font-medium text-[40px] leading-[1.1] tracking-[-0.01em] text-[var(--ed-ink)]">{app.jobTitle}</h2>
               <div className="mt-3 flex items-center gap-3 flex-wrap">
                 <StatusBadge status={app.status} />
                 <DaysInStage updatedAt={app.updatedAt} />
               </div>
             </div>
             <div className="text-right shrink-0">
-              <div className="ed-display font-black text-[3.4rem] leading-[0.8] tracking-[-0.03em] tabular-nums" style={{ color: edScoreColor(app.matchScore) }}>{app.matchScore ?? '-'}</div>
-              <div className="text-[0.6rem] font-bold uppercase tracking-[0.18em] mt-2 text-[var(--ed-ink-faint)]">{app.matchVerdict || ''}</div>
+              <div className="text-[40px] font-medium leading-none tabular-nums" style={{ color: edVerdictColor(app.matchVerdict) }}>{app.matchScore ?? '-'}</div>
+              <div className="text-[13px] font-medium uppercase tracking-[0.06em] mt-2 text-[var(--ed-ink-faint)]">{app.matchVerdict || ''}</div>
             </div>
           </div>
 
@@ -215,7 +207,7 @@ export default function ApplicationDetail() {
         {/* Job Description */}
         {app.jobDescription && (
           <CollapsibleSection title="Job Description" defaultOpen={false}>
-            <pre className="whitespace-pre-wrap font-sans text-[0.85rem] text-muted-foreground">{app.jobDescription}</pre>
+            <pre className="whitespace-pre-wrap font-sans text-[16px] text-muted-foreground">{app.jobDescription}</pre>
           </CollapsibleSection>
         )}
 
@@ -254,8 +246,7 @@ function DaysInStage({ updatedAt }: { updatedAt: string }) {
   const days = daysAgo(updatedAt);
   if (days === null) return null;
   const label = days === 0 ? 'Today' : days === 1 ? '1 day' : `${days} days`;
-  const color = days >= 14 ? 'var(--ed-no)' : days >= 7 ? 'var(--ed-gold)' : 'var(--ed-ink-faint)';
-  return <span className="text-[0.78rem] font-medium" style={{ color }}>{label} in stage</span>;
+  return <span className="text-[13px] font-medium text-[var(--ed-ink-faint)] tabular-nums">{label} in stage</span>;
 }
 
 function NextAction({ status, updatedAt, interviews }: { status: string; updatedAt: string; interviews: Interview[] }) {
@@ -277,7 +268,7 @@ function NextAction({ status, updatedAt, interviews }: { status: string; updated
 
   if (!suggestion) return null;
   return (
-    <div className="mb-3 py-[0.5rem] px-3 bg-[var(--ed-accent)]/[0.07] border-l-2 border-[var(--ed-accent)] text-[0.84rem] text-[var(--ed-accent-deep)] font-medium">
+    <div className="mb-3 py-[0.5rem] px-3 border-l-2 border-[var(--ed-rule-strong)] text-[16px] text-[var(--ed-ink-soft)] font-medium tabular-nums">
       → {suggestion}
     </div>
   );
@@ -305,16 +296,16 @@ function SalaryField({ appId, initialValue }: { appId: string; initialValue: str
 
   return (
     <div className="flex items-center gap-2 mb-3">
-      <label className="text-[0.64rem] uppercase tracking-[0.1em] text-[var(--ed-ink-faint)] font-semibold shrink-0">Salary</label>
+      <label className="text-[13px] uppercase tracking-[0.08em] text-[var(--ed-ink-faint)] font-medium shrink-0">Salary</label>
       <input
-        className="max-w-[200px] h-8 text-[0.84rem] px-2 rounded-lg border border-[var(--ed-rule)] bg-transparent text-[var(--ed-ink)] focus:outline-none focus:border-[var(--ed-ink)]"
+        className="max-w-[200px] h-8 text-[16px] px-2 rounded-lg border border-[var(--ed-rule)] bg-transparent text-[var(--ed-ink)] focus:outline-none focus:border-[var(--ed-ink)]"
         placeholder="e.g. 25-30K/mo"
         value={value}
         onChange={(e: React.ChangeEvent<HTMLInputElement>) => setValue(e.target.value)}
         onBlur={save}
         onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => e.key === 'Enter' && save()}
       />
-      {saved && <span className="text-[0.7rem] uppercase tracking-[0.08em] text-[var(--ed-yes)] font-semibold">Saved</span>}
+      {saved && <span className="text-[13px] uppercase tracking-[0.06em] text-[var(--ed-ink-faint)] font-medium">Saved</span>}
     </div>
   );
 }
@@ -346,11 +337,11 @@ function CompanySummaryBlock({ appId, initialSummary }: { appId: string; initial
         }
       />
       {summary ? (
-        <p dir="rtl" className="text-[0.9rem] leading-[1.8] text-[var(--ed-ink)] whitespace-pre-wrap text-right m-0">
+        <p dir="rtl" className="text-[16px] leading-[1.8] text-[var(--ed-ink)] whitespace-pre-wrap text-right m-0">
           {summary}
         </p>
       ) : (
-        <p className="text-[0.82rem] text-[var(--ed-ink-faint)] italic m-0">Click Generate to create an AI summary of this company.</p>
+        <p className="ed-display text-[16px] text-[var(--ed-ink-faint)] italic m-0">Click Generate to create an AI summary of this company.</p>
       )}
     </section>
   );
@@ -393,19 +384,19 @@ function WhyWorkHereBlock({ appId, initialAnswer }: { appId: string; initialAnsw
       />
       {answer ? (
         <div className="relative">
-          <p dir="rtl" className="text-[0.9rem] leading-[1.8] text-[var(--ed-ink)] whitespace-pre-wrap text-right m-0 pl-16">
+          <p dir="rtl" className="text-[16px] leading-[1.8] text-[var(--ed-ink)] whitespace-pre-wrap text-right m-0 pl-16">
             {answer}
           </p>
           <button
             type="button"
             onClick={copyToClipboard}
-            className="absolute top-0 left-0 py-[0.3rem] px-[0.6rem] rounded-full text-[0.66rem] font-semibold uppercase tracking-[0.06em] border border-[var(--ed-rule)] bg-transparent text-[var(--ed-ink-faint)] cursor-pointer transition-all hover:border-[var(--ed-ink)] hover:text-[var(--ed-ink)]"
+            className="absolute top-0 left-0 py-[0.3rem] px-[0.6rem] rounded-full text-[13px] font-medium uppercase tracking-[0.04em] border border-[var(--ed-rule)] bg-transparent text-[var(--ed-ink-faint)] cursor-pointer transition-all hover:border-[var(--ed-ink)] hover:text-[var(--ed-ink)]"
           >
             {copied ? 'Copied' : 'Copy'}
           </button>
         </div>
       ) : (
-        <p className="text-[0.82rem] text-[var(--ed-ink-faint)] italic m-0">
+        <p className="ed-display text-[16px] text-[var(--ed-ink-faint)] italic m-0">
           Generate a personalized answer to "Why do you want to work here?" based on this role and your profile.
         </p>
       )}
@@ -459,26 +450,20 @@ function CompanyEnrichment({ companyNewsJson, glassdoorDataJson }: { companyNews
         <div className="mb-3">
           <div className="flex items-center gap-[0.45rem]">
             {glassdoor.rating != null && (
-              <span className="text-[0.84rem] font-semibold" style={{
-                color: glassdoor.rating >= 4.0 ? 'var(--ed-yes)'
-                     : glassdoor.rating >= 3.0 ? 'var(--ed-gold)'
-                     : 'var(--ed-no)'
-              }}>
+              <span className="text-[16px] font-medium text-[var(--ed-ink)] tabular-nums">
                 Glassdoor {glassdoor.rating.toFixed(1)} / 5
               </span>
             )}
-            {glassdoor.reviewCount && <span className="text-[0.75rem] text-[var(--ed-ink-faint)]">({glassdoor.reviewCount.toLocaleString()} reviews)</span>}
-            {glassdoor.recommendPercent != null && <span className="text-[0.75rem] text-[var(--ed-ink-soft)]">· {glassdoor.recommendPercent}% recommend</span>}
-            {glassdoor.url && <a href={glassdoor.url} target="_blank" rel="noopener noreferrer" className="text-[0.75rem] text-[var(--ed-accent)] hover:opacity-75">View</a>}
+            {glassdoor.reviewCount && <span className="text-[13px] text-[var(--ed-ink-faint)] tabular-nums">({glassdoor.reviewCount.toLocaleString()} reviews)</span>}
+            {glassdoor.recommendPercent != null && <span className="text-[13px] text-[var(--ed-ink-soft)] tabular-nums">· {glassdoor.recommendPercent}% recommend</span>}
+            {glassdoor.url && <a href={glassdoor.url} target="_blank" rel="noopener noreferrer" className="text-[13px] text-[var(--ed-accent)] hover:opacity-75">View</a>}
           </div>
           {glassdoor.subRatings && (
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[0.75rem] text-[var(--ed-ink-faint)] mt-1">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-[var(--ed-ink-faint)] mt-1">
               {SUB_RATING_LABELS.map(([key, label]) => {
                 const v = glassdoor?.subRatings?.[key];
                 return v != null ? (
-                  <span key={key}>{label} <span className="font-semibold tabular-nums" style={{
-                    color: v >= 4.0 ? 'var(--ed-yes)' : v >= 3.0 ? 'var(--ed-gold)' : 'var(--ed-no)'
-                  }}>{v.toFixed(1)}</span></span>
+                  <span key={key}>{label} <span className="font-medium tabular-nums text-[var(--ed-ink-soft)]">{v.toFixed(1)}</span></span>
                 ) : null;
               })}
             </div>
@@ -488,10 +473,10 @@ function CompanyEnrichment({ companyNewsJson, glassdoorDataJson }: { companyNews
 
       {news && news.length > 0 && (
         <div>
-          <h4 className="text-[0.62rem] font-semibold uppercase tracking-[0.14em] text-[var(--ed-ink-faint)] mb-2">Recent News ({news.length})</h4>
+          <h4 className="text-[13px] font-medium uppercase tracking-[0.1em] text-[var(--ed-ink-faint)] mb-2 tabular-nums">Recent News ({news.length})</h4>
           <ul className="pl-4 list-disc marker:text-[var(--ed-rule)]">
             {news.map((n, i) => (
-              <li key={i} className="text-[0.8rem] text-[var(--ed-ink-soft)] leading-[1.65] mb-[0.2rem]">
+              <li key={i} className="text-[16px] text-[var(--ed-ink-soft)] leading-[1.65] mb-[0.2rem]">
                 {n.title}{n.source && <span className="text-[var(--ed-ink-faint)]"> — {n.source}</span>}
               </li>
             ))}
@@ -509,7 +494,7 @@ function ApplicationDetailLoadingSkeleton() {
 
       {/* Hero card */}
       <div
-        className="bg-card border border-border rounded-lg p-6 mb-4 shadow-sm flex flex-col gap-[0.85rem] relative overflow-hidden pb-5 animate-in fade-in slide-in-from-bottom-2 duration-300"
+        className="bg-card border border-border rounded-lg p-6 mb-4 flex flex-col gap-[0.85rem] relative overflow-hidden pb-5 animate-in fade-in slide-in-from-bottom-2 duration-300"
         aria-hidden="true"
       >
         <div className="flex justify-between items-start gap-6 flex-wrap">
@@ -534,7 +519,7 @@ function ApplicationDetailLoadingSkeleton() {
 
       {/* Analysis card skeleton */}
       <div
-        className="bg-card border border-border rounded-lg p-6 mb-4 shadow-sm flex flex-col gap-[0.85rem] relative overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-300"
+        className="bg-card border border-border rounded-lg p-6 mb-4 flex flex-col gap-[0.85rem] relative overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-300"
         style={{ animationDelay: '70ms' }}
         aria-hidden="true"
       >
@@ -555,7 +540,7 @@ function ApplicationDetailLoadingSkeleton() {
 
       {/* Timeline card skeleton */}
       <div
-        className="bg-card border border-border rounded-lg p-6 mb-4 shadow-sm flex flex-col gap-[0.85rem] relative overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-300"
+        className="bg-card border border-border rounded-lg p-6 mb-4 flex flex-col gap-[0.85rem] relative overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-300"
         style={{ animationDelay: '140ms' }}
         aria-hidden="true"
       >

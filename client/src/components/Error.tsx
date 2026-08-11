@@ -21,7 +21,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
   render() {
     if (this.state.error) {
       return (
-        <div className="bg-card border border-border rounded-lg shadow-sm text-center p-8">
+        <div className="bg-card border border-border rounded-lg text-center p-8">
           <p className="text-red-500 mb-2">Something went wrong</p>
           <p className="text-muted-foreground text-[0.84rem]">{this.state.error.message}</p>
           <button

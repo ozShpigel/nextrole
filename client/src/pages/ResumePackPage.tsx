@@ -118,7 +118,7 @@ export default function ResumePackPage() {
               {page > 1 && <PageNavButton direction="prev" onClick={() => setPage((p) => p - 1)} />}
               {pageCount !== null && page < pageCount && <PageNavButton direction="next" onClick={() => setPage((p) => p + 1)} />}
             </div>
-            <p className="text-[0.72rem] text-[var(--ed-ink-faint)]">
+            <p className="text-[0.72rem] text-[var(--ed-ink-faint)] tabular-nums">
               Generated {new Date(pack.generatedAt).toLocaleString()}
             </p>
           </div>

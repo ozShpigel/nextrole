@@ -287,7 +287,7 @@ export function QaRubricAccordion({ entries, onChange }: { entries: QaEntry[]; o
                   type="button"
                   aria-pressed={selected}
                   onClick={() => applyFilter(cat)}
-                  className={`rounded-full border px-2.5 py-[0.28rem] text-[0.66rem] font-semibold uppercase tracking-[0.1em] transition-all ${
+                  className={`rounded-full border px-2.5 py-[0.28rem] text-[0.66rem] font-semibold uppercase tracking-[0.1em] tabular-nums transition-all ${
                     selected
                       ? 'border-[var(--ed-ink)] bg-[var(--ed-ink)] text-[var(--ed-paper)]'
                       : 'border-[var(--ed-rule)] text-[var(--ed-ink-soft)] hover:border-[var(--ed-ink)] hover:text-[var(--ed-ink)]'

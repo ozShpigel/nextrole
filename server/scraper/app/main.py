@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import re
@@ -20,7 +21,7 @@ from app.schemas.criteria import (
     search_pairs,
 )
 from app.models.search_criteria import SearchCriteria
-from app.services import orchestrator, tracker_client
+from app.services import match_client, orchestrator, scraper, tracker_client
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -314,6 +315,20 @@ async def abort_run(run_id: str):
 # Discovered Jobs Actions
 # ---------------------------------------------------------------------------
 
+async def _resolve_company_logo(company: str | None, own_logo: str | None) -> str | None:
+    """A company's logo doesn't change between postings, so if this job's own
+    scrape has none, fall back to any other discovered job for the same
+    company that does — instead of saving a permanently blank one."""
+    if own_logo or not company:
+        return own_logo
+    doc = await db.discovered_jobs.find_one(
+        {"company": {"$regex": f"^{re.escape(company)}$", "$options": "i"}, "company_logo": {"$ne": None}},
+        {"company_logo": 1},
+        sort=[("discovered_at", -1)],
+    )
+    return doc.get("company_logo") if doc else None
+
+
 @app.post("/api/discovery/jobs/{job_id}/save")
 async def save_job(job_id: str):
     doc = await db.discovered_jobs.find_one({"id": job_id})
@@ -340,7 +355,7 @@ async def save_job(job_id: str):
         evaluator_snapshot_output=doc.get("evaluator_snapshot_output"),
         company_news=doc.get("company_news"),
         glassdoor_data=doc.get("glassdoor_data"),
-        company_logo=doc.get("company_logo"),
+        company_logo=await _resolve_company_logo(doc.get("company"), doc.get("company_logo")),
     )
     if saved:
         await db.discovered_jobs.update_one({"id": job_id}, {"$set": {"saved_to_tracker": True}})
@@ -375,3 +390,100 @@ async def unsave_job(request: UnsaveJobRequest):
         {"job_url": request.job_url}, {"$set": {"saved_to_tracker": False}}
     )
     return {"status": "unsaved", "modified": result.modified_count}
+
+
+class ImportJobsRequest(BaseModel):
+    urls: list[str]
+
+
+MAX_IMPORT_URLS = 5  # matches the Evaluator batch cap (see match_client.score_job_batch)
+
+
+@app.post("/api/discovery/jobs/import")
+async def import_jobs(request: ImportJobsRequest):
+    """The "Import Job" button on Active — one or more LinkedIn job URLs
+    found outside of discovery. Fetches each directly (no search), scores
+    them in one batch call, and saves straight to the tracker at
+    DecidedToApply, landing in the Added column. Never raises on a
+    per-job failure (bad link, fetch blocked, scoring unavailable) — those
+    are reported per-URL in the response instead, same fail-open philosophy
+    as the discovery pipeline; a bad link in a batch of five shouldn't lose
+    the other four.
+    """
+    urls = [u.strip() for u in request.urls if u.strip()]
+    if not urls:
+        raise HTTPException(400, "At least one URL is required")
+    if len(urls) > MAX_IMPORT_URLS:
+        raise HTTPException(400, f"At most {MAX_IMPORT_URLS} URLs per import")
+
+    loop = asyncio.get_running_loop()
+    results: list[dict] = []
+    fetched: list[tuple[str, dict]] = []
+    for url in urls:
+        job = await loop.run_in_executor(None, scraper.fetch_job_by_url, url)
+        if job is None:
+            results.append({
+                "url": url, "status": "failed", "title": None, "company": None,
+                "error": "Couldn't fetch this job — check the link, or paste the description instead.",
+            })
+            continue
+        fetched.append((url, job))
+
+    if fetched:
+        batch_items = [
+            {
+                "id": str(i),
+                "jobDescription": job["description"],
+                "title": job["title"],
+                "company": job["company"],
+                "location": job.get("location"),
+                "companyProfile": job.get("company_profile"),
+            }
+            for i, (_url, job) in enumerate(fetched)
+        ]
+        scores = await match_client.score_job_batch(settings, batch_items)
+
+        for i, (url, job) in enumerate(fetched):
+            match_response = (scores or {}).get(str(i))
+            score = verdict = analysis_json = None
+            analyst_in = analyst_out = eval_in = eval_out = None
+            if match_response:
+                score = match_response.get("overallScore")
+                verdict = match_response.get("verdict")
+                analysis = {
+                    k: v for k, v in match_response.items()
+                    if k not in ("analystSnapshotInput", "analystSnapshotOutput",
+                                 "evaluatorSnapshotInput", "evaluatorSnapshotOutput")
+                }
+                analysis_json = json.dumps(analysis, ensure_ascii=False)
+                analyst_in = match_response.get("analystSnapshotInput")
+                analyst_out = match_response.get("analystSnapshotOutput")
+                eval_in = match_response.get("evaluatorSnapshotInput")
+                eval_out = match_response.get("evaluatorSnapshotOutput")
+
+            saved = await tracker_client.save_to_tracker(
+                settings=settings,
+                title=job["title"],
+                company=job["company"],
+                description=job["description"],
+                score=score,
+                verdict=verdict,
+                analysis_json=analysis_json,
+                job_url=job["job_url"],
+                analyst_snapshot_input=analyst_in,
+                analyst_snapshot_output=analyst_out,
+                evaluator_snapshot_input=eval_in,
+                evaluator_snapshot_output=eval_out,
+                company_logo=await _resolve_company_logo(job.get("company"), job.get("company_logo")),
+            )
+            results.append({
+                "url": url,
+                "status": "saved" if saved else "failed",
+                "title": job["title"],
+                "company": job["company"],
+                "score": score,
+                "verdict": verdict,
+                "error": None if saved else "Scored, but couldn't save it to the tracker.",
+            })
+
+    return {"results": results}

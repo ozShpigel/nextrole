@@ -11,6 +11,7 @@ import type {
   NormalizedProfile,
   InterviewInsightResponse,
   ResumePack,
+  ImportJobsResponse,
 } from './types';
 
 export function useSaveJob() {
@@ -34,6 +35,22 @@ export function useDismissJob() {
       discoveryApi(`/jobs/${jobId}/dismiss`, { method: 'POST' }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['discovery'] });
+    },
+  });
+}
+
+// Import Job: one or more pasted LinkedIn URLs, fetched + scored + saved to
+// the tracker in one call (up to 5 — matches the Evaluator batch cap).
+export function useImportJobs() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (urls: string[]) =>
+      discoveryApi('/jobs/import', {
+        method: 'POST',
+        body: JSON.stringify({ urls }),
+      }) as Promise<ImportJobsResponse>,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['applications'] });
     },
   });
 }
@@ -348,8 +365,12 @@ export function useAddInterview() {
         method: 'POST',
         body: JSON.stringify(body),
       }),
-    onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['applications', variables.appId] });
+    onSuccess: () => {
+      // Invalidating the ['applications'] prefix covers both the detail query
+      // (['applications', appId]) and the plain list, whose projection
+      // includes each app's next-interview date/time/interviewer (read by
+      // ActivePage's board).
+      queryClient.invalidateQueries({ queryKey: ['applications'] });
     },
   });
 }

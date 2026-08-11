@@ -87,6 +87,22 @@ export interface ProfileResponse {
   updated_at?: string;
 }
 
+// Import Job — one or more LinkedIn URLs fetched, scored, and saved straight
+// to the tracker via POST /api/discovery/jobs/import (scraper service).
+export interface ImportJobResult {
+  url: string;
+  status: 'saved' | 'failed';
+  title: string | null;
+  company: string | null;
+  score?: number | null;
+  verdict?: string | null;
+  error: string | null;
+}
+
+export interface ImportJobsResponse {
+  results: ImportJobResult[];
+}
+
 // Manual scoring — score a pasted job description on demand via POST /api/match.
 // Request fields are camelCase (MatchRequest's default serialization); the
 // response mirrors MatchResponse.cs (also camelCase).

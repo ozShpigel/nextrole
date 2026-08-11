@@ -197,3 +197,70 @@ def scrape_for_criteria(criteria: SearchCriteria) -> tuple[list[dict], dict]:
         len(all_jobs), stats["searches_total"], stats["searches_failed"], stats["searches_empty"],
     )
     return all_jobs, stats
+
+
+_LINKEDIN_JOB_ID_RE = re.compile(r"(?:jobs/view/|currentJobId=)(\d+)")
+
+
+def fetch_job_by_url(url: str) -> dict | None:
+    """Fetch a single LinkedIn posting directly by URL — for the "Import Job"
+    button (a link found outside of discovery), not a search. Returns None
+    on any failure (bad URL, blocked/expired link, page structure changed).
+
+    jobspy's own per-result detail fetch (LinkedIn._get_job_details) returns
+    description/company_logo/job_level but not title/company — it assumes
+    the caller already has those from a search result card, which isn't true
+    here. Both are parsed from the same job page's own top-card elements
+    instead: an unofficial surface (LinkedIn's public page structure, not a
+    documented API) but the same one jobspy's own selectors already depend
+    on, so it's no more fragile than the rest of this scraping stack.
+    """
+    match = _LINKEDIN_JOB_ID_RE.search(url)
+    if not match:
+        return None
+    job_id = match.group(1)
+
+    from bs4 import BeautifulSoup
+    from jobspy import LinkedIn
+    from jobspy.model import ScraperInput, Site
+
+    scraper = LinkedIn()
+    scraper.scraper_input = ScraperInput(site_type=[Site.LINKEDIN])
+
+    try:
+        response = scraper.session.get(f"{scraper.base_url}/jobs/view/{job_id}", timeout=10)
+        response.raise_for_status()
+    except Exception as e:
+        logger.warning("Import: failed to fetch LinkedIn job %s: %s", job_id, e)
+        return None
+    if "linkedin.com/signup" in response.url:
+        logger.warning("Import: LinkedIn redirected job %s to signup (link blocked or expired)", job_id)
+        return None
+
+    soup = BeautifulSoup(response.text, "html.parser")
+    title_tag = soup.find("h1", class_=lambda x: x and "top-card-layout__title" in x)
+    org_tag = soup.find("a", class_=lambda x: x and "topcard__org-name-link" in x)
+    loc_tag = soup.find("span", class_=lambda x: x and "topcard__flavor--bullet" in x)
+
+    title = title_tag.get_text(strip=True) if title_tag else None
+    company = org_tag.get_text(strip=True) if org_tag else None
+    if not title or not company:
+        logger.warning("Import: could not parse title/company for job %s", job_id)
+        return None
+
+    details = scraper._get_job_details(job_id)
+    description = details.get("description") or ""
+    industry = _clean(details.get("company_industry"))
+
+    return {
+        "title": title,
+        "company": company,
+        "location": loc_tag.get_text(strip=True) if loc_tag else "",
+        "description": description,
+        "job_url": f"{scraper.base_url}/jobs/view/{job_id}",
+        "site": "linkedin",
+        "job_level": _clean(details.get("job_level")),
+        "is_remote": None,
+        "company_logo": _clean(details.get("company_logo")),
+        "company_profile": {"industry": industry} if industry else None,
+    }

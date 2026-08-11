@@ -7,6 +7,7 @@ import type { DiscoveredJobSummary } from '../lib/types';
 import { VERDICT_LABELS } from '../lib/scoring';
 import { cityOnly, formatPostedAgo, isNew } from '../lib/format';
 import AnalysisCard, { edScoreColor } from '../components/AnalysisCard';
+import { CompanyAvatar } from '../components/CompanyAvatar';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
@@ -39,38 +40,6 @@ function edVerdictColor(verdict: string | null | undefined): string {
     case 'STRONG_NO': return 'var(--ed-no)';
     default: return 'var(--ed-ink-faint)';
   }
-}
-
-// Deterministic hue from the company name — used for the colored-initial
-// fallback when a job has no scraped logo (or the logo URL 404s/goes stale).
-function hashHue(str: string): number {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) hash = (hash * 31 + str.charCodeAt(i)) >>> 0;
-  return hash % 360;
-}
-
-function CompanyAvatar({ name, logo }: { name: string; logo?: string | null }) {
-  const [logoFailed, setLogoFailed] = useState(false);
-  if (logo && !logoFailed) {
-    return (
-      <img
-        src={logo}
-        alt=""
-        className="w-11 h-11 rounded-full shrink-0 object-contain border border-[var(--ed-rule)] bg-white"
-        onError={() => setLogoFailed(true)}
-      />
-    );
-  }
-  const hue = hashHue(name || '?');
-  const initial = (name.trim()[0] || '?').toUpperCase();
-  return (
-    <div
-      className="w-11 h-11 rounded-full flex items-center justify-center shrink-0 font-bold text-[0.95rem] border"
-      style={{ background: `hsl(${hue} 45% 16%)`, color: `hsl(${hue} 70% 72%)`, borderColor: `hsl(${hue} 45% 32%)` }}
-    >
-      {initial}
-    </div>
-  );
 }
 
 // Circular score meter — same data AnalysisCard's hero ring shows, just in

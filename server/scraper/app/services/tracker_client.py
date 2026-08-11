@@ -198,6 +198,7 @@ async def save_to_tracker(
     evaluator_snapshot_output: str | None = None,
     company_news: list[dict] | None = None,
     glassdoor_data: dict | None = None,
+    company_logo: str | None = None,
 ) -> bool:
     """Save a discovered job to the tracker."""
     payload = {
@@ -206,6 +207,7 @@ async def save_to_tracker(
         "status": "DecidedToApply",
         "jobDescription": description or "",
         "jobUrl": job_url,
+        "companyLogo": company_logo,
         "matchScore": score,
         "matchVerdict": verdict,
         "matchAnalysis": analysis_json,

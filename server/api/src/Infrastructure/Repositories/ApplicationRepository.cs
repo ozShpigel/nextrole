@@ -75,8 +75,10 @@ public sealed class ApplicationRepository : IApplicationRepository
             .Include(a => a.MatchScore)
             .Include(a => a.MatchVerdict)
             .Include(a => a.JobUrl)
+            .Include(a => a.CompanyLogo)
             .Include(a => a.CreatedAt)
-            .Include(a => a.UpdatedAt);
+            .Include(a => a.UpdatedAt)
+            .Include(a => a.AppliedAt);
 
         var items = await _applications.Find(FilterDefinition<Application>.Empty)
             .SortByDescending(a => a.CreatedAt)

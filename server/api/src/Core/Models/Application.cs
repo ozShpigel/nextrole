@@ -24,6 +24,7 @@ public sealed record Application
     public string? CompanySummary { get; init; }
     public string? WhyWorkHere { get; init; }
     public string? JobUrl { get; init; }
+    public string? CompanyLogo { get; init; }
     public string? Salary { get; init; }
     public DateTime CreatedAt { get; init; } = DateTime.UtcNow;
     public DateTime? AppliedAt { get; init; }

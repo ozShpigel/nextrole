@@ -12,8 +12,13 @@ public sealed record ApplicationListItem
     public int? MatchScore { get; init; }
     public string? MatchVerdict { get; init; }
     public string? JobUrl { get; init; }
+    public string? CompanyLogo { get; init; }
     public DateTime CreatedAt { get; init; }
     public DateTime UpdatedAt { get; init; }
+    // Set once, the moment Status first flips to Applied (manual "I applied" or
+    // mailbot's email-confirmation detection) — see ApplicationEndpoints' status
+    // update handler. Null for applications that predate this field.
+    public DateTime? AppliedAt { get; init; }
     // Soonest upcoming (future, not-completed) interview, if any — surfaced on the
     // list card. Null when there's no upcoming interview.
     public DateTime? NextInterviewAt { get; init; }

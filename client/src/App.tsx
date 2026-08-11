@@ -67,7 +67,12 @@ export default function App() {
           <div className="ed-scroll flex items-center gap-0 min-w-0 overflow-x-auto">
             <NavLink to="/search" className={navLinkClass}>Matches</NavLink>
             <NavLink to="/active" className={navLinkClass}>Active</NavLink>
-            <NavLink to="/tracker" className={navLinkClass}>Apps</NavLink>
+            {/* "Apps" nav link removed 2026-08-11 — Active now covers the
+                day-to-day pipeline view. The /tracker route and
+                ApplicationList page are intentionally left in place: closed
+                (Rejected/Withdrawn) applications and the application detail
+                page (notes, interviews, salary, delete) have no equivalent
+                on Active yet, so they stay reachable by URL. */}
             <NavLink to="/messages" className={navLinkClass}>Messages</NavLink>
             <NavLink to="/interview-prep" className={navLinkClass}>Prep</NavLink>
             <NavLink to="/settings" className={navLinkClass}>Profile</NavLink>

@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Upload } from 'lucide-react';
-import { BrandMark } from '../components/BrandMark';
 
 // Company marks for the "Companies like these" marquee — simplified but
 // recognizable, self-contained (each carries its own backing shape/color
@@ -168,11 +167,6 @@ export default function Landing() {
         className={`relative z-[2] max-w-[620px] mx-auto transition-[opacity,transform] duration-1000 ${loaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-[18px]'}`}
         style={{ transitionTimingFunction: 'ease, cubic-bezier(0.22, 1, 0.36, 1)' }}
       >
-        <span className="inline-flex items-center gap-[0.45rem] text-[0.66rem] tracking-[0.28em] uppercase text-[var(--ed-ink-faint)] font-semibold mb-6">
-          <BrandMark size={13} className="text-[var(--ed-accent)]" />
-          AI-powered job search
-        </span>
-
         <h1 className="m-0 font-normal leading-none">
           <span className="ed-display inline-flex gap-[clamp(0.5rem,1.3vw,1.1rem)] items-baseline font-black text-[clamp(3.4rem,9vw,7rem)] leading-[0.9] tracking-[-0.035em] max-md:flex-col max-md:gap-[0.3rem] max-md:items-center">
             <span className="inline-block text-[var(--ed-ink)]">Next</span>
@@ -214,13 +208,19 @@ export default function Landing() {
 
       {/* Footer */}
       <footer
-        className={`relative z-[2] mt-auto pt-[clamp(3rem,6vw,5rem)] pb-6 flex flex-col items-center gap-[0.85rem] text-[var(--ed-ink-faint)] transition-opacity duration-[1100ms] ease-in-out delay-1000 ${loaded ? 'opacity-100' : 'opacity-0'}`}
+        className={`relative z-[2] pt-[clamp(3rem,6vw,5rem)] pb-6 flex flex-col items-center gap-[0.85rem] text-[var(--ed-ink-faint)] transition-opacity duration-[1100ms] ease-in-out delay-1000 ${loaded ? 'opacity-100' : 'opacity-0'}`}
       >
-        <span className="nr-footer-mono ed-display text-[1.35rem] font-semibold inline-flex items-center gap-[0.55rem] max-sm:text-[1.1rem]" aria-hidden="true">
-          <BrandMark size={11} className="text-[var(--ed-accent)]" />
-          <span className="tracking-[0.05em]">N<span className="font-normal">R</span></span>
-          <BrandMark size={11} className="text-[var(--ed-accent)]" />
-        </span>
+        <p className="text-[13px] text-[var(--ed-ink-faint)]">
+          NextRole &middot; {new Date().getFullYear()} &middot;{' '}
+          <a
+            href="https://github.com/ozShpigel/nextrole"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[var(--ed-ink-faint)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--ed-paper)] focus-visible:ring-[var(--ed-ink)] rounded-sm"
+          >
+            GitHub
+          </a>
+        </p>
       </footer>
     </div>
   );

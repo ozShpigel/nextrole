@@ -32,6 +32,12 @@ const DAYS_PRESETS = [
   { days: 30, label: '30d' },
 ];
 
+const WORK_SETTING: { value: boolean | undefined; label: string }[] = [
+  { value: undefined, label: 'Any' },
+  { value: true, label: 'Remote' },
+  { value: false, label: 'On-site' },
+];
+
 const TOOLTIP_WIDTH = 320;
 const TOOLTIP_GAP = 8;
 
@@ -159,7 +165,7 @@ function MatchCard({ job, index, expanded, saved, dismissed, demoMode, demoTitle
         }
       }}
     >
-      <div className="flex items-center gap-4 py-3 px-1">
+      <div className="flex items-center gap-4 py-2 px-1">
         <CompanyAvatar name={job.company} logo={job.company_logo} size={36} />
 
         <div className="min-w-0 flex-1">
@@ -220,6 +226,7 @@ const STORAGE_KEY = 'nextrole:matches-filters';
 interface PersistedFilters {
   daysBack: number;
   location: string;
+  isRemote?: boolean;
   levels: string[];
   verdicts: string[];
   minScore: string;
@@ -240,12 +247,11 @@ export default function SearchPage() {
   const [daysBack, setDaysBack] = useState(persisted?.daysBack ?? 14);
   const [location, setLocation] = useState(persisted?.location ?? '');
   const [locationDebounced, setLocationDebounced] = useState(location);
+  const [isRemote, setIsRemote] = useState<boolean | undefined>(persisted?.isRemote);
   const [levels, setLevels] = useState<Set<string>>(() => new Set(persisted?.levels ?? []));
   const [verdicts, setVerdicts] = useState<Set<string>>(() => new Set(persisted?.verdicts ?? []));
   const [minScore, setMinScore] = useState(persisted?.minScore ?? '');
-  const [showMoreFilters, setShowMoreFilters] = useState(
-    () => (persisted?.levels.length ?? 0) > 0 || (persisted?.verdicts.length ?? 0) > 0 || !!persisted?.minScore,
-  );
+  const [showMoreFilters, setShowMoreFilters] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
@@ -257,23 +263,24 @@ export default function SearchPage() {
 
   useEffect(() => {
     const snapshot: PersistedFilters = {
-      daysBack, location, levels: [...levels], verdicts: [...verdicts], minScore,
+      daysBack, location, isRemote, levels: [...levels], verdicts: [...verdicts], minScore,
     };
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
     } catch {
       // Storage full/unavailable (e.g. private browsing) — not critical.
     }
-  }, [daysBack, location, levels, verdicts, minScore]);
+  }, [daysBack, location, isRemote, levels, verdicts, minScore]);
 
   const query = useMemo(() => ({
     days_back: daysBack,
     location: locationDebounced.trim() || undefined,
+    is_remote: isRemote,
     actual_job_level: levels.size > 0 ? [...levels].join(',') : undefined,
     verdict: verdicts.size > 0 ? [...verdicts].join(',') : undefined,
     min_score: minScore.trim() ? Number(minScore) : undefined,
     limit: 100,
-  }), [daysBack, locationDebounced, levels, verdicts, minScore]);
+  }), [daysBack, locationDebounced, isRemote, levels, verdicts, minScore]);
 
   const jobsQuery = useScoredJobs(query);
   const jobs = jobsQuery.data?.jobs ?? [];
@@ -326,16 +333,21 @@ export default function SearchPage() {
   function clearFilters(): void {
     setDaysBack(14);
     setLocation('');
+    setIsRemote(undefined);
     setLevels(new Set());
     setVerdicts(new Set());
     setMinScore('');
   }
 
-  const fieldLabel = 'text-[13px] font-medium text-[var(--ed-ink-faint)]';
-  const chip = (active: boolean) =>
-    `capitalize rounded-full border px-3 py-[0.35rem] text-[13px] font-medium transition-all cursor-pointer ${
+  const hasActiveFilters =
+    daysBack !== 14 || location.trim() !== '' || isRemote !== undefined ||
+    levels.size > 0 || verdicts.size > 0 || minScore.trim() !== '';
+
+  const groupLabel ='text-[11px] font-medium uppercase tracking-[0.08em] text-[var(--ed-ink-faint)]';
+  const pill = (active: boolean) =>
+    `capitalize rounded-full border px-[9px] py-[3px] text-[12px] font-medium transition-all cursor-pointer ${
       active
-        ? 'border-[var(--ed-accent)] bg-[var(--ed-accent)]/10 text-[var(--ed-accent)]'
+        ? 'border-[var(--ed-accent)] text-[var(--ed-accent)]'
         : 'border-[var(--ed-rule)] text-[var(--ed-ink-soft)] hover:border-[var(--ed-ink)] hover:text-[var(--ed-ink)]'
     }`;
 
@@ -343,32 +355,60 @@ export default function SearchPage() {
     <div className="editorial editorial-grain min-h-screen">
       <div className="relative z-[1] max-w-[1280px] mx-auto px-8 pt-12 pb-20 animate-in fade-in slide-in-from-bottom-1 duration-500 max-[640px]:px-5 max-[640px]:pt-8 max-[640px]:pb-14">
 
-        <header className="mb-9 relative pb-6 border-b border-[var(--ed-rule)]">
-          <h1 className="font-medium text-[40px] leading-[1.1] tracking-[-0.01em] text-[var(--ed-ink)]">
+        <header className="mb-3 relative pb-2 border-b border-[var(--ed-rule)]">
+          <h1 className="font-medium text-[24px] leading-[1.2] tracking-[-0.01em] text-[var(--ed-ink)]">
             Matches
           </h1>
-          <p className="mt-3 text-[var(--ed-ink-soft)] text-[16px] max-w-[620px] leading-[1.6]">
-            Every discovered job, scored against your profile as it's found.
-          </p>
         </header>
 
-        <div className="grid grid-cols-5 gap-8 items-start max-[900px]:grid-cols-1">
+        <div className="flex gap-5 items-start max-[900px]:flex-col">
 
-          {/* Filters — 1 of 5 columns, sticky below the global nav (h-14).
-              min-w-0 matters here: without it, a grid item's default
-              min-width:auto lets its widest unbreakable child (a long chip
-              label) force the column past its 1/5 share, pushing the whole
-              page into horizontal scroll. */}
-          <aside className="ed-scroll col-span-1 min-w-0 sticky top-[4.5rem] border-t-[3px] border-double border-[var(--ed-rule-strong)] pt-6 max-h-[calc(100vh-5.5rem)] overflow-y-auto max-[900px]:static max-[900px]:max-h-none max-[900px]:overflow-visible">
-            <div className="flex items-baseline justify-between gap-3 mb-5">
+          {/* Filters — fixed 190px, not a fraction of the grid, and no
+              separate scroll container: it's a normal block that scrolls
+              with the page. */}
+          <aside className="w-[190px] shrink-0 max-[900px]:w-full">
+            <div className="flex items-baseline justify-between gap-3 mb-3">
               <span className="text-[16px] font-medium tracking-[-0.01em] text-[var(--ed-ink)]">Filters</span>
               {jobsQuery.data && (
                 <span className="text-[13px] font-medium text-[var(--ed-ink-faint)] tabular-nums">{jobsQuery.data.total} match{jobsQuery.data.total === 1 ? '' : 'es'}</span>
               )}
             </div>
 
-            <div className="flex flex-col gap-[0.45rem] mb-5">
-              <Label htmlFor="search-location" className={fieldLabel}>Location</Label>
+            <div className="flex flex-col gap-[0.4rem] mb-5">
+              <span className={groupLabel}>Discovered</span>
+              <div className="flex flex-wrap gap-1">
+                {DAYS_PRESETS.map(({ days, label }) => (
+                  <button key={days} type="button" className={pill(daysBack === days)} onClick={() => setDaysBack(days)} aria-pressed={daysBack === days}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-[0.4rem] mb-5">
+              <span className={groupLabel}>Work</span>
+              <div className="flex flex-wrap gap-1">
+                {WORK_SETTING.map(({ value, label }) => (
+                  <button key={label} type="button" className={pill(isRemote === value)} onClick={() => setIsRemote(value)} aria-pressed={isRemote === value}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-[0.4rem] mb-5">
+              <span className={groupLabel}>Verdict</span>
+              <div className="flex flex-wrap gap-1">
+                {VERDICT_ORDER.map((v) => (
+                  <button key={v} type="button" className={pill(verdicts.has(v))} onClick={() => toggleVerdict(v)} aria-pressed={verdicts.has(v)}>
+                    {VERDICT_LABELS[v] ?? v}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-[0.4rem] mb-5">
+              <Label htmlFor="search-location" className={groupLabel}>Location</Label>
               <Input
                 id="search-location"
                 placeholder="e.g. Tel Aviv"
@@ -378,31 +418,19 @@ export default function SearchPage() {
               />
             </div>
 
-            <div className="flex flex-col gap-[0.45rem] mb-5 pt-5 border-t border-[var(--ed-rule)]">
-              <span className={fieldLabel}>Discovered</span>
-              <span className="text-[13px] text-[var(--ed-ink-faint)] leading-[1.5] -mt-1">How far back jobs entered your pool, not their posting date.</span>
-              <div className="flex flex-wrap gap-2">
-                {DAYS_PRESETS.map(({ days, label }) => (
-                  <button key={days} type="button" className={chip(daysBack === days)} onClick={() => setDaysBack(days)} aria-pressed={daysBack === days}>
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
             <button
               type="button"
-              className="text-[13px] font-medium text-[var(--ed-ink-faint)] hover:text-[var(--ed-ink)] mb-5 pt-5 border-t border-[var(--ed-rule)] text-left transition-colors"
+              className="text-[13px] font-medium text-[var(--ed-ink-faint)] hover:text-[var(--ed-ink)] mb-5 text-left transition-colors"
               onClick={() => setShowMoreFilters((v) => !v)}
               aria-expanded={showMoreFilters}
             >
-              {showMoreFilters ? '− Fewer filters' : '+ More filters'}
+              {showMoreFilters ? 'Less' : 'More filters'}
             </button>
 
             {showMoreFilters && (
               <>
-                <div className="flex flex-col gap-[0.45rem] mb-5">
-                  <Label htmlFor="min-score" className={fieldLabel}>Min score</Label>
+                <div className="flex flex-col gap-[0.4rem] mb-5">
+                  <Label htmlFor="min-score" className={groupLabel}>Min score</Label>
                   <Input
                     id="min-score"
                     type="number"
@@ -415,22 +443,11 @@ export default function SearchPage() {
                   />
                 </div>
 
-                <div className="flex flex-col gap-[0.45rem] mb-5">
-                  <span className={fieldLabel}>Verdict</span>
-                  <div className="flex flex-wrap gap-2">
-                    {VERDICT_ORDER.map((v) => (
-                      <button key={v} type="button" className={chip(verdicts.has(v))} onClick={() => toggleVerdict(v)} aria-pressed={verdicts.has(v)}>
-                        {VERDICT_LABELS[v] ?? v}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="flex flex-col gap-[0.45rem] mb-6">
-                  <span className={fieldLabel}>Seniority</span>
-                  <div className="flex flex-wrap gap-2">
+                <div className="flex flex-col gap-[0.4rem] mb-5">
+                  <span className={groupLabel}>Seniority</span>
+                  <div className="flex flex-wrap gap-1">
                     {JOB_LEVELS.map((level) => (
-                      <button key={level} type="button" className={chip(levels.has(level))} onClick={() => toggleLevel(level)} aria-pressed={levels.has(level)}>
+                      <button key={level} type="button" className={pill(levels.has(level))} onClick={() => toggleLevel(level)} aria-pressed={levels.has(level)}>
                         {level}
                       </button>
                     ))}
@@ -439,11 +456,13 @@ export default function SearchPage() {
               </>
             )}
 
-            <div className="flex flex-col items-stretch gap-2 pt-5 border-t border-[var(--ed-rule-strong)]">
-              <button type="button" className={ED_GHOST} onClick={clearFilters}>
-                Clear filters
-              </button>
-            </div>
+            {hasActiveFilters && (
+              <div className="flex flex-col items-stretch gap-2">
+                <button type="button" className={ED_GHOST} onClick={clearFilters}>
+                  Clear filters
+                </button>
+              </div>
+            )}
             {jobsQuery.isError && (
               <div className="mt-4 p-3 bg-[var(--ed-no)]/10 text-[var(--ed-no)] text-[13px] border border-[var(--ed-no)]/30">
                 {(jobsQuery.error as Error).message}
@@ -451,8 +470,8 @@ export default function SearchPage() {
             )}
           </aside>
 
-          {/* Results — 4 of 5 columns. */}
-          <div className="col-span-4 min-w-0 max-[900px]:col-span-1">
+          {/* Results. */}
+          <div className="flex-1 min-w-0">
             <section>
               {jobsQuery.isLoading ? (
                 <p className="ed-display italic text-center text-[var(--ed-ink-faint)] py-12 text-[16px] border-t border-[var(--ed-rule-strong)]">

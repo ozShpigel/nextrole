@@ -58,8 +58,8 @@ export default function App() {
       <nav data-app-nav className="bg-background/80 backdrop-blur-[20px] border-b border-border sticky top-0 z-50">
         <div className="max-w-[1100px] mx-auto px-6 flex items-center justify-between gap-3 h-14">
           <NavLink to="/" className="shrink-0 inline-flex items-center gap-[0.4rem] font-serif font-bold text-[1rem] text-foreground tracking-[-0.01em] transition-opacity hover:opacity-75">
-            <BrandMark size={15} className="text-primary" />
-            NextRole<span className="text-primary" aria-hidden="true">.</span>
+            <BrandMark size={24} className="text-foreground" />
+            NextRole
           </NavLink>
           {/* min-w-0 lets this shrink below its content width inside the flex
               row instead of forcing the whole page to scroll horizontally;

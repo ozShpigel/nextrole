@@ -28,9 +28,12 @@ describe("LandingPage", () => {
     expect(window.location.search).toBe("?upload=1");
   });
 
-  it("renders the footer monogram", () => {
+  it("renders the footer line with a GitHub link", () => {
     const { container } = renderWithRouter(<Landing />);
     expect(container.querySelector("footer")).toBeInTheDocument();
-    expect(screen.getByText("R")).toBeInTheDocument();
+    const githubLink = screen.getByRole("link", { name: "GitHub" });
+    expect(githubLink).toHaveAttribute("href", "https://github.com/ozShpigel/nextrole");
+    expect(githubLink).toHaveAttribute("target", "_blank");
+    expect(githubLink).toHaveAttribute("rel", "noopener noreferrer");
   });
 });

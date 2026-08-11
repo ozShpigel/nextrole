@@ -134,8 +134,8 @@
 
 /* ============================================================
    Forest Ledger — the app's scoped sub-theme (Glassdoor-inspired
-   modern refresh of the old broadsheet): deep forest ink + vivid
-   emerald accents on warm porcelain, rounded surfaces, grotesque
+   modern refresh of the old broadsheet): deep forest ink + a quiet
+   bone accent on warm porcelain, rounded surfaces, grotesque
    display type. All colors live as --ed-* design tokens so the
    look adapts to light/dark and never leaks hardcoded hex into
    the JSX. (Token names kept from the broadsheet era.)
@@ -148,8 +148,8 @@
   --ed-ink-faint:    #7e8b83;   /* captions, metadata       */
   --ed-rule:         #e2e4dd;   /* hairline rule            */
   --ed-rule-strong:  #14382a;   /* heavy masthead rule      */
-  --ed-accent:       #0e8a4f;   /* emerald accent           */
-  --ed-accent-deep:  #0a5c37;
+  --ed-accent:       #6b6152;   /* bone accent, darkened for contrast on porcelain */
+  --ed-accent-deep:  #514a3d;
   --ed-yes:          #35935e;   /* success green            */
   --ed-no:           #c94a3d;   /* warm signal red          */
   --ed-gold:         #a1780f;   /* amber caution            */
@@ -165,14 +165,14 @@
   --ed-ink-faint:    #6b6b70;
   --ed-rule:         rgba(255, 255, 255, 0.1);
   --ed-rule-strong:  rgba(255, 255, 255, 0.22);
-  --ed-accent:       #2be08f;
-  --ed-accent-deep:  #7ef2bd;
+  --ed-accent:       #e8e3d9;   /* bone accent               */
+  --ed-accent-deep:  #d8d0c0;
   --ed-yes:          #6fbe8d;   /* unchanged — semantic, not part of the noir shift */
   --ed-no:           #ec8878;
   --ed-gold:         #d5ab4d;   /* kept distinct from accent — still means "caution" */
 }
 
-/* atmosphere: soft emerald glow bleeding from the top + whisper of
+/* atmosphere: soft accent-tinted glow bleeding from the top + whisper of
    noise so large canvases don't read flat (decorative, full-bleed) */
 .editorial-grain::before {
   content: "";
@@ -214,7 +214,7 @@
 .editorial input, .editorial select, .editorial textarea { border-radius: 0.7rem; }
 /* the broadsheet's engraved double rules become one confident bar */
 .editorial .border-double { border-style: solid; }
-/* selection tint in brand green */
+/* selection tint in the accent */
 .editorial ::selection {
   background: color-mix(in oklab, var(--ed-accent) 28%, transparent);
 }
@@ -294,35 +294,6 @@ html::-webkit-scrollbar-button, .ed-scroll::-webkit-scrollbar-button { display: 
     radial-gradient(50% 42% at 50% 95%, color-mix(in oklab, var(--ed-accent) 9%, transparent), transparent 76%);
 }
 
-/* Brand mark — a faceted gem (BrandMark.tsx): four currentColor triangles
-   slowly rotate as a whole while each facet's opacity glints on a staggered
-   delay, so light appears to travel across the facets as it turns.
-   currentColor-driven so it works both in the neutral nav (text-primary)
-   and inside .editorial pages (text-[var(--ed-accent)]). */
-@keyframes nr-gem-spin { to { transform: rotate(360deg); } }
-@keyframes nr-gem-glint {
-  0%, 100% { opacity: .3; }
-  50%      { opacity: 1; }
-}
-.nr-gem {
-  animation: nr-gem-spin 13s linear infinite;
-  transform-origin: 50% 50%;
-}
-.nr-gem-facet {
-  animation: nr-gem-glint 3.2s ease-in-out infinite;
-}
-.nr-gem-facet:nth-child(1) { animation-delay: 0s; }
-.nr-gem-facet:nth-child(2) { animation-delay: .4s; }
-.nr-gem-facet:nth-child(3) { animation-delay: .8s; }
-.nr-gem-facet:nth-child(4) { animation-delay: 1.2s; }
-
-@keyframes nr-mono-breathe { 0%, 100% { color: var(--ed-ink); } 50% { color: var(--ed-accent); } }
-.nr-footer-mono { animation: nr-mono-breathe 6s ease-in-out infinite; }
-
 @media (prefers-reduced-motion: reduce) {
   .home-atmosphere::after { animation: none; }
-  .nr-gem { animation: none; }
-  .nr-gem-facet { animation: none; opacity: .75; }
-  .nr-gem-facet:nth-child(1), .nr-gem-facet:nth-child(2) { opacity: 1; }
-  .nr-footer-mono { animation: none; color: var(--ed-ink); }
 }

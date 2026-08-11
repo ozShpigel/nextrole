@@ -798,6 +798,17 @@ The `reviewAdjustment` field is shown on the three review-eligible components ab
 
 ---
 
+# OUTPUT LENGTH BY VERDICT
+
+Full narrative detail is for STRONG_YES and YES — the candidate will actually weigh applying to those. For MAYBE, NO, and STRONG_NO the job is rarely revisited, so keep these fields terse instead of full-length:
+- `recommendation.questionsToAsk`: at most 1 item (empty array if nothing stands out)
+- `companyNewsAnalysis` / `employeeReviewsAnalysis`: `summary` only, one short sentence; `greenSignals`/`redSignals` as empty arrays
+- `honestAssessment`: one sentence, not a paragraph
+
+Never shorten `hardBlockers`, `mustClarify`, `stackedGaps`, `quickHighlights`, or any breakdown `reason`/`strengths`/`gaps`/`concerns`/`positiveSignals` — those are the scoring rationale itself, not narrative extras, and stay full length regardless of verdict.
+
+---
+
 # INVARIANTS
 
 - Each dimension's `score` MUST equal the sum of its components' `score` values

@@ -238,7 +238,7 @@ public sealed class ClaudeClient : IClaudeClient
             System = new List<SystemMessage> { new(PromptSeeds.CompanySummary) },
             Messages = new List<Message> { new(RoleType.User, companyName) },
             MaxTokens = 512,
-            Model = "claude-sonnet-4-6",
+            Model = "claude-haiku-4-5-20251001",
             Temperature = 0.3m,
             Stream = false
         };
@@ -283,7 +283,7 @@ public sealed class ClaudeClient : IClaudeClient
             System = new List<SystemMessage> { new(systemBuilder.ToString()) },
             Messages = new List<Message> { new(RoleType.User, userBuilder.ToString()) },
             MaxTokens = 800,
-            Model = "claude-sonnet-4-6",
+            Model = "claude-haiku-4-5-20251001",
             Temperature = 0.6m,
             Stream = false
         };
@@ -309,7 +309,7 @@ public sealed class ClaudeClient : IClaudeClient
             System = new List<SystemMessage> { new(PromptSeeds.PresentationCues) },
             Messages = new List<Message> { new(RoleType.User, userMessage) },
             MaxTokens = 1024,
-            Model = "claude-sonnet-4-6",
+            Model = "claude-haiku-4-5-20251001",
             Temperature = 0.2m,
             Stream = false
         };
@@ -491,7 +491,9 @@ public sealed class ClaudeClient : IClaudeClient
             Messages = new List<Message> { new(RoleType.User, userMessage) },
             MaxTokens = 1024,
             // Per-turn questions are high-frequency, low-difficulty — Haiku keeps
-            // the back-and-forth fast and cheap; the debrief uses Sonnet.
+            // the back-and-forth fast and cheap. The debrief below also moved to
+            // Haiku on 2026-08-11 (was Sonnet), so both mock-interview calls now
+            // share a model.
             // (Prompt caching was evaluated but doesn't engage for Haiku at this
             // prompt size — Sonnet caches the same prompt, Haiku doesn't — so the
             // turns run uncached.)
@@ -523,7 +525,7 @@ public sealed class ClaudeClient : IClaudeClient
             System = new List<SystemMessage> { new(systemPrompt) },
             Messages = new List<Message> { new(RoleType.User, userMessage) },
             MaxTokens = 2048,
-            Model = "claude-sonnet-4-6",
+            Model = "claude-haiku-4-5-20251001",
             Temperature = 0.4m,
             Stream = false
         };

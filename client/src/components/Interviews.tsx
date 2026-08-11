@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
+import { DateTimePicker } from '@/components/ui/date-time-picker';
 
 interface InterviewListProps {
   interviews: Interview[];
@@ -161,7 +162,7 @@ export function InterviewModal({ appId, interview, onClose, onSaved }: Interview
         </div>
         <div className="mb-5">
           <Label>Date & Time</Label>
-          <Input type="datetime-local" value={form.scheduledAt} onChange={(e: React.ChangeEvent<HTMLInputElement>) => update('scheduledAt', e.target.value)} className="mt-1.5" />
+          <DateTimePicker value={form.scheduledAt} onChange={(v) => update('scheduledAt', v)} className="mt-1.5" />
         </div>
         <div className="mb-5">
           <Label>Interviewer</Label>

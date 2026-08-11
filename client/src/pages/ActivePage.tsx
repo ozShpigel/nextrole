@@ -1,12 +1,12 @@
 import { useMemo, useState, type ReactNode } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Sparkles, RefreshCw, ExternalLink, X } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Sparkles, RefreshCw, ExternalLink, X, Link as LinkIcon, MoveRight } from 'lucide-react';
 import { useApplications, useDemoMode, DEMO_DISABLED_TITLE } from '../lib/queries';
-import { useGeneratePack, useUpdateAppStatus, useDeleteApplication } from '../lib/mutations';
+import { useGeneratePack, useUpdateAppStatus } from '../lib/mutations';
 import { verdictLabel, formatDate, formatTime } from '../lib/format';
-import ConfirmDialog from '../components/ConfirmDialog';
 import { CompanyAvatar } from '../components/CompanyAvatar';
-import { StatusBadge } from '../components/Status';
+import { StatusBadge, StatusModal } from '../components/Status';
+import { ImportJobModal } from '../components/ImportJobModal';
 
 interface Application {
   id: string;
@@ -67,7 +67,7 @@ const ED_GHOST = `${ED_BTN} border-[var(--ed-rule)] text-[var(--ed-ink-soft)] ho
 function Card({ app, index, muted, children }: { app: Application; index: number; muted?: boolean; children: ReactNode }) {
   return (
     <article
-      className={`ed-rise flex flex-col gap-3 border border-[var(--ed-rule)] bg-[var(--ed-panel)]/40 p-5 transition-colors hover:border-[var(--ed-ink-faint)] ${muted ? 'opacity-55 hover:opacity-90 transition-opacity' : ''}`}
+      className={`ed-rise group flex flex-col gap-3 border border-[var(--ed-rule)] bg-[var(--ed-panel)]/40 p-5 transition-colors hover:border-[var(--ed-ink-faint)] ${muted ? 'opacity-55 hover:opacity-90 transition-opacity' : ''}`}
       style={{ animationDelay: `${Math.min(index, 10) * 60}ms` }}
     >
       <div className="flex items-start gap-3">
@@ -108,7 +108,10 @@ function Column(
   );
 }
 
-function AppliedCard({ app, index, muted }: { app: Application; index: number; muted?: boolean }) {
+function AppliedCard(
+  { app, index, muted, demoMode, onMoveToProcess }:
+  { app: Application; index: number; muted?: boolean; demoMode: boolean; onMoveToProcess: (app: Application) => void },
+) {
   const days = daysSince(app.appliedAt ?? app.updatedAt ?? app.createdAt);
   return (
     <Card app={app} index={index} muted={muted}>
@@ -117,18 +120,28 @@ function AppliedCard({ app, index, muted }: { app: Application; index: number; m
           Applied {days === 0 ? 'today' : `${days}d ago`}
         </span>
       )}
+      <button
+        type="button"
+        disabled={demoMode}
+        title={demoMode ? DEMO_DISABLED_TITLE : 'Mark as interviewing'}
+        className={`${ED_GHOST} text-[0.64rem] px-3 py-[0.45rem] ml-auto inline-flex items-center gap-[0.35rem]`}
+        onClick={() => onMoveToProcess(app)}
+      >
+        <MoveRight size={12} aria-hidden="true" />
+        In Process
+      </button>
       {app.jobUrl ? (
         <a
           href={app.jobUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className={`${ED_GHOST} text-[0.64rem] px-3 py-[0.45rem] ml-auto inline-flex items-center gap-[0.35rem]`}
+          className={`${ED_GHOST} text-[0.64rem] px-3 py-[0.45rem] inline-flex items-center gap-[0.35rem]`}
         >
           <ExternalLink size={12} aria-hidden="true" />
           View Job
         </a>
       ) : (
-        <button type="button" disabled title="Job link unavailable" className={`${ED_GHOST} text-[0.64rem] px-3 py-[0.45rem] ml-auto`}>
+        <button type="button" disabled title="Job link unavailable" className={`${ED_GHOST} text-[0.64rem] px-3 py-[0.45rem]`}>
           View Job
         </button>
       )}
@@ -142,8 +155,8 @@ export default function ActivePage() {
   const demoMode = useDemoMode();
   const generatePack = useGeneratePack();
   const updateStatus = useUpdateAppStatus();
-  const deleteApp = useDeleteApplication();
-  const [deleteTarget, setDeleteTarget] = useState<{ id: string; jobUrl: string | null } | null>(null);
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [statusTarget, setStatusTarget] = useState<{ id: string; status: string } | null>(null);
 
   const { added, ready, appliedFresh, appliedStale, inProcess } = useMemo(() => {
     const all = apps as Application[];
@@ -181,15 +194,15 @@ export default function ActivePage() {
     );
   }
 
-  function RemoveButton({ appId, company, jobUrl }: { appId: string; company: string; jobUrl: string | null }) {
+  function RemoveButton({ appId, company }: { appId: string; company: string }) {
     return (
       <button
         type="button"
         disabled={demoMode}
-        title={demoMode ? DEMO_DISABLED_TITLE : 'Remove'}
-        aria-label={`Remove application at ${company}`}
-        className="ml-auto w-6 h-6 flex items-center justify-center text-[var(--ed-ink-faint)] hover:text-[var(--ed-no)] transition-colors disabled:opacity-40 disabled:pointer-events-none"
-        onClick={() => setDeleteTarget({ id: appId, jobUrl })}
+        title={demoMode ? DEMO_DISABLED_TITLE : 'Remove from board (marks Withdrawn)'}
+        aria-label={`Remove application at ${company} from board`}
+        className="ml-auto w-6 h-6 flex items-center justify-center text-[var(--ed-ink-faint)] hover:text-[var(--ed-no)] transition-[color,opacity] disabled:opacity-40 disabled:pointer-events-none opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+        onClick={() => updateStatus.mutate({ appId, newStatus: 'Withdrawn' })}
       >
         <X size={13} aria-hidden="true" />
       </button>
@@ -206,15 +219,33 @@ export default function ActivePage() {
 
   return (
     <div className="editorial editorial-grain min-h-[calc(100vh-56px)] animate-in fade-in slide-in-from-bottom-1 duration-300">
-      <div className="relative z-[1] max-w-[1100px] mx-auto px-8 pt-12 pb-16 max-[640px]:px-5 max-[640px]:pt-8">
+      <div className="relative z-[1] max-w-[1100px] mx-auto px-4 pt-12 pb-16 max-[640px]:pt-8">
         <header className="mb-9">
+          <Link
+            to="/search"
+            className="text-[var(--ed-accent)] cursor-pointer text-[0.72rem] font-semibold uppercase tracking-[0.12em] mb-4 inline-flex items-center gap-[0.4rem] transition-all hover:-translate-x-[3px]"
+          >
+            &larr; Back to Matches
+          </Link>
           <div className="flex items-baseline justify-between gap-4 pb-[10px] border-b border-[var(--ed-rule)] text-[0.62rem] font-semibold uppercase tracking-[0.22em] text-[var(--ed-ink-faint)]">
             <span>Active</span>
             <span className="tabular-nums">{TODAY}</span>
           </div>
-          <h1 className="ed-display font-black text-[clamp(2.4rem,6vw,4rem)] leading-[0.92] tracking-[-0.02em] text-[var(--ed-ink)] pt-4">
-            Active
-          </h1>
+          <div className="flex items-end justify-between gap-4 pt-4 flex-wrap">
+            <h1 className="ed-display font-black text-[clamp(2.4rem,6vw,4rem)] leading-[0.92] tracking-[-0.02em] text-[var(--ed-ink)]">
+              Active
+            </h1>
+            <button
+              type="button"
+              disabled={demoMode}
+              title={demoMode ? DEMO_DISABLED_TITLE : undefined}
+              className={`${ED_GHOST} text-[0.64rem] px-3 py-[0.45rem] mb-1 inline-flex items-center gap-[0.35rem]`}
+              onClick={() => setShowImportModal(true)}
+            >
+              <LinkIcon size={12} aria-hidden="true" />
+              Import Job
+            </button>
+          </div>
           <div className="mt-5 border-t-[3px] border-double border-[var(--ed-rule-strong)]" />
         </header>
 
@@ -238,7 +269,7 @@ export default function ActivePage() {
                     Generate Pack
                   </button>
                   <IAppliedLink appId={a.id} />
-                  <RemoveButton appId={a.id} company={a.company} jobUrl={a.jobUrl} />
+                  <RemoveButton appId={a.id} company={a.company} />
                 </Card>
               ))}
             </Column>
@@ -261,13 +292,15 @@ export default function ActivePage() {
                     Regenerate
                   </button>
                   <IAppliedLink appId={a.id} />
-                  <RemoveButton appId={a.id} company={a.company} jobUrl={a.jobUrl} />
+                  <RemoveButton appId={a.id} company={a.company} />
                 </Card>
               ))}
             </Column>
 
             <Column label="Applied" count={appliedFresh.length} isEmpty={appliedFresh.length === 0 && appliedStale.length === 0} emptyText="Nothing applied yet.">
-              {appliedFresh.map((a, i) => <AppliedCard key={a.id} app={a} index={i} />)}
+              {appliedFresh.map((a, i) => (
+                <AppliedCard key={a.id} app={a} index={i} demoMode={demoMode} onMoveToProcess={(app) => setStatusTarget({ id: app.id, status: app.status })} />
+              ))}
               {appliedStale.length > 0 && (
                 <details className="mt-1 group">
                   <summary className="cursor-pointer list-none inline-flex items-baseline gap-[0.6rem] py-[0.4rem] text-[var(--ed-ink-faint)] hover:text-[var(--ed-ink-soft)] transition-colors">
@@ -276,7 +309,9 @@ export default function ActivePage() {
                     <span className="text-[0.62rem] text-[var(--ed-ink-faint)]/70 tabular-nums">· {appliedStale.length} silent {APPLIED_STALE_DAYS}d+</span>
                   </summary>
                   <div className="flex flex-col gap-4 border-t border-[var(--ed-rule)] pt-4 mt-1">
-                    {appliedStale.map((a, i) => <AppliedCard key={a.id} app={a} index={i} muted />)}
+                    {appliedStale.map((a, i) => (
+                      <AppliedCard key={a.id} app={a} index={i} muted demoMode={demoMode} onMoveToProcess={(app) => setStatusTarget({ id: app.id, status: app.status })} />
+                    ))}
                   </div>
                 </details>
               )}
@@ -298,12 +333,22 @@ export default function ActivePage() {
                       href={a.jobUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className={`${ED_GHOST} text-[0.64rem] px-3 py-[0.45rem] ml-auto inline-flex items-center gap-[0.35rem]`}
+                      className={`${ED_GHOST} text-[0.64rem] px-3 py-[0.45rem] inline-flex items-center gap-[0.35rem]`}
                     >
                       <ExternalLink size={12} aria-hidden="true" />
                       View Job
                     </a>
                   )}
+                  <button
+                    type="button"
+                    disabled={demoMode}
+                    title={demoMode ? DEMO_DISABLED_TITLE : 'Close out — mark Rejected or Withdrawn'}
+                    aria-label={`Close out application at ${a.company}`}
+                    className="ml-auto w-6 h-6 flex items-center justify-center text-[var(--ed-ink-faint)] hover:text-[var(--ed-no)] transition-[color,opacity] disabled:opacity-40 disabled:pointer-events-none opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+                    onClick={() => setStatusTarget({ id: a.id, status: a.status })}
+                  >
+                    <X size={13} aria-hidden="true" />
+                  </button>
                 </Card>
               ))}
             </Column>
@@ -311,15 +356,16 @@ export default function ActivePage() {
         )}
       </div>
 
-      <ConfirmDialog
-        open={!!deleteTarget}
-        description="Remove this application? All interviews and notes will also be deleted."
-        onConfirm={() => {
-          if (deleteTarget) deleteApp.mutate(deleteTarget);
-          setDeleteTarget(null);
-        }}
-        onCancel={() => setDeleteTarget(null)}
-      />
+      {showImportModal && <ImportJobModal onClose={() => setShowImportModal(false)} />}
+
+      {statusTarget && (
+        <StatusModal
+          appId={statusTarget.id}
+          currentStatus={statusTarget.status}
+          onClose={() => setStatusTarget(null)}
+          onSaved={() => setStatusTarget(null)}
+        />
+      )}
     </div>
   );
 }

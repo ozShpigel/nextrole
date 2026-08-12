@@ -34,5 +34,3 @@ jobs:
           build-args: |
             VITE_SCRAPER_URL=${{ vars.VITE_SCRAPER_URL }}
             VITE_API_URL=${{ vars.VITE_API_URL }}
-      - name: Deploy to Render
-        run: curl -s "${{ secrets.RENDER_DEPLOY_HOOK_FRONTEND }}"

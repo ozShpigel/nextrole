@@ -31,7 +31,3 @@ jobs:
           file: server/api/Dockerfile
           push: true
           tags: ghcr.io/${{ env.OWNER }}/${{ env.IMAGE_NAME }}:latest
-      - name: Deploy to Render (demo)
-        run: curl -s "${{ secrets.RENDER_DEPLOY_HOOK_API }}"
-      - name: Deploy to Render (private)
-        run: curl -s "${{ secrets.RENDER_DEPLOY_HOOK_API_PRIVATE }}"

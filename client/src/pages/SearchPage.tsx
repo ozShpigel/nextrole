@@ -187,9 +187,9 @@ function MatchCard({ job, index, expanded, saved, dismissed, demoMode, demoTitle
 
         <MatchScore job={job} />
 
-        <div className="shrink-0 flex gap-2 items-center" onClick={(e) => e.stopPropagation()}>
+        <div className="shrink-0 flex gap-2 items-center justify-end w-[7rem]" onClick={(e) => e.stopPropagation()}>
           {!saved && !dismissed && (
-            <button type="button" disabled={demoMode} title={demoTitle} className={`${ED_BTN} border-[var(--ed-accent)] text-[var(--ed-accent)] hover:bg-[var(--ed-accent)] hover:text-[var(--ed-paper)] px-3 py-[0.4rem] disabled:cursor-not-allowed`} onClick={() => onSave(job.id)}>Add</button>
+            <button type="button" disabled={demoMode} title={demoTitle} className={`${ED_BTN} border-[var(--ed-accent)] text-[var(--ed-accent)] hover:bg-[var(--ed-accent)] hover:text-[var(--ed-paper)] disabled:cursor-not-allowed`} onClick={() => onSave(job.id)}>Add</button>
           )}
           {!saved && !dismissed && (
             <button
@@ -203,8 +203,8 @@ function MatchCard({ job, index, expanded, saved, dismissed, demoMode, demoTitle
               <X className="w-4 h-4" strokeWidth={2.5} />
             </button>
           )}
-          {saved && <span className="text-[13px] font-medium text-[var(--ed-ink-faint)] py-[0.35rem] px-[0.6rem] border border-[var(--ed-rule)]">Added</span>}
-          {dismissed && <span className="text-[13px] font-medium text-[var(--ed-ink-faint)] py-[0.35rem] px-[0.6rem] border border-[var(--ed-rule)]">Dismissed</span>}
+          {saved && <span className="rounded-full border border-[var(--ed-rule)] px-4 py-[0.5rem] text-[13px] font-medium text-[var(--ed-ink-faint)]">Added</span>}
+          {dismissed && <span className="rounded-full border border-[var(--ed-rule)] px-4 py-[0.5rem] text-[13px] font-medium text-[var(--ed-ink-faint)]">Dismissed</span>}
         </div>
       </div>
 

@@ -202,10 +202,19 @@
    every editorial page inherits the refresh without per-page
    markup churn. Selectors key off the --ed-* utility classes.
    ------------------------------------------------------------ */
-/* any panel-surfaced box (incl. hover-surfaced list rows) */
-.editorial [class*="bg-[var(--ed-panel)"] { border-radius: 0.9rem; }
+/* Any panel-surfaced box gets rounded — but only a *standalone*
+   bg-[var(--ed-panel)... token, matched at a class-boundary (preceded by
+   a space, or string-start). A plain substring match (the previous
+   [class*="bg-[var(--ed-panel)"] form) also matched inside
+   hover:bg-[var(--ed-panel)]/50 — Tailwind glues the variant prefix
+   directly onto the utility with no space, so that "matched" a row that
+   only gets the panel tint on hover, rounding its border permanently
+   (visible as a curved divider on dense list rows even when not
+   hovered). Dense list rows (Matches, Applications, Dashboard) are
+   flat-bordered by design and were never meant to round here. */
+.editorial :is([class*=" bg-[var(--ed-panel)"], [class^="bg-[var(--ed-panel)"]) { border-radius: 0.9rem; }
 /* boxes that are real cards (border + panel fill) get soft elevation */
-.editorial [class*="border-[var(--ed-rule)]"][class*=" bg-[var(--ed-panel)"] {
+.editorial [class*="border-[var(--ed-rule)]"]:is([class*=" bg-[var(--ed-panel)"], [class^="bg-[var(--ed-panel)"]) {
   box-shadow: 0 1px 2px rgb(10 30 20 / 0.04), 0 10px 28px -18px rgb(10 30 20 / 0.14);
 }
 /* dashed empty-states */

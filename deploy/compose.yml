@@ -1,0 +1,66 @@
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./data/caddy:/data
+
+  api:
+    image: ghcr.io/ozshpigel/api:latest
+    restart: unless-stopped
+    env_file: [.env.api]
+    environment:
+      - DOTNET_gcServer=0
+
+  scraper:
+    image: ghcr.io/ozshpigel/scraper:latest
+    restart: unless-stopped
+    env_file: [.env.scraper]
+    environment:
+      - API_BASE_URL=http://api:8080
+
+  client:
+    image: ghcr.io/ozshpigel/frontend-private:latest
+    restart: unless-stopped
+    env_file: [.env.client]
+    volumes:
+      - ./.htpasswd:/etc/secrets/.htpasswd:ro
+      - ./default.conf.template:/etc/nginx/templates/default.conf.template:ro
+
+  demo-api:
+    image: ghcr.io/ozshpigel/api:latest
+    restart: unless-stopped
+    env_file: [.env.demo-api]
+    environment:
+      - DOTNET_gcServer=0
+
+  demo-scraper:
+    image: ghcr.io/ozshpigel/scraper:latest
+    restart: unless-stopped
+    env_file: [.env.demo-scraper]
+    environment:
+      - API_BASE_URL=http://demo-api:8080
+
+  demo-client:
+    image: ghcr.io/ozshpigel/frontend:latest
+    restart: unless-stopped
+    env_file: [.env.demo-client]
+    volumes:
+      - ./demo.conf.template:/etc/nginx/templates/default.conf.template:ro
+
+  ingest:
+    image: ghcr.io/ozshpigel/scraper:latest
+    profiles: ["cron"]
+    command: python -m app.cli run-all
+    env_file: [.env.scraper]
+    environment:
+      - API_BASE_URL=http://api:8080
+
+  mailbot:
+    image: ghcr.io/ozshpigel/mailbot:latest
+    profiles: ["cron"]
+    env_file: [.env.mailbot]
+    environment:
+      - Tracker__BaseUrl=http://api:8080

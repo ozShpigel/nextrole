@@ -39,3 +39,7 @@ blob-report/
 # OS
 .DS_Store
 Thumbs.db
+# deploy secrets
+.env.*
+!.env.example
+.htpasswd

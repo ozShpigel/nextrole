@@ -1,0 +1,7 @@
+nextrole.cloud, www.nextrole.cloud {
+    reverse_proxy demo-client:80
+}
+
+private.nextrole.cloud {
+    reverse_proxy client:80
+}

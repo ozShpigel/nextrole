@@ -1,0 +1,113 @@
+server {
+    listen 80;
+    root /usr/share/nginx/html;
+    index index.html;
+
+    # Security headers
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "DENY" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://*.onrender.com; img-src 'self' data: https:; font-src 'self'; object-src 'self';" always;
+
+    resolver 127.0.0.11 valid=30s;
+
+    # Single unified backend — match + tracker endpoints live on the same API.
+    set $upstream_api ${API_URL};
+    set $upstream_scraper ${SCRAPER_URL};
+
+    # Unified API: applications, interviews, notes, stats, AND /api/match.
+    location /api/match {
+        proxy_pass $upstream_api;
+        proxy_ssl_server_name on;
+        proxy_set_header Host $proxy_host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+
+    # Résumé PDF, rendered inline via <embed> on the Profile page. The
+    # server-level X-Frame-Options: DENY (inherited into /api/match above)
+    # blocks ALL framing, same-origin included — an add_header in a location
+    # replaces the whole inherited set rather than merging, so every header
+    # below has to be re-declared, with this one route's X-Frame-Options
+    # relaxed to SAMEORIGIN.
+    location = /api/match/profile/resume-file/download {
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header X-Frame-Options "SAMEORIGIN" always;
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+        add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://*.onrender.com; img-src 'self' data: https:; font-src 'self'; object-src 'self';" always;
+        proxy_pass $upstream_api;
+        proxy_ssl_server_name on;
+        proxy_set_header Host $proxy_host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+
+    location /api/applications {
+        proxy_pass $upstream_api;
+        proxy_ssl_server_name on;
+        proxy_set_header Host $proxy_host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+
+    location /api/stats {
+        proxy_pass $upstream_api;
+        proxy_ssl_server_name on;
+        proxy_set_header Host $proxy_host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+
+    location /api/interviews/ {
+        proxy_pass $upstream_api;
+        proxy_ssl_server_name on;
+        proxy_set_header Host $proxy_host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+
+    location /api/notes/ {
+        proxy_pass $upstream_api;
+        proxy_ssl_server_name on;
+        proxy_set_header Host $proxy_host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+
+    location /api/messages {
+        proxy_pass $upstream_api;
+        proxy_ssl_server_name on;
+        proxy_set_header Host $proxy_host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+
+    # Scraper — /api/discovery/health is a lightweight warm-up probe that
+    # rewrites to the service's /health. The frontend hits this on mount so
+    # Render can spin the free-tier instance back up before real data calls fire.
+    location = /api/discovery/health {
+        rewrite ^/api/discovery/health$ /health break;
+        proxy_pass $upstream_scraper;
+        proxy_ssl_server_name on;
+        proxy_http_version 1.1;
+        proxy_set_header Host $proxy_host;
+        proxy_set_header Connection "";
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_connect_timeout 30s;
+        proxy_send_timeout 120s;
+        proxy_read_timeout 120s;
+    }
+
+    # Scraper API
+    # Generous timeouts because Render free tier cold-starts can take 30–90s;
+    # Render's router holds the TCP connection while the service wakes, so
+    # proxy_read_timeout must outlast the slowest cold start we've observed.
+    location /api/discovery {
+        proxy_pass $upstream_scraper;
+        proxy_ssl_server_name on;
+        proxy_http_version 1.1;
+        proxy_set_header Host $proxy_host;
+        proxy_set_header Connection "";
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_connect_timeout 30s;
+        proxy_send_timeout 300s;
+        proxy_read_timeout 300s;
+    }
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}

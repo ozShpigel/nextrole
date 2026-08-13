@@ -27,7 +27,6 @@ services:
     env_file: [.env.client]
     volumes:
       - ./.htpasswd:/etc/secrets/.htpasswd:ro
-      - ./default.conf.template:/etc/nginx/templates/default.conf.template:ro
 
   demo-api:
     image: ghcr.io/ozshpigel/api:latest
@@ -47,8 +46,6 @@ services:
     image: ghcr.io/ozshpigel/frontend:latest
     restart: unless-stopped
     env_file: [.env.demo-client]
-    volumes:
-      - ./demo.conf.template:/etc/nginx/templates/default.conf.template:ro
 
   ingest:
     image: ghcr.io/ozshpigel/scraper:latest

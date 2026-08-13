@@ -31,3 +31,13 @@ jobs:
           file: server/api/Dockerfile
           push: true
           tags: ghcr.io/${{ env.OWNER }}/${{ env.IMAGE_NAME }}:latest
+      - name: Deploy to server
+        uses: appleboy/ssh-action@v1
+        with:
+          host: 62.238.100.118
+          username: root
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            cd /srv/nextrole
+            docker compose pull api demo-api
+            docker compose up -d --force-recreate api demo-api    

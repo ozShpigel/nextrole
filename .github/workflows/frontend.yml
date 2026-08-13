@@ -34,3 +34,13 @@ jobs:
           build-args: |
             VITE_SCRAPER_URL=${{ vars.VITE_SCRAPER_URL }}
             VITE_API_URL=${{ vars.VITE_API_URL }}
+      - name: Deploy to server
+        uses: appleboy/ssh-action@v1
+        with:
+          host: 62.238.100.118
+          username: root
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            cd /srv/nextrole
+            docker compose pull demo-client
+            docker compose up -d --force-recreate demo-client      

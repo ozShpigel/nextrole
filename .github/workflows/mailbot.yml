@@ -32,5 +32,12 @@ jobs:
           file: server/mailbot/Dockerfile
           push: true
           tags: ghcr.io/${{ env.OWNER }}/${{ env.IMAGE_NAME }}:latest
-      # No Render deploy hook: Render Cron Jobs pull the latest image on their
-      # next scheduled run, so pushing to ghcr.io is enough to ship a new build.
+      - name: Deploy to server
+        uses: appleboy/ssh-action@v1
+        with:
+          host: 62.238.100.118
+          username: root
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            cd /srv/nextrole
+            docker compose --profile cron pull mailbot

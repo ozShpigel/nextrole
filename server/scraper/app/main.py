@@ -86,7 +86,7 @@ async def lifespan(app: FastAPI):
         logger.info("MongoDB connection closed")
 
 
-app = FastAPI(title="Scraper Service", lifespan=lifespan)
+app = FastAPI(title="Scraper Service", version="0.1.0", lifespan=lifespan)
 
 
 # DEMO_MODE — public demo instance: block every write (criteria/run/job

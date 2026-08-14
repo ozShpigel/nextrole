@@ -338,6 +338,28 @@ async def save_job(job_id: str):
         return {"status": "already_saved"}
 
     match_analysis = doc.get("match_analysis")
+
+    # Upgrade the 4 terse narrative fields to full detail — best-effort, a
+    # one-time on-demand call fired only now that the job is actually being
+    # added (~4% of scored jobs reach this path). A failed/slow call must
+    # never block saving: it falls back to the terse content already stored,
+    # which AnalysisCard renders fine either way (every section guards on
+    # its own field's presence).
+    if match_analysis and match_analysis.get("overallScore") is not None:
+        enriched = await match_client.enrich_narrative(settings, doc)
+        if enriched:
+            match_analysis = {
+                **match_analysis,
+                "honestAssessment": enriched.get("honestAssessment", match_analysis.get("honestAssessment")),
+                "recommendation": {
+                    **(match_analysis.get("recommendation") or {}),
+                    **(enriched.get("recommendation") or {}),
+                },
+                **({"companyNewsAnalysis": enriched["companyNewsAnalysis"]} if enriched.get("companyNewsAnalysis") else {}),
+                **({"employeeReviewsAnalysis": enriched["employeeReviewsAnalysis"]} if enriched.get("employeeReviewsAnalysis") else {}),
+            }
+            await db.discovered_jobs.update_one({"id": job_id}, {"$set": {"match_analysis": match_analysis}})
+
     analysis_json = json.dumps(match_analysis, ensure_ascii=False) if match_analysis else None
 
     saved = await tracker_client.save_to_tracker(

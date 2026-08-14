@@ -155,3 +155,49 @@ async def score_job_batch(settings: Settings, jobs: list[dict]) -> dict[str, dic
         return None
 
 
+async def enrich_narrative(settings: Settings, doc: dict) -> dict | None:
+    """On-demand upgrade of a scored job's narrative fields to full detail —
+    called once from save_job() when the user clicks Add. Scores/verdict/
+    breakdown travel as immutable context; only the 4 narrative fields come
+    back.
+
+    Returns the enrichment response dict, or None on any failure — the
+    caller MUST fail open (save with the terse content already stored) on
+    None, matching the fail-open contract of the other AI-assist calls here.
+    """
+    analysis = doc.get("match_analysis") or {}
+    if analysis.get("overallScore") is None:
+        return None
+    resp = await _request_with_retry(
+        "POST",
+        f"{settings.api_base_url}/api/match/enrich-narrative",
+        settings=settings,
+        timeout=60.0,
+        operation="enrich-narrative",
+        retry_on_timeout=False,
+        json={
+            "jobDescription": doc.get("description") or "",
+            "title": doc.get("title"),
+            "company": doc.get("company"),
+            "companyNews": doc.get("company_news"),
+            "glassdoorData": doc.get("glassdoor_data"),
+            "companyProfile": doc.get("company_profile"),
+            "overallScore": analysis.get("overallScore"),
+            "verdict": analysis.get("verdict"),
+            "breakdown": analysis.get("breakdown"),
+            "hardBlockers": analysis.get("hardBlockers") or [],
+            "mustClarify": analysis.get("mustClarify") or [],
+            "stackedGaps": analysis.get("stackedGaps") or [],
+        },
+    )
+    if resp is None or resp.status_code != 200:
+        logger.warning("Narrative enrichment failed (%s) — saving with terse content",
+                       resp.status_code if resp is not None else "no response")
+        return None
+    try:
+        return resp.json()
+    except Exception as e:
+        logger.warning("Narrative enrichment response unparseable (%s) — saving with terse content", e)
+        return None
+
+

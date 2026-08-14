@@ -24,6 +24,13 @@ public interface IClaudeClient
     // production path too).
     Task<(List<MatchBatchResult> Results, ClaudeCallSnapshot Snapshot)> EvaluateMatchBatchAsync(string profile, IReadOnlyList<EvaluationBatchItem> jobs, CancellationToken cancellationToken = default);
 
+    // On-demand narrative upgrade: fired once when the user clicks Add on a
+    // job scored terse at ingest time. Scores/verdict/breakdown travel as
+    // immutable context and are never recomputed here — only honestAssessment,
+    // recommendation detail, companyNewsAnalysis, and employeeReviewsAnalysis
+    // come back at full detail.
+    Task<NarrativeEnrichResponse> EnrichNarrativeAsync(NarrativeEnrichRequest request, CancellationToken cancellationToken = default);
+
     // One cheap Haiku call per discovery run: flags scraped titles that are
     // clearly off-target for the search intent, so the scraper skips
     // enrichment + scoring for them (lean-permissive — uncertain titles pass).

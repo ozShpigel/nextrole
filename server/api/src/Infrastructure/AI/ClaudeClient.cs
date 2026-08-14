@@ -187,6 +187,18 @@ public sealed class ClaudeClient : IClaudeClient
         public MatchResponse? Response { get; init; }
     }
 
+    public async Task<NarrativeEnrichResponse> EnrichNarrativeAsync(NarrativeEnrichRequest request, CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Enriching narrative for: {Title} at {Company}", request.Title, request.Company);
+
+        var profile = await _profileProvider.GetProfileAsync(cancellationToken);
+        var (systemPrompt, userMessage) = _promptBuilder.BuildNarrativeEnrichmentPrompt(profile, request, PromptSeeds.NarrativeEnrichment);
+
+        var (result, _) = await CallClaudeAsync<NarrativeEnrichResponse>(
+            systemPrompt, userMessage, _scoring.NarrativeEnrichment, "enrich-narrative", cancellationToken);
+        return result;
+    }
+
     public async Task<EmailParseResult?> ParseEmailAsync(
         string subject, string from, string body, List<string> knownCompanies,
         DateTime? referenceDate = null,
@@ -204,14 +216,21 @@ public sealed class ClaudeClient : IClaudeClient
 
         var parameters = new MessageParameters
         {
-            System = new List<SystemMessage> { new(systemPrompt) },
+            // System prompt (known-companies list + reference date) repeats across
+            // every email in a mailbot run — cache it so only the first email per
+            // distinct reference date pays full input price.
+            System = new List<SystemMessage>
+            {
+                new(systemPrompt, new CacheControl { Type = CacheControlType.ephemeral, TTL = CacheDuration.OneHour }),
+            },
             Messages = new List<Message> { new(RoleType.User, userMessage) },
             MaxTokens = 512,
             // Simple structured extraction — Haiku handles it at ~1/3 the cost of
             // Sonnet, and the daily 3d-lookback re-parses every email ~3 times.
             Model = "claude-haiku-4-5-20251001",
             Temperature = 0.3m,
-            Stream = false
+            Stream = false,
+            PromptCaching = PromptCacheType.FineGrained,
         };
 
         var response = await _client.Messages.GetClaudeMessageAsync(parameters, cancellationToken);

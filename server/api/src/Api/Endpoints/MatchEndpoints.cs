@@ -165,6 +165,45 @@ public static class MatchEndpoints
         .WithName("ClassifySeniority")
         .WithSummary("Classify scraped jobs' actual seniority band from title+description (one Haiku call per run)");
 
+        // Narrative enrichment: on-demand upgrade of a scored job's narrative
+        // fields (honestAssessment/recommendation/companyNewsAnalysis/
+        // employeeReviewsAnalysis) from ingest-time terse to full detail —
+        // called once by the scraper's /save handler when the user clicks
+        // Add. Same "match" bucket as the single-job scoring endpoint: this
+        // fires interactively, per user click, not per bulk-ingest batch.
+        app.MapPost("/api/match/enrich-narrative", async (
+            [FromBody] NarrativeEnrichRequest request,
+            ApplicationTracker.Core.AI.IClaudeClient claude,
+            ILogger<Program> logger,
+            CancellationToken ct) =>
+        {
+            if (request is null || string.IsNullOrWhiteSpace(request.JobDescription))
+                return Results.BadRequest(new { error = "jobDescription is required" });
+            if (request.JobDescription.Length > 50_000)
+                return Results.BadRequest(new { error = "jobDescription exceeds maximum length of 50,000 characters" });
+
+            try
+            {
+                var result = await claude.EnrichNarrativeAsync(request, ct);
+                return Results.Ok(result);
+            }
+            catch (InvalidOperationException ex) when (ex.Message.Contains("ApiKey"))
+            {
+                logger.LogError(ex, "Anthropic API key not configured");
+                return Results.Problem(
+                    detail: "Anthropic API key is not configured. Please set Anthropic:ApiKey in configuration.",
+                    statusCode: 500);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Error enriching narrative");
+                return Results.Problem(detail: "An error occurred while enriching the narrative", statusCode: 500);
+            }
+        })
+        .RequireRateLimiting("match")
+        .WithName("EnrichNarrative")
+        .WithSummary("Upgrade a scored job's narrative fields from ingest-time terse to full detail, on Add");
+
         static object ToProfileResponse(ProfileDocument doc) => new
         {
             content = doc.Content,

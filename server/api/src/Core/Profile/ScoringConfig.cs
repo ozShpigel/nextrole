@@ -67,6 +67,14 @@ public sealed record ScoringConfig
     // system-prompt/profile input cost instead of N, which is the entire point.
     public RoleScoringConfig EvaluatorBatch { get; init; } = new() { Model = "claude-haiku-4-5-20251001", MaxTokens = 16000 };
 
+    // Narrative enrichment: on-demand upgrade of 4 fields only (not the full
+    // scores+breakdown schema) — fires once per Add click (~4% of scored
+    // jobs). Estimate, not measured yet: comparable to the narrow single-
+    // purpose Haiku calls elsewhere (SummarizeCompany 512, WhyWorkHere 800,
+    // PresentationCues 1024) but with more Hebrew narrative volume — watch
+    // actual usage after ship and tighten/loosen as needed.
+    public RoleScoringConfig NarrativeEnrichment { get; init; } = new() { Model = "claude-haiku-4-5-20251001", MaxTokens = 2048 };
+
     // Interview Insights: one-shot batch synthesis of recurring themes across
     // all of the user's interview retros. Infrequent ("regenerate" click, not
     // a hot loop) — default MaxTokens covers a handful of themes comfortably.

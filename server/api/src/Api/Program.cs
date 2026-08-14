@@ -176,7 +176,7 @@ if (demoMode)
     var analysisAllowlist = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
     {
         "/api/match", "/api/match/title-triage", "/api/match/seniority-classify",
-        "/api/match/discovery-score-batch",
+        "/api/match/discovery-score-batch", "/api/match/enrich-narrative",
         // normalize-file removed — it now persists the uploaded ResumeFile, so
         // it must 403 in demo like every other write; normalize (paste-text)
         // stays allowlisted since it's still purely ephemeral analysis.

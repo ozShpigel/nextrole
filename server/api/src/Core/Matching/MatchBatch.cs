@@ -1,11 +1,12 @@
 namespace ApplicationTracker.Core.Matching;
 
-// Batched ingest-time scoring: N jobs (cap 5, see MatchEndpoints) go through
-// the Analyst individually (cheap, Haiku) but share ONE Evaluator call — each
-// job is still scored independently against the fixed rubric, never ranked or
-// compared against its batch-mates (see PromptSeeds.Evaluator's batch-mode
-// addendum). This is the primary cost lever for scoring every discovered job:
-// one shared system-prompt/profile input cost instead of N.
+// Batched ingest-time scoring: N jobs (cap 5, see MatchEndpoints) share ONE
+// Analyst call AND one Evaluator call — each job is still parsed/scored
+// independently, never ranked or compared against its batch-mates (see
+// PromptSeeds.Evaluator's batch-mode addendum, and the Analyst's own batch
+// addendum in PromptBuilder). This is the primary cost lever for scoring
+// every discovered job: one shared system-prompt/profile input cost instead
+// of N, for both calls.
 
 public sealed record MatchBatchRequest
 {
@@ -49,4 +50,10 @@ public sealed record EvaluationBatchItem
     public List<CompanyNewsItem>? CompanyNews { get; init; }
     public GlassdoorData? GlassdoorData { get; init; }
     public CompanyProfile? CompanyProfile { get; init; }
+}
+
+public sealed record ParseBatchResult
+{
+    public required string Id { get; init; }
+    public required ParsedJob Parsed { get; init; }
 }

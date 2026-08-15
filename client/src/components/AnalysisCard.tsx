@@ -107,19 +107,24 @@ const SUBLABEL = 'block text-[13px] text-[var(--ed-ink-faint)] uppercase trackin
 // length flags the evaluator returns. Neutral ink throughout: the +/- glyph
 // itself carries the valence, not a color, so it never competes with the
 // score for attention.
+// dir="auto" (not a hardcoded "rtl"): this renders both recommendation.
+// greenFlags/redFlags (English pre-Add, Hebrew after Add generates the full
+// rewrite) and companyNewsAnalysis/employeeReviewsAnalysis (always Hebrew,
+// only ever present after Add) — the per-item language isn't fixed, so let
+// the browser detect each line's actual direction instead of assuming RTL.
 function SignalRows({ green = [], red = [] }: { green?: string[]; red?: string[] }) {
   return (
-    <div className="flex flex-col gap-[0.45rem]" dir="rtl">
+    <div className="flex flex-col gap-[0.45rem]" dir="auto">
       {green.map((s, i) => (
         <div key={`g${i}`} className="flex items-start gap-[0.55rem]">
           <span className="text-[16px] font-medium leading-[1.2] text-[var(--ed-ink-faint)] shrink-0" aria-hidden="true">+</span>
-          <span className="text-[16px] text-[var(--ed-ink)] leading-[1.55] text-right">{s}</span>
+          <span className="text-[16px] text-[var(--ed-ink)] leading-[1.55]" dir="auto">{s}</span>
         </div>
       ))}
       {red.map((s, i) => (
         <div key={`r${i}`} className="flex items-start gap-[0.55rem]">
           <span className="text-[16px] font-medium leading-[1.2] text-[var(--ed-ink-faint)] shrink-0" aria-hidden="true">–</span>
-          <span className="text-[16px] text-[var(--ed-ink)] leading-[1.55] text-right">{s}</span>
+          <span className="text-[16px] text-[var(--ed-ink)] leading-[1.55]" dir="auto">{s}</span>
         </div>
       ))}
     </div>
@@ -174,7 +179,7 @@ export default function AnalysisCard({ matchAnalysisJson }: AnalysisCardProps) {
           {a.hardBlockers && a.hardBlockers.length > 0 && (
             <div className="mb-6 p-[0.9rem_1.1rem] border border-[var(--ed-ink)]">
               <span className={SUBLABEL}>Hard Blockers</span>
-              <ul dir="rtl" className="list-disc pr-5 m-0 text-right">
+              <ul className="list-disc pl-5 m-0">
                 {a.hardBlockers.map((item, i) => <li key={i} className="text-[16px] mb-[0.3rem] text-[var(--ed-ink)] leading-[1.6]">{item}</li>)}
               </ul>
             </div>
@@ -184,7 +189,7 @@ export default function AnalysisCard({ matchAnalysisJson }: AnalysisCardProps) {
           {a.mustClarify && a.mustClarify.length > 0 && (
             <div className="mb-6 p-[0.9rem_1.1rem] border border-[var(--ed-rule)]">
               <span className={SUBLABEL}>Worth Clarifying</span>
-              <ul dir="rtl" className="list-disc pr-5 m-0 text-right">
+              <ul className="list-disc pl-5 m-0">
                 {a.mustClarify.map((item, i) => <li key={i} className="text-[16px] mb-[0.3rem] text-[var(--ed-ink)] leading-[1.6]">{item}</li>)}
               </ul>
             </div>
@@ -216,7 +221,7 @@ export default function AnalysisCard({ matchAnalysisJson }: AnalysisCardProps) {
               {a.stackedGaps && a.stackedGaps.length > 0 && (
                 <div className="mt-3 p-[0.9rem_1.1rem] border border-[var(--ed-rule)]">
                   <span className={SUBLABEL}>Stacked Gaps ({a.stackedGaps.length})</span>
-                  <ul dir="rtl" className="list-disc pr-5 m-0 text-right">
+                  <ul className="list-disc pl-5 m-0">
                     {a.stackedGaps.map((item, i) => <li key={i} className="text-[16px] mb-[0.3rem] text-[var(--ed-ink)] leading-[1.6]">{item}</li>)}
                   </ul>
                 </div>
@@ -228,7 +233,7 @@ export default function AnalysisCard({ matchAnalysisJson }: AnalysisCardProps) {
                   {(active.data[active.posKey] as string[] | undefined)?.length ? (
                     <div className="mb-3 last:mb-0">
                       <span className={SUBLABEL}>{active.posLabel}</span>
-                      <ul dir="rtl" className="list-disc pr-5 m-0 text-right">
+                      <ul className="list-disc pl-5 m-0">
                         {(active.data[active.posKey] as string[]).map((item: string, i: number) => <li key={i} className="text-[16px] mb-[0.3rem] text-[var(--ed-ink)] leading-[1.6]">{item}</li>)}
                       </ul>
                     </div>
@@ -236,7 +241,7 @@ export default function AnalysisCard({ matchAnalysisJson }: AnalysisCardProps) {
                   {(active.data[active.negKey] as string[] | undefined)?.length ? (
                     <div className="mb-3 last:mb-0">
                       <span className={SUBLABEL}>{active.negLabel}</span>
-                      <ul dir="rtl" className="list-disc pr-5 m-0 text-right">
+                      <ul className="list-disc pl-5 m-0">
                         {(active.data[active.negKey] as string[]).map((item: string, i: number) => <li key={i} className="text-[16px] mb-[0.3rem] text-[var(--ed-ink)] leading-[1.6]">{item}</li>)}
                       </ul>
                     </div>
@@ -253,7 +258,7 @@ export default function AnalysisCard({ matchAnalysisJson }: AnalysisCardProps) {
               {rec.keyReasons?.length ? (
                 <div className="mb-3">
                   <span className={SUBLABEL}>Key Reasons</span>
-                  <ul dir="rtl" className="list-disc pr-5 m-0 text-right">
+                  <ul dir="auto" className="list-disc ps-5 m-0">
                     {rec.keyReasons.map((item, i) => <li key={i} className="text-[16px] mb-[0.3rem] text-[var(--ed-ink)] leading-[1.6]">{item}</li>)}
                   </ul>
                 </div>
@@ -261,13 +266,14 @@ export default function AnalysisCard({ matchAnalysisJson }: AnalysisCardProps) {
               {rec.questionsToAsk?.length ? (
                 <div className="mb-3">
                   <span className={SUBLABEL}>Questions to Ask</span>
-                  <ul dir="rtl" className="list-disc pr-5 m-0 text-right">
+                  <ul dir="auto" className="list-disc ps-5 m-0">
                     {rec.questionsToAsk.map((item, i) => <li key={i} className="text-[16px] mb-[0.3rem] text-[var(--ed-ink)] leading-[1.6]">{item}</li>)}
                   </ul>
                 </div>
               ) : null}
               {(rec.greenFlags?.length || rec.redFlags?.length) ? (
                 <div className="mt-2">
+                  <span className={SUBLABEL}>Green &amp; Red Flags</span>
                   <SignalRows green={rec.greenFlags} red={rec.redFlags} />
                 </div>
               ) : null}
@@ -300,7 +306,7 @@ export default function AnalysisCard({ matchAnalysisJson }: AnalysisCardProps) {
           {a.honestAssessment && (
             <div className="mt-6 pt-4 border-t border-[var(--ed-rule)]">
               <h4 className="font-medium text-[16px] text-[var(--ed-ink)] mb-3">Honest Assessment</h4>
-              <p dir="rtl" className="text-[16px] leading-[1.8] text-[var(--ed-ink)] whitespace-pre-wrap pr-4 border-r-2 border-[var(--ed-rule-strong)] m-0 text-right">{a.honestAssessment}</p>
+              <p dir="auto" className="text-[16px] leading-[1.8] text-[var(--ed-ink)] whitespace-pre-wrap ps-4 border-s-2 border-[var(--ed-rule-strong)] m-0">{a.honestAssessment}</p>
             </div>
           )}
         </div>

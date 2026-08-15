@@ -67,6 +67,14 @@ public sealed record ScoringConfig
     // system-prompt/profile input cost instead of N, which is the entire point.
     public RoleScoringConfig EvaluatorBatch { get; init; } = new() { Model = "claude-haiku-4-5-20251001", MaxTokens = 16000 };
 
+    // Batched ingest-time parsing: same extraction schema/model as Analyst, N
+    // jobs (cap 5) in ONE call sharing one system-prompt cost instead of N —
+    // Analyst previously ran per-job with zero caching benefit (its ~600-token
+    // system prompt is likely below Haiku's cacheable minimum), so batching is
+    // the only lever for its input-cost repetition. ~350-390 tokens/job
+    // observed for ParsedJob output; 4096 covers a 5-job batch with headroom.
+    public RoleScoringConfig AnalystBatch { get; init; } = new() { Model = "claude-haiku-4-5-20251001", Temperature = 0.3m, MaxTokens = 4096 };
+
     // Narrative enrichment: on-demand upgrade of 4 fields only (not the full
     // scores+breakdown schema) — fires once per Add click (~4% of scored
     // jobs). Estimate, not measured yet: comparable to the narrow single-

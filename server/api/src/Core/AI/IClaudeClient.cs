@@ -24,6 +24,12 @@ public interface IClaudeClient
     // production path too).
     Task<(List<MatchBatchResult> Results, ClaudeCallSnapshot Snapshot)> EvaluateMatchBatchAsync(string profile, IReadOnlyList<EvaluationBatchItem> jobs, CancellationToken cancellationToken = default);
 
+    // Batched ingest-time parsing: ONE Analyst call parses every job in the
+    // batch independently — same fail-loud missing-id contract as
+    // EvaluateMatchBatchAsync. Companion to it: JobMatchService calls this
+    // first, then feeds the parsed jobs into EvaluateMatchBatchAsync.
+    Task<(List<ParseBatchResult> Results, ClaudeCallSnapshot Snapshot)> ParseJobDescriptionBatchAsync(IReadOnlyList<MatchBatchItem> jobs, CancellationToken cancellationToken = default);
+
     // On-demand narrative upgrade: fired once when the user clicks Add on a
     // job scored terse at ingest time. Scores/verdict/breakdown travel as
     // immutable context and are never recomputed here — only honestAssessment,

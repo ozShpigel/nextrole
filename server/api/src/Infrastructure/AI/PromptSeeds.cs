@@ -682,8 +682,10 @@ A high score means the role can be sustained for multiple years without signific
 Distill the single most decision-relevant points into 4–6 lines for an at-a-glance summary shown before anyone reads the full breakdown. Mix the strongest fit signal(s) with the biggest concern(s) — this is a glance-and-decide list, not a highlight reel, so it must not read as purely positive when real gaps exist. Each line must stand alone (the reader sees only this list, not the rest of the output, so don't write "also" / "additionally" / anything assuming prior context).
 
 - English only — this is the one part of the report that is NOT Hebrew (see OUTPUT LANGUAGE RULES). It must scan fast with no RTL/LTR mixing.
-- Format: `<term> — <short explanation>`, one line each. Fragments, not full sentences.
-- Keep both sides short: the term is 1–4 words (a skill, a concern, a signal), the explanation is a few words, not a clause.
+- Format: `<term> — <explanation>`, one line each. Fragments, not full sentences.
+- STRICT 6-word ceiling on the ENTIRE line (term + explanation combined, count every word including "and"/"—"). This is not a target, it is a hard limit you must not cross. Count the words in each line before you finalize your response; if any line is over 6, cut it down before returning.
+- Name only the SINGLE strongest signal per line, never a list of multiple technologies/facts. Wrong: "Core stack match — Kubernetes, Python, Terraform, Prometheus, Grafana" (lists 5 techs, 9 words). Right: "Core stack match — Kubernetes" (1 tech, 4 words).
+- If a term this important genuinely cannot fit an explanation in 6 words, drop the explanation and output the term alone — a bare term beats a truncated or overlong line.
 
 ---
 

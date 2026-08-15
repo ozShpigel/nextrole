@@ -62,14 +62,23 @@ public sealed class JobMatchService : IJobMatchService
 
         var profile = await _profileProvider.GetProfileAsync(cancellationToken);
 
-        // Analyst pass per job, in parallel — cheap (Haiku), keeps per-job
-        // title/company extraction accurate. Only the Evaluator call is shared.
-        var parsed = await Task.WhenAll(request.Jobs.Select(async item =>
+        // Analyst pass: ONE shared call parses every job in the batch — same
+        // shared-system-prompt-cost saving the Evaluator batch call already
+        // gets. Title/Company caller overrides are applied here, after
+        // parsing, same as the single-job path (ParseAsync) — never sent to
+        // the model itself.
+        var (parseResults, analystSnap) = await _claudeClient.ParseJobDescriptionBatchAsync(request.Jobs, cancellationToken);
+        var parsedById = parseResults.ToDictionary(r => r.Id, r => r.Parsed);
+
+        var parsed = request.Jobs.Select(item =>
         {
-            var matchRequest = new MatchRequest { JobDescription = item.JobDescription, Title = item.Title, Company = item.Company };
-            var (parsedJob, snap) = await ParseAsync(matchRequest, cancellationToken);
-            return (Item: item, ParsedJob: parsedJob, AnalystSnapshot: snap);
-        }));
+            var parsedJob = parsedById[item.Id] with
+            {
+                JobTitle = !string.IsNullOrWhiteSpace(item.Title) ? item.Title! : parsedById[item.Id].JobTitle,
+                Company = !string.IsNullOrWhiteSpace(item.Company) ? item.Company : parsedById[item.Id].Company,
+            };
+            return (Item: item, ParsedJob: parsedJob);
+        }).ToList();
 
         var evaluationItems = parsed.Select(p => new EvaluationBatchItem
         {
@@ -90,11 +99,12 @@ public sealed class JobMatchService : IJobMatchService
             {
                 JobTitle = p.ParsedJob.JobTitle,
                 Company = p.ParsedJob.Company,
-                AnalystSnapshotInput = p.AnalystSnapshot.Input,
-                AnalystSnapshotOutput = p.AnalystSnapshot.Output,
-                // The whole batch shares one Evaluator call — every job's
-                // snapshot is the same shared request/response, honestly
-                // reflecting that this job wasn't scored in isolation.
+                // The whole batch shares one Analyst call and one Evaluator
+                // call — every job's snapshots are the same shared
+                // request/response, honestly reflecting that this job wasn't
+                // parsed or scored in isolation.
+                AnalystSnapshotInput = analystSnap.Input,
+                AnalystSnapshotOutput = analystSnap.Output,
                 EvaluatorSnapshotInput = evalSnap.Input,
                 EvaluatorSnapshotOutput = evalSnap.Output,
             };

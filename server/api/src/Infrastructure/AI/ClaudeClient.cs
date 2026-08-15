@@ -133,6 +133,42 @@ public sealed class ClaudeClient : IClaudeClient
         return (result, snapshot);
     }
 
+    public async Task<(List<ParseBatchResult> Results, ClaudeCallSnapshot Snapshot)> ParseJobDescriptionBatchAsync(IReadOnlyList<MatchBatchItem> jobs, CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Parsing {Count} job descriptions in one batch call", jobs.Count);
+
+        var (systemPrompt, userMessage) = _promptBuilder.BuildAnalysisBatchPrompt(jobs, AnalystPrompt);
+
+        var (envelope, snapshot) = await CallClaudeAsync<ParseBatchApiEnvelope>(systemPrompt, userMessage, _scoring.AnalystBatch, "parse-batch", cancellationToken);
+
+        var byId = (envelope.Results ?? [])
+            .Where(r => !string.IsNullOrWhiteSpace(r.Id) && r.Parsed is not null)
+            .ToDictionary(r => r.Id!, r => r.Parsed!);
+
+        var missing = jobs.Select(j => j.Id).Where(id => !byId.ContainsKey(id)).ToList();
+        if (missing.Count > 0)
+            throw new InvalidOperationException(
+                $"Batch parse response is missing job id(s): {string.Join(", ", missing)}");
+
+        var results = jobs.Select(j => new ParseBatchResult { Id = j.Id, Parsed = byId[j.Id] }).ToList();
+        _logger.LogInformation("Batch parse completed: {Count} results", results.Count);
+        return (results, snapshot);
+    }
+
+    private sealed record ParseBatchApiEnvelope
+    {
+        [JsonPropertyName("results")]
+        public List<ParseBatchApiItem>? Results { get; init; }
+    }
+
+    private sealed record ParseBatchApiItem
+    {
+        [JsonPropertyName("id")]
+        public string? Id { get; init; }
+        [JsonPropertyName("parsed")]
+        public ParsedJob? Parsed { get; init; }
+    }
+
     public Task<(MatchResponse Response, ClaudeCallSnapshot Snapshot)> EvaluateMatchAsync(string profile, ParsedJob parsedJob, List<CompanyNewsItem>? companyNews = null, GlassdoorData? glassdoorData = null, CompanyProfile? companyProfile = null, CancellationToken cancellationToken = default)
         => EvaluateMatchAsync(profile, parsedJob, EvaluatorPrompt, _scoring.Evaluator, companyNews, glassdoorData, companyProfile, cancellationToken);
 

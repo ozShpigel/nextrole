@@ -252,7 +252,7 @@ export default function AnalysisCard({ matchAnalysisJson }: AnalysisCardProps) {
           )}
 
           {/* Recommendation */}
-          {rec && (rec.keyReasons?.length || rec.questionsToAsk?.length || rec.greenFlags?.length || rec.redFlags?.length) && (
+          {rec && !!(rec.keyReasons?.length || rec.questionsToAsk?.length || rec.greenFlags?.length || rec.redFlags?.length) && (
             <div className="mt-6 pt-4 border-t border-[var(--ed-rule)]">
               <h4 className="font-medium text-[16px] text-[var(--ed-ink)] mb-3">Recommendation</h4>
               {rec.keyReasons?.length ? (
@@ -281,7 +281,7 @@ export default function AnalysisCard({ matchAnalysisJson }: AnalysisCardProps) {
           )}
 
           {/* Company news analysis */}
-          {a.companyNewsAnalysis && (a.companyNewsAnalysis.greenSignals?.length || a.companyNewsAnalysis.redSignals?.length) && (
+          {a.companyNewsAnalysis && !!(a.companyNewsAnalysis.greenSignals?.length || a.companyNewsAnalysis.redSignals?.length) && (
             <div className="mt-6 pt-4 border-t border-[var(--ed-rule)]">
               <h4 className="font-medium text-[16px] text-[var(--ed-ink)] mb-3">Company News Signals</h4>
               <SignalRows green={a.companyNewsAnalysis.greenSignals} red={a.companyNewsAnalysis.redSignals} />
@@ -292,7 +292,7 @@ export default function AnalysisCard({ matchAnalysisJson }: AnalysisCardProps) {
           )}
 
           {/* Employee reviews analysis */}
-          {a.employeeReviewsAnalysis && (a.employeeReviewsAnalysis.greenSignals?.length || a.employeeReviewsAnalysis.redSignals?.length) && (
+          {a.employeeReviewsAnalysis && !!(a.employeeReviewsAnalysis.greenSignals?.length || a.employeeReviewsAnalysis.redSignals?.length) && (
             <div className="mt-6 pt-4 border-t border-[var(--ed-rule)]">
               <h4 className="font-medium text-[16px] text-[var(--ed-ink)] mb-3">Employee Review Signals</h4>
               <SignalRows green={a.employeeReviewsAnalysis.greenSignals} red={a.employeeReviewsAnalysis.redSignals} />

@@ -77,11 +77,13 @@ public sealed record ScoringConfig
 
     // Narrative enrichment: on-demand upgrade of 4 fields only (not the full
     // scores+breakdown schema) — fires once per Add click (~4% of scored
-    // jobs). Estimate, not measured yet: comparable to the narrow single-
-    // purpose Haiku calls elsewhere (SummarizeCompany 512, WhyWorkHere 800,
-    // PresentationCues 1024) but with more Hebrew narrative volume — watch
-    // actual usage after ship and tighten/loosen as needed.
-    public RoleScoringConfig NarrativeEnrichment { get; init; } = new() { Model = "claude-haiku-4-5-20251001", MaxTokens = 2048 };
+    // jobs). Originally shipped at 2048 as an unmeasured estimate — real
+    // usage showed that was consistently too tight: every logged call hit
+    // `stop=max_tokens` and got truncated mid-JSON (uncapped honestAssessment
+    // + 4 recommendation arrays, all full Hebrew, run well past 2048 output
+    // tokens even for a single job). Bumped to 4096 — still below the
+    // single-job Evaluator's 8192 since this call skips breakdown/score.
+    public RoleScoringConfig NarrativeEnrichment { get; init; } = new() { Model = "claude-haiku-4-5-20251001", MaxTokens = 4096 };
 
     // Interview Insights: one-shot batch synthesis of recurring themes across
     // all of the user's interview retros. Infrequent ("regenerate" click, not

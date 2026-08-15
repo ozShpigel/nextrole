@@ -232,11 +232,26 @@ export function useSynthesizeInsights() {
 export function useUpdateAppStatus() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ appId, newStatus, note }: { appId: string; newStatus: string; note?: string }) =>
-      api(`/applications/${appId}/status`, {
+    // jobUrl is optional and only acted on when newStatus is Withdrawn — same
+    // best-effort "clear saved_to_tracker so it doesn't stay permanently
+    // hidden from Search/re-add" as useDeleteApplication below, since
+    // withdrawing (the common "x" close-out action) is a status change, not
+    // a delete, and previously left the originating discovered job stuck
+    // showing "Added" forever.
+    mutationFn: async ({ appId, newStatus, note, jobUrl }: { appId: string; newStatus: string; note?: string; jobUrl?: string | null }) => {
+      const result = await api(`/applications/${appId}/status`, {
         method: 'PUT',
         body: JSON.stringify({ newStatus, note }),
-      }),
+      });
+      if (newStatus === 'Withdrawn' && jobUrl) {
+        try {
+          await discoveryApi('/jobs/unsave', { method: 'POST', body: JSON.stringify({ job_url: jobUrl }) });
+        } catch {
+          // Best-effort — the status change already succeeded either way.
+        }
+      }
+      return result;
+    },
     onSuccess: (data, variables) => {
       // Patch the (large) list cache in place from the PUT response instead of
       // re-downloading it — keeps status changes instant on the tracker/board.

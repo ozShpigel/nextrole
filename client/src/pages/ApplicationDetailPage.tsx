@@ -213,7 +213,7 @@ export default function ApplicationDetail() {
 
         {/* Modals */}
         {modal?.type === 'status' && (
-          <StatusModal appId={app.id} currentStatus={app.status} onClose={() => setModal(null)} onSaved={closeAndReload} />
+          <StatusModal appId={app.id} currentStatus={app.status} jobUrl={app.jobUrl} onClose={() => setModal(null)} onSaved={closeAndReload} />
         )}
         {modal?.type === 'interview' && (
           <InterviewModal appId={app.id} onClose={() => setModal(null)} onSaved={closeAndReload} />

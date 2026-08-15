@@ -199,8 +199,9 @@ async def save_to_tracker(
     company_news: list[dict] | None = None,
     glassdoor_data: dict | None = None,
     company_logo: str | None = None,
-) -> bool:
-    """Save a discovered job to the tracker."""
+) -> str | None:
+    """Save a discovered job to the tracker. Returns the created/revived
+    Application's id on success, None on failure."""
     payload = {
         "jobTitle": title,
         "company": company,
@@ -230,12 +231,36 @@ async def save_to_tracker(
     )
     if resp is None:
         logger.error("Tracker save for '%s' failed (all retries exhausted)", title)
-        return False
+        return None
     if resp.status_code in (200, 201):
         logger.info("Saved '%s' at '%s' to tracker", title, company)
-        return True
+        try:
+            return resp.json().get("id")
+        except Exception:
+            return None
     logger.warning(
         "Tracker save failed for '%s': %d %s",
         title, resp.status_code, resp.text,
     )
-    return False
+    return None
+
+
+async def update_match_analysis(settings: Settings, app_id: str, analysis_json: str) -> bool:
+    """Patch an already-saved Application's match analysis — used by
+    save_job()'s background enrichment task once the on-demand full-narrative
+    call finishes, well after the Add click that created the application
+    already returned. Best-effort: caller must not treat failure as fatal,
+    the application already exists with whatever content it was saved with."""
+    resp = await _request_with_retry(
+        "PUT",
+        f"{settings.api_base_url}/api/applications/{app_id}/match-analysis",
+        settings=settings,
+        timeout=10.0,
+        operation="update-match-analysis",
+        json={"matchAnalysis": analysis_json},
+    )
+    if resp is None or resp.status_code != 200:
+        logger.warning("Match analysis update for application %s failed (%s)",
+                       app_id, resp.status_code if resp is not None else "no response")
+        return False
+    return True

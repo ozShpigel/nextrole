@@ -194,6 +194,30 @@ public static class ApplicationEndpoints
         .WithName("UpdateApplicationTitle")
         .WithSummary("Update application job title");
 
+        app.MapPut("/api/applications/{id:guid}/match-analysis", async (
+            Guid id,
+            [FromBody] MatchAnalysisUpdateRequest request,
+            IApplicationRepository repo,
+            CancellationToken ct) =>
+        {
+            if (string.IsNullOrWhiteSpace(request?.MatchAnalysis))
+                return Results.BadRequest(new { error = "matchAnalysis is required" });
+
+            var existing = await repo.GetByIdAsync(id, ct);
+            if (existing is null) return Results.NotFound();
+
+            // Called by the scraper's background enrichment task, once the
+            // on-demand full-narrative Claude call finishes — Add itself
+            // already returned with whatever content was available at save
+            // time (terse, or a stale enrichment), so this patches it in
+            // place without blocking the click that created the application.
+            var updated = existing with { MatchAnalysis = request.MatchAnalysis, UpdatedAt = DateTime.UtcNow };
+            await repo.UpdateAsync(updated, ct);
+            return Results.Ok(updated);
+        })
+        .WithName("UpdateApplicationMatchAnalysis")
+        .WithSummary("Patch an application's match analysis (background narrative enrichment)");
+
         app.MapPost("/api/applications/{id:guid}/company-summary", async (
             Guid id,
             IApplicationRepository repo,

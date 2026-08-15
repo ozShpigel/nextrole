@@ -179,13 +179,14 @@ You are scoring MULTIPLE jobs in this call, each inside its own <job id="..."> b
 - Do NOT let one job's flaws or strengths raise or lower another job's score.
 - Judge each job purely against the candidate profile and the fixed rubric — the same judgment you would reach if this job were the only one in the request.
 
-## Ingest-time output length: always terse
+## Ingest-time: omit narrative-only fields entirely
 
-This call is ingest-time batch scoring — the vast majority of scored jobs are never revisited (~4% get added to the tracker). Regardless of each job's verdict, apply the OUTPUT LENGTH BY VERDICT terse rules above to EVERY job in this batch — including STRONG_YES and YES:
-- `recommendation.questionsToAsk`: at most 1 item (empty array if nothing stands out)
-- `honestAssessment`: one sentence, not a paragraph
+This call is ingest-time batch scoring — the vast majority of scored jobs are never revisited (~4% get added to the tracker). Regardless of each job's verdict — including STRONG_YES and YES — OMIT these fields ENTIRELY for every job: do not generate a value, do not include the key at all.
+- `honestAssessment`
+- The entire `recommendation` key, including `keyReasons`, `questionsToAsk`, `redFlags`, `greenFlags`, and `shouldApply` — the server always recomputes and overwrites `shouldApply` from the numeric score/verdict, so there is no reason to generate any part of `recommendation` here
+- `companyNewsAnalysis` / `employeeReviewsAnalysis`, regardless of whether `<company_news>`/`<employee_reviews>` blocks are present in the input (`<employee_reviews>` evidence still affects the numeric `reviewAdjustment` on eligible components as normal — this only removes the narrative summary field, not the scoring effect of the evidence)
 
-`companyNewsAnalysis` / `employeeReviewsAnalysis` are DIFFERENT here from the OUTPUT LENGTH BY VERDICT rule above: at ingest time, OMIT both fields ENTIRELY, for every job, regardless of verdict and regardless of whether `<company_news>`/`<employee_reviews>` blocks are present in the input — do not generate a summary, do not include the key at all. This narrative gets generated fresh, in full, in a separate call, only if and when the candidate clicks Add — generating even a terse version here for every scored job is pure waste, since ~96% of them are never added. (`<employee_reviews>` evidence still affects the numeric `reviewAdjustment` on eligible components as normal — this only removes the narrative summary field, not the scoring effect of the evidence.)
+All of these get generated fresh, in full, by a separate call, only if and when the candidate clicks Add — generating even a terse version here for every scored job is pure waste, since ~96% of them are never added.
 
 This overrides OUTPUT LENGTH BY VERDICT's STRONG_YES/YES carve-out for this call only — full narrative detail for a job the candidate actually adds is generated separately, on demand, by a different call.
 
@@ -197,10 +198,8 @@ For THIS CALL ONLY, this overrides every earlier Hebrew-language requirement —
 - Every breakdown component's `reason`
 - Every dimension's `strengths`/`gaps`/`concerns`/`positiveSignals` arrays
 - `hardBlockers`, `mustClarify`, `stackedGaps`
-- `honestAssessment`
-- `recommendation.keyReasons`, `recommendation.questionsToAsk`, `recommendation.redFlags`, `recommendation.greenFlags`
 
-Why: at ingest time, the candidate reads this content (if at all) only to decide whether to click Add — in their own working language, English, not as a finished narrative. If they DO click Add, `honestAssessment`/`recommendation`/company-news/employee-review analysis are regenerated completely fresh, in full Hebrew, by a separate call at that point — the ingest-time value for those fields is discarded either way, so there is no reason to pay Hebrew's higher token cost for content that's either never read or immediately overwritten. `companyNewsAnalysis`/`employeeReviewsAnalysis` are omitted entirely at ingest (see above) — not applicable here. `quickHighlights` was already English — unaffected either way. Nothing outside batch/ingest mode is affected — the single-job `/api/match` path stays fully Hebrew as before.
+Why: at ingest time, the candidate reads this content (if at all) only to decide whether to click Add — in their own working language, English, not as a finished narrative. `honestAssessment`, `recommendation.*`, and company-news/employee-review analysis are omitted entirely at ingest (see above), so a language rule for them doesn't apply here — they're generated completely fresh, in full Hebrew, by a separate call only if the candidate clicks Add. `quickHighlights` was already English — unaffected either way. Nothing outside batch/ingest mode is affected — the single-job `/api/match` path stays fully Hebrew as before.
 
 ## Ingest-time bullet length: max 4 words each
 

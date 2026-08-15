@@ -49,11 +49,12 @@ export function StatusBadge({ status }: StatusBadgeProps) {
 interface StatusModalProps {
   appId: string;
   currentStatus: string;
+  jobUrl?: string | null;
   onClose: () => void;
   onSaved: () => void;
 }
 
-export function StatusModal({ appId, currentStatus, onClose, onSaved }: StatusModalProps) {
+export function StatusModal({ appId, currentStatus, jobUrl, onClose, onSaved }: StatusModalProps) {
   const [status, setStatus] = useState(currentStatus);
   const [note, setNote] = useState('');
   const [scheduledAt, setScheduledAt] = useState('');
@@ -65,7 +66,7 @@ export function StatusModal({ appId, currentStatus, onClose, onSaved }: StatusMo
 
   function save() {
     updateStatus.mutate(
-      { appId, newStatus: status, note: note || undefined },
+      { appId, newStatus: status, note: note || undefined, jobUrl },
       {
         onSuccess: () => {
           // ScheduledAt is required server-side — an interviewer name alone

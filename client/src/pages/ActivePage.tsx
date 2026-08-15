@@ -141,7 +141,7 @@ export default function ActivePage() {
   const generatePack = useGeneratePack();
   const updateStatus = useUpdateAppStatus();
   const [showImportModal, setShowImportModal] = useState(false);
-  const [statusTarget, setStatusTarget] = useState<{ id: string; status: string } | null>(null);
+  const [statusTarget, setStatusTarget] = useState<{ id: string; status: string; jobUrl: string | null } | null>(null);
 
   const { added, ready, appliedFresh, appliedStale, inProcess } = useMemo(() => {
     const all = apps as Application[];
@@ -179,7 +179,7 @@ export default function ActivePage() {
     );
   }
 
-  function RemoveButton({ appId, company }: { appId: string; company: string }) {
+  function RemoveButton({ appId, company, jobUrl }: { appId: string; company: string; jobUrl: string | null }) {
     return (
       <button
         type="button"
@@ -187,7 +187,7 @@ export default function ActivePage() {
         title={demoMode ? DEMO_DISABLED_TITLE : 'Remove from board (marks Withdrawn)'}
         aria-label={`Remove application at ${company} from board`}
         className="ml-auto w-6 h-6 flex items-center justify-center text-[var(--ed-ink-faint)] hover:text-[var(--ed-no)] transition-[color,opacity] disabled:opacity-40 disabled:pointer-events-none opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
-        onClick={() => updateStatus.mutate({ appId, newStatus: 'Withdrawn' })}
+        onClick={() => updateStatus.mutate({ appId, newStatus: 'Withdrawn', jobUrl })}
       >
         <X size={13} aria-hidden="true" />
       </button>
@@ -254,7 +254,7 @@ export default function ActivePage() {
                     Generate Pack
                   </button>
                   <IAppliedLink appId={a.id} />
-                  <RemoveButton appId={a.id} company={a.company} />
+                  <RemoveButton appId={a.id} company={a.company} jobUrl={a.jobUrl} />
                 </Card>
               ))}
             </Column>
@@ -277,14 +277,14 @@ export default function ActivePage() {
                     Regenerate
                   </button>
                   <IAppliedLink appId={a.id} />
-                  <RemoveButton appId={a.id} company={a.company} />
+                  <RemoveButton appId={a.id} company={a.company} jobUrl={a.jobUrl} />
                 </Card>
               ))}
             </Column>
 
             <Column label="Applied" count={appliedFresh.length} isEmpty={appliedFresh.length === 0 && appliedStale.length === 0} emptyText="Nothing applied yet.">
               {appliedFresh.map((a, i) => (
-                <AppliedCard key={a.id} app={a} index={i} demoMode={demoMode} onMoveToProcess={(app) => setStatusTarget({ id: app.id, status: app.status })} />
+                <AppliedCard key={a.id} app={a} index={i} demoMode={demoMode} onMoveToProcess={(app) => setStatusTarget({ id: app.id, status: app.status, jobUrl: app.jobUrl })} />
               ))}
               {appliedStale.length > 0 && (
                 <details className="mt-1 group">
@@ -295,7 +295,7 @@ export default function ActivePage() {
                   </summary>
                   <div className="flex flex-col gap-4 border-t border-[var(--ed-rule)] pt-4 mt-1">
                     {appliedStale.map((a, i) => (
-                      <AppliedCard key={a.id} app={a} index={i} muted demoMode={demoMode} onMoveToProcess={(app) => setStatusTarget({ id: app.id, status: app.status })} />
+                      <AppliedCard key={a.id} app={a} index={i} muted demoMode={demoMode} onMoveToProcess={(app) => setStatusTarget({ id: app.id, status: app.status, jobUrl: app.jobUrl })} />
                     ))}
                   </div>
                 </details>
@@ -330,7 +330,7 @@ export default function ActivePage() {
                     title={demoMode ? DEMO_DISABLED_TITLE : 'Close out — mark Rejected or Withdrawn'}
                     aria-label={`Close out application at ${a.company}`}
                     className="ml-auto w-6 h-6 flex items-center justify-center text-[var(--ed-ink-faint)] hover:text-[var(--ed-no)] transition-[color,opacity] disabled:opacity-40 disabled:pointer-events-none opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
-                    onClick={() => setStatusTarget({ id: a.id, status: a.status })}
+                    onClick={() => setStatusTarget({ id: a.id, status: a.status, jobUrl: a.jobUrl })}
                   >
                     <X size={13} aria-hidden="true" />
                   </button>
@@ -347,6 +347,7 @@ export default function ActivePage() {
         <StatusModal
           appId={statusTarget.id}
           currentStatus={statusTarget.status}
+          jobUrl={statusTarget.jobUrl}
           onClose={() => setStatusTarget(null)}
           onSaved={() => setStatusTarget(null)}
         />

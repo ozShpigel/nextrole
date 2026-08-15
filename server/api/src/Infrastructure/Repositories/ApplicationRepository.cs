@@ -40,15 +40,28 @@ public sealed class ApplicationRepository : IApplicationRepository
         }
         catch (MongoWriteException ex) when (ex.WriteError?.Category == ServerErrorCategory.DuplicateKey)
         {
-            // A concurrent save already inserted this (Company, JobTitle) — the unique
-            // index rejected ours. Return the winner instead of bubbling an error so the
-            // caller stays idempotent.
             var filter = Builders<Application>.Filter.And(
                 Builders<Application>.Filter.Eq(a => a.Company, app.Company),
                 Builders<Application>.Filter.Eq(a => a.JobTitle, app.JobTitle));
             var existing = await _applications
                 .Find(filter, new FindOptions { Collation = CaseInsensitive })
                 .FirstOrDefaultAsync(ct);
+
+            // A withdrawn/rejected application is a closed chapter, not "still in
+            // progress" — a fresh Add for the same (Company, JobTitle) should reopen
+            // it with the new job's content, not silently hand back the closed record
+            // untouched (previously "Add" looked like a no-op: saved_to_tracker flipped
+            // client-side, but the tracker kept showing the old closed card).
+            if (existing is { Status: ApplicationStatus.Withdrawn or ApplicationStatus.Rejected })
+            {
+                var revived = app with { Id = existing.Id };
+                await _applications.ReplaceOneAsync(a => a.Id == existing.Id, revived, cancellationToken: ct);
+                return (revived, true);
+            }
+
+            // A concurrent save already inserted this (Company, JobTitle) and it's
+            // still active — the unique index rejected ours. Return the winner
+            // instead of bubbling an error so the caller stays idempotent.
             return (existing ?? app, false);
         }
     }

@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X } from 'lucide-react';
+import { X, SlidersHorizontal, Plus, Check, Search } from 'lucide-react';
 import { useScoredJobs } from '../lib/queries';
 import { useSaveJob, useDismissJob } from '../lib/mutations';
 import { useDemoMode, DEMO_DISABLED_TITLE } from '../lib/queries';
@@ -133,46 +133,53 @@ function MatchScore({ job }: { job: DiscoveredJobSummary }) {
 interface MatchCardProps {
   job: DiscoveredJobSummary;
   index: number;
-  expanded: boolean;
   saved: boolean;
   dismissed: boolean;
   demoMode: boolean;
   demoTitle: string | undefined;
-  onToggleExpand: (id: string) => void;
+  onSelect: (id: string) => void;
   onSave: (jobId: string) => void;
   onDismiss: (jobId: string) => void;
 }
 
-function MatchCard({ job, index, expanded, saved, dismissed, demoMode, demoTitle, onToggleExpand, onSave, onDismiss }: MatchCardProps) {
+// Default browse view — a full card. Clicking one switches the whole page
+// into the master-detail (list + JD/analysis panel) view, it doesn't expand
+// in place.
+function MatchCard({ job, index, saved, dismissed, demoMode, demoTitle, onSelect, onSave, onDismiss }: MatchCardProps) {
   const clickable = !!job.match_analysis;
-
-  function handleCardActivate(): void {
-    if (clickable) onToggleExpand(job.id);
-  }
 
   return (
     <article
-      className={`ed-rise group border-b border-[var(--ed-rule)] transition-colors ${dismissed ? 'opacity-40' : ''} ${clickable ? 'cursor-pointer hover:bg-[var(--ed-panel)]/50' : ''}`}
+      className={`ed-rise group border rounded-2xl p-5 flex flex-col gap-3 transition-colors ${dismissed ? 'opacity-40' : ''} border-[var(--ed-rule)] ${
+        clickable ? 'cursor-pointer hover:border-[var(--ed-ink-faint)]' : ''
+      }`}
       style={{ animationDelay: `${Math.min(index, 12) * 40}ms` }}
       role={clickable ? 'button' : undefined}
       tabIndex={clickable ? 0 : undefined}
-      aria-expanded={clickable ? expanded : undefined}
-      onClick={handleCardActivate}
+      onClick={() => clickable && onSelect(job.id)}
       onKeyDown={(e) => {
         if (clickable && (e.key === 'Enter' || e.key === ' ')) {
           e.preventDefault();
-          handleCardActivate();
+          onSelect(job.id);
         }
       }}
     >
-      <div className="flex items-center gap-4 py-2 px-1">
+      <div className="flex items-start justify-between gap-3">
         <CompanyAvatar name={job.company} logo={job.company_logo} size={36} />
+        <MatchScore job={job} />
+      </div>
 
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-x-2 flex-wrap text-[13px] text-[var(--ed-ink-faint)] mb-[0.15rem] tabular-nums">
-            <span className="font-medium text-[var(--ed-ink-soft)]">{job.company}</span>
-            {cityOnly(job.location) && <span>{cityOnly(job.location)}</span>}
-            {job.is_remote && <span>Remote</span>}
+      <div className="min-w-0">
+        <div className="flex items-center gap-x-2 flex-wrap text-[13px] text-[var(--ed-ink-faint)] mb-[0.15rem] tabular-nums">
+          <span className="font-medium text-[var(--ed-ink-soft)]">{job.company}</span>
+          {cityOnly(job.location) && <span>{cityOnly(job.location)}</span>}
+          {job.is_remote && <span>Remote</span>}
+        </div>
+        <h3 className="text-[16px] font-medium leading-[1.3] text-[var(--ed-ink)] line-clamp-2">
+          {job.title}
+        </h3>
+        {(formatPostedAgo(job.date_posted) || isNew(job.date_posted)) && (
+          <div className="flex items-center gap-x-2 flex-wrap text-[13px] text-[var(--ed-ink-faint)] mt-[0.35rem] tabular-nums">
             {formatPostedAgo(job.date_posted) && <span>{formatPostedAgo(job.date_posted)}</span>}
             {isNew(job.date_posted) && (
               <span className="border border-[var(--ed-rule)] text-[var(--ed-ink-faint)] rounded-full px-[0.5rem] py-[0.05rem]">
@@ -180,16 +187,171 @@ function MatchCard({ job, index, expanded, saved, dismissed, demoMode, demoTitle
               </span>
             )}
           </div>
-          <h3 className="text-[16px] font-medium leading-[1.3] text-[var(--ed-ink)] truncate">
-            {job.title}
-          </h3>
+        )}
+      </div>
+
+      <div className="mt-auto flex gap-2 items-center pt-2" onClick={(e) => e.stopPropagation()}>
+        {!saved && !dismissed && (
+          <button
+            type="button"
+            disabled={demoMode}
+            title={demoTitle ?? 'Dismiss'}
+            aria-label="Dismiss"
+            className="shrink-0 w-8 h-8 rounded-full border border-[var(--ed-rule)] flex items-center justify-center text-[var(--ed-ink-faint)] transition-all hover:border-[var(--ed-no)] hover:text-[var(--ed-no)] disabled:opacity-50 disabled:pointer-events-none disabled:cursor-not-allowed"
+            onClick={() => onDismiss(job.id)}
+          >
+            <X className="w-4 h-4" strokeWidth={2.5} />
+          </button>
+        )}
+        {!saved && !dismissed && (
+          <button type="button" disabled={demoMode} title={demoTitle} className={`${ED_BTN} ml-auto border-[var(--ed-accent)] text-[var(--ed-accent)] hover:bg-[var(--ed-accent)] hover:text-[var(--ed-paper)] disabled:cursor-not-allowed`} onClick={() => onSave(job.id)}>Add</button>
+        )}
+        {saved && <span className="ml-auto rounded-full border border-[var(--ed-rule)] px-4 py-[0.5rem] text-[13px] font-medium text-[var(--ed-ink-faint)]">Added</span>}
+        {dismissed && <span className="ml-auto rounded-full border border-[var(--ed-rule)] px-4 py-[0.5rem] text-[13px] font-medium text-[var(--ed-ink-faint)]">Dismissed</span>}
+      </div>
+    </article>
+  );
+}
+
+// Compact, flat score badge for list rows — same edVerdictColor() mapping as
+// the 40px hero MatchScore, just small and border-only (no ring/gradient).
+function CompactScoreBadge({ job }: { job: DiscoveredJobSummary }) {
+  const tone = edVerdictColor(job.verdict);
+  return (
+    <span
+      className="shrink-0 text-[13px] font-medium tabular-nums rounded-full border px-[0.5rem] py-[0.1rem]"
+      style={{ color: tone, borderColor: tone }}
+    >
+      {job.score ?? '—'}
+    </span>
+  );
+}
+
+interface MatchRowProps {
+  job: DiscoveredJobSummary;
+  index: number;
+  selected: boolean;
+  saved: boolean;
+  dismissed: boolean;
+  demoMode: boolean;
+  demoTitle: string | undefined;
+  onSelect: (id: string) => void;
+  onSave: (jobId: string) => void;
+}
+
+// Compact row for the master list — avatar, title/company/location, score
+// badge, and (per explicit product decision) a one-click Add icon so saving
+// doesn't require opening the detail panel first. Dismiss is detail-only:
+// it's the rarer action, one extra click there is an acceptable cost for
+// keeping the row uncluttered.
+function MatchRow({ job, index, selected, saved, dismissed, demoMode, demoTitle, onSelect, onSave }: MatchRowProps) {
+  return (
+    <article
+      className={`ed-rise flex items-center gap-3 border rounded-2xl px-3 py-[0.65rem] cursor-pointer transition-colors ${dismissed ? 'opacity-40' : ''} ${
+        selected ? 'border-[var(--ed-accent)]' : 'border-[var(--ed-rule)] hover:border-[var(--ed-ink-faint)]'
+      }`}
+      style={{ animationDelay: `${Math.min(index, 12) * 30}ms` }}
+      role="button"
+      tabIndex={0}
+      aria-selected={selected}
+      onClick={() => onSelect(job.id)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onSelect(job.id);
+        }
+      }}
+    >
+      <CompanyAvatar name={job.company} logo={job.company_logo} size={28} />
+      <div className="min-w-0 flex-1">
+        <h3 className="text-[13px] font-medium leading-[1.3] text-[var(--ed-ink)] truncate">{job.title}</h3>
+        <div className="text-[13px] text-[var(--ed-ink-faint)] truncate">
+          {job.company}{cityOnly(job.location) ? ` · ${cityOnly(job.location)}` : ''}{job.is_remote ? ' · Remote' : ''}
+        </div>
+      </div>
+      <CompactScoreBadge job={job} />
+      {saved ? (
+        <span className="shrink-0 w-7 h-7 rounded-full border border-[var(--ed-rule)] flex items-center justify-center text-[var(--ed-ink-faint)]" title="Added">
+          <Check className="w-3.5 h-3.5" strokeWidth={2.5} />
+        </span>
+      ) : !dismissed && (
+        <button
+          type="button"
+          disabled={demoMode}
+          title={demoTitle ?? 'Add'}
+          aria-label="Add"
+          className="shrink-0 w-7 h-7 rounded-full border border-[var(--ed-accent)] text-[var(--ed-accent)] flex items-center justify-center transition-all hover:bg-[var(--ed-accent)] hover:text-[var(--ed-paper)] disabled:opacity-50 disabled:pointer-events-none disabled:cursor-not-allowed"
+          onClick={(e) => { e.stopPropagation(); onSave(job.id); }}
+        >
+          <Plus className="w-4 h-4" strokeWidth={2.5} />
+        </button>
+      )}
+    </article>
+  );
+}
+
+interface MatchDetailProps {
+  job: DiscoveredJobSummary;
+  saved: boolean;
+  dismissed: boolean;
+  demoMode: boolean;
+  demoTitle: string | undefined;
+  onClose: () => void;
+  onSave: (jobId: string) => void;
+  onDismiss: (jobId: string) => void;
+}
+
+function MatchDetail({ job, saved, dismissed, demoMode, demoTitle, onClose, onSave, onDismiss }: MatchDetailProps) {
+  return (
+    <>
+      <div className="flex items-center gap-3 px-5 py-3 border-b border-[var(--ed-rule)] shrink-0">
+        <button
+          type="button"
+          aria-label="Close"
+          className="shrink-0 w-8 h-8 rounded-full border border-[var(--ed-rule)] flex items-center justify-center text-[var(--ed-ink-faint)] hover:border-[var(--ed-ink)] hover:text-[var(--ed-ink)] transition-all"
+          onClick={onClose}
+        >
+          <X className="w-4 h-4" strokeWidth={2.5} />
+        </button>
+        <div className="min-w-0 flex-1 text-[13px] text-[var(--ed-ink-faint)] truncate">
+          <span className="text-[var(--ed-ink)] font-medium">{job.title}</span> · {job.company}
+        </div>
+        {job.job_url && (
+          <a href={job.job_url} target="_blank" rel="noopener noreferrer" className="shrink-0 text-[13px] text-[var(--ed-ink-faint)] hover:text-[var(--ed-ink)] transition-colors">
+            View posting ↗
+          </a>
+        )}
+      </div>
+
+      <div className="flex-1 overflow-y-auto ed-scroll p-6">
+        <div className="flex items-start gap-4 pb-6 border-b border-[var(--ed-rule)] mb-6">
+          <CompanyAvatar name={job.company} logo={job.company_logo} size={44} />
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-x-2 flex-wrap text-[13px] text-[var(--ed-ink-faint)] mb-1">
+              <span className="font-medium text-[var(--ed-ink-soft)]">{job.company}</span>
+              {cityOnly(job.location) && <span>{cityOnly(job.location)}</span>}
+              {job.is_remote && (
+                <span className="border border-[var(--ed-rule)] rounded-full px-[0.5rem] py-[0.05rem]">Remote</span>
+              )}
+            </div>
+            <h2 className="text-[16px] font-medium leading-[1.3] text-[var(--ed-ink)] mb-1">{job.title}</h2>
+            {(formatPostedAgo(job.date_posted) || isNew(job.date_posted)) && (
+              <div className="flex items-center gap-x-2 flex-wrap text-[13px] text-[var(--ed-ink-faint)] tabular-nums">
+                {formatPostedAgo(job.date_posted) && <span>{formatPostedAgo(job.date_posted)}</span>}
+                {isNew(job.date_posted) && (
+                  <span className="border border-[var(--ed-rule)] rounded-full px-[0.5rem] py-[0.05rem]">New</span>
+                )}
+              </div>
+            )}
+          </div>
+          <MatchScore job={job} />
         </div>
 
-        <MatchScore job={job} />
-
-        <div className="shrink-0 flex gap-2 items-center justify-end w-[7rem]" onClick={(e) => e.stopPropagation()}>
+        <div className="flex gap-2 mb-6">
           {!saved && !dismissed && (
-            <button type="button" disabled={demoMode} title={demoTitle} className={`${ED_BTN} border-[var(--ed-accent)] text-[var(--ed-accent)] hover:bg-[var(--ed-accent)] hover:text-[var(--ed-paper)] disabled:cursor-not-allowed`} onClick={() => onSave(job.id)}>Add</button>
+            <button type="button" disabled={demoMode} title={demoTitle} className={`${ED_BTN} border-[var(--ed-accent)] text-[var(--ed-accent)] hover:bg-[var(--ed-accent)] hover:text-[var(--ed-paper)] disabled:cursor-not-allowed`} onClick={() => onSave(job.id)}>
+              Add
+            </button>
           )}
           {!saved && !dismissed && (
             <button
@@ -197,7 +359,7 @@ function MatchCard({ job, index, expanded, saved, dismissed, demoMode, demoTitle
               disabled={demoMode}
               title={demoTitle ?? 'Dismiss'}
               aria-label="Dismiss"
-              className="shrink-0 w-8 h-8 rounded-full border border-[var(--ed-rule)] flex items-center justify-center text-[var(--ed-ink-faint)] transition-all opacity-0 group-hover:opacity-100 focus-visible:opacity-100 hover:border-[var(--ed-no)] hover:text-[var(--ed-no)] disabled:opacity-50 disabled:pointer-events-none disabled:cursor-not-allowed"
+              className="shrink-0 w-9 h-9 rounded-full border border-[var(--ed-rule)] flex items-center justify-center text-[var(--ed-ink-faint)] transition-all hover:border-[var(--ed-no)] hover:text-[var(--ed-no)] disabled:opacity-50 disabled:pointer-events-none disabled:cursor-not-allowed"
               onClick={() => onDismiss(job.id)}
             >
               <X className="w-4 h-4" strokeWidth={2.5} />
@@ -206,14 +368,19 @@ function MatchCard({ job, index, expanded, saved, dismissed, demoMode, demoTitle
           {saved && <span className="rounded-full border border-[var(--ed-rule)] px-4 py-[0.5rem] text-[13px] font-medium text-[var(--ed-ink-faint)]">Added</span>}
           {dismissed && <span className="rounded-full border border-[var(--ed-rule)] px-4 py-[0.5rem] text-[13px] font-medium text-[var(--ed-ink-faint)]">Dismissed</span>}
         </div>
-      </div>
 
-      {expanded && job.match_analysis && (
-        <div className="pb-6 px-1 max-w-[720px]" onClick={(e) => e.stopPropagation()}>
+        {job.description && (
+          <div className="mb-9">
+            <span className="block text-[13px] text-[var(--ed-ink-faint)] uppercase tracking-[0.1em] font-medium mb-3">Job Description</span>
+            <pre dir="auto" className="whitespace-pre-wrap font-sans text-[16px] leading-[1.7] text-[var(--ed-ink-soft)] m-0">{job.description}</pre>
+          </div>
+        )}
+
+        {job.match_analysis && (
           <AnalysisCard matchAnalysisJson={job.match_analysis as unknown as Record<string, unknown>} />
-        </div>
-      )}
-    </article>
+        )}
+      </div>
+    </>
   );
 }
 
@@ -245,6 +412,8 @@ export default function SearchPage() {
   const [persisted] = useState(loadPersistedFilters);
 
   const [daysBack, setDaysBack] = useState(persisted?.daysBack ?? 14);
+  const [search, setSearch] = useState('');
+  const [searchDebounced, setSearchDebounced] = useState(search);
   const [location, setLocation] = useState(persisted?.location ?? '');
   const [locationDebounced, setLocationDebounced] = useState(location);
   const [isRemote, setIsRemote] = useState<boolean | undefined>(persisted?.isRemote);
@@ -252,7 +421,8 @@ export default function SearchPage() {
   const [verdicts, setVerdicts] = useState<Set<string>>(() => new Set(persisted?.verdicts ?? []));
   const [minScore, setMinScore] = useState(persisted?.minScore ?? '');
   const [showMoreFilters, setShowMoreFilters] = useState(false);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
 
@@ -260,6 +430,11 @@ export default function SearchPage() {
     const t = setTimeout(() => setLocationDebounced(location), 400);
     return () => clearTimeout(t);
   }, [location]);
+
+  useEffect(() => {
+    const t = setTimeout(() => setSearchDebounced(search), 400);
+    return () => clearTimeout(t);
+  }, [search]);
 
   useEffect(() => {
     const snapshot: PersistedFilters = {
@@ -274,16 +449,25 @@ export default function SearchPage() {
 
   const query = useMemo(() => ({
     days_back: daysBack,
+    q: searchDebounced.trim() || undefined,
     location: locationDebounced.trim() || undefined,
     is_remote: isRemote,
     actual_job_level: levels.size > 0 ? [...levels].join(',') : undefined,
     verdict: verdicts.size > 0 ? [...verdicts].join(',') : undefined,
     min_score: minScore.trim() ? Number(minScore) : undefined,
     limit: 100,
-  }), [daysBack, locationDebounced, isRemote, levels, verdicts, minScore]);
+  }), [daysBack, searchDebounced, locationDebounced, isRemote, levels, verdicts, minScore]);
 
   const jobsQuery = useScoredJobs(query);
   const jobs = jobsQuery.data?.jobs ?? [];
+  const selectedJob = jobs.find((j) => j.id === selectedId) ?? null;
+
+  // A filter change can drop the currently-selected job out of the list —
+  // clear the selection rather than leaving the detail panel showing a job
+  // with no corresponding highlighted row.
+  useEffect(() => {
+    if (selectedId && !jobs.some((j) => j.id === selectedId)) setSelectedId(null);
+  }, [jobs, selectedId]);
 
   const saveJob = useSaveJob();
   const dismissJob = useDismissJob();
@@ -306,10 +490,6 @@ export default function SearchPage() {
       else next.add(v);
       return next;
     });
-  }
-
-  function toggleExpand(id: string): void {
-    setExpandedId((prev) => (prev === id ? null : id));
   }
 
   async function handleSave(jobId: string): Promise<void> {
@@ -343,6 +523,10 @@ export default function SearchPage() {
     daysBack !== 14 || location.trim() !== '' || isRemote !== undefined ||
     levels.size > 0 || verdicts.size > 0 || minScore.trim() !== '';
 
+  const activeFilterCount =
+    (daysBack !== 14 ? 1 : 0) + (location.trim() !== '' ? 1 : 0) + (isRemote !== undefined ? 1 : 0) +
+    levels.size + verdicts.size + (minScore.trim() !== '' ? 1 : 0);
+
   const groupLabel ='text-[11px] font-medium uppercase tracking-[0.08em] text-[var(--ed-ink-faint)]';
   const pill = (active: boolean) =>
     `capitalize rounded-full border px-[9px] py-[3px] text-[12px] font-medium transition-all cursor-pointer ${
@@ -353,162 +537,213 @@ export default function SearchPage() {
 
   return (
     <div className="editorial editorial-grain min-h-screen">
-      <div className="relative z-[1] max-w-[1280px] mx-auto px-8 pt-12 pb-20 animate-in fade-in slide-in-from-bottom-1 duration-500 max-[640px]:px-5 max-[640px]:pt-8 max-[640px]:pb-14">
+      <div className="relative z-[1] max-w-[1800px] mx-auto px-8 pt-12 pb-20 animate-in fade-in slide-in-from-bottom-1 duration-500 max-[640px]:px-5 max-[640px]:pt-8 max-[640px]:pb-14">
 
-        <header className="mb-3 relative pb-2 border-b border-[var(--ed-rule)]">
+        <header className="mb-3 relative pb-2 border-b border-[var(--ed-rule)] flex items-center justify-between gap-3">
           <h1 className="font-medium text-[24px] leading-[1.2] tracking-[-0.01em] text-[var(--ed-ink)]">
             Matches
           </h1>
+          {jobsQuery.data && (
+            <span className="text-[13px] font-medium text-[var(--ed-ink-faint)] tabular-nums">{jobsQuery.data.total} match{jobsQuery.data.total === 1 ? '' : 'es'}</span>
+          )}
         </header>
+
+        <div className="mb-5 flex items-center gap-3 max-[640px]:flex-col max-[640px]:items-stretch">
+          <div className="relative flex-1">
+            <Search className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--ed-ink-faint)]" aria-hidden="true" />
+            <Input
+              type="text"
+              placeholder="Search roles, companies, skills, or keywords"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="h-11 rounded-full border-[var(--ed-rule)] bg-transparent text-[var(--ed-ink)] pl-10"
+            />
+          </div>
+          <button
+            type="button"
+            className={`${ED_GHOST} shrink-0 inline-flex items-center gap-[0.4rem]`}
+            onClick={() => setFiltersOpen((v) => !v)}
+            aria-expanded={filtersOpen}
+          >
+            <SlidersHorizontal size={13} aria-hidden="true" />
+            Filters
+            {activeFilterCount > 0 && (
+              <span className="inline-flex items-center justify-center min-w-[1.1rem] h-[1.1rem] px-1 rounded-full text-[11px] font-medium text-[var(--ed-paper)] bg-[var(--ed-accent)] tabular-nums">
+                {activeFilterCount}
+              </span>
+            )}
+          </button>
+        </div>
 
         <div className="flex gap-5 items-start max-[900px]:flex-col">
 
-          {/* Filters — fixed 190px, not a fraction of the grid, and no
-              separate scroll container: it's a normal block that scrolls
-              with the page. */}
-          <aside className="w-[190px] shrink-0 max-[900px]:w-full">
-            <div className="flex items-baseline justify-between gap-3 mb-3">
-              <span className="text-[16px] font-medium tracking-[-0.01em] text-[var(--ed-ink)]">Filters</span>
-              {jobsQuery.data && (
-                <span className="text-[13px] font-medium text-[var(--ed-ink-faint)] tabular-nums">{jobsQuery.data.total} match{jobsQuery.data.total === 1 ? '' : 'es'}</span>
-              )}
-            </div>
-
-            <div className="flex flex-col gap-[0.4rem] mb-5">
-              <span className={groupLabel}>Discovered</span>
-              <div className="flex flex-wrap gap-1">
-                {DAYS_PRESETS.map(({ days, label }) => (
-                  <button key={days} type="button" className={pill(daysBack === days)} onClick={() => setDaysBack(days)} aria-pressed={daysBack === days}>
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-[0.4rem] mb-5">
-              <span className={groupLabel}>Work</span>
-              <div className="flex flex-wrap gap-1">
-                {WORK_SETTING.map(({ value, label }) => (
-                  <button key={label} type="button" className={pill(isRemote === value)} onClick={() => setIsRemote(value)} aria-pressed={isRemote === value}>
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-[0.4rem] mb-5">
-              <span className={groupLabel}>Verdict</span>
-              <div className="flex flex-wrap gap-1">
-                {VERDICT_ORDER.map((v) => (
-                  <button key={v} type="button" className={pill(verdicts.has(v))} onClick={() => toggleVerdict(v)} aria-pressed={verdicts.has(v)}>
-                    {VERDICT_LABELS[v] ?? v}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-[0.4rem] mb-5">
-              <Label htmlFor="search-location" className={groupLabel}>Location</Label>
-              <Input
-                id="search-location"
-                placeholder="e.g. Tel Aviv"
-                value={location}
-                onChange={(e) => setLocation(e.target.value)}
-                className="rounded-lg border-[var(--ed-rule)] bg-transparent text-[var(--ed-ink)]"
-              />
-            </div>
-
-            <button
-              type="button"
-              className="text-[13px] font-medium text-[var(--ed-ink-faint)] hover:text-[var(--ed-ink)] mb-5 text-left transition-colors"
-              onClick={() => setShowMoreFilters((v) => !v)}
-              aria-expanded={showMoreFilters}
-            >
-              {showMoreFilters ? 'Less' : 'More filters'}
-            </button>
-
-            {showMoreFilters && (
-              <>
-                <div className="flex flex-col gap-[0.4rem] mb-5">
-                  <Label htmlFor="min-score" className={groupLabel}>Min score</Label>
-                  <Input
-                    id="min-score"
-                    type="number"
-                    min={0}
-                    max={100}
-                    placeholder="e.g. 70"
-                    value={minScore}
-                    onChange={(e) => setMinScore(e.target.value)}
-                    className="rounded-lg border-[var(--ed-rule)] bg-transparent text-[var(--ed-ink)]"
-                  />
+          {/* Filters — toggled by the header button, not a fixed sidebar.
+              When open it's a normal flex item that pushes the results over,
+              not an overlay: the list stays interactive behind it. */}
+          {filtersOpen && (
+            <aside className="w-[220px] shrink-0 max-[900px]:w-full border border-[var(--ed-rule)] rounded-2xl p-5">
+              <div className="flex flex-col gap-[0.4rem] mb-5">
+                <span className={groupLabel}>Discovered</span>
+                <div className="flex flex-wrap gap-1">
+                  {DAYS_PRESETS.map(({ days, label }) => (
+                    <button key={days} type="button" className={pill(daysBack === days)} onClick={() => setDaysBack(days)} aria-pressed={daysBack === days}>
+                      {label}
+                    </button>
+                  ))}
                 </div>
+              </div>
 
-                <div className="flex flex-col gap-[0.4rem] mb-5">
-                  <span className={groupLabel}>Seniority</span>
-                  <div className="flex flex-wrap gap-1">
-                    {JOB_LEVELS.map((level) => (
-                      <button key={level} type="button" className={pill(levels.has(level))} onClick={() => toggleLevel(level)} aria-pressed={levels.has(level)}>
-                        {level}
-                      </button>
-                    ))}
-                  </div>
+              <div className="flex flex-col gap-[0.4rem] mb-5">
+                <span className={groupLabel}>Work</span>
+                <div className="flex flex-wrap gap-1">
+                  {WORK_SETTING.map(({ value, label }) => (
+                    <button key={label} type="button" className={pill(isRemote === value)} onClick={() => setIsRemote(value)} aria-pressed={isRemote === value}>
+                      {label}
+                    </button>
+                  ))}
                 </div>
-              </>
-            )}
-
-            {hasActiveFilters && (
-              <div className="flex flex-col items-stretch gap-2">
-                <button type="button" className={ED_GHOST} onClick={clearFilters}>
-                  Clear filters
-                </button>
               </div>
-            )}
-            {jobsQuery.isError && (
-              <div className="mt-4 p-3 bg-[var(--ed-no)]/10 text-[var(--ed-no)] text-[13px] border border-[var(--ed-no)]/30">
-                {(jobsQuery.error as Error).message}
-              </div>
-            )}
-          </aside>
 
-          {/* Results. */}
-          <div className="flex-1 min-w-0">
-            <section>
-              {jobsQuery.isLoading ? (
-                <p className="ed-display italic text-center text-[var(--ed-ink-faint)] py-12 text-[16px] border-t border-[var(--ed-rule-strong)]">
-                  Loading matches…
-                </p>
-              ) : jobs.length === 0 ? (
-                <p className="ed-display italic text-center text-[var(--ed-ink-faint)] py-12 text-[16px] border-t border-[var(--ed-rule-strong)]">
-                  No matches — widen the date range or relax the filters.
-                </p>
-              ) : (
+              <div className="flex flex-col gap-[0.4rem] mb-5">
+                <span className={groupLabel}>Verdict</span>
+                <div className="flex flex-wrap gap-1">
+                  {VERDICT_ORDER.map((v) => (
+                    <button key={v} type="button" className={pill(verdicts.has(v))} onClick={() => toggleVerdict(v)} aria-pressed={verdicts.has(v)}>
+                      {VERDICT_LABELS[v] ?? v}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-[0.4rem] mb-5">
+                <Label htmlFor="search-location" className={groupLabel}>Location</Label>
+                <Input
+                  id="search-location"
+                  placeholder="e.g. Tel Aviv"
+                  value={location}
+                  onChange={(e) => setLocation(e.target.value)}
+                  className="rounded-lg border-[var(--ed-rule)] bg-transparent text-[var(--ed-ink)]"
+                />
+              </div>
+
+              <button
+                type="button"
+                className="text-[13px] font-medium text-[var(--ed-ink-faint)] hover:text-[var(--ed-ink)] mb-5 text-left transition-colors"
+                onClick={() => setShowMoreFilters((v) => !v)}
+                aria-expanded={showMoreFilters}
+              >
+                {showMoreFilters ? 'Less' : 'More filters'}
+              </button>
+
+              {showMoreFilters && (
                 <>
-                  <div className="flex items-baseline justify-end gap-3 mb-1 pb-2 border-b border-[var(--ed-rule-strong)]">
-                    <span className="text-[13px] font-medium uppercase tracking-[0.1em] text-[var(--ed-ink-faint)]">Best first</span>
+                  <div className="flex flex-col gap-[0.4rem] mb-5">
+                    <Label htmlFor="min-score" className={groupLabel}>Min score</Label>
+                    <Input
+                      id="min-score"
+                      type="number"
+                      min={0}
+                      max={100}
+                      placeholder="e.g. 70"
+                      value={minScore}
+                      onChange={(e) => setMinScore(e.target.value)}
+                      className="rounded-lg border-[var(--ed-rule)] bg-transparent text-[var(--ed-ink)]"
+                    />
                   </div>
 
-                  <div>
-                    {jobs.map((job, idx) => (
-                      <MatchCard
-                        key={job.id}
-                        job={job}
-                        index={idx}
-                        expanded={expandedId === job.id}
-                        saved={savedIds.has(job.id) || !!job.saved_to_tracker}
-                        dismissed={dismissedIds.has(job.id)}
-                        demoMode={demoMode}
-                        demoTitle={demoTitle}
-                        onToggleExpand={toggleExpand}
-                        onSave={handleSave}
-                        onDismiss={handleDismiss}
-                      />
-                    ))}
+                  <div className="flex flex-col gap-[0.4rem] mb-5">
+                    <span className={groupLabel}>Seniority</span>
+                    <div className="flex flex-wrap gap-1">
+                      {JOB_LEVELS.map((level) => (
+                        <button key={level} type="button" className={pill(levels.has(level))} onClick={() => toggleLevel(level)} aria-pressed={levels.has(level)}>
+                          {level}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </>
               )}
-            </section>
-          </div>
 
+              {hasActiveFilters && (
+                <div className="flex flex-col items-stretch gap-2">
+                  <button type="button" className={ED_GHOST} onClick={clearFilters}>
+                    Clear filters
+                  </button>
+                </div>
+              )}
+            </aside>
+          )}
+
+          {jobsQuery.isError && (
+            <div className="w-full mb-2 p-3 bg-[var(--ed-no)]/10 text-[var(--ed-no)] text-[13px] border border-[var(--ed-no)]/30">
+              {(jobsQuery.error as Error).message}
+            </div>
+          )}
+
+          {jobsQuery.isLoading ? (
+            <p className="w-full ed-display italic text-center text-[var(--ed-ink-faint)] py-12 text-[16px] border-t border-[var(--ed-rule-strong)]">
+              Loading matches…
+            </p>
+          ) : jobs.length === 0 ? (
+            <p className="w-full ed-display italic text-center text-[var(--ed-ink-faint)] py-12 text-[16px] border-t border-[var(--ed-rule-strong)]">
+              No matches — widen the date range or relax the filters.
+            </p>
+          ) : selectedJob ? (
+            <>
+              {/* A job is selected — master-detail view: compact list + JD/analysis panel. */}
+              <div className="w-[360px] shrink-0 flex flex-col gap-2 max-[900px]:w-full">
+                {jobs.map((job, idx) => (
+                  <MatchRow
+                    key={job.id}
+                    job={job}
+                    index={idx}
+                    selected={selectedId === job.id}
+                    saved={savedIds.has(job.id) || !!job.saved_to_tracker}
+                    dismissed={dismissedIds.has(job.id)}
+                    demoMode={demoMode}
+                    demoTitle={demoTitle}
+                    onSelect={setSelectedId}
+                    onSave={handleSave}
+                  />
+                ))}
+              </div>
+
+              <section
+                className="flex-1 min-w-0 border border-[var(--ed-rule)] rounded-2xl overflow-hidden flex flex-col
+                           sticky top-14 max-h-[calc(100vh-3.5rem-2rem)]
+                           max-[900px]:static max-[900px]:max-h-none max-[900px]:mt-5 max-[900px]:w-full"
+              >
+                <MatchDetail
+                  job={selectedJob}
+                  saved={savedIds.has(selectedJob.id) || !!selectedJob.saved_to_tracker}
+                  dismissed={dismissedIds.has(selectedJob.id)}
+                  demoMode={demoMode}
+                  demoTitle={demoTitle}
+                  onClose={() => setSelectedId(null)}
+                  onSave={handleSave}
+                  onDismiss={handleDismiss}
+                />
+              </section>
+            </>
+          ) : (
+            /* Default browse view — full card grid. */
+            <div className="flex-1 min-w-0 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {jobs.map((job, idx) => (
+                <MatchCard
+                  key={job.id}
+                  job={job}
+                  index={idx}
+                  saved={savedIds.has(job.id) || !!job.saved_to_tracker}
+                  dismissed={dismissedIds.has(job.id)}
+                  demoMode={demoMode}
+                  demoTitle={demoTitle}
+                  onSelect={setSelectedId}
+                  onSave={handleSave}
+                  onDismiss={handleDismiss}
+                />
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -178,6 +178,7 @@ export interface ScoredJobsQuery {
   days_back?: number;
   criteria_id?: string;
   location?: string; // free-text substring, case-insensitive
+  q?: string; // free-text search across title/company/description
   is_remote?: boolean;
   actual_job_level?: string; // comma-separated
   include_dismissed?: boolean;

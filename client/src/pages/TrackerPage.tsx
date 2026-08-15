@@ -28,7 +28,7 @@ export default function TrackerPage() {
 
   return (
     <div className="editorial editorial-grain min-h-[calc(100vh-56px)] animate-in fade-in slide-in-from-bottom-1 duration-300">
-      <div className="relative z-[1] max-w-[1100px] mx-auto px-8 pt-12 pb-16 max-[640px]:px-5 max-[640px]:pt-8">
+      <div className="relative z-[1] max-w-[1800px] mx-auto px-8 pt-12 pb-16 max-[640px]:px-5 max-[640px]:pt-8">
         {/* Masthead */}
         <header className="mb-7">
           <div className="flex items-baseline justify-between gap-4 pb-[10px] border-b border-[var(--ed-rule)] text-[13px] font-medium uppercase tracking-[0.18em] text-[var(--ed-ink-faint)]">

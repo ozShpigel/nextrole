@@ -113,7 +113,7 @@ function AppliedCard(
         onClick={() => onMoveToProcess(app)}
       >
         <MoveRight size={12} aria-hidden="true" />
-        In Process
+        Interviewing
       </button>
       {app.jobUrl ? (
         <a
@@ -204,7 +204,7 @@ export default function ActivePage() {
 
   return (
     <div className="editorial editorial-grain min-h-[calc(100vh-56px)] animate-in fade-in slide-in-from-bottom-1 duration-300">
-      <div className="relative z-[1] max-w-[1100px] mx-auto px-4 pt-12 pb-16 max-[640px]:pt-8">
+      <div className="relative z-[1] max-w-[1800px] mx-auto px-8 pt-12 pb-16 max-[640px]:px-5 max-[640px]:pt-8">
         <header className="mb-9">
           <Link
             to="/search"
@@ -302,7 +302,7 @@ export default function ActivePage() {
               )}
             </Column>
 
-            <Column label="In Process" count={inProcess.length} emptyText="No live interview processes right now.">
+            <Column label="Interviewing" count={inProcess.length} emptyText="No live interview processes right now.">
               {inProcess.map((a, i) => (
                 <Card key={a.id} app={a} index={i}>
                   <StatusBadge status={a.status} />

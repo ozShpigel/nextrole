@@ -234,6 +234,7 @@ async def list_scored_jobs(
     days_back: int = 14,
     criteria_id: str | None = None,
     location: str | None = None,  # free-text substring, case-insensitive
+    q: str | None = None,  # free-text search across title/company/description
     is_remote: bool | None = None,
     actual_job_level: str | None = None,  # comma-separated
     include_dismissed: bool = False,
@@ -268,6 +269,13 @@ async def list_scored_jobs(
         query["criteria_id"] = criteria_id
     if location and location.strip():
         query["location"] = {"$regex": re.escape(location.strip()), "$options": "i"}
+    if q and q.strip():
+        pattern = re.escape(q.strip())
+        query["$or"] = [
+            {"title": {"$regex": pattern, "$options": "i"}},
+            {"company": {"$regex": pattern, "$options": "i"}},
+            {"description": {"$regex": pattern, "$options": "i"}},
+        ]
     if is_remote is not None:
         query["is_remote"] = is_remote
     if actual_job_level:

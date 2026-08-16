@@ -1,5 +1,7 @@
 name: Frontend
 
+# Trigger note: bumped 2026-08-16 to force a rebuild after removing the
+# VITE_API_URL=/api repo variable (was double-prefixing every API call).
 on:
   push:
     branches: [main]

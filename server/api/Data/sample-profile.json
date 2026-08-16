@@ -34,13 +34,13 @@
       ]
     }
   ],
-  "skills": {
-    "languages": ["TypeScript", "Python", "Java"],
-    "frameworks": ["React", "Node.js", "Spring Boot"],
-    "infrastructure": ["AWS", "Docker", "GitHub Actions"],
-    "databases": ["PostgreSQL", "Redis"],
-    "other": ["REST API design", "CI/CD", "Test automation"]
-  },
+  "skills": [
+    { "category": "Languages", "items": ["TypeScript", "Python", "Java"] },
+    { "category": "Frameworks", "items": ["React", "Node.js", "Spring Boot"] },
+    { "category": "Infrastructure", "items": ["AWS", "Docker", "GitHub Actions"] },
+    { "category": "Databases", "items": ["PostgreSQL", "Redis"] },
+    { "category": "Practices", "items": ["REST API design", "CI/CD", "Test automation"] }
+  ],
   "strengths": [
     "Clear written communication and documentation",
     "Breaking ambiguous problems into shippable milestones",

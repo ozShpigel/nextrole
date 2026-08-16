@@ -109,20 +109,15 @@ public static class ProfileRenderer
         sb.AppendLine($"</{tag}>");
     }
 
-    private static List<string> RenderSkills(SkillGroups? s)
+    private static List<string> RenderSkills(SkillGroup[]? groups)
     {
         var lines = new List<string>();
-        if (s is null) return lines;
-        void Add(string label, string[] vals)
+        foreach (var g in groups ?? [])
         {
-            var clean = Clean(vals);
-            if (clean.Count > 0) lines.Add($"{label}: {string.Join(", ", clean)}");
+            if (g is null || string.IsNullOrWhiteSpace(g.Category)) continue;
+            var clean = Clean(g.Items);
+            if (clean.Count > 0) lines.Add($"{g.Category.Trim()}: {string.Join(", ", clean)}");
         }
-        Add("Languages", s.Languages);
-        Add("Frameworks", s.Frameworks);
-        Add("Infrastructure", s.Infrastructure);
-        Add("Databases", s.Databases);
-        Add("Other", s.Other);
         return lines;
     }
 

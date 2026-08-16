@@ -25,7 +25,7 @@ public sealed record StructuredProfile
     public string? Seniority { get; init; }
     public string[] Domains { get; init; } = [];
     public ExperienceItem[] Experience { get; init; } = [];
-    public SkillGroups Skills { get; init; } = new();
+    public SkillGroup[] Skills { get; init; } = [];
     // One entry per degree/certification, e.g. "B.Sc. Computer Science, Open University, 2015".
     public string[] Education { get; init; } = [];
     // One entry per stated military/national service role, e.g. "Team Lead, 8200, 2010-2013".
@@ -35,7 +35,7 @@ public sealed record StructuredProfile
     // annotation, not visible URL text — nothing for text/vision-based extraction to
     // read), so they're always empty until the user adds them manually in Settings.
     public SideProjectItem[] SideProjects { get; init; } = [];
-    // Spoken/human languages (not programming languages — see Skills.Languages), e.g. "Hebrew (native)".
+    // Spoken/human languages (not programming languages — those belong in Skills), e.g. "Hebrew (native)".
     public string[] SpokenLanguages { get; init; } = [];
     public string[] Strengths { get; init; } = [];
     public string[] CoreValues { get; init; } = [];
@@ -54,15 +54,16 @@ public sealed record ExperienceItem
     public string[] Highlights { get; init; } = [];
 }
 
-// Mirrors ParsedJob.TechnicalRequirements (+ Other) so candidate skills and job
-// requirements describe technology in the same vocabulary.
-public sealed record SkillGroups
+// One named group of skills, e.g. {"Infrastructure", ["Kubernetes", "Docker"]}.
+// Category names are real, not a fixed enum — the normalization prompt takes
+// them from the résumé's own Skills section (or invents sensible ones for
+// unstructured input), same shape ResumePack.SkillCategory already uses for
+// generated output. No hardcoded catch-all "Other" bucket: an item that
+// doesn't fit a real category is either its own category or dropped.
+public sealed record SkillGroup
 {
-    public string[] Languages { get; init; } = [];
-    public string[] Frameworks { get; init; } = [];
-    public string[] Infrastructure { get; init; } = [];
-    public string[] Databases { get; init; } = [];
-    public string[] Other { get; init; } = [];
+    public string Category { get; init; } = "";
+    public string[] Items { get; init; } = [];
 }
 
 // Output of the normalization agent: the machine-extractable subset of a
@@ -81,7 +82,7 @@ public sealed record NormalizedProfile
     public string? Seniority { get; init; }
     public string[] Domains { get; init; } = [];
     public ExperienceItem[] Experience { get; init; } = [];
-    public SkillGroups Skills { get; init; } = new();
+    public SkillGroup[] Skills { get; init; } = [];
     public string[] Education { get; init; } = [];
     public string[] MilitaryService { get; init; } = [];
     public SideProjectItem[] SideProjects { get; init; } = [];

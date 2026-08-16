@@ -10,12 +10,11 @@ export interface ExperienceItem {
   highlights: string[];
 }
 
-export interface SkillGroups {
-  languages: string[];
-  frameworks: string[];
-  infrastructure: string[];
-  databases: string[];
-  other: string[];
+// One named skill group, e.g. { category: "Infrastructure", items: ["Kubernetes", "Docker"] }.
+// Category names are real, not a fixed set — same shape ResumePack's highlightedSkills uses.
+export interface SkillGroup {
+  category: string;
+  items: string[];
 }
 
 // The raw uploaded résumé file (PDF or TXT) — separate from the parsed
@@ -41,7 +40,7 @@ export interface StructuredProfile {
   seniority?: string | null;
   domains: string[];
   experience: ExperienceItem[];
-  skills: SkillGroups;
+  skills: SkillGroup[];
   // One entry per degree/certification, e.g. "B.Sc. Computer Science, Open University, 2015".
   education: string[];
   // One entry per stated military/national service role, e.g. "Team Lead, 8200, 2010-2013".
@@ -50,7 +49,7 @@ export interface StructuredProfile {
   // uploaded résumé (a PDF hyperlink's target isn't visible text) — always empty
   // until added manually in Settings.
   sideProjects: SideProjectItem[];
-  // Spoken/human languages (not programming languages — see skills.languages), e.g. "Hebrew (native)".
+  // Spoken/human languages (not programming languages — those belong in skills), e.g. "Hebrew (native)".
   spokenLanguages: string[];
   strengths: string[];
   coreValues: string[];
@@ -74,7 +73,7 @@ export interface NormalizedProfile {
   seniority?: string | null;
   domains: string[];
   experience: ExperienceItem[];
-  skills: SkillGroups;
+  skills: SkillGroup[];
   education: string[];
   militaryService: string[];
   sideProjects: SideProjectItem[];

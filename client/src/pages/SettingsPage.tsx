@@ -4,7 +4,7 @@ import { User, FileText, Upload, RefreshCw, Award, ChevronLeft, ChevronRight } f
 import { useProfile, useResumeFile } from '../lib/queries';
 import { useSaveProfile, useNormalizeProfileFile } from '../lib/mutations';
 import { apiUrl } from '../lib/api';
-import type { ProfileResponse, StructuredProfile, SkillGroups, NormalizedProfile } from '../lib/types';
+import type { ProfileResponse, StructuredProfile, NormalizedProfile } from '../lib/types';
 import { Skeleton } from '../components/ui/skeleton';
 import { ChipInput } from '../components/ChipInput';
 
@@ -20,10 +20,9 @@ function initials(name: string): string {
 const FIELD_INPUT = 'w-full py-[0.5rem] px-[0.75rem] bg-transparent border border-[var(--ed-rule)] text-[var(--ed-ink)] text-[0.85rem] font-code text-left transition-colors hover:border-[var(--ed-ink-faint)] focus:border-[var(--ed-accent)] focus:outline-none';
 const FIELD_LABEL = 'text-[0.62rem] text-[var(--ed-ink-faint)] tracking-[0.16em] uppercase font-semibold';
 
-const EMPTY_SKILLS: SkillGroups = { languages: [], frameworks: [], infrastructure: [], databases: [], other: [] };
 const EMPTY_PROFILE: StructuredProfile = {
   fullName: '', email: '', phone: '', location: '', linkedIn: '',
-  summary: '', seniority: '', domains: [], experience: [], skills: EMPTY_SKILLS,
+  summary: '', seniority: '', domains: [], experience: [], skills: [],
   education: [], militaryService: [], sideProjects: [], spokenLanguages: [],
   strengths: [], coreValues: [], redFlags: [], rawExperienceText: '',
 };
@@ -58,7 +57,7 @@ function hydrate(p?: StructuredProfile | null): StructuredProfile {
   return {
     ...EMPTY_PROFILE,
     ...(p ?? {}),
-    skills: { ...EMPTY_SKILLS, ...(p?.skills ?? {}) },
+    skills: p?.skills ?? [],
     experience: p?.experience ?? [],
     domains: p?.domains ?? [],
     education: p?.education ?? [],
@@ -149,7 +148,7 @@ export default function SettingsPage() {
         seniority: n.seniority ?? '',
         domains: n.domains ?? [],
         experience: n.experience ?? [],
-        skills: { ...EMPTY_SKILLS, ...(n.skills ?? {}) },
+        skills: n.skills ?? [],
         education: n.education ?? [],
         militaryService: n.militaryService ?? [],
         sideProjects: n.sideProjects ?? [],

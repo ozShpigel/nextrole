@@ -17,7 +17,12 @@ const mockProfileResponse = {
     seniority: 'Senior',
     domains: ['fintech'],
     experience: [{ title: 'Senior Software Engineer', company: 'Lumen Retail', dates: '2021–Present', highlights: ['Led checkout platform'] }],
-    skills: { languages: ['TypeScript'], frameworks: ['React'], infrastructure: ['AWS'], databases: ['PostgreSQL'], other: [] },
+    skills: [
+      { category: 'Languages', items: ['TypeScript'] },
+      { category: 'Frameworks', items: ['React'] },
+      { category: 'Infrastructure', items: ['AWS'] },
+      { category: 'Databases', items: ['PostgreSQL'] },
+    ],
     education: [],
     strengths: ['Clear communication'],
     coreValues: ['Sustainable pace'],
@@ -189,7 +194,7 @@ describe('SettingsPage', () => {
       seniority: 'Staff',
       domains: ['ai'],
       experience: [{ title: 'Parsed Role', company: 'NewCo', dates: '2020–2024', highlights: ['Did things'] }],
-      skills: { languages: ['Rust'], frameworks: [], infrastructure: [], databases: [], other: [] },
+      skills: [{ category: 'Languages', items: ['Rust'] }],
       education: [],
     };
     mockRoutes({

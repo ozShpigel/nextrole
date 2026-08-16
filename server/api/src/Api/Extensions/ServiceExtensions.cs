@@ -74,6 +74,10 @@ public static class ServiceExtensions
         services.AddSingleton<PromptBuilder>();
         services.AddSingleton<IProfileProvider, MongoProfileProvider>();
         services.AddHttpClient("anthropic", c => c.Timeout = TimeSpan.FromSeconds(300));
+        // ClaudeClient is a singleton but needs the current request's X-Source
+        // header (per-caller API key selection, see ClaudeClient.ResolveClient) —
+        // IHttpContextAccessor is the standard way to reach that from a singleton.
+        services.AddHttpContextAccessor();
         services.AddSingleton<IClaudeClient, ClaudeClient>();
         services.AddScoped<IJobMatchService, JobMatchService>();
 

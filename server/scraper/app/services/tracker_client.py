@@ -56,10 +56,14 @@ async def _request_with_retry(
     certainly means the downstream op is too slow — retrying just wedges the caller
     for another full timeout window each attempt.
     """
+    headers = request_kwargs.pop("headers", None) or {}
     if settings.api_key:
-        headers = request_kwargs.pop("headers", None) or {}
         headers["X-Api-Key"] = settings.api_key
-        request_kwargs["headers"] = headers
+    # Lets the API bill the scraper's Claude calls (ingest scoring) on their own
+    # Anthropic API key, separate from mailbot — no-op on the non-Claude calls
+    # this function also makes.
+    headers["X-Source"] = "ingest"
+    request_kwargs["headers"] = headers
     async with httpx.AsyncClient(timeout=timeout) as client:
         for attempt in range(_MAX_RETRIES + 1):
             try:

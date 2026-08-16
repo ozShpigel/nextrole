@@ -60,6 +60,10 @@ try
         client.Timeout = TimeSpan.FromSeconds(120);
         if (!string.IsNullOrEmpty(trackerApiKey))
             client.DefaultRequestHeaders.Add("X-Api-Key", trackerApiKey);
+        // Lets the API bill mailbot's Claude calls (email parsing) on their own
+        // Anthropic API key, separate from ingest scoring — no-op on the CRUD
+        // calls this client also makes.
+        client.DefaultRequestHeaders.Add("X-Source", "mailbot");
     }
 
     builder.Services.AddHttpClient<IEmailParser, HttpEmailParser>(ConfigureTrackerClient);

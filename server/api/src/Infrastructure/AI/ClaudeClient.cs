@@ -8,6 +8,7 @@ using ApplicationTracker.Core.Email;
 using ApplicationTracker.Core.Matching;
 using ApplicationTracker.Core.Models;
 using ApplicationTracker.Core.Profile;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
@@ -82,6 +83,13 @@ public sealed class ClaudeClient : IClaudeClient
     };
 
     private readonly AnthropicClient _client;
+    // Per-caller Anthropic API keys (Anthropic:ApiKeys:{source}), so the
+    // Anthropic Console can report cost split by caller (mailbot vs. ingest
+    // vs. everything else on the default key). Keyed by the inbound
+    // X-Source header, read per-call via IHttpContextAccessor since this
+    // service is a DI singleton — see ResolveClient().
+    private readonly Dictionary<string, AnthropicClient> _clientsBySource;
+    private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly PromptBuilder _promptBuilder;
     private readonly IProfileProvider _profileProvider;
     private readonly PromptOptions _prompts;
@@ -91,6 +99,7 @@ public sealed class ClaudeClient : IClaudeClient
     public ClaudeClient(
         IConfiguration configuration,
         IHttpClientFactory httpClientFactory,
+        IHttpContextAccessor httpContextAccessor,
         PromptBuilder promptBuilder,
         IProfileProvider profileProvider,
         PromptOptions prompts,
@@ -105,11 +114,33 @@ public sealed class ClaudeClient : IClaudeClient
 
         var httpClient = httpClientFactory.CreateClient("anthropic");
         _client = new AnthropicClient(apiKey, httpClient);
+
+        var sourceKeys = configuration.GetSection("Anthropic:ApiKeys").Get<Dictionary<string, string>>() ?? [];
+        _clientsBySource = new Dictionary<string, AnthropicClient>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (source, key) in sourceKeys)
+        {
+            if (!string.IsNullOrWhiteSpace(key))
+                _clientsBySource[source] = new AnthropicClient(key, httpClient);
+        }
+
+        _httpContextAccessor = httpContextAccessor;
         _promptBuilder = promptBuilder;
         _profileProvider = profileProvider;
         _prompts = prompts;
         _scoring = scoring;
         _logger = logger;
+    }
+
+    // Picks the Anthropic client for the current request's X-Source header
+    // (set by mailbot/scraper — see AGENTS.md-adjacent callers), falling
+    // back to the default client for the browser/UI and any unrecognized
+    // or missing source.
+    private AnthropicClient ResolveClient()
+    {
+        var source = _httpContextAccessor.HttpContext?.Request.Headers["X-Source"].ToString();
+        return !string.IsNullOrEmpty(source) && _clientsBySource.TryGetValue(source, out var client)
+            ? client
+            : _client;
     }
 
     // Configured prompts, blank-guarded back to the bundled seed so an empty
@@ -269,7 +300,7 @@ public sealed class ClaudeClient : IClaudeClient
             PromptCaching = PromptCacheType.FineGrained,
         };
 
-        var response = await _client.Messages.GetClaudeMessageAsync(parameters, cancellationToken);
+        var response = await ResolveClient().Messages.GetClaudeMessageAsync(parameters, cancellationToken);
         var content = response.Message?.ToString()?.Trim();
 
         if (string.IsNullOrWhiteSpace(content) || content.Equals("null", StringComparison.OrdinalIgnoreCase))
@@ -298,7 +329,7 @@ public sealed class ClaudeClient : IClaudeClient
             Stream = false
         };
 
-        var response = await _client.Messages.GetClaudeMessageAsync(parameters, cancellationToken);
+        var response = await ResolveClient().Messages.GetClaudeMessageAsync(parameters, cancellationToken);
         var content = response.Message?.ToString()?.Trim()
             ?? throw new InvalidOperationException("Empty response from Claude API");
 
@@ -343,7 +374,7 @@ public sealed class ClaudeClient : IClaudeClient
             Stream = false
         };
 
-        var response = await _client.Messages.GetClaudeMessageAsync(parameters, cancellationToken);
+        var response = await ResolveClient().Messages.GetClaudeMessageAsync(parameters, cancellationToken);
         var content = response.Message?.ToString()?.Trim()
             ?? throw new InvalidOperationException("Empty response from Claude API");
 
@@ -369,7 +400,7 @@ public sealed class ClaudeClient : IClaudeClient
             Stream = false
         };
 
-        var response = await _client.Messages.GetClaudeMessageAsync(parameters, cancellationToken);
+        var response = await ResolveClient().Messages.GetClaudeMessageAsync(parameters, cancellationToken);
         var content = response.Message?.ToString()?.Trim()
             ?? throw new InvalidOperationException("Empty response from Claude API");
 
@@ -414,7 +445,7 @@ public sealed class ClaudeClient : IClaudeClient
             Stream = false
         };
 
-        var response = await _client.Messages.GetClaudeMessageAsync(parameters, cancellationToken);
+        var response = await ResolveClient().Messages.GetClaudeMessageAsync(parameters, cancellationToken);
         var content = response.Message?.ToString()?.Trim()
             ?? throw new InvalidOperationException("Empty response from Claude API");
 
@@ -448,7 +479,7 @@ public sealed class ClaudeClient : IClaudeClient
             Stream = false
         };
 
-        var response = await _client.Messages.GetClaudeMessageAsync(parameters, cancellationToken);
+        var response = await ResolveClient().Messages.GetClaudeMessageAsync(parameters, cancellationToken);
         var content = response.Message?.ToString()?.Trim()
             ?? throw new InvalidOperationException("Empty response from Claude API");
 
@@ -517,7 +548,7 @@ public sealed class ClaudeClient : IClaudeClient
             Stream = false
         };
 
-        var response = await _client.Messages.GetClaudeMessageAsync(parameters, cancellationToken);
+        var response = await ResolveClient().Messages.GetClaudeMessageAsync(parameters, cancellationToken);
         var content = response.Message?.ToString()?.Trim()
             ?? throw new InvalidOperationException("Empty response from Claude API");
 
@@ -557,7 +588,7 @@ public sealed class ClaudeClient : IClaudeClient
             Stream = false
         };
 
-        var response = await _client.Messages.GetClaudeMessageAsync(parameters, cancellationToken);
+        var response = await ResolveClient().Messages.GetClaudeMessageAsync(parameters, cancellationToken);
         var content = response.Message?.ToString()?.Trim()
             ?? throw new InvalidOperationException("Empty response from Claude API");
 
@@ -585,7 +616,7 @@ public sealed class ClaudeClient : IClaudeClient
             Stream = false
         };
 
-        var response = await _client.Messages.GetClaudeMessageAsync(parameters, cancellationToken);
+        var response = await ResolveClient().Messages.GetClaudeMessageAsync(parameters, cancellationToken);
         var content = response.Message?.ToString()?.Trim()
             ?? throw new InvalidOperationException("Empty response from Claude API");
 
@@ -811,7 +842,7 @@ public sealed class ClaudeClient : IClaudeClient
             var sb = new System.Text.StringBuilder();
             int? inTok = null, outTok = null, cacheW = null, cacheR = null;
             string? stopReason = null;
-            await foreach (var chunk in _client.Messages.StreamClaudeMessageAsync(parameters, cancellationToken))
+            await foreach (var chunk in ResolveClient().Messages.StreamClaudeMessageAsync(parameters, cancellationToken))
             {
                 if (chunk.Delta?.Text is { Length: > 0 } deltaText)
                     sb.Append(deltaText);

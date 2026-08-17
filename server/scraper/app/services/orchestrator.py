@@ -136,10 +136,10 @@ async def run_discovery(db: AsyncIOMotorDatabase, settings: Settings, criteria_i
         if run.jobs_date_backfilled:
             logger.info("Run %s: backfilled/refreshed date_posted on %d already-known jobs", run.id, run.jobs_date_backfilled)
 
-        # Wake the API before triage/duplicate checks. On Render free tier the
-        # per-call retry budget (~15s) is too small to cover a 30-60s cold start.
-        if not await tracker_client.warm_up_api(settings):
-            raise RuntimeError("API unreachable after warm-up — aborting run")
+        # Fail fast before triage/duplicate checks if the API is unreachable,
+        # rather than have some call deep into the run be the first to notice.
+        if not await tracker_client.check_api_reachable(settings):
+            raise RuntimeError("API unreachable — aborting run")
 
         # Title triage: one Haiku call flags clearly off-target titles
         # (job-board search padding) so they skip embedding. Fails open —

@@ -19,6 +19,12 @@ public sealed record ResumePack
     // to this posting. Education/MilitaryService/SpokenLanguages are NOT persisted
     // here — the PDF renders those straight from StructuredProfile, unedited.
     public List<SideProjectItem> SideProjects { get; init; } = new();
+    // Fabrication signals from ResumePackValidator, computed once at
+    // generation time from the (already-discarded) Provenance/HighlightedSkills/
+    // Experience the model actually returned — not enforced, just recorded so
+    // real generations can be reviewed before deciding whether any check should
+    // hard-fail. The raw Provenance array itself is never persisted.
+    public List<ValidationViolation> Violations { get; init; } = new();
     public DateTime GeneratedAt { get; init; } = DateTime.UtcNow;
 }
 
@@ -55,6 +61,16 @@ public sealed record ProvenanceRow
 {
     public string Output { get; init; } = "";
     public string Source { get; init; } = "";
+}
+
+// One flagged fabrication signal from ResumePackValidator — e.g. a provenance
+// Source that doesn't appear verbatim in the profile, or a skill/experience
+// entry not found in the candidate's actual profile data. Kind is a short
+// machine-readable code (see ResumePackValidator); Detail is human-readable.
+public sealed record ValidationViolation
+{
+    public string Kind { get; init; } = "";
+    public string Detail { get; init; } = "";
 }
 
 // Raw Claude output, kept distinct from the persisted document (same split

@@ -1,8 +1,10 @@
+using ApplicationTracker.Api.DTOs;
 using ApplicationTracker.Core.AI;
 using ApplicationTracker.Core.Models;
 using ApplicationTracker.Core.Profile;
 using ApplicationTracker.Core.Repositories;
 using ApplicationTracker.Infrastructure.Pdf;
+using Microsoft.AspNetCore.Mvc;
 
 namespace ApplicationTracker.Api.Endpoints;
 
@@ -66,8 +68,18 @@ public static class ResumePackEndpoints
 
             try
             {
-                var profileText = await profileProvider.GetProfileAsync(ct);
-                var synthesis = await claude.GenerateResumePackAsync(application, profileText, ct);
+                var profileDoc = await profileProvider.GetProfileDocumentAsync(ct);
+                var synthesis = await claude.GenerateResumePackAsync(application, profileDoc.Content, ct);
+
+                // Fabrication check, while the raw synthesis (Provenance
+                // included) is still around — see ResumePackValidator. Never
+                // blocks; just recorded on the pack and logged for review.
+                var violations = ResumePackValidator.Validate(synthesis, profileDoc.Structured, profileDoc.Content);
+                foreach (var v in violations)
+                    logger.LogWarning(
+                        "Resume pack validation violation for {Company} / {Title}: {Kind} — {Detail}",
+                        application.Company, application.JobTitle, v.Kind, v.Detail);
+
                 var saved = await packRepo.UpsertAsync(new ResumePack
                 {
                     ApplicationId = id,
@@ -75,6 +87,7 @@ public static class ResumePackEndpoints
                     Experience = synthesis.Experience,
                     HighlightedSkills = synthesis.HighlightedSkills,
                     SideProjects = synthesis.SideProjects,
+                    Violations = violations,
                     GeneratedAt = DateTime.UtcNow,
                 }, ct);
                 return Results.Ok(saved);
@@ -95,6 +108,33 @@ public static class ResumePackEndpoints
         .RequireRateLimiting("pack")
         .WithName("GenerateResumePack")
         .WithSummary("Generate a tailored résumé pack for an application");
+
+        // Manual edit of an already-generated pack — no AI call, so no rate
+        // limit and nothing new to validate (Violations carries over from
+        // whatever the last real generation flagged). A write like every
+        // other pack mutation, so it 403s under DemoMode.
+        app.MapPut("/api/applications/{id:guid}/pack", async (
+            Guid id,
+            [FromBody] ResumePackUpdateRequest request,
+            IResumePackRepository packRepo,
+            CancellationToken ct) =>
+        {
+            var existing = await packRepo.GetByApplicationIdAsync(id, ct);
+            if (existing is null) return Results.NotFound();
+
+            var updated = existing with
+            {
+                TailoredSummary = request.TailoredSummary,
+                Experience = request.Experience,
+                HighlightedSkills = request.HighlightedSkills,
+                SideProjects = request.SideProjects,
+                GeneratedAt = DateTime.UtcNow,
+            };
+            var saved = await packRepo.UpsertAsync(updated, ct);
+            return Results.Ok(saved);
+        })
+        .WithName("UpdateResumePack")
+        .WithSummary("Manually edit the persisted résumé pack content (no AI call)");
 
         // Renders the PDF from the persisted pack — no AI call, so it's cheap
         // and can be requested freely (e.g. re-downloading). Pure read.

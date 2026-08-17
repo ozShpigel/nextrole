@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Download, Sparkles, RefreshCw, ChevronLeft, ChevronRight, ExternalLink } from 'lucide-react';
+import { Download, Sparkles, RefreshCw, ChevronLeft, ChevronRight, ExternalLink, Pencil } from 'lucide-react';
 import { useApplicationDetail, usePack } from '../lib/queries';
 import { useGeneratePack } from '../lib/mutations';
 import { apiUrl } from '../lib/api';
+import { ResumePackEditModal } from '../components/ResumePackEditModal';
 
 const ED_BTN = 'rounded-full border px-4 py-[0.55rem] text-[0.7rem] font-semibold uppercase tracking-[0.1em] transition-all disabled:opacity-50 disabled:pointer-events-none inline-flex items-center gap-[0.4rem]';
 const ED_GHOST = `${ED_BTN} border-[var(--ed-rule)] text-[var(--ed-ink-soft)] hover:border-[var(--ed-ink)] hover:text-[var(--ed-ink)]`;
@@ -41,6 +42,7 @@ export default function ResumePackPage() {
   const pack = packQuery.data;
   const app = (detailQuery.data as { application?: ApplicationSummary } | undefined)?.application;
   const [page, setPage] = useState(1);
+  const [showEditModal, setShowEditModal] = useState(false);
 
   // Back to page 1 whenever a (re)generated pack loads — the previous pack's
   // page 3 isn't meaningful once the content underneath it has changed.
@@ -137,6 +139,9 @@ export default function ResumePackPage() {
                 <><Sparkles size={14} /> Regenerate</>
               )}
             </button>
+            <button type="button" className={ED_GHOST} onClick={() => setShowEditModal(true)}>
+              <Pencil size={14} /> Edit manually
+            </button>
             {app?.jobUrl && (
               <a href={app.jobUrl} target="_blank" rel="noopener noreferrer" className={ED_GHOST}>
                 <ExternalLink size={14} /> View Job
@@ -148,6 +153,10 @@ export default function ResumePackPage() {
           </div>
         )}
       </div>
+
+      {pack && showEditModal && (
+        <ResumePackEditModal appId={appId} pack={pack} onClose={() => setShowEditModal(false)} />
+      )}
     </div>
   );
 }

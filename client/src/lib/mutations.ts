@@ -11,6 +11,9 @@ import type {
   NormalizedProfile,
   InterviewInsightResponse,
   ResumePack,
+  TailoredExperienceItem,
+  SkillCategory,
+  SideProjectItem,
   ImportJobsResponse,
 } from './types';
 
@@ -292,6 +295,26 @@ export function useGeneratePack() {
             )
           : old,
       );
+    },
+  });
+}
+
+// Manually edit an already-generated résumé pack — no AI call, so (unlike
+// useGeneratePack) this never touches hasPack/packGeneratedAt on the list
+// cache; only the pack's own cache entry changes.
+export function useUpdatePack() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ appId, ...body }: {
+      appId: string;
+      tailoredSummary: string;
+      experience: TailoredExperienceItem[];
+      highlightedSkills: SkillCategory[];
+      sideProjects: SideProjectItem[];
+    }) =>
+      api(`/applications/${appId}/pack`, { method: 'PUT', body: JSON.stringify(body) }) as Promise<ResumePack>,
+    onSuccess: (data, variables) => {
+      queryClient.setQueryData(['applications', variables.appId, 'pack'], data);
     },
   });
 }

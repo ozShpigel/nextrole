@@ -10,21 +10,26 @@ export interface SaveResultData {
 
 export function SaveResult({ result }: { result: SaveResultData }) {
   const isSuccess = result.type === 'success';
+  const tone = isSuccess ? 'var(--ed-yes)' : 'var(--ed-no)';
   return (
     <div
-      className={`flex items-center gap-[0.65rem] mt-4 p-[0.8rem_1.1rem] rounded text-[0.84rem] font-medium border animate-in fade-in duration-200 relative overflow-hidden ${
-        isSuccess
-          ? 'bg-emerald-50/70 border-emerald-200/50 text-emerald-700'
-          : 'bg-red-50/70 border-red-200/50 text-red-700'
-      }`}
+      className="flex items-center gap-[0.65rem] mt-4 p-[0.8rem_1.1rem] rounded text-[0.84rem] font-medium border animate-in fade-in duration-200 relative overflow-hidden"
+      style={{
+        color: tone,
+        backgroundColor: `color-mix(in oklab, ${tone} 10%, transparent)`,
+        borderColor: `color-mix(in oklab, ${tone} 30%, transparent)`,
+      }}
     >
       <span className="w-[18px] h-[18px] rounded-full bg-current opacity-15 shrink-0 relative" />
+      {/* stroke="currentColor" so the icon always matches the tone above,
+          instead of a hardcoded hex baked into the SVG data URI. */}
       <span
         className="absolute left-[1.1rem] top-1/2 -translate-y-1/2 w-[18px] h-[18px]"
         style={{
           background: isSuccess
-            ? "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%232d8f5e' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='5,10.5 9,14.5 15.5,7'/%3E%3C/svg%3E\") center / 12px no-repeat"
-            : "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%23c45454' stroke-width='2.5' stroke-linecap='round'%3E%3Cline x1='10' y1='5' x2='10' y2='11.5'/%3E%3Ccircle cx='10' cy='14.5' r='0.5'/%3E%3C/svg%3E\") center / 12px no-repeat",
+            ? "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='currentColor' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='5,10.5 9,14.5 15.5,7'/%3E%3C/svg%3E\") center / 12px no-repeat"
+            : "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='currentColor' stroke-width='2.5' stroke-linecap='round'%3E%3Cline x1='10' y1='5' x2='10' y2='11.5'/%3E%3Ccircle cx='10' cy='14.5' r='0.5'/%3E%3C/svg%3E\") center / 12px no-repeat",
+          color: tone,
         }}
       />
       {result.message}

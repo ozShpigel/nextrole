@@ -1,6 +1,6 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Sparkles, RefreshCw, ExternalLink, X, Link as LinkIcon, MoveRight } from 'lucide-react';
+import { Sparkles, RefreshCw, ExternalLink, X, Link as LinkIcon } from 'lucide-react';
 import { useApplications, useDemoMode, DEMO_DISABLED_TITLE } from '../lib/queries';
 import { useGeneratePack, useUpdateAppStatus } from '../lib/mutations';
 import { formatDate, formatTime } from '../lib/format';
@@ -93,9 +93,11 @@ function Column(
   );
 }
 
+// Moving to Interviewing happens automatically once mailbot parses an
+// interview-scheduling email (not yet implemented) — no manual button here.
 function AppliedCard(
-  { app, index, muted, demoMode, onMoveToProcess }:
-  { app: Application; index: number; muted?: boolean; demoMode: boolean; onMoveToProcess: (app: Application) => void },
+  { app, index, muted }:
+  { app: Application; index: number; muted?: boolean },
 ) {
   const days = daysSince(app.appliedAt ?? app.updatedAt ?? app.createdAt);
   return (
@@ -105,28 +107,18 @@ function AppliedCard(
           Applied {days === 0 ? 'today' : `${days}d ago`}
         </span>
       )}
-      <button
-        type="button"
-        disabled={demoMode}
-        title={demoMode ? DEMO_DISABLED_TITLE : 'Mark as interviewing'}
-        className={`${ED_PRIMARY} px-3 py-[0.4rem] ml-auto inline-flex items-center gap-[0.35rem]`}
-        onClick={() => onMoveToProcess(app)}
-      >
-        <MoveRight size={12} aria-hidden="true" />
-        Interviewing
-      </button>
       {app.jobUrl ? (
         <a
           href={app.jobUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className={`${ED_GHOST} px-3 py-[0.4rem] inline-flex items-center gap-[0.35rem]`}
+          className={`${ED_GHOST} px-3 py-[0.4rem] ml-auto inline-flex items-center gap-[0.35rem]`}
         >
           <ExternalLink size={12} aria-hidden="true" />
           View Job
         </a>
       ) : (
-        <button type="button" disabled title="Job link unavailable" className={`${ED_GHOST} px-3 py-[0.4rem]`}>
+        <button type="button" disabled title="Job link unavailable" className={`${ED_GHOST} px-3 py-[0.4rem] ml-auto`}>
           View Job
         </button>
       )}
@@ -253,7 +245,6 @@ export default function ActivePage() {
                       : <Sparkles size={12} aria-hidden="true" />}
                     Generate Pack
                   </button>
-                  <IAppliedLink appId={a.id} />
                   <RemoveButton appId={a.id} company={a.company} jobUrl={a.jobUrl} />
                 </Card>
               ))}
@@ -284,7 +275,7 @@ export default function ActivePage() {
 
             <Column label="Applied" count={appliedFresh.length} isEmpty={appliedFresh.length === 0 && appliedStale.length === 0} emptyText="Nothing applied yet.">
               {appliedFresh.map((a, i) => (
-                <AppliedCard key={a.id} app={a} index={i} demoMode={demoMode} onMoveToProcess={(app) => setStatusTarget({ id: app.id, status: app.status, jobUrl: app.jobUrl })} />
+                <AppliedCard key={a.id} app={a} index={i} />
               ))}
               {appliedStale.length > 0 && (
                 <details className="mt-1 group">
@@ -295,7 +286,7 @@ export default function ActivePage() {
                   </summary>
                   <div className="flex flex-col gap-4 border-t border-[var(--ed-rule)] pt-4 mt-1">
                     {appliedStale.map((a, i) => (
-                      <AppliedCard key={a.id} app={a} index={i} muted demoMode={demoMode} onMoveToProcess={(app) => setStatusTarget({ id: app.id, status: app.status, jobUrl: app.jobUrl })} />
+                      <AppliedCard key={a.id} app={a} index={i} muted />
                     ))}
                   </div>
                 </details>

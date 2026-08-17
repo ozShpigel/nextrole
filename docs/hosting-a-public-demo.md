@@ -77,6 +77,11 @@ MongoDB__ProfileDatabase="jobmatch-demo" \
 
 ## Environment variables for the public services
 
+The maintainer's own deployment runs everything as docker-compose services
+(`demo-api`, `demo-scraper`, `demo-client`) on a single VPS — these env vars go
+into that compose config (or a `.env` file it reads), not a PaaS dashboard.
+Whatever you use to host it, these are the values each service needs:
+
 **API service**
 
 ```
@@ -131,9 +136,10 @@ ApiKey                    = <long random secret>   # e.g. `openssl rand -hex 32`
 ```
 
 With `ApiKey` set, every request must carry a matching `X-Api-Key` header or it
-gets 401. `/health` (Render health checks) and `/api/config` (demo-flag probe)
-stay open. Do **not** set `ApiKey` on the demo instance — the demo stays public,
-protected by `DemoMode` + its isolated fictional DB instead.
+gets 401. `/health` (for whatever healthcheck your host/orchestrator uses) and
+`/api/config` (demo-flag probe) stay open. Do **not** set `ApiKey` on the demo
+instance — the demo stays public, protected by `DemoMode` + its isolated
+fictional DB instead.
 
 **Mailbot cron job**:
 
@@ -145,9 +151,9 @@ Gmail__CredentialsPath / token secret files as before
 
 Don't set `Gmail__Query` — the mailbot builds the company-names query itself.
 
-**Optional further: a private *frontend* too** (Basic Auth-gated, real data, reachable from anywhere) — same idea, one more layer. `Dockerfile.private` + `nginx.private.conf` add HTTP Basic Auth (`auth_basic`) in front of the whole site and inject the API's `X-Api-Key` server-side via nginx (`proxy_set_header X-Api-Key`) so the browser never sees that secret. Render mounts Basic Auth's password file (a Secret File) root-readable-only, which the nginx worker can't open directly — a `docker-entrypoint.d/*.sh` script copies it to a worker-readable path at container start (runs as root, before nginx drops privileges).
+**Optional further: a private *frontend* too** (Basic Auth-gated, real data, reachable from anywhere) — same idea, one more layer. `Dockerfile.private` + `nginx.private.conf` add HTTP Basic Auth (`auth_basic`) in front of the whole site and inject the API's `X-Api-Key` server-side via nginx (`proxy_set_header X-Api-Key`) so the browser never sees that secret. The Basic Auth password file needs to land somewhere the (unprivileged) nginx worker process can actually read — if your host mounts it root-readable-only (Render's old Secret Files did; check whatever your current host does), a `docker-entrypoint.d/*.sh` script copies it to a worker-readable path at container start (runs as root, before nginx drops privileges).
 
-If this private frontend also needs real (non-demo) job search, the **scraper** needs the same treatment: it now supports an `API_KEY` setting (sent as `X-Api-Key` on every call to `api_base_url`) so a private scraper instance can talk to a key-gated private API. Point the frontend's `VITE_SCRAPER_URL` **directly at the scraper** (like the public demo does), not through nginx — proxying scraper calls through nginx causes Render/Cloudflare to throttle with a `hibernate-rate-limited` 429 whenever the free-tier scraper is cold and gets hit through the extra hop (see Gotchas below).
+If this private frontend also needs real (non-demo) job search, the **scraper** needs the same treatment: it now supports an `API_KEY` setting (sent as `X-Api-Key` on every call to `api_base_url`) so a private scraper instance can talk to a key-gated private API. Point the frontend's `VITE_SCRAPER_URL` **directly at the scraper** (like the public demo does), not through nginx — proxying scraper calls through nginx adds a pointless extra hop and, on a host that sleeps idle free-tier services (not the case on an always-on VPS, but relevant if you host on one), can trigger cold-start throttling on top of it (see Gotchas below).
 
 ## Demo Matches pool (seeded, not scraped)
 
@@ -168,8 +174,10 @@ the real batched Evaluator path:
    requirement is gone along with `$vectorSearch` itself.
 2. Freshness is automatic: on every demo web-service startup (`DEMO_MODE=true`)
    the seeded jobs' `discovered_at` is bumped to now, so they always sit inside
-   the Matches page's days-back window and never TTL out. Free-tier cold starts
-   happen whenever a visitor arrives — exactly when freshness matters.
+   the Matches page's days-back window and never TTL out. This matters most on
+   a host that sleeps/restarts an idle service on each visit (some free-tier
+   PaaS hosts do); on an always-on VPS the bump still runs on deploy/restart,
+   just less often.
 
 ## Gotchas
 
@@ -180,8 +188,10 @@ the real batched Evaluator path:
   origin (`https://…`, no trailing slash).
 - **Empty demo.** If the demo DB has no seeded data, the site renders blank — run
   the seeder above.
-- **Scraper double-hop = cold-start 429s.** A frontend that proxies `/api/search`
-  through its own nginx to the scraper (instead of calling it directly) triggers
-  Render's `x-render-routing: hibernate-rate-limited` when the scraper is asleep —
-  curl still works (no CORS enforcement), so this only shows up as a browser bug.
-  Call the scraper directly with CORS enabled, matching the public demo's pattern.
+- **Scraper double-hop.** A frontend that proxies `/api/search` through its own
+  nginx to the scraper (instead of calling it directly) adds a pointless extra
+  hop, and on a host that sleeps idle free-tier services can throttle the
+  wake-up request through it — curl still works fine (no CORS enforcement), so
+  this only shows up as a browser bug. Call the scraper directly with CORS
+  enabled, matching the public demo's pattern. Not an issue on an always-on
+  VPS, but the direct-call pattern is still the right default.

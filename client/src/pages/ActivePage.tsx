@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Sparkles, RefreshCw, ExternalLink, X, Link as LinkIcon } from 'lucide-react';
 import { useApplications, useDemoMode, DEMO_DISABLED_TITLE } from '../lib/queries';
 import { useGeneratePack, useUpdateAppStatus } from '../lib/mutations';
-import { formatDate, formatTime } from '../lib/format';
+import { formatDate, formatTime, daysSince } from '../lib/format';
 import { CompanyAvatar } from '../components/CompanyAvatar';
 import { StatusBadge, StatusModal } from '../components/Status';
 import { ImportJobModal } from '../components/ImportJobModal';
@@ -36,13 +36,6 @@ const IN_PROCESS_STATUSES = new Set(['PhoneScreen', 'TechnicalInterview', 'Final
 // for its own ghosted rows (just a shorter window: this board is about
 // what's still worth acting on, not a full ghosting archive).
 const APPLIED_STALE_DAYS = 14;
-
-function daysSince(iso: string | null | undefined): number | null {
-  if (!iso) return null;
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return null;
-  return Math.floor((Date.now() - d.getTime()) / 86400000);
-}
 
 const TODAY = new Date().toLocaleDateString('en-US', {
   weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',

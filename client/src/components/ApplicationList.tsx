@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Sparkles, FileCheck, RefreshCw } from 'lucide-react';
 import { useApplications, useDemoMode, DEMO_DISABLED_TITLE } from '../lib/queries';
 import { useDeleteApplication, useGeneratePack } from '../lib/mutations';
-import { formatDate, formatTime, verdictLabel } from '../lib/format';
+import { formatDate, formatTime, verdictLabel, daysSince } from '../lib/format';
 import { edVerdictColor } from './AnalysisCard';
 import { StatusBadge } from './Status';
 import ConfirmDialog from './ConfirmDialog';
@@ -48,10 +48,6 @@ function interviewDayLabel(iso: string): string {
   if (diff === 1) return 'Tomorrow';
   if (diff > 1 && diff < 7) return d.toLocaleDateString('en-GB', { weekday: 'long' });
   return formatDate(iso);
-}
-
-function daysSince(iso: string | undefined): number | null {
-  return iso ? Math.floor((Date.now() - new Date(iso).getTime()) / 86400000) : null;
 }
 
 const COLS = 'grid-cols-[1fr_1fr] md:grid-cols-[2fr_1.3fr_1fr_0.5fr_4rem_0.8fr_4.5rem]';

@@ -71,11 +71,22 @@ export function cityOnly(location: string | null | undefined): string | null {
   return city || null;
 }
 
-export function formatPostedAgo(dateStr: string | null | undefined): string | null {
-  if (!dateStr) return null;
-  const d = new Date(dateStr);
+// Calendar-day difference (midnight-to-midnight), not raw elapsed hours —
+// something that happened late yesterday and is viewed early this morning is
+// only a few real hours ago, but should read as "yesterday"/"1d ago", not
+// "today", and should flip over at the next local midnight/refresh rather
+// than only after a full 24h have actually elapsed.
+export function daysSince(iso: string | null | undefined): number | null {
+  if (!iso) return null;
+  const d = new Date(iso);
   if (isNaN(d.getTime())) return null;
-  const days = Math.floor((Date.now() - d.getTime()) / 86400000);
+  const startOfDay = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+  return Math.round((startOfDay(new Date()) - startOfDay(d)) / 86400000);
+}
+
+export function formatPostedAgo(dateStr: string | null | undefined): string | null {
+  const days = daysSince(dateStr);
+  if (days === null) return null;
   if (days < 1) return 'Posted today';
   if (days < 7) return `Posted ${days}d ago`;
   return `Posted ${Math.floor(days / 7)}w ago`;

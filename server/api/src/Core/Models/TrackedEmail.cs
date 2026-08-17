@@ -33,4 +33,9 @@ public sealed record TrackedEmail
     public required string Snippet { get; init; }
     public DateTime ReceivedAt { get; init; }
     public DateTime CreatedAt { get; init; } = DateTime.UtcNow;
+    // Client-side read state, set via PATCH /api/messages/{id}/read when the
+    // Messages tab opens a row. Defaults false for every mailbot-written email;
+    // the repository preserves it across upserts (mailbot's re-sync overwrites
+    // everything else about the row but has no opinion on read state).
+    public bool IsRead { get; init; } = false;
 }

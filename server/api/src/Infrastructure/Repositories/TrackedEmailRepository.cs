@@ -16,7 +16,10 @@ public sealed class TrackedEmailRepository : ITrackedEmailRepository
         // existing row's _id on a re-sync/overlap hit instead of letting the
         // caller's freshly-generated Guid collide with the immutable-_id rule.
         var existing = await _emails.Find(e => e.GmailMessageId == email.GmailMessageId).FirstOrDefaultAsync(ct);
-        var doc = existing is null ? email : email with { Id = existing.Id };
+        // Mailbot never sets IsRead — carry the existing row's value forward so a
+        // re-sync/overlap re-processing an already-read email doesn't flip it back
+        // to unread.
+        var doc = existing is null ? email : email with { Id = existing.Id, IsRead = existing.IsRead };
         await _emails.ReplaceOneAsync(
             e => e.GmailMessageId == email.GmailMessageId, doc,
             new ReplaceOptions { IsUpsert = true }, ct);
@@ -33,5 +36,13 @@ public sealed class TrackedEmailRepository : ITrackedEmailRepository
     public async Task DeleteAsync(Guid id, CancellationToken ct = default)
     {
         await _emails.DeleteOneAsync(e => e.Id == id, ct);
+    }
+
+    public async Task MarkReadAsync(Guid id, CancellationToken ct = default)
+    {
+        await _emails.UpdateOneAsync(
+            e => e.Id == id,
+            Builders<TrackedEmail>.Update.Set(e => e.IsRead, true),
+            cancellationToken: ct);
     }
 }

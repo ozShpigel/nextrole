@@ -15,6 +15,7 @@ import type {
   SkillCategory,
   SideProjectItem,
   ImportJobsResponse,
+  MessageItem,
 } from './types';
 
 export function useSaveJob() {
@@ -473,6 +474,25 @@ export function useDeleteMessage() {
     mutationFn: (messageId: string) =>
       api(`/messages/${messageId}`, { method: 'DELETE' }),
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['messages'] });
+    },
+  });
+}
+
+// Fire-and-forget: flips the row's dot instantly rather than waiting on a
+// refetch, and swallows failures — a missed read-receipt isn't worth
+// surfacing an error for (e.g. it silently 403s on the read-only demo).
+export function useMarkMessageRead() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (messageId: string) =>
+      api(`/messages/${messageId}/read`, { method: 'PATCH' }),
+    onMutate: (messageId: string) => {
+      queryClient.setQueryData<MessageItem[]>(['messages'], (prev) =>
+        prev?.map((m) => (m.id === messageId ? { ...m, isRead: true } : m)),
+      );
+    },
+    onError: () => {
       queryClient.invalidateQueries({ queryKey: ['messages'] });
     },
   });

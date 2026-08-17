@@ -306,12 +306,17 @@ public sealed class MailbotOrchestrator
     }
 
     // Short preview for the Messages list — the full body (up to 50K chars,
-    // HTML already stripped by GmailEmailService) is never persisted.
+    // HTML already stripped by GmailEmailService) is never persisted. URLs
+    // are stripped before truncating: a job-alert digest puts the literal
+    // "View job: https://...&trackingId=...&refId=...&lipi=..." tracking
+    // link right in the visible text, which otherwise dominates (or even
+    // exceeds) the whole snippet budget with unreadable query-string noise.
     private const int SnippetMaxChars = 400;
 
     private static string Snippet(string body)
     {
-        var collapsed = System.Text.RegularExpressions.Regex.Replace(body.Trim(), @"\s+", " ");
+        var noUrls = System.Text.RegularExpressions.Regex.Replace(body, @"https?://\S+", "");
+        var collapsed = System.Text.RegularExpressions.Regex.Replace(noUrls.Trim(), @"\s+", " ");
         return collapsed.Length > SnippetMaxChars
             ? collapsed[..SnippetMaxChars] + "…"
             : collapsed;

@@ -272,6 +272,8 @@ export interface MessageItem {
   updateType: MessageUpdateType;
   snippet: string;
   receivedAt: string;
+  companyLogo?: string | null;
+  isRead: boolean;
 }
 
 // Generate Pack — an AI-tailored résumé for one specific application. Reorders/

@@ -61,3 +61,6 @@ services:
     env_file: [.env.mailbot]
     environment:
       - Tracker__BaseUrl=http://api:8080
+    volumes:
+      - ./credentials.json:/app/credentials.json:ro
+      - ./gmail-token.json:/etc/secrets/gmail-token.json:ro

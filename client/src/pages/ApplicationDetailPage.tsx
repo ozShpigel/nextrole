@@ -10,6 +10,7 @@ import AnalysisCard, { edVerdictColor } from '../components/AnalysisCard';
 import Timeline from '../components/Timeline';
 import { InterviewList, InterviewModal } from '../components/Interviews';
 import { NoteList, NoteModal } from '../components/Notes';
+import { JobDescriptionText } from '../components/JobDescriptionText';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { Interview } from '../lib/types';
 
@@ -207,7 +208,7 @@ export default function ApplicationDetail() {
         {/* Job Description */}
         {app.jobDescription && (
           <CollapsibleSection title="Job Description" defaultOpen={false}>
-            <pre className="whitespace-pre-wrap font-sans text-[16px] text-muted-foreground">{app.jobDescription}</pre>
+            <JobDescriptionText text={app.jobDescription} />
           </CollapsibleSection>
         )}
 

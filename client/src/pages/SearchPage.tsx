@@ -9,6 +9,7 @@ import { VERDICT_LABELS } from '../lib/scoring';
 import { cityOnly, formatPostedAgo, isNew } from '../lib/format';
 import AnalysisCard, { edVerdictColor } from '../components/AnalysisCard';
 import { CompanyAvatar } from '../components/CompanyAvatar';
+import { JobDescriptionText } from '../components/JobDescriptionText';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
@@ -106,7 +107,7 @@ function RationaleTooltip({ anchorRef, highlights }: { anchorRef: React.RefObjec
 // Everything else on the row is neutral ink, so this is the one thing that
 // pops while scanning. Hovering it reveals the green/red flags + a honest-
 // assessment excerpt as a floating panel.
-function MatchScore({ job }: { job: DiscoveredJobSummary }) {
+function MatchScore({ job, align = 'end' }: { job: DiscoveredJobSummary; align?: 'start' | 'end' }) {
   const tone = edVerdictColor(job.verdict);
   // Absent on jobs scored before this field existed — no tooltip for those,
   // rather than showing an empty box on hover.
@@ -118,7 +119,7 @@ function MatchScore({ job }: { job: DiscoveredJobSummary }) {
   return (
     <div
       ref={anchorRef}
-      className="relative shrink-0 flex flex-col items-end gap-[0.1rem] w-[4.5rem] text-right"
+      className={`relative shrink-0 flex flex-col gap-[0.1rem] w-[4.5rem] ${align === 'start' ? 'items-start text-left' : 'items-end text-right'}`}
       onMouseEnter={() => hasHighlights && setOpen(true)}
       onMouseLeave={() => setOpen(false)}
     >
@@ -323,62 +324,75 @@ function MatchDetail({ job, saved, dismissed, demoMode, demoTitle, onClose, onSa
         )}
       </div>
 
-      <div className="flex-1 overflow-y-auto ed-scroll p-6">
-        <div className="flex items-start gap-4 pb-6 border-b border-[var(--ed-rule)] mb-6">
-          <CompanyAvatar name={job.company} logo={job.company_logo} size={44} />
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-x-2 flex-wrap text-[13px] text-[var(--ed-ink-faint)] mb-1">
-              <span className="font-medium text-[var(--ed-ink-soft)]">{job.company}</span>
-              {cityOnly(job.location) && <span>{cityOnly(job.location)}</span>}
-              {job.is_remote && (
-                <span className="border border-[var(--ed-rule)] rounded-full px-[0.5rem] py-[0.05rem]">Remote</span>
-              )}
-            </div>
-            <h2 className="text-[16px] font-medium leading-[1.3] text-[var(--ed-ink)] mb-1">{job.title}</h2>
-            {(formatPostedAgo(job.date_posted) || isNew(job.date_posted)) && (
-              <div className="flex items-center gap-x-2 flex-wrap text-[13px] text-[var(--ed-ink-faint)] tabular-nums">
-                {formatPostedAgo(job.date_posted) && <span>{formatPostedAgo(job.date_posted)}</span>}
-                {isNew(job.date_posted) && (
-                  <span className="border border-[var(--ed-rule)] rounded-full px-[0.5rem] py-[0.05rem]">New</span>
+      <div className="flex-1 min-h-0 flex overflow-hidden">
+        {/* Identity + primary actions — a compact card that hugs its own
+            content (not stretched to the panel's full height, which just
+            left a bordered column running down to empty space), sitting
+            above the independently-scrolling description so "Add"/"Dismiss"
+            stay reachable behind a long posting (dreamworkhq's
+            left-card/right-description split). */}
+        <div className="w-[38%] min-w-[320px] max-w-[440px] shrink-0 p-6">
+          <div className="border border-[var(--ed-rule)] rounded-xl p-6">
+            <CompanyAvatar name={job.company} logo={job.company_logo} size={52} />
+            <div className="mt-4">
+              <div className="flex items-center gap-x-2 flex-wrap text-[13px] text-[var(--ed-ink-faint)] mb-1">
+                <span className="font-medium text-[var(--ed-ink-soft)]">{job.company}</span>
+                {cityOnly(job.location) && <span>{cityOnly(job.location)}</span>}
+                {job.is_remote && (
+                  <span className="border border-[var(--ed-rule)] rounded-full px-[0.5rem] py-[0.05rem]">Remote</span>
                 )}
               </div>
-            )}
+              <h2 className="text-[19px] font-medium leading-[1.3] text-[var(--ed-ink)] mb-1">{job.title}</h2>
+              {(formatPostedAgo(job.date_posted) || isNew(job.date_posted)) && (
+                <div className="flex items-center gap-x-2 flex-wrap text-[13px] text-[var(--ed-ink-faint)] tabular-nums">
+                  {formatPostedAgo(job.date_posted) && <span>{formatPostedAgo(job.date_posted)}</span>}
+                  {isNew(job.date_posted) && (
+                    <span className="border border-[var(--ed-rule)] rounded-full px-[0.5rem] py-[0.05rem]">New</span>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="mt-4 pt-4 border-t border-[var(--ed-rule)]">
+              <MatchScore job={job} align="start" />
+            </div>
+
+            <div className="flex gap-2 mt-5">
+              {!saved && !dismissed && (
+                <button type="button" disabled={demoMode} title={demoTitle} className={`${ED_BTN} flex-1 flex justify-center border-[var(--ed-accent)] text-[var(--ed-accent)] hover:bg-[var(--ed-accent)] hover:text-[var(--ed-paper)] disabled:cursor-not-allowed`} onClick={() => onSave(job.id)}>
+                  Add
+                </button>
+              )}
+              {!saved && !dismissed && (
+                <button
+                  type="button"
+                  disabled={demoMode}
+                  title={demoTitle ?? 'Dismiss'}
+                  aria-label="Dismiss"
+                  className="shrink-0 w-9 h-9 rounded-full border border-[var(--ed-rule)] flex items-center justify-center text-[var(--ed-ink-faint)] transition-all hover:border-[var(--ed-no)] hover:text-[var(--ed-no)] disabled:opacity-50 disabled:pointer-events-none disabled:cursor-not-allowed"
+                  onClick={() => onDismiss(job.id)}
+                >
+                  <X className="w-4 h-4" strokeWidth={2.5} />
+                </button>
+              )}
+              {saved && <span className="rounded-full border border-[var(--ed-rule)] px-4 py-[0.5rem] text-[13px] font-medium text-[var(--ed-ink-faint)]">Added</span>}
+              {dismissed && <span className="rounded-full border border-[var(--ed-rule)] px-4 py-[0.5rem] text-[13px] font-medium text-[var(--ed-ink-faint)]">Dismissed</span>}
+            </div>
           </div>
-          <MatchScore job={job} />
         </div>
 
-        <div className="flex gap-2 mb-6">
-          {!saved && !dismissed && (
-            <button type="button" disabled={demoMode} title={demoTitle} className={`${ED_BTN} border-[var(--ed-accent)] text-[var(--ed-accent)] hover:bg-[var(--ed-accent)] hover:text-[var(--ed-paper)] disabled:cursor-not-allowed`} onClick={() => onSave(job.id)}>
-              Add
-            </button>
+        <div className="flex-1 min-w-0 overflow-y-auto ed-scroll p-6">
+          {job.description && (
+            <div className="mb-9">
+              <span className="block text-[13px] text-[var(--ed-ink-faint)] uppercase tracking-[0.1em] font-medium mb-3">Job Description</span>
+              <JobDescriptionText text={job.description} />
+            </div>
           )}
-          {!saved && !dismissed && (
-            <button
-              type="button"
-              disabled={demoMode}
-              title={demoTitle ?? 'Dismiss'}
-              aria-label="Dismiss"
-              className="shrink-0 w-9 h-9 rounded-full border border-[var(--ed-rule)] flex items-center justify-center text-[var(--ed-ink-faint)] transition-all hover:border-[var(--ed-no)] hover:text-[var(--ed-no)] disabled:opacity-50 disabled:pointer-events-none disabled:cursor-not-allowed"
-              onClick={() => onDismiss(job.id)}
-            >
-              <X className="w-4 h-4" strokeWidth={2.5} />
-            </button>
+
+          {job.match_analysis && (
+            <AnalysisCard matchAnalysisJson={job.match_analysis as unknown as Record<string, unknown>} />
           )}
-          {saved && <span className="rounded-full border border-[var(--ed-rule)] px-4 py-[0.5rem] text-[13px] font-medium text-[var(--ed-ink-faint)]">Added</span>}
-          {dismissed && <span className="rounded-full border border-[var(--ed-rule)] px-4 py-[0.5rem] text-[13px] font-medium text-[var(--ed-ink-faint)]">Dismissed</span>}
         </div>
-
-        {job.description && (
-          <div className="mb-9">
-            <span className="block text-[13px] text-[var(--ed-ink-faint)] uppercase tracking-[0.1em] font-medium mb-3">Job Description</span>
-            <pre dir="auto" className="whitespace-pre-wrap font-sans text-[16px] leading-[1.7] text-[var(--ed-ink-soft)] m-0">{job.description}</pre>
-          </div>
-        )}
-
-        {job.match_analysis && (
-          <AnalysisCard matchAnalysisJson={job.match_analysis as unknown as Record<string, unknown>} />
-        )}
       </div>
     </>
   );

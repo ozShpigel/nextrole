@@ -205,12 +205,12 @@ export default function ActivePage() {
             &larr; Back to Matches
           </Link>
           <div className="flex items-baseline justify-between gap-4 pb-[10px] border-b border-[var(--ed-rule)] text-[13px] font-medium uppercase tracking-[0.18em] text-[var(--ed-ink-faint)]">
-            <span>Active</span>
+            <span>Jobs</span>
             <span className="tabular-nums">{TODAY}</span>
           </div>
           <div className="flex items-end justify-between gap-4 pt-4 flex-wrap">
             <h1 className="font-medium text-[40px] leading-[1.1] tracking-[-0.01em] text-[var(--ed-ink)]">
-              Active
+              Jobs
             </h1>
             <button
               type="button"

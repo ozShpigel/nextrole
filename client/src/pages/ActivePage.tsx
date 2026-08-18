@@ -48,7 +48,7 @@ const ED_PRIMARY = `${ED_BTN} border-[var(--ed-accent)] bg-[var(--ed-accent)] te
 function Card({ app, index, muted, children }: { app: Application; index: number; muted?: boolean; children: ReactNode }) {
   return (
     <article
-      className={`ed-rise group flex flex-col gap-2 border border-[var(--ed-rule)] p-4 transition-colors hover:border-[var(--ed-ink-faint)] ${muted ? 'opacity-55 hover:opacity-90 transition-opacity' : ''}`}
+      className={`ed-rise group flex flex-col gap-2 border border-[var(--ed-rule)] bg-[var(--ed-panel)] p-4 shadow-[0_6px_16px_-4px_rgba(0,0,0,0.45)] transition-all hover:border-[var(--ed-ink-faint)] hover:shadow-[0_10px_22px_-4px_rgba(0,0,0,0.55)] hover:-translate-y-[1px] ${muted ? 'opacity-55 hover:opacity-90 transition-opacity' : ''}`}
       style={{ animationDelay: `${Math.min(index, 10) * 60}ms` }}
     >
       <div className="flex items-start gap-3">
@@ -70,7 +70,7 @@ function Column(
   { label: string; count: number; isEmpty?: boolean; emptyText: string; children: ReactNode },
 ) {
   return (
-    <div className="border border-[var(--ed-rule)] bg-[var(--ed-panel)]/30 p-5">
+    <div className="border border-[var(--ed-rule)] bg-[var(--ed-panel)]/30 p-5 shadow-[inset_0_2px_10px_rgba(0,0,0,0.35)]">
       <div className="flex items-center gap-[0.55rem] border-b border-[var(--ed-rule)] pb-[0.5rem] mb-5">
         <span className="text-[13px] font-medium text-[var(--ed-ink-faint)]">{label}</span>
         <span className="inline-flex items-center justify-center min-w-[1.3rem] h-[1.3rem] px-1 rounded-full bg-[var(--ed-panel)] border border-[var(--ed-rule)] text-[11px] text-[var(--ed-ink-faint)] tabular-nums">
@@ -101,21 +101,6 @@ function AppliedCard(
         <span className="text-[13px] tabular-nums text-[var(--ed-ink-faint)]">
           Applied {days === 0 ? 'today' : `${days}d ago`}
         </span>
-      )}
-      {app.jobUrl ? (
-        <a
-          href={app.jobUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className={`${ED_GHOST} px-3 py-[0.4rem] ml-auto inline-flex items-center gap-[0.35rem]`}
-        >
-          <ExternalLink size={12} aria-hidden="true" />
-          View Job
-        </a>
-      ) : (
-        <button type="button" disabled title="Job link unavailable" className={`${ED_GHOST} px-3 py-[0.4rem] ml-auto`}>
-          View Job
-        </button>
       )}
     </Card>
   );

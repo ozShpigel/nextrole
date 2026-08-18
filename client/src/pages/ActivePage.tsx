@@ -45,10 +45,25 @@ const ED_BTN = 'rounded-full border px-4 py-[0.5rem] text-[13px] font-medium upp
 const ED_GHOST = `${ED_BTN} border-[var(--ed-rule)] text-[var(--ed-ink-soft)] hover:border-[var(--ed-ink)] hover:text-[var(--ed-ink)]`;
 const ED_PRIMARY = `${ED_BTN} border-[var(--ed-accent)] bg-[var(--ed-accent)] text-[var(--ed-paper)] hover:bg-[var(--ed-accent-deep)]`;
 
-function Card({ app, index, muted, children }: { app: Application; index: number; muted?: boolean; children: ReactNode }) {
+// Drag-and-drop between columns is a bonus affordance on top of the
+// existing buttons (Generate Pack / "I applied"), not a replacement —
+// native HTML5 drag has no real touch support, so buttons stay the
+// reliable path on mobile and for keyboard users.
+const DRAG_MIME = 'application/x-nextrole-app';
+type DragSource = 'added' | 'ready';
+
+function Card(
+  { app, index, muted, dragFrom, children }:
+  { app: Application; index: number; muted?: boolean; dragFrom?: DragSource; children: ReactNode },
+) {
   return (
     <article
-      className={`ed-rise group flex flex-col gap-2 border border-[var(--ed-rule)] bg-[var(--ed-panel)] p-4 shadow-[0_6px_16px_-4px_rgba(0,0,0,0.45)] transition-all hover:border-[var(--ed-ink-faint)] hover:shadow-[0_10px_22px_-4px_rgba(0,0,0,0.55)] hover:-translate-y-[1px] ${muted ? 'opacity-55 hover:opacity-90 transition-opacity' : ''}`}
+      draggable={!!dragFrom}
+      onDragStart={dragFrom ? (e) => {
+        e.dataTransfer.setData(DRAG_MIME, JSON.stringify({ id: app.id, from: dragFrom }));
+        e.dataTransfer.effectAllowed = 'move';
+      } : undefined}
+      className={`ed-rise group flex flex-col gap-2 border border-[var(--ed-rule)] bg-[var(--ed-panel)] p-4 shadow-[0_6px_16px_-4px_rgba(0,0,0,0.45)] transition-all hover:border-[var(--ed-ink-faint)] hover:shadow-[0_10px_22px_-4px_rgba(0,0,0,0.55)] hover:-translate-y-[1px] ${dragFrom ? 'cursor-grab active:cursor-grabbing' : ''} ${muted ? 'opacity-55 hover:opacity-90 transition-opacity' : ''}`}
       style={{ animationDelay: `${Math.min(index, 10) * 60}ms` }}
     >
       <div className="flex items-start gap-3">
@@ -66,20 +81,46 @@ function Card({ app, index, muted, children }: { app: Application; index: number
 }
 
 function Column(
-  { label, count, isEmpty, emptyText, children }:
-  { label: string; count: number; isEmpty?: boolean; emptyText: string; children: ReactNode },
+  { label, subtitle, count, isEmpty, emptyText, acceptsFrom, onDropApp, children }:
+  {
+    label: string; subtitle: string; count: number; isEmpty?: boolean; emptyText: string; children: ReactNode;
+    acceptsFrom?: DragSource; onDropApp?: (appId: string) => void;
+  },
 ) {
+  const [dragOver, setDragOver] = useState(false);
+
   return (
-    <div className="border border-[var(--ed-rule)] bg-[var(--ed-panel)]/30 p-5 shadow-[inset_0_2px_10px_rgba(0,0,0,0.35)]">
-      <div className="flex items-center gap-[0.55rem] border-b border-[var(--ed-rule)] pb-[0.5rem] mb-5">
-        <span className="text-[13px] font-medium text-[var(--ed-ink-faint)]">{label}</span>
-        <span className="inline-flex items-center justify-center min-w-[1.3rem] h-[1.3rem] px-1 rounded-full bg-[var(--ed-panel)] border border-[var(--ed-rule)] text-[11px] text-[var(--ed-ink-faint)] tabular-nums">
+    <div
+      className={`border p-5 shadow-[inset_0_2px_10px_rgba(0,0,0,0.35)] transition-colors ${
+        dragOver ? 'border-[var(--ed-accent)] bg-[var(--ed-accent)]/[0.06]' : 'border-[var(--ed-rule)] bg-[var(--ed-panel)]/30'
+      }`}
+      onDragOver={acceptsFrom ? (e) => {
+        if (!e.dataTransfer.types.includes(DRAG_MIME)) return;
+        e.preventDefault();
+        setDragOver(true);
+      } : undefined}
+      onDragLeave={acceptsFrom ? () => setDragOver(false) : undefined}
+      onDrop={acceptsFrom ? (e) => {
+        e.preventDefault();
+        setDragOver(false);
+        const raw = e.dataTransfer.getData(DRAG_MIME);
+        if (!raw) return;
+        const { id, from } = JSON.parse(raw) as { id: string; from: DragSource };
+        if (from === acceptsFrom) onDropApp?.(id);
+      } : undefined}
+    >
+      <div className="flex items-start justify-between gap-3 border-b border-[var(--ed-rule)] pb-3 mb-5">
+        <div>
+          <span className="text-[13px] font-medium text-[var(--ed-ink-faint)]">{label}</span>
+          <p className="text-[12px] text-[var(--ed-ink-faint)]/70 mt-[0.15rem]">{subtitle}</p>
+        </div>
+        <span className="shrink-0 inline-flex items-center justify-center min-w-[1.3rem] h-[1.3rem] px-1 rounded-full bg-[var(--ed-panel)] border border-[var(--ed-rule)] text-[11px] text-[var(--ed-ink-faint)] tabular-nums">
           {count}
         </span>
       </div>
       <div className="flex flex-col gap-3">
         {(isEmpty ?? count === 0) ? (
-          <div className="border border-dashed border-[var(--ed-rule)] p-6">
+          <div className={`border border-dashed p-6 transition-colors ${dragOver ? 'border-[var(--ed-accent)]' : 'border-[var(--ed-rule)]'}`}>
             <p className="ed-display italic text-center text-[16px] text-[var(--ed-ink-faint)]">{emptyText}</p>
           </div>
         ) : children}
@@ -185,12 +226,12 @@ export default function ActivePage() {
             &larr; Back to Matches
           </Link>
           <div className="flex items-baseline justify-between gap-4 pb-[10px] border-b border-[var(--ed-rule)] text-[13px] font-medium uppercase tracking-[0.18em] text-[var(--ed-ink-faint)]">
-            <span>Jobs</span>
+            <span>Active</span>
             <span className="tabular-nums">{TODAY}</span>
           </div>
           <div className="flex items-end justify-between gap-4 pt-4 flex-wrap">
             <h1 className="font-medium text-[40px] leading-[1.1] tracking-[-0.01em] text-[var(--ed-ink)]">
-              Jobs
+              Active
             </h1>
             <button
               type="button"
@@ -203,16 +244,19 @@ export default function ActivePage() {
               Import Job
             </button>
           </div>
+          <p className="mt-1 text-[14px] text-[var(--ed-ink-faint)]">
+            Generate résumé packs, apply, and track live interviews.
+          </p>
           <div className="mt-5 border-t-[3px] border-double border-[var(--ed-rule-strong)]" />
         </header>
 
         {isLoading ? (
           <p className="text-center text-[var(--ed-ink-faint)] py-12 text-[16px]">Loading&hellip;</p>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-8">
-            <Column label="Added" count={added.length} emptyText="Nothing here yet — add a job from Matches.">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-8 items-start">
+            <Column label="Added" subtitle="Roles you're watching" count={added.length} emptyText="Add jobs from matches to track them here.">
               {added.map((a, i) => (
-                <Card key={a.id} app={a} index={i}>
+                <Card key={a.id} app={a} index={i} dragFrom={demoMode ? undefined : 'added'}>
                   <button
                     type="button"
                     disabled={demoMode || (generatePack.isPending && generatePack.variables === a.id)}
@@ -230,9 +274,16 @@ export default function ActivePage() {
               ))}
             </Column>
 
-            <Column label="Ready" count={ready.length} emptyText="Generate a pack from Added to see it here.">
+            <Column
+              label="Ready"
+              subtitle="Résumé pack generated"
+              count={ready.length}
+              emptyText="Drag an added job here to build its pack."
+              acceptsFrom="added"
+              onDropApp={(id) => generatePack.mutate(id)}
+            >
               {ready.map((a, i) => (
-                <Card key={a.id} app={a} index={i}>
+                <Card key={a.id} app={a} index={i} dragFrom={demoMode ? undefined : 'ready'}>
                   <button type="button" className={`${ED_PRIMARY} px-3 py-[0.4rem]`} onClick={() => navigate(`/tracker/${a.id}/pack`)}>
                     Review
                   </button>
@@ -253,7 +304,15 @@ export default function ActivePage() {
               ))}
             </Column>
 
-            <Column label="Applied" count={appliedFresh.length} isEmpty={appliedFresh.length === 0 && appliedStale.length === 0} emptyText="Nothing applied yet.">
+            <Column
+              label="Applied"
+              subtitle="Roles you've applied to"
+              count={appliedFresh.length}
+              isEmpty={appliedFresh.length === 0 && appliedStale.length === 0}
+              emptyText="Drag a ready job here once you've applied."
+              acceptsFrom="ready"
+              onDropApp={(id) => markApplied(id)}
+            >
               {appliedFresh.map((a, i) => (
                 <AppliedCard key={a.id} app={a} index={i} />
               ))}
@@ -273,7 +332,7 @@ export default function ActivePage() {
               )}
             </Column>
 
-            <Column label="Interviewing" count={inProcess.length} emptyText="No live interview processes right now.">
+            <Column label="Interviewing" subtitle="Live interview processes" count={inProcess.length} emptyText="No live interview processes right now.">
               {inProcess.map((a, i) => (
                 <Card key={a.id} app={a} index={i}>
                   <StatusBadge status={a.status} />

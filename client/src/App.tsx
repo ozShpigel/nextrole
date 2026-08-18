@@ -68,7 +68,7 @@ export default function App() {
               overflow-x-auto then scrolls just this strip on narrow screens. */}
           <div className="ed-scroll flex items-center gap-0 min-w-0 overflow-x-auto">
             <NavLink to="/search" className={navLinkClass}>Matches</NavLink>
-            <NavLink to="/active" className={navLinkClass}>Jobs</NavLink>
+            <NavLink to="/active" className={navLinkClass}>Active</NavLink>
             {/* "Apps" nav link removed 2026-08-11 — Active now covers the
                 day-to-day pipeline view. The /tracker route and
                 ApplicationList page are intentionally left in place: closed

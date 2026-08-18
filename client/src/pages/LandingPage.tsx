@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Upload } from 'lucide-react';
 
@@ -154,11 +154,30 @@ function LogoMarquee() {
 export default function Landing() {
   const navigate = useNavigate();
   const [loaded, setLoaded] = useState<boolean>(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => setLoaded(true));
     return () => cancelAnimationFrame(frame);
   }, []);
+
+  // The file input's click() must fire synchronously inside this handler —
+  // any navigation or async gap first (e.g. routing to Settings and waiting
+  // on its profile load, as this used to do) burns through the browser's
+  // "user activation" window and the native picker silently refuses to open.
+  //
+  // The actual parse (a real Claude API call — 10-20s for a résumé PDF) does
+  // NOT run here: navigate to /processing immediately with the file handed
+  // off via route state, and ProcessingPage runs the real upload underneath
+  // its animation. Doing the real work here first and only navigating after
+  // it resolved left users staring at a small button spinner for the full
+  // wait, with the "processing" page only flashing by at the very end.
+  function onResumeFile(e: React.ChangeEvent<HTMLInputElement>): void {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    navigate('/processing', { state: { file } });
+  }
 
   return (
     <div className="editorial editorial-grain home-atmosphere relative min-h-[calc(100vh-56px)] flex flex-col items-center justify-center text-center p-[clamp(1.5rem,3.5vw,3rem)] overflow-x-clip">
@@ -181,12 +200,20 @@ export default function Landing() {
         <div className="mt-9 flex flex-wrap items-center justify-center gap-5">
           <button
             type="button"
-            onClick={() => navigate('/settings?upload=1')}
-            className="group inline-flex items-center gap-2 rounded-full bg-[var(--ed-accent)] text-[var(--ed-paper)] px-6 py-[0.65rem] text-[0.74rem] font-semibold uppercase tracking-[0.08em] transition-all hover:bg-[var(--ed-accent-deep)] hover:-translate-y-[1px] hover:shadow-lg"
+            onClick={() => fileInputRef.current?.click()}
+            className="group inline-flex items-center gap-2 rounded-full bg-[var(--ed-accent)] text-[var(--ed-paper)] px-6 py-[0.65rem] text-[0.74rem] font-semibold uppercase tracking-[0.08em] transition-all hover:bg-[var(--ed-accent-deep)] hover:-translate-y-[1px]"
           >
             <Upload size={14} className="transition-transform group-hover:-translate-y-0.5" aria-hidden="true" />
             Upload your résumé
           </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".pdf,.txt,application/pdf,text/plain"
+            onChange={onResumeFile}
+            className="hidden"
+            data-testid="resume-file-input"
+          />
           <Link
             to="/search"
             className="inline-flex items-center gap-2 text-[0.74rem] font-semibold uppercase tracking-[0.1em] text-[var(--ed-ink-soft)] transition-colors hover:text-[var(--ed-ink)]"

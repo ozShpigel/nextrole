@@ -4,6 +4,12 @@ import { renderWithRouter } from "../test/render";
 import Landing from "./LandingPage";
 
 describe("LandingPage", () => {
+  beforeEach(() => {
+    // Tests navigate via the real BrowserRouter (shared jsdom window) —
+    // reset the URL so a prior test's navigation doesn't leak into this one.
+    window.history.pushState({}, "", "/");
+  });
+
   it("renders the page title", () => {
     renderWithRouter(<Landing />);
     expect(screen.getByText("Next")).toBeInTheDocument();
@@ -18,14 +24,34 @@ describe("LandingPage", () => {
     expect(matchesLink).toHaveAttribute("href", "/search");
   });
 
-  it("navigates to Settings with the upload param when the CTA is clicked", async () => {
+  it("clicking the CTA opens the file picker synchronously (no navigation first)", async () => {
+    // Regression check: opening a file input must happen inside the same
+    // click handler as the user gesture — routing through another page
+    // first (as this used to do) loses the browser's "user activation" and
+    // the native picker silently refuses to open.
     const user = userEvent.setup();
+    const clickSpy = vi.spyOn(HTMLInputElement.prototype, "click");
     renderWithRouter(<Landing />);
 
     await user.click(screen.getByRole("button", { name: /upload your résumé/i }));
 
-    expect(window.location.pathname).toBe("/settings");
-    expect(window.location.search).toBe("?upload=1");
+    expect(clickSpy).toHaveBeenCalled();
+    expect(window.location.pathname).toBe("/");
+    clickSpy.mockRestore();
+  });
+
+  it("selecting a résumé hands it off to the processing page immediately, without parsing it here", async () => {
+    // The real parse/save happens on ProcessingPage, underneath its
+    // animation — not here, and not before navigating (see ProcessingPage
+    // for why: it's a slow real API call and must not happen behind a
+    // small button spinner with the animation only flashing by at the end).
+    renderWithRouter(<Landing />);
+
+    const file = new File(["resume bytes"], "resume.pdf", { type: "application/pdf" });
+    const input = screen.getByTestId("resume-file-input") as HTMLInputElement;
+    await userEvent.upload(input, file);
+
+    expect(window.location.pathname).toBe("/processing");
   });
 
   it("renders the footer line with a GitHub link", () => {

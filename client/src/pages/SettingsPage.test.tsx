@@ -186,7 +186,7 @@ describe('SettingsPage', () => {
     );
   });
 
-  it('uploading a résumé parses it, auto-saves, and shows it in the Resume tab', async () => {
+  it('uploading a résumé parses it, auto-saves, and hands off to the processing page', async () => {
     const user = userEvent.setup();
     const normalized = {
       fullName: 'Parsed Name', email: null, phone: null, location: null,
@@ -225,7 +225,9 @@ describe('SettingsPage', () => {
         expect.objectContaining({ method: 'PUT', body: expect.stringContaining('Parsed Name') }),
       ),
     );
-    expect(await screen.findByText('Parsed Name')).toBeInTheDocument();
+    // A successful parse+save hands off to the fake processing beat instead
+    // of staying inline — see ProcessingPage.tsx.
+    await waitFor(() => expect(window.location.pathname).toBe('/processing'));
   });
 
   it('shows the stored résumé inline when one already exists', async () => {

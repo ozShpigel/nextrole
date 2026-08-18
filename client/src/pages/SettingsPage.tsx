@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { User, FileText, Upload, RefreshCw, Award, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useProfile, useResumeFile } from '../lib/queries';
 import { useSaveProfile, useNormalizeProfileFile } from '../lib/mutations';
 import { apiUrl } from '../lib/api';
+import { EMPTY_PROFILE, hydrateProfile, mergeNormalizedProfile } from '../lib/profile';
 import type { ProfileResponse, StructuredProfile, NormalizedProfile } from '../lib/types';
 import { Skeleton } from '../components/ui/skeleton';
 import { ChipInput } from '../components/ChipInput';
@@ -19,13 +20,6 @@ function initials(name: string): string {
 
 const FIELD_INPUT = 'w-full py-[0.5rem] px-[0.75rem] bg-transparent border border-[var(--ed-rule)] text-[var(--ed-ink)] text-[0.85rem] font-code text-left transition-colors hover:border-[var(--ed-ink-faint)] focus:border-[var(--ed-accent)] focus:outline-none';
 const FIELD_LABEL = 'text-[0.62rem] text-[var(--ed-ink-faint)] tracking-[0.16em] uppercase font-semibold';
-
-const EMPTY_PROFILE: StructuredProfile = {
-  fullName: '', email: '', phone: '', location: '', linkedIn: '',
-  summary: '', seniority: '', domains: [], experience: [], skills: [],
-  education: [], militaryService: [], sideProjects: [], spokenLanguages: [],
-  strengths: [], coreValues: [], redFlags: [], rawExperienceText: '',
-};
 
 // Manual, never auto-extracted — kept editable even though everything else
 // (Summary/Experience/Skills/Education) only comes from Upload/Paste now.
@@ -51,32 +45,13 @@ const RED_FLAG_SUGGESTIONS = [
   'Frequent reorgs', '5-day return to office', 'Agency / consulting model', 'Unpaid overtime culture',
 ];
 
-// Normalize a profile loaded from the API into a fully-populated shape so the
-// controlled inputs never see undefined.
-function hydrate(p?: StructuredProfile | null): StructuredProfile {
-  return {
-    ...EMPTY_PROFILE,
-    ...(p ?? {}),
-    skills: p?.skills ?? [],
-    experience: p?.experience ?? [],
-    domains: p?.domains ?? [],
-    education: p?.education ?? [],
-    militaryService: p?.militaryService ?? [],
-    sideProjects: p?.sideProjects ?? [],
-    spokenLanguages: p?.spokenLanguages ?? [],
-    strengths: p?.strengths ?? [],
-    coreValues: p?.coreValues ?? [],
-    redFlags: p?.redFlags ?? [],
-  };
-}
-
 export default function SettingsPage() {
   const [profile, setProfile] = useState<StructuredProfile>(EMPTY_PROFILE);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [normalizeError, setNormalizeError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<Tab>('about');
   const [pdfPage, setPdfPage] = useState(1);
+  const [activeTab, setActiveTab] = useState<Tab>('about');
 
   const profileQuery = useProfile();
   const resumeFileQuery = useResumeFile();
@@ -84,12 +59,12 @@ export default function SettingsPage() {
   const normalizeFileMutation = useNormalizeProfileFile();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [initialized, setInitialized] = useState(false);
-  const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (profileQuery.data && !initialized) {
       const data = profileQuery.data as ProfileResponse;
-      setProfile(hydrate(data.structured));
+      setProfile(hydrateProfile(data.structured));
       setLastUpdated(data.updated_at ?? null);
       setInitialized(true);
     }
@@ -108,7 +83,7 @@ export default function SettingsPage() {
     try {
       const data = await saveProfileMutation.mutateAsync(next as unknown as Record<string, unknown>) as ProfileResponse;
       setLastUpdated(data?.updated_at ?? null);
-      setProfile(hydrate(data?.structured ?? next));
+      setProfile(hydrateProfile(data?.structured ?? next));
     } catch (e) {
       setSaveError(`Couldn't save: ${(e as Error).message}`);
     }
@@ -133,53 +108,35 @@ export default function SettingsPage() {
   // Merge the extracted experience/skills/education/contact and save
   // immediately — no review UI, so there's no reason to wait for a click.
   // Contact fields only overwrite when the source actually stated them.
-  async function normalizeAndSave(run: () => Promise<NormalizedProfile>): Promise<void> {
+  async function normalizeAndSave(run: () => Promise<NormalizedProfile>): Promise<boolean> {
     setNormalizeError(null);
     try {
       const n = await run();
-      await persist({
-        ...profile,
-        fullName: n.fullName || profile.fullName,
-        email: n.email || profile.email,
-        phone: n.phone || profile.phone,
-        location: n.location || profile.location,
-        linkedIn: n.linkedIn || profile.linkedIn,
-        summary: n.summary ?? '',
-        seniority: n.seniority ?? '',
-        domains: n.domains ?? [],
-        experience: n.experience ?? [],
-        skills: n.skills ?? [],
-        education: n.education ?? [],
-        militaryService: n.militaryService ?? [],
-        sideProjects: n.sideProjects ?? [],
-        spokenLanguages: n.spokenLanguages ?? [],
-      });
+      await persist(mergeNormalizedProfile(profile, n));
       resumeFileQuery.refetch();
+      return true;
     } catch (e) {
       setNormalizeError(`Couldn't parse résumé: ${(e as Error).message}`);
+      return false;
     }
   }
 
+  // A real upload/replace (not the paste-text path, which reuses
+  // normalizeAndSave without this call) hands off to the processing page's
+  // fake beat before landing on Matches — see ProcessingPage.tsx. The
+  // homepage CTA no longer routes through here first (see LandingPage.tsx) —
+  // opening a file input needs to happen synchronously within a genuine
+  // click, and a cross-page navigation plus this page's own async profile
+  // load reliably burns through that window before an effect here could
+  // fire the click, so Chrome silently refused it ("File chooser dialog can
+  // only be shown with a user activation").
   async function onResumeFile(e: React.ChangeEvent<HTMLInputElement>): Promise<void> {
     const file = e.target.files?.[0];
     e.target.value = ''; // allow re-selecting the same file
     if (!file) return;
-    await normalizeAndSave(() => normalizeFileMutation.mutateAsync(file) as Promise<NormalizedProfile>);
+    const ok = await normalizeAndSave(() => normalizeFileMutation.mutateAsync(file) as Promise<NormalizedProfile>);
+    if (ok) navigate('/processing');
   }
-
-  // Homepage "Upload your résumé" CTA lands here with ?upload=1 — open the
-  // file picker as soon as the page (and its hidden input) has rendered,
-  // then strip the param so a refresh/back-nav doesn't reopen it.
-  useEffect(() => {
-    if (!loading && searchParams.get('upload') === '1') {
-      fileInputRef.current?.click();
-      setSearchParams((prev) => {
-        prev.delete('upload');
-        return prev;
-      }, { replace: true });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading]);
 
   // A freshly-uploaded (or reloaded) résumé always starts back on page 1.
   useEffect(() => {

@@ -36,6 +36,12 @@ test-results/
 playwright-report/
 blob-report/
 
+# Personal scratch notes
+Tasks.md
+
+# Stray dev-server log output
+.api-dev.log
+
 # OS
 .DS_Store
 Thumbs.db

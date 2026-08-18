@@ -40,21 +40,16 @@ export function SaveResult({ result }: { result: SaveResultData }) {
 /* ------------------------------------------------------------------ */
 /* Intro Textarea                                                     */
 /* ------------------------------------------------------------------ */
-export function IntroTextarea({ label, hint, value, onChange, minHeight }: { label: string; hint: string; value: string; onChange: (v: string) => void; minHeight: number }) {
+export function IntroTextarea({ label, placeholder, value, onChange, minHeight }: { label: string; placeholder?: string; value: string; onChange: (v: string) => void; minHeight: number }) {
   return (
     <div className="mb-5">
-      <div className="flex items-baseline gap-[0.45rem] mb-[0.35rem]">
-        <span className="text-[0.7rem] text-muted-foreground tracking-[0.14em] uppercase font-semibold flex items-center gap-[0.4rem]">
-          <span className="w-[3px] h-[3px] rounded-full bg-muted-foreground opacity-45 shrink-0" />
-          {label}
-        </span>
-      </div>
-      <p className="text-[0.78rem] text-muted-foreground leading-[1.55] mb-2">{hint}</p>
       <AutoGrowTextarea
-        className="w-full p-[1rem_1.25rem] border border-border rounded-lg text-foreground text-[0.88rem] outline-none leading-[1.8] whitespace-pre-wrap transition-all hover:border-muted-foreground/30 focus:border-ring focus:bg-white focus:shadow-[0_0_0_4px_rgba(0,0,0,0.04)] selection:bg-primary/10 selection:text-foreground"
-        style={{ minHeight: `${minHeight}px`, background: 'var(--card)' }}
+        className="w-full p-[1rem_1.25rem] border border-[var(--ed-rule)] text-[var(--ed-ink)] text-[0.88rem] outline-none leading-[1.8] whitespace-pre-wrap transition-all hover:border-[var(--ed-ink-faint)] focus:border-[var(--ed-accent)] selection:bg-[var(--ed-accent)]/10 selection:text-[var(--ed-ink)] bg-[var(--ed-paper)] placeholder:text-[var(--ed-ink-faint)] placeholder:italic"
+        style={{ minHeight: `${minHeight}px` }}
         value={value}
         onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => onChange(e.target.value)}
+        placeholder={placeholder}
+        aria-label={label}
         dir="auto"
         spellCheck={false}
       />

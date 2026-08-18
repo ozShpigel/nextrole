@@ -9,16 +9,10 @@ vi.mock('../lib/api', () => ({
 }));
 
 const mockPrepResponse = {
-  self_presentation_hr: 'HR presentation text.',
-  self_presentation_technical: 'Technical presentation text.',
-  presenting_work_project: 'Work project pitch.',
-  presenting_personal_project: 'Personal project pitch.',
   qa_rubric: [
     { question: 'Where do you see yourself in 5 years?', answer: 'Growing.', categories: ['HR'], topic: '' },
     { question: 'Walk me through the Payoneer project', answer: 'It was a payments platform.', categories: ['Technical'], topic: 'Payoneer project' },
   ],
-  self_presentation_hr_cues: [],
-  self_presentation_technical_cues: [],
   updated_at: '2026-07-01T00:00:00Z',
 };
 
@@ -27,29 +21,18 @@ beforeEach(() => {
 });
 
 describe('InterviewPrepPage', () => {
-  it('renders the three sections and the sticky section nav', async () => {
+  it('renders the interview questions section', async () => {
     vi.mocked(matchApi).mockResolvedValue(mockPrepResponse);
 
     renderWithRouter(<InterviewPrepPage />);
 
     await waitFor(() => {
-      expect(screen.getByText('Project presentations')).toBeInTheDocument();
+      expect(screen.getByText('Interview Questions')).toBeInTheDocument();
     });
 
-    const nav = screen.getByRole('navigation', { name: /page sections/i });
-    expect(within(nav).getByRole('button', { name: /self-presentation/i })).toBeInTheDocument();
-    expect(within(nav).getByRole('button', { name: /question rubric/i })).toBeInTheDocument();
-    expect(within(nav).getByRole('button', { name: /projects/i })).toBeInTheDocument();
-
-    // Section anchors the nav scrolls to.
-    expect(document.getElementById('prep-section-01')).toBeInTheDocument();
-    expect(document.getElementById('prep-section-02')).toBeInTheDocument();
-    expect(document.getElementById('prep-section-03')).toBeInTheDocument();
-
-    // Rubric renders collapsed under its topic groups.
-    expect(screen.getByText('Payoneer project')).toBeInTheDocument();
-    expect(screen.getByText('General')).toBeInTheDocument();
-    expect(screen.queryByText('It was a payments platform.')).not.toBeInTheDocument();
+    // Single-card view: only the first entry is visible up front.
+    expect(screen.getByText('Where do you see yourself in 5 years?')).toBeInTheDocument();
+    expect(screen.getByText('Growing.')).toBeInTheDocument();
   });
 
   it('saves rubric edits with categories and topic in the PUT body', async () => {
@@ -65,13 +48,13 @@ describe('InterviewPrepPage', () => {
     await waitFor(() => expect(screen.getByText('Where do you see yourself in 5 years?')).toBeInTheDocument());
 
     // Save is hidden behind the dirty check until an edit lands.
-    expect(screen.getByRole('button', { name: /save question rubric/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /save interview questions/i })).toBeDisabled();
 
-    await userEvent.click(screen.getByRole('button', { name: /where do you see yourself/i }));
-    await userEvent.click(screen.getByRole('button', { name: /^edit$/i }));
+    const card = screen.getByText('Where do you see yourself in 5 years?').closest('div')!.parentElement!;
+    await userEvent.click(within(card).getByRole('button', { name: /edit/i }));
     await userEvent.type(screen.getByRole('textbox', { name: 'Answer' }), ' And mentoring.');
 
-    const save = screen.getByRole('button', { name: /save question rubric/i });
+    const save = screen.getByRole('button', { name: /save interview questions/i });
     expect(save).toBeEnabled();
     await userEvent.click(save);
 
@@ -88,7 +71,7 @@ describe('InterviewPrepPage', () => {
       expect.objectContaining({ question: 'Walk me through the Payoneer project', categories: ['Technical'], topic: 'Payoneer project' }),
     ]);
 
-    expect(await screen.findByText('Question rubric saved successfully')).toBeInTheDocument();
+    expect(await screen.findByText('Interview questions saved successfully')).toBeInTheDocument();
   });
 
   it('shows error state when the load fails', async () => {

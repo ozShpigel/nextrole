@@ -70,10 +70,12 @@ function Column(
   { label: string; count: number; isEmpty?: boolean; emptyText: string; children: ReactNode },
 ) {
   return (
-    <div>
-      <div className="flex items-baseline gap-[0.6rem] border-b border-[var(--ed-rule)] pb-[0.5rem] mb-5">
-        <span className="text-[13px] uppercase tracking-[0.16em] font-medium text-[var(--ed-ink-faint)]">{label}</span>
-        <span className="text-[13px] text-[var(--ed-ink-faint)]/70 tabular-nums">· {count}</span>
+    <div className="border border-[var(--ed-rule)] bg-[var(--ed-panel)]/30 p-5">
+      <div className="flex items-center gap-[0.55rem] border-b border-[var(--ed-rule)] pb-[0.5rem] mb-5">
+        <span className="text-[13px] font-medium text-[var(--ed-ink-faint)]">{label}</span>
+        <span className="inline-flex items-center justify-center min-w-[1.3rem] h-[1.3rem] px-1 rounded-full bg-[var(--ed-panel)] border border-[var(--ed-rule)] text-[11px] text-[var(--ed-ink-faint)] tabular-nums">
+          {count}
+        </span>
       </div>
       <div className="flex flex-col gap-3">
         {(isEmpty ?? count === 0) ? (
@@ -87,7 +89,7 @@ function Column(
 }
 
 // Moving to Interviewing happens automatically once mailbot parses an
-// interview-scheduling email (not yet implemented) — no manual button here.
+// interview-scheduling email — no manual button here.
 function AppliedCard(
   { app, index, muted }:
   { app: Application; index: number; muted?: boolean },

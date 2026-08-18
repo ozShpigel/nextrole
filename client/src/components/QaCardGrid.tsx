@@ -177,7 +177,7 @@ function QaCard({
       <p dir="auto" className="shrink-0 text-[1rem] font-semibold leading-snug text-[var(--ed-ink)] text-start">
         {row.entry.question.trim() || <span className="italic font-normal text-[var(--ed-ink-faint)]">(Untitled question)</span>}
       </p>
-      <div className="flex-1 min-h-0 overflow-y-auto">
+      <div className="flex-1 min-h-0 overflow-y-auto pr-3">
         {row.entry.answer.trim() ? (
           <p dir="auto" className="text-[0.88rem] leading-[1.7] text-[var(--ed-ink-soft)] whitespace-pre-wrap text-start">
             {row.entry.answer}

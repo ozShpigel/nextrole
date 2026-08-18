@@ -124,7 +124,9 @@ The candidate's free text is provided in the user message inside <candidate_text
   ],
   "education": ["string"],
   "militaryService": ["string"],
-  "sideProjects": ["string"],
+  "sideProjects": [
+    { "name": "string", "description": "string", "links": ["string"] }
+  ],
   "spokenLanguages": ["string"]
 }
 
@@ -144,7 +146,9 @@ The candidate's free text is provided in the user message inside <candidate_text
   "<role/rank>, <unit/branch>, <years>" with whichever parts the text provides. Empty array if
   none stated — do not infer service from location or age.
 - `sideProjects`: one entry per personal/side project mentioned outside of paid roles (not already
-  captured in `experience`), in the form "<name> — <one-line description>". Empty array if none stated.
+  captured in `experience`). `name` and `description` from the stated text. `links` is always an empty
+  array — a PDF hyperlink's target isn't visible text, so never fabricate one here; the user adds links
+  manually later. Empty array if no side projects are stated.
 - `spokenLanguages`: HUMAN/SPOKEN languages only (e.g. "Hebrew (native)", "English (professional)") —
   never programming languages, those belong in `skills`. Empty array if none stated.
 - `experience[]`: one entry per role, newest first if order is discernible. `dates` may be a range

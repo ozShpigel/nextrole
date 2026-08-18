@@ -5,8 +5,10 @@ import { BrandMark } from './components/BrandMark';
 
 // Routes exempt from the onboarding redirect: "/" is the onboarding screen
 // itself (nowhere to redirect to), "/settings" is where profile setup
-// actually happens, "/score" works standalone without a saved profile.
-const ONBOARDING_EXEMPT_PATHS = new Set(['/', '/settings', '/score']);
+// actually happens, "/score" works standalone without a saved profile,
+// "/processing" is the post-upload beat — the profile queries may not have
+// refetched yet when it mounts, and it always hands off to "/search" itself.
+const ONBOARDING_EXEMPT_PATHS = new Set(['/', '/settings', '/score', '/processing']);
 
 // A brand-new profile means every other page (Matches, Active, Applications,
 // Messages, Preparation) would otherwise show its own empty state with no
@@ -56,7 +58,7 @@ export default function App() {
         </div>
       )}
       <nav data-app-nav className="bg-background/80 backdrop-blur-[20px] border-b border-border sticky top-0 z-50">
-        <div className="max-w-[1100px] mx-auto px-6 flex items-center justify-between gap-3 h-14">
+        <div className="w-full px-8 flex items-center gap-4 md:gap-10 h-14">
           <NavLink to="/" className="shrink-0 inline-flex items-center gap-[0.4rem] font-serif font-bold text-[1rem] text-foreground tracking-[-0.01em] transition-opacity hover:opacity-75">
             <BrandMark size={24} className="text-foreground" />
             NextRole

@@ -138,9 +138,17 @@ public sealed class ClaudeClient : IClaudeClient
     private AnthropicClient ResolveClient()
     {
         var source = _httpContextAccessor.HttpContext?.Request.Headers["X-Source"].ToString();
-        return !string.IsNullOrEmpty(source) && _clientsBySource.TryGetValue(source, out var client)
-            ? client
-            : _client;
+        if (string.IsNullOrEmpty(source))
+        {
+            return _client;
+        }
+        if (_clientsBySource.TryGetValue(source, out var client))
+        {
+            _logger.LogInformation("Claude call routed to source-specific key for '{Source}'", source);
+            return client;
+        }
+        _logger.LogWarning("X-Source '{Source}' has no configured Anthropic API key — falling back to default", source);
+        return _client;
     }
 
     // Configured prompts, blank-guarded back to the bundled seed so an empty

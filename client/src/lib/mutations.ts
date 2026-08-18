@@ -296,6 +296,11 @@ export function useGeneratePack() {
             )
           : old,
       );
+      queryClient.setQueryData(['applications', appId], (old: unknown) =>
+        old && typeof old === 'object'
+          ? { ...old, hasPack: true, packGeneratedAt: data.generatedAt }
+          : old,
+      );
     },
   });
 }

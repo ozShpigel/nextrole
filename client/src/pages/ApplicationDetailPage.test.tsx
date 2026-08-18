@@ -24,13 +24,6 @@ vi.mock('../components/AnalysisCard', () => ({
   default: () => <div data-testid="analysis-card" />,
   edVerdictColor: () => 'var(--ed-ink-faint)',
 }));
-vi.mock('../components/Timeline', () => ({
-  default: () => <div data-testid="timeline" />,
-}));
-vi.mock('../components/Interviews', () => ({
-  InterviewList: () => <div data-testid="interview-list" />,
-  InterviewModal: () => <div data-testid="interview-modal" />,
-}));
 vi.mock('../components/Notes', () => ({
   NoteList: () => <div data-testid="note-list" />,
   NoteModal: () => <div data-testid="note-modal" />,
@@ -103,13 +96,10 @@ describe('ApplicationDetailPage', () => {
       expect(screen.getByText('Senior React Developer')).toBeInTheDocument();
     });
 
-    expect(screen.getByRole('button', { name: 'Update Status' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Add Interview' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Add Note' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Delete' })).toBeInTheDocument();
   });
 
-  it('shows back link to tracker', async () => {
+  it('shows back link to active', async () => {
     vi.mocked(api).mockResolvedValue(mockDetailData);
     vi.mocked(matchApi).mockResolvedValue({});
 
@@ -119,12 +109,12 @@ describe('ApplicationDetailPage', () => {
       expect(screen.getByText('Senior React Developer')).toBeInTheDocument();
     });
 
-    const backLink = screen.getByText(/Back to List/);
+    const backLink = screen.getByText(/Back to Active/);
     expect(backLink).toBeInTheDocument();
-    expect(backLink.closest('a')).toHaveAttribute('href', '/tracker');
+    expect(backLink.closest('a')).toHaveAttribute('href', '/active');
   });
 
-  it('renders timeline and collapsible sections', async () => {
+  it('renders the AI analysis card', async () => {
     vi.mocked(api).mockResolvedValue(mockDetailData);
     vi.mocked(matchApi).mockResolvedValue({});
 
@@ -134,39 +124,7 @@ describe('ApplicationDetailPage', () => {
       expect(screen.getByText('Senior React Developer')).toBeInTheDocument();
     });
 
-    expect(screen.getByTestId('timeline')).toBeInTheDocument();
     expect(screen.getByTestId('analysis-card')).toBeInTheDocument();
-  });
-
-  it('shows pre-filled salary from data', async () => {
-    vi.mocked(api).mockResolvedValue({
-      ...mockDetailData,
-      application: { ...mockApplication, salary: '25-28K' },
-    });
-    vi.mocked(matchApi).mockResolvedValue({});
-
-    renderWithRouter(<ApplicationDetail />);
-
-    await waitFor(() => {
-      expect(screen.getByPlaceholderText('e.g. 25-30K/mo')).toHaveValue('25-28K');
-    });
-  });
-
-  it('shows interview count in section title', async () => {
-    vi.mocked(api).mockResolvedValue({
-      ...mockDetailData,
-      interviews: [
-        { id: '1', type: 'Phone', scheduledAt: new Date().toISOString(), completed: false },
-        { id: '2', type: 'Technical', scheduledAt: new Date().toISOString(), completed: false },
-      ],
-    });
-    vi.mocked(matchApi).mockResolvedValue({});
-
-    renderWithRouter(<ApplicationDetail />);
-
-    await waitFor(() => {
-      expect(screen.getByText('Interviews (2)')).toBeInTheDocument();
-    });
   });
 
   it('shows note count in section title', async () => {

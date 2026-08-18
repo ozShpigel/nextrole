@@ -64,6 +64,7 @@ public static class ApplicationEndpoints
             IInterviewRepository interviewRepo,
             INoteRepository noteRepo,
             IStatusUpdateRepository statusRepo,
+            IResumePackRepository packRepo,
             CancellationToken ct) =>
         {
             var application = await appRepo.GetByIdAsync(id, ct);
@@ -72,14 +73,17 @@ public static class ApplicationEndpoints
             var interviewsTask = interviewRepo.GetByApplicationIdAsync(id, ct);
             var notesTask = noteRepo.GetByApplicationIdAsync(id, ct);
             var statusUpdatesTask = statusRepo.GetByApplicationIdAsync(id, ct);
-            await Task.WhenAll(interviewsTask, notesTask, statusUpdatesTask);
+            var packTask = packRepo.GetByApplicationIdAsync(id, ct);
+            await Task.WhenAll(interviewsTask, notesTask, statusUpdatesTask, packTask);
 
             return Results.Ok(new
             {
                 application,
                 interviews = interviewsTask.Result,
                 notes = notesTask.Result,
-                statusUpdates = statusUpdatesTask.Result
+                statusUpdates = statusUpdatesTask.Result,
+                hasPack = packTask.Result is not null,
+                packGeneratedAt = packTask.Result?.GeneratedAt
             });
         })
         .WithName("GetApplication")

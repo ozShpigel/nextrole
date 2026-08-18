@@ -101,7 +101,7 @@ interface AnalysisCardProps {
   matchAnalysisJson: string | MatchAnalysis | Record<string, unknown> | null | undefined;
 }
 
-const SUBLABEL = 'block text-[13px] text-[var(--ed-ink-faint)] uppercase tracking-[0.1em] font-medium mb-[0.4rem]';
+const SUBLABEL = 'block text-[13px] text-[var(--ed-ink-faint)] tracking-[0.02em] font-medium mb-[0.4rem]';
 
 // +/- signal footnotes — calmer than filled chips for the long sentence-
 // length flags the evaluator returns. Neutral ink throughout: the +/- glyph
@@ -167,7 +167,7 @@ export default function AnalysisCard({ matchAnalysisJson }: AnalysisCardProps) {
                 {VERDICT_LABELS[a.verdict] || VERDICT_LABELS.INSUFFICIENT_DATA}
               </div>
               {rec && (
-                <div className="text-[13px] font-medium uppercase tracking-[0.08em] py-[0.35rem] px-[0.9rem] w-fit border border-[var(--ed-rule)] text-[var(--ed-ink-soft)]">
+                <div className="text-[13px] font-medium tracking-[0.02em] py-[0.35rem] px-[0.9rem] w-fit rounded-full border border-[var(--ed-rule)] text-[var(--ed-ink-soft)]">
                   {rec.shouldApply ? 'Worth Applying' : 'Not Recommended'}
                 </div>
               )}
@@ -177,7 +177,7 @@ export default function AnalysisCard({ matchAnalysisJson }: AnalysisCardProps) {
           {/* Hard blockers — mechanical gate, not narrative: non-empty always
               means the verdict was forced to STRONG_NO server-side. */}
           {a.hardBlockers && a.hardBlockers.length > 0 && (
-            <div className="mb-6 p-[0.9rem_1.1rem] border border-[var(--ed-ink)]">
+            <div className="mb-6 p-[0.9rem_1.1rem] rounded-xl border border-[var(--ed-ink)]">
               <span className={SUBLABEL}>Hard Blockers</span>
               <ul className="list-disc pl-5 m-0">
                 {a.hardBlockers.map((item, i) => <li key={i} className="text-[16px] mb-[0.3rem] text-[var(--ed-ink)] leading-[1.6]">{item}</li>)}
@@ -187,7 +187,7 @@ export default function AnalysisCard({ matchAnalysisJson }: AnalysisCardProps) {
 
           {/* Must clarify — genuinely ambiguous requirements, narrative only. */}
           {a.mustClarify && a.mustClarify.length > 0 && (
-            <div className="mb-6 p-[0.9rem_1.1rem] border border-[var(--ed-rule)]">
+            <div className="mb-6 p-[0.9rem_1.1rem] rounded-xl border border-[var(--ed-rule)]">
               <span className={SUBLABEL}>Worth Clarifying</span>
               <ul className="list-disc pl-5 m-0">
                 {a.mustClarify.map((item, i) => <li key={i} className="text-[16px] mb-[0.3rem] text-[var(--ed-ink)] leading-[1.6]">{item}</li>)}
@@ -206,11 +206,11 @@ export default function AnalysisCard({ matchAnalysisJson }: AnalysisCardProps) {
                   return (
                     <button
                       key={dim.key}
-                      className={`flex flex-col items-center gap-2 p-[1rem_0.5rem] border cursor-pointer transition-all ${isActive ? 'border-[var(--ed-ink)] bg-[var(--ed-panel)]/60' : 'border-[var(--ed-rule)] hover:border-[var(--ed-ink-faint)]'}`}
+                      className={`flex flex-col items-center gap-2 p-[1rem_0.5rem] rounded-xl border cursor-pointer transition-all ${isActive ? 'border-[var(--ed-ink)] bg-[var(--ed-panel)]/60' : 'border-[var(--ed-rule)] hover:border-[var(--ed-ink-faint)]'}`}
                       onClick={() => setActiveDim(isActive ? null : dim.key)}
                     >
                       <ScoreNumber score={d.score} maxScore={d.maxScore} color={edScoreColor(d.score, d.maxScore)} />
-                      <span className="text-[13px] text-[var(--ed-ink-soft)] font-medium uppercase tracking-[0.06em]">{dim.label}</span>
+                      <span className="text-[13px] text-[var(--ed-ink-soft)] font-medium tracking-[0.02em]">{dim.label}</span>
                     </button>
                   );
                 })}
@@ -219,7 +219,7 @@ export default function AnalysisCard({ matchAnalysisJson }: AnalysisCardProps) {
               {/* Stacked gaps — literal inventory backing the Core Stack score
                   (mechanically capped server-side once 4+ accumulate). */}
               {a.stackedGaps && a.stackedGaps.length > 0 && (
-                <div className="mt-3 p-[0.9rem_1.1rem] border border-[var(--ed-rule)]">
+                <div className="mt-3 p-[0.9rem_1.1rem] rounded-xl border border-[var(--ed-rule)]">
                   <span className={SUBLABEL}>Stacked Gaps ({a.stackedGaps.length})</span>
                   <ul className="list-disc pl-5 m-0">
                     {a.stackedGaps.map((item, i) => <li key={i} className="text-[16px] mb-[0.3rem] text-[var(--ed-ink)] leading-[1.6]">{item}</li>)}

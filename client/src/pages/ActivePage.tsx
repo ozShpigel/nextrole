@@ -56,6 +56,7 @@ function Card(
   { app, index, muted, dragFrom, children }:
   { app: Application; index: number; muted?: boolean; dragFrom?: DragSource; children: ReactNode },
 ) {
+  const navigate = useNavigate();
   return (
     <article
       draggable={!!dragFrom}
@@ -63,7 +64,11 @@ function Card(
         e.dataTransfer.setData(DRAG_MIME, JSON.stringify({ id: app.id, from: dragFrom }));
         e.dataTransfer.effectAllowed = 'move';
       } : undefined}
-      className={`ed-rise group flex flex-col gap-2 border border-[var(--ed-rule)] bg-[var(--ed-panel)] p-4 shadow-[0_6px_16px_-4px_rgba(0,0,0,0.45)] transition-all hover:border-[var(--ed-ink-faint)] hover:shadow-[0_10px_22px_-4px_rgba(0,0,0,0.55)] hover:-translate-y-[1px] ${dragFrom ? 'cursor-grab active:cursor-grabbing' : ''} ${muted ? 'opacity-55 hover:opacity-90 transition-opacity' : ''}`}
+      onClick={() => navigate(`/tracker/${app.id}`)}
+      role="link"
+      tabIndex={0}
+      onKeyDown={(e) => { if (e.key === 'Enter') navigate(`/tracker/${app.id}`); }}
+      className={`ed-rise group flex flex-col gap-2 border border-[var(--ed-rule)] bg-[var(--ed-panel)] p-4 shadow-[0_6px_16px_-4px_rgba(0,0,0,0.45)] transition-all cursor-pointer hover:border-[var(--ed-ink-faint)] hover:shadow-[0_10px_22px_-4px_rgba(0,0,0,0.55)] hover:-translate-y-[1px] ${muted ? 'opacity-55 hover:opacity-90 transition-opacity' : ''}`}
       style={{ animationDelay: `${Math.min(index, 10) * 60}ms` }}
     >
       <div className="flex items-start gap-3">
@@ -75,7 +80,8 @@ function Card(
           <h3 className="text-[16px] font-medium leading-[1.3] text-[var(--ed-ink)] mt-[0.1rem] line-clamp-2">{app.jobTitle}</h3>
         </div>
       </div>
-      <div className="mt-auto flex gap-2 items-center flex-wrap pt-1">{children}</div>
+      {/* stopPropagation so clicking an action button doesn't also navigate */}
+      <div className="mt-auto flex gap-2 items-center flex-wrap pt-1" onClick={(e) => e.stopPropagation()}>{children}</div>
     </article>
   );
 }

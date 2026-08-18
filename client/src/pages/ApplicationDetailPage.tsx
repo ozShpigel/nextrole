@@ -1,24 +1,21 @@
 import { useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
-import ConfirmDialog from '../components/ConfirmDialog';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { useApplicationDetail } from '../lib/queries';
-import { useDeleteApplication, useUpdateSalary, useGenerateCompanySummary, useGenerateWhyWorkHere } from '../lib/mutations';
-import { StatusBadge, StatusModal } from '../components/Status';
+import { useApplicationDetail, useDemoMode, DEMO_DISABLED_TITLE } from '../lib/queries';
+import { useGenerateCompanySummary, useGenerateWhyWorkHere, useGeneratePack } from '../lib/mutations';
+import { StatusBadge } from '../components/Status';
 import CollapsibleSection from '../components/CollapsibleSection';
 import AnalysisCard, { edVerdictColor } from '../components/AnalysisCard';
-import Timeline from '../components/Timeline';
-import { InterviewList, InterviewModal } from '../components/Interviews';
 import { NoteList, NoteModal } from '../components/Notes';
-import { JobDescriptionText } from '../components/JobDescriptionText';
+import { CompanyAvatar } from '../components/CompanyAvatar';
 import { Skeleton } from '@/components/ui/skeleton';
+import { ExternalLink, Sparkles, FileCheck, RefreshCw } from 'lucide-react';
 import type { Interview } from '../lib/types';
 
 // Shared editorial button styles
-const ED_BTN = 'rounded-full border px-3.5 py-[0.45rem] text-[13px] font-medium uppercase tracking-[0.06em] transition-all disabled:opacity-50 disabled:pointer-events-none';
+const ED_BTN = 'rounded-full border px-3.5 py-[0.45rem] text-[13px] font-medium transition-all disabled:opacity-50 disabled:pointer-events-none';
 const ED_GHOST = `${ED_BTN} border-[var(--ed-rule)] text-[var(--ed-ink-soft)] hover:border-[var(--ed-ink)] hover:text-[var(--ed-ink)]`;
 const ED_PRIMARY = `${ED_BTN} border-[var(--ed-accent)] bg-[var(--ed-accent)] text-[var(--ed-paper)] hover:bg-[var(--ed-accent-deep)]`;
-const ED_DANGER = `${ED_BTN} border-[var(--ed-rule)] text-[var(--ed-no)] hover:border-[var(--ed-no)] hover:bg-[var(--ed-no)]/10`;
 
 // Section heading (plain sans + heavy rule — serif stays scoped to the logo/empty states)
 function SectionHead({ title, action }: { title: string; action?: React.ReactNode }) {
@@ -51,6 +48,7 @@ interface Application {
   id: string;
   jobTitle: string;
   company: string;
+  companyLogo?: string | null;
   status: string;
   matchScore: number | null;
   matchVerdict: string | null;
@@ -74,23 +72,23 @@ interface ApplicationDetailData {
   interviews: Interview[];
   notes: Note[];
   statusUpdates: StatusUpdate[];
+  hasPack: boolean;
+  packGeneratedAt: string | null;
 }
 
 type ModalState =
-  | { type: 'status' }
-  | { type: 'interview' }
-  | { type: 'editInterview'; data: Interview }
   | { type: 'note' }
   | null;
 
 export default function ApplicationDetail() {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [modal, setModal] = useState<ModalState>(null);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const detailQuery = useApplicationDetail(id!);
-  const deleteApplicationMutation = useDeleteApplication();
+  const generatePackMutation = useGeneratePack();
+  const demoMode = useDemoMode();
 
   function closeAndReload(): void {
     setModal(null);
@@ -99,19 +97,6 @@ export default function ApplicationDetail() {
 
   function refetch(): void {
     queryClient.invalidateQueries({ queryKey: ['applications', id] });
-  }
-
-  function deleteApp(): void {
-    setShowDeleteConfirm(true);
-  }
-
-  function confirmDeleteApp(): void {
-    setShowDeleteConfirm(false);
-    const jobUrl = (detailQuery.data as ApplicationDetailData | undefined)?.application.jobUrl ?? null;
-    deleteApplicationMutation.mutate({ id: id!, jobUrl }, {
-      onSuccess: () => window.history.back(),
-      onError: (e) => alert('Delete failed: ' + (e as Error).message),
-    });
   }
 
   if (detailQuery.isLoading) return (
@@ -131,107 +116,82 @@ export default function ApplicationDetail() {
     </div>
   );
 
-  const { application: app, interviews, notes, statusUpdates } = data;
+  const { application: app, notes, hasPack } = data;
+  const packPending = generatePackMutation.isPending;
+  // Once an application has moved past the "deciding to apply" stage, the pack
+  // that got it there is assumed to exist — the pack page itself still offers
+  // a Generate CTA for the rare case a pack was never made (e.g. mailbot-applied).
+  const showReviewPack = hasPack || app.status !== 'DecidedToApply';
 
   return (
     <div className="editorial editorial-grain min-h-[calc(100vh-56px)] animate-in fade-in slide-in-from-bottom-1 duration-300">
-      <div className="relative z-[1] max-w-[1100px] mx-auto px-8 pt-12 pb-16 max-[640px]:px-5">
-        <Link to="/tracker" state={{ tab: 'list' }} className="text-[var(--ed-accent)] cursor-pointer text-[13px] font-medium uppercase tracking-[0.08em] mb-7 inline-flex items-center gap-[0.4rem] transition-all hover:-translate-x-[3px]">&larr; Back to List</Link>
+      <div className="relative z-[1] max-w-[1400px] mx-auto px-8 pt-12 pb-16 max-[640px]:px-5">
+        <Link to="/active" className="text-[var(--ed-accent)] cursor-pointer text-[13px] font-medium tracking-[0.02em] mb-7 inline-flex items-center gap-[0.4rem] transition-all hover:-translate-x-[3px]">&larr; Back to Active</Link>
 
-        {/* Header masthead */}
-        <header className="mb-9">
-          <div className="flex justify-between items-start gap-6 flex-wrap pb-4 border-b border-[var(--ed-rule-strong)]">
-            <div className="min-w-0">
-              <div className="text-[13px] font-medium uppercase tracking-[0.1em] text-[var(--ed-ink-faint)] mb-2">{app.company}</div>
-              <h2 className="font-medium text-[40px] leading-[1.1] tracking-[-0.01em] text-[var(--ed-ink)]">{app.jobTitle}</h2>
-              <div className="mt-3 flex items-center gap-3 flex-wrap">
+        <div className="grid grid-cols-1 lg:grid-cols-[380px_1fr] gap-8 items-start">
+          {/* Left rail — job summary card + actions + this application's own history */}
+          <div className="flex flex-col gap-6 lg:sticky lg:top-8">
+            <div className="border border-[var(--ed-rule)] bg-[var(--ed-panel)] p-6 shadow-[0_6px_16px_-4px_rgba(0,0,0,0.45)]">
+              <CompanyAvatar name={app.company} logo={app.companyLogo} size={56} />
+              <div className="mt-4 flex items-center gap-2 flex-wrap">
+                <span className="text-[13px] font-medium uppercase tracking-[0.1em] text-[var(--ed-ink-faint)]">{app.company}</span>
                 <StatusBadge status={app.status} />
-                <DaysInStage updatedAt={app.updatedAt} />
+              </div>
+              <h2 className="font-medium text-[28px] leading-[1.15] tracking-[-0.01em] text-[var(--ed-ink)] mt-1">{app.jobTitle}</h2>
+              <DaysInStage updatedAt={app.updatedAt} />
+
+              <div className="mt-4 flex items-baseline gap-2">
+                <span className="text-[28px] font-medium leading-none tabular-nums" style={{ color: edVerdictColor(app.matchVerdict) }}>{app.matchScore ?? '-'}</span>
+                <span className="text-[13px] font-medium uppercase tracking-[0.06em] text-[var(--ed-ink-faint)]">{app.matchVerdict || ''}</span>
               </div>
             </div>
-            <div className="text-right shrink-0">
-              <div className="text-[40px] font-medium leading-none tabular-nums" style={{ color: edVerdictColor(app.matchVerdict) }}>{app.matchScore ?? '-'}</div>
-              <div className="text-[13px] font-medium uppercase tracking-[0.06em] mt-2 text-[var(--ed-ink-faint)]">{app.matchVerdict || ''}</div>
-            </div>
-          </div>
 
-          <div className="pt-4">
-            <NextAction status={app.status} updatedAt={app.updatedAt} interviews={interviews} />
-
-            <SalaryField appId={app.id} initialValue={app.salary} />
-
-            <div className="flex gap-2 flex-wrap mt-4">
-              {app.jobUrl && (
-                <a href={app.jobUrl} target="_blank" rel="noopener noreferrer" className={ED_GHOST}>View Job</a>
-              )}
-              <button type="button" className={ED_PRIMARY} onClick={() => setModal({ type: 'status' })}>Update Status</button>
-              <Link to={`/practice-interview?applicationId=${app.id}&company=${encodeURIComponent(app.company)}&jobTitle=${encodeURIComponent(app.jobTitle)}`} className={ED_GHOST}>
-                Practice Interview
-              </Link>
-              <button type="button" className={ED_GHOST} onClick={() => setModal({ type: 'interview' })}>Add Interview</button>
+            <div className="flex flex-col gap-2">
+              <button
+                type="button"
+                className={`${ED_PRIMARY} w-full inline-flex items-center justify-center gap-[0.35rem]`}
+                disabled={demoMode || (packPending && !showReviewPack)}
+                title={demoMode ? DEMO_DISABLED_TITLE : undefined}
+                onClick={() => (showReviewPack ? navigate(`/tracker/${app.id}/pack`) : generatePackMutation.mutate(app.id))}
+              >
+                {packPending && !showReviewPack
+                  ? <RefreshCw size={13} className="animate-spin" aria-hidden="true" />
+                  : showReviewPack ? <FileCheck size={13} aria-hidden="true" /> : <Sparkles size={13} aria-hidden="true" />}
+                {showReviewPack ? 'Review Pack' : 'Generate Pack'}
+              </button>
+              <div className="flex gap-2 flex-wrap">
+                {app.jobUrl && (
+                  <a href={app.jobUrl} target="_blank" rel="noopener noreferrer" className={`${ED_GHOST} inline-flex items-center gap-[0.35rem]`}>
+                    <ExternalLink size={13} aria-hidden="true" />
+                    Original
+                  </a>
+                )}
+                <Link to={`/practice-interview?applicationId=${app.id}&company=${encodeURIComponent(app.company)}&jobTitle=${encodeURIComponent(app.jobTitle)}`} className={ED_GHOST}>
+                  Practice Interview
+                </Link>
+              </div>
               <button type="button" className={ED_GHOST} onClick={() => setModal({ type: 'note' })}>Add Note</button>
-              <button type="button" className={ED_DANGER} onClick={deleteApp}>Delete</button>
             </div>
+
+            {/* Notes */}
+            <CollapsibleSection title={`Notes (${notes.length})`}>
+              <NoteList notes={notes} onRefresh={refetch} />
+            </CollapsibleSection>
           </div>
-        </header>
 
-        {/* AI Analysis */}
-        <AnalysisCard matchAnalysisJson={app.matchAnalysis} />
-
-        {/* "Why work here?" interview answer */}
-        <WhyWorkHereBlock appId={app.id} initialAnswer={app.whyWorkHere} />
-
-        {/* Company summary & enrichment data */}
-        <CompanySummaryBlock appId={app.id} initialSummary={app.companySummary} />
-        <CompanyEnrichment companyNewsJson={app.companyNews} glassdoorDataJson={app.glassdoorData} />
-
-        {/* Timeline */}
-        <section className="mb-9">
-          <SectionHead title="Timeline" />
-          <Timeline statusUpdates={statusUpdates} interviews={interviews} notes={notes} />
-        </section>
-
-        {/* Interviews */}
-        <CollapsibleSection title={`Interviews (${interviews.length})`}>
-          <InterviewList
-            interviews={interviews}
-            onEdit={(i: Interview) => setModal({ type: 'editInterview', data: i })}
-            onRefresh={refetch}
-          />
-        </CollapsibleSection>
-
-        {/* Notes */}
-        <CollapsibleSection title={`Notes (${notes.length})`}>
-          <NoteList notes={notes} onRefresh={refetch} />
-        </CollapsibleSection>
-
-        {/* Job Description */}
-        {app.jobDescription && (
-          <CollapsibleSection title="Job Description" defaultOpen={false}>
-            <JobDescriptionText text={app.jobDescription} />
-          </CollapsibleSection>
-        )}
+          {/* Right pane — AI insights and analysis, in place of a raw JD */}
+          <div className="flex flex-col gap-9 min-w-0">
+            <AnalysisCard matchAnalysisJson={app.matchAnalysis} />
+            <WhyWorkHereBlock appId={app.id} initialAnswer={app.whyWorkHere} />
+            <CompanySummaryBlock appId={app.id} initialSummary={app.companySummary} />
+            <CompanyEnrichment companyNewsJson={app.companyNews} glassdoorDataJson={app.glassdoorData} />
+          </div>
+        </div>
 
         {/* Modals */}
-        {modal?.type === 'status' && (
-          <StatusModal appId={app.id} currentStatus={app.status} jobUrl={app.jobUrl} onClose={() => setModal(null)} onSaved={closeAndReload} />
-        )}
-        {modal?.type === 'interview' && (
-          <InterviewModal appId={app.id} onClose={() => setModal(null)} onSaved={closeAndReload} />
-        )}
-        {modal?.type === 'editInterview' && (
-          <InterviewModal appId={app.id} interview={modal.data} onClose={() => setModal(null)} onSaved={closeAndReload} />
-        )}
         {modal?.type === 'note' && (
           <NoteModal appId={app.id} onClose={() => setModal(null)} onSaved={closeAndReload} />
         )}
-
-        <ConfirmDialog
-          open={showDeleteConfirm}
-          description="Delete this application? All interviews and notes will also be deleted."
-          onConfirm={confirmDeleteApp}
-          onCancel={() => setShowDeleteConfirm(false)}
-        />
       </div>
     </div>
   );
@@ -248,67 +208,6 @@ function DaysInStage({ updatedAt }: { updatedAt: string }) {
   if (days === null) return null;
   const label = days === 0 ? 'Today' : days === 1 ? '1 day' : `${days} days`;
   return <span className="text-[13px] font-medium text-[var(--ed-ink-faint)] tabular-nums">{label} in stage</span>;
-}
-
-function NextAction({ status, updatedAt, interviews }: { status: string; updatedAt: string; interviews: Interview[] }) {
-  const days = daysAgo(updatedAt);
-  let suggestion: string | null = null;
-
-  if (status === 'Applied' && days !== null && days >= 7) {
-    suggestion = 'Consider sending a follow-up email';
-  } else if (status === 'DecidedToApply') {
-    suggestion = 'Submit your application';
-  } else if (status === 'PhoneScreen' || status === 'TechnicalInterview' || status === 'FinalRound') {
-    const upcoming = interviews?.find((i) => new Date(i.scheduledAt) > new Date());
-    suggestion = upcoming
-      ? `Prepare for interview on ${new Date(upcoming.scheduledAt).toLocaleDateString()}`
-      : 'Schedule your next interview';
-  } else if (status === 'OfferReceived') {
-    suggestion = 'Review offer terms and respond';
-  }
-
-  if (!suggestion) return null;
-  return (
-    <div className="mb-3 py-[0.5rem] px-3 border-l-2 border-[var(--ed-rule-strong)] text-[16px] text-[var(--ed-ink-soft)] font-medium tabular-nums">
-      → {suggestion}
-    </div>
-  );
-}
-
-function SalaryField({ appId, initialValue }: { appId: string; initialValue: string | null }) {
-  const [value, setValue] = useState<string>(initialValue || '');
-  const [saved, setSaved] = useState<boolean>(false);
-  const updateSalaryMutation = useUpdateSalary();
-
-  function save(): void {
-    updateSalaryMutation.mutate(
-      { appId, salary: value || null },
-      {
-        onSuccess: () => {
-          setSaved(true);
-          setTimeout(() => setSaved(false), 2000);
-        },
-        onError: (e) => {
-          alert('Failed to save salary: ' + (e as Error).message);
-        },
-      },
-    );
-  }
-
-  return (
-    <div className="flex items-center gap-2 mb-3">
-      <label className="text-[13px] uppercase tracking-[0.08em] text-[var(--ed-ink-faint)] font-medium shrink-0">Salary</label>
-      <input
-        className="max-w-[200px] h-8 text-[16px] px-2 rounded-lg border border-[var(--ed-rule)] bg-transparent text-[var(--ed-ink)] focus:outline-none focus:border-[var(--ed-ink)]"
-        placeholder="e.g. 25-30K/mo"
-        value={value}
-        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setValue(e.target.value)}
-        onBlur={save}
-        onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => e.key === 'Enter' && save()}
-      />
-      {saved && <span className="text-[13px] uppercase tracking-[0.06em] text-[var(--ed-ink-faint)] font-medium">Saved</span>}
-    </div>
-  );
 }
 
 function CompanySummaryBlock({ appId, initialSummary }: { appId: string; initialSummary: string | null }) {

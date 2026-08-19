@@ -1,11 +1,16 @@
 using ApplicationTracker.Core.Models;
 using ApplicationTracker.Core.Profile;
+using ApplicationTracker.Infrastructure.Pdf;
 using ApplicationTracker.Infrastructure.Profile;
+using ApplicationTracker.Infrastructure.Repositories;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using MongoDB.Bson;
 using MongoDB.Driver;
+using QuestPDF.Infrastructure;
+
+QuestPDF.Settings.License = LicenseType.Community;
 
 // Seeds a database with fictional demo data: the sample persona profile + a
 // handful of fictional tracked applications across varied statuses. Idempotent
@@ -50,6 +55,41 @@ var profileProvider = new MongoProfileProvider(
     client, config, new MemoryCache(new MemoryCacheOptions()), NullLogger<MongoProfileProvider>.Instance);
 var profile = await profileProvider.GetProfileDocumentAsync();
 Console.WriteLine($"Profile persona ensured ({profile.Structured.Experience.Length} role(s) in sample).");
+
+// 1b) A résumé file to preview on the Profile page's Résumé tab — rendered
+// straight from the seeded StructuredProfile (no LLM call), reusing the exact
+// renderer real Generate Pack output goes through, so it previews identically.
+// Idempotent — skip if one already exists (never clobber a real upload).
+var resumeFileCol = client.GetDatabase(profileDb).GetCollection<ResumeFile>("resumeFile");
+var resumeFileRepo = new ResumeFileRepository(resumeFileCol);
+if (await resumeFileRepo.GetAsync() is null)
+{
+    var sp = profile.Structured;
+    var pack = new ResumePack
+    {
+        TailoredSummary = sp.Summary,
+        Experience = sp.Experience.Select(e => new TailoredExperienceItem
+        {
+            Title = e.Title, Company = e.Company, Dates = e.Dates, Highlights = e.Highlights.ToList(),
+        }).ToList(),
+        HighlightedSkills = sp.Skills.Select(s => new SkillCategory
+        {
+            Category = s.Category, Items = s.Items.ToList(),
+        }).ToList(),
+        SideProjects = sp.SideProjects.ToList(),
+    };
+    var pdfBytes = new QuestPdfResumeRenderer().Render(pack, sp);
+    await resumeFileRepo.UpsertAsync(new ResumeFile
+    {
+        Bytes = pdfBytes,
+        FileName = "resume.pdf",
+        ContentType = "application/pdf",
+        UploadedAt = DateTime.UtcNow,
+        PageCount = PdfPageCounter.CountPages(pdfBytes),
+    });
+    Console.WriteLine($"Résumé file seeded ({pdfBytes.Length} bytes).");
+}
+else Console.WriteLine("Résumé file already present — skipped.");
 
 // 2) Fictional applications across varied statuses (invented companies only).
 var db = client.GetDatabase(trackerDb);
@@ -232,69 +272,104 @@ if (string.IsNullOrWhiteSpace(prep.SelfPresentationHr))
 }
 else Console.WriteLine("Interview-prep already present — skipped.");
 
-// 4) Discovery — one active criterion + a completed run + scored jobs (idempotent
-//    by criterion name). These collections live in the tracker DB and use the
-//    Python scraper's snake_case schema; match_analysis mirrors the API's camelCase
+// 4) Discovery — one active criterion + a completed run + a pool of fake, already-
+//    scored jobs. These collections live in the tracker DB and use the Python
+//    scraper's snake_case schema; match_analysis mirrors the API's camelCase
 //    MatchResponse so the "Score Breakdown"/"Signals" UI renders.
+//
+//    Always refreshed (not skip-if-exists): the Matches page only shows jobs whose
+//    discovered_at falls inside its default 14-day window, so a one-time seed goes
+//    permanently stale. Re-running this script (or the DemoJobFreshnessInitializer
+//    startup hook in the API, gated on DemoMode) re-anchors discovered_at to now.
 var criteriaCol = db.GetCollection<BsonDocument>("search_criteria");
 var runsCol = db.GetCollection<BsonDocument>("discovery_runs");
 var jobsCol = db.GetCollection<BsonDocument>("discovered_jobs");
 
 const string demoCriteriaName = "Backend / Platform Engineer";
-if (!await criteriaCol.Find(Builders<BsonDocument>.Filter.Eq("name", demoCriteriaName)).AnyAsync())
-{
-    var criteriaId = Guid.NewGuid().ToString();
-    var runId = Guid.NewGuid().ToString();
-    var runAt = now.AddDays(-1);
+var existingCriteria = await criteriaCol.Find(Builders<BsonDocument>.Filter.Eq("name", demoCriteriaName)).FirstOrDefaultAsync();
+var criteriaId = existingCriteria?["id"].AsString ?? Guid.NewGuid().ToString();
+var runId = Guid.NewGuid().ToString();
+var runAt = now.AddHours(-2);
 
-    await criteriaCol.InsertOneAsync(new BsonDocument
+await jobsCol.DeleteManyAsync(Builders<BsonDocument>.Filter.Eq("criteria_id", criteriaId));
+await runsCol.DeleteManyAsync(Builders<BsonDocument>.Filter.Eq("criteria_id", criteriaId));
+await criteriaCol.ReplaceOneAsync(
+    Builders<BsonDocument>.Filter.Eq("name", demoCriteriaName),
+    new BsonDocument
     {
         ["id"] = criteriaId, ["name"] = demoCriteriaName,
         ["job_titles"] = new BsonArray { "Backend Engineer", "Platform Engineer", "Software Engineer" },
         ["locations"] = new BsonArray { "Tel Aviv", "Remote" },
         ["site_names"] = new BsonArray { "linkedin", "indeed" },
-        ["results_wanted"] = 15, ["hours_old"] = 72, ["country"] = "Israel",
+        ["results_wanted"] = 25, ["hours_old"] = 72, ["country"] = "Israel",
         ["is_remote"] = BsonNull.Value, ["min_score_to_save"] = 70, ["is_active"] = true,
-        ["created_at"] = now.AddDays(-6), ["updated_at"] = now.AddDays(-1),
-    });
+        ["created_at"] = existingCriteria?.GetValue("created_at", now.AddDays(-6)) ?? now.AddDays(-6),
+        ["updated_at"] = now,
+    },
+    new ReplaceOptions { IsUpsert = true });
 
-    await runsCol.InsertOneAsync(new BsonDocument
-    {
-        ["id"] = runId, ["criteria_id"] = criteriaId, ["criteria_name"] = demoCriteriaName,
-        ["status"] = "completed", ["mode"] = "live",
-        ["batch_id"] = BsonNull.Value, ["batch_submitted_at"] = BsonNull.Value,
-        ["started_at"] = runAt, ["completed_at"] = runAt.AddMinutes(4),
-        ["jobs_scraped"] = 8, ["jobs_scored"] = 3, ["jobs_saved"] = 1, ["jobs_skipped_duplicate"] = 2,
-        ["error"] = BsonNull.Value,
-    });
+// Hand-authored — the app the tracker demo clip clicks into for a full breakdown.
+var stratusJob = Job(runId, criteriaId, "Backend Engineer", "Stratus Cloud", "Tel Aviv",
+    "Build and operate backend services for a cloud platform team.", 82, "YES", true, true, runAt,
+    Analysis("Backend Engineer", "Stratus Cloud", 82, "YES", true, (16, 11), (13, 12), (11, 11, 8),
+        new[] { "Strong .NET + cloud background", "Clear ownership of services" }, Array.Empty<string>(),
+        "Strong overall fit; stack and seniority line up well with the role.",
+        new[] { "Recently raised a growth round" }, Array.Empty<string>(),
+        "Company is growing and hiring across engineering."));
+var northwindJob = Job(runId, criteriaId, "Platform Engineer", "Northwind Labs", "Remote",
+    "Developer platform and CI/CD tooling for product teams.", 74, "YES", true, false, runAt,
+    Analysis("Platform Engineer", "Northwind Labs", 74, "YES", true, (14, 11), (12, 10), (10, 9, 8),
+        new[] { "Platform / DevX experience", "Comfortable with CI/CD" }, new[] { "Domain is newer to the candidate" },
+        "Good fit with a mild ramp on the platform domain.",
+        Array.Empty<string>(), Array.Empty<string>(), "No notable recent news."));
+var cobaltJob = Job(runId, criteriaId, "Data Engineer", "Cobalt Systems", "Tel Aviv",
+    "Own batch and streaming data pipelines for analytics.", 56, "MAYBE", false, false, runAt,
+    Analysis("Data Engineer", "Cobalt Systems", 56, "MAYBE", false, (11, 9), (9, 7), (7, 7, 6),
+        new[] { "Transferable backend skills" }, new[] { "Limited data-engineering depth", "On-call load hinted" },
+        "Partial fit; the role leans more data-engineering than the candidate's core.",
+        Array.Empty<string>(), new[] { "Some Glassdoor reviews mention long hours" },
+        "Mixed signals on work-life balance."));
 
-    var jobs = new List<BsonDocument>
-    {
-        Job(runId, criteriaId, "Backend Engineer", "Stratus Cloud", "Tel Aviv",
-            "Build and operate backend services for a cloud platform team.", 82, "YES", true, true, runAt,
-            Analysis("Backend Engineer", "Stratus Cloud", 82, "YES", true, (16, 11), (13, 12), (11, 11, 8),
-                new[] { "Strong .NET + cloud background", "Clear ownership of services" }, Array.Empty<string>(),
-                "Strong overall fit; stack and seniority line up well with the role.",
-                new[] { "Recently raised a growth round" }, Array.Empty<string>(),
-                "Company is growing and hiring across engineering.")),
-        Job(runId, criteriaId, "Platform Engineer", "Northwind Labs", "Remote",
-            "Developer platform and CI/CD tooling for product teams.", 74, "YES", true, false, runAt,
-            Analysis("Platform Engineer", "Northwind Labs", 74, "YES", true, (14, 11), (12, 10), (10, 9, 8),
-                new[] { "Platform / DevX experience", "Comfortable with CI/CD" }, new[] { "Domain is newer to the candidate" },
-                "Good fit with a mild ramp on the platform domain.",
-                Array.Empty<string>(), Array.Empty<string>(), "No notable recent news.")),
-        Job(runId, criteriaId, "Data Engineer", "Cobalt Systems", "Tel Aviv",
-            "Own batch and streaming data pipelines for analytics.", 56, "MAYBE", false, false, runAt,
-            Analysis("Data Engineer", "Cobalt Systems", 56, "MAYBE", false, (11, 9), (9, 7), (7, 7, 6),
-                new[] { "Transferable backend skills" }, new[] { "Limited data-engineering depth", "On-call load hinted" },
-                "Partial fit; the role leans more data-engineering than the candidate's core.",
-                Array.Empty<string>(), new[] { "Some Glassdoor reviews mention long hours" },
-                "Mixed signals on work-life balance.")),
-    };
-    await jobsCol.InsertManyAsync(jobs);
-    Console.WriteLine($"Discovery seeded: 1 criterion, 1 completed run, {jobs.Count} jobs.");
+// Broader pool — score/verdict/company/title varied for a realistic-looking
+// spread; breakdown text is tier-derived (TieredAnalysis) rather than hand-authored
+// per posting.
+var morePostings = new (string Title, string Company, string Location, string Description, int Score, string Verdict)[]
+{
+    ("Senior Backend Engineer", "Meridian Robotics", "Tel Aviv", "Build control-plane services for autonomous fleet software.", 91, "STRONG_YES"),
+    ("Staff Software Engineer", "Solace Fintech", "Remote", "Own payments infrastructure reliability and scale.", 88, "STRONG_YES"),
+    ("Backend Engineer", "Harborlight Logistics", "Herzliya", "Build tracking and routing services for a logistics platform.", 79, "YES"),
+    ("Platform Engineer", "Kestrel Analytics", "Remote", "Internal developer platform and CI/CD.", 77, "YES"),
+    ("DevOps Engineer", "Ridgeline Cloud", "Remote", "Infra automation for a cloud consultancy.", 72, "YES"),
+    ("Full Stack Engineer", "Verdant Foods", "Tel Aviv", "Ship features across a React/Node e-commerce stack.", 68, "YES"),
+    ("Site Reliability Engineer", "Anchorpoint Security", "Ramat Gan", "On-call, observability, and incident response for a security product.", 63, "MAYBE"),
+    ("Software Engineer", "Bramble Media", "Remote", "Build content pipelines for a media platform.", 61, "MAYBE"),
+    ("Backend Engineer", "Coppermine Insurance", "Tel Aviv", "Maintain claims-processing services.", 54, "MAYBE"),
+    ("Data Platform Engineer", "Fernwood Analytics", "Remote", "Own batch/streaming data infra.", 49, "MAYBE"),
+    ("Engineering Manager", "Cascade Systems", "Tel Aviv", "People-management-heavy leadership role.", 41, "NO"),
+    ("Frontend Engineer", "Lucent Design", "Tel Aviv", "React component library and design systems.", 38, "NO"),
+    ("Mobile Engineer", "Skyline Apps", "Ramat Gan", "iOS/Android app development.", 33, "NO"),
+};
+
+var jobs = new List<BsonDocument> { stratusJob, northwindJob, cobaltJob };
+foreach (var (i, posting) in morePostings.Select((posting, i) => (i, posting)))
+{
+    var at = runAt.AddMinutes(-5 * i);
+    jobs.Add(Job(runId, criteriaId, posting.Title, posting.Company, posting.Location, posting.Description, posting.Score, posting.Verdict,
+        posting.Verdict is "STRONG_YES" or "YES", false, at,
+        TieredAnalysis(posting.Title, posting.Company, posting.Score, posting.Verdict)));
 }
-else Console.WriteLine("Discovery data already present — skipped.");
+
+await jobsCol.InsertManyAsync(jobs);
+await runsCol.InsertOneAsync(new BsonDocument
+{
+    ["id"] = runId, ["criteria_id"] = criteriaId, ["criteria_name"] = demoCriteriaName,
+    ["status"] = "completed", ["mode"] = "live",
+    ["batch_id"] = BsonNull.Value, ["batch_submitted_at"] = BsonNull.Value,
+    ["started_at"] = runAt, ["completed_at"] = runAt.AddMinutes(4),
+    ["jobs_scraped"] = jobs.Count + 5, ["jobs_scored"] = jobs.Count, ["jobs_saved"] = 1, ["jobs_skipped_duplicate"] = 2,
+    ["error"] = BsonNull.Value,
+});
+Console.WriteLine($"Discovery seeded/refreshed: 1 criterion, 1 completed run, {jobs.Count} jobs.");
 
 Console.WriteLine("Demo seed complete.");
 return 0;
@@ -383,4 +458,37 @@ static BsonDocument Job(
         ["company_news"] = BsonNull.Value, ["glassdoor_data"] = BsonNull.Value,
         ["is_duplicate"] = false, ["saved_to_tracker"] = saved, ["dismissed"] = false,
         ["discovered_at"] = at,
+        // Lets DemoJobFreshnessInitializer (API startup, DemoMode-gated) find and
+        // re-bump these docs' discovered_at without touching any real scraped data.
+        ["seed_marker"] = true,
     };
+
+// Derives a plausible-looking breakdown from just (score, verdict) — used for the
+// bulk posting pool where hand-authoring bespoke text per entry isn't worth it.
+static BsonDocument TieredAnalysis(string title, string company, int score, string verdict)
+{
+    var shouldApply = verdict is "STRONG_YES" or "YES";
+    var techTotal = (int)Math.Round(score * 0.35);
+    var execTotal = (int)Math.Round(score * 0.30);
+    var sustTotal = score - techTotal - execTotal;
+    var techCore = (int)Math.Round(techTotal * 0.55);
+    var execA = execTotal / 2;
+    var sustWl = sustTotal / 3;
+    var sustComm = sustTotal / 3;
+
+    var (green, red, honest) = score switch
+    {
+        >= 80 => (new[] { "Strong stack overlap", "Seniority matches the role" }, Array.Empty<string>(),
+            "Strong overall fit; stack and seniority line up well with the role."),
+        >= 65 => (new[] { "Good stack overlap" }, new[] { "Some ramp-up expected in one area" },
+            "Solid fit with a mild ramp in one area."),
+        >= 50 => (new[] { "Transferable core skills" }, new[] { "Domain gap on part of the stack" },
+            "Partial fit; some real gaps against the role's core stack."),
+        _ => (Array.Empty<string>(), new[] { "Limited overlap with the role's core stack" },
+            "Weak fit; the role's requirements diverge meaningfully from the candidate's background."),
+    };
+
+    return Analysis(title, company, score, verdict, shouldApply,
+        (techCore, techTotal - techCore), (execA, execTotal - execA), (sustWl, sustComm, sustTotal - sustWl - sustComm),
+        green, red, honest, Array.Empty<string>(), Array.Empty<string>(), "No notable recent news.");
+}

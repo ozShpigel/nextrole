@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { User, FileText, Upload, RefreshCw, Award, ChevronLeft, ChevronRight } from 'lucide-react';
-import { useProfile, useResumeFile } from '../lib/queries';
+import { useProfile, useResumeFile, useDemoMode, DEMO_DISABLED_TITLE } from '../lib/queries';
 import { useSaveProfile, useNormalizeProfileFile } from '../lib/mutations';
 import { apiUrl } from '../lib/api';
 import { EMPTY_PROFILE, hydrateProfile, mergeNormalizedProfile } from '../lib/profile';
@@ -53,6 +53,7 @@ export default function SettingsPage() {
   const [pdfPage, setPdfPage] = useState(1);
   const [activeTab, setActiveTab] = useState<Tab>('about');
 
+  const demoMode = useDemoMode();
   const profileQuery = useProfile();
   const resumeFileQuery = useResumeFile();
   const saveProfileMutation = useSaveProfile();
@@ -279,6 +280,7 @@ export default function SettingsPage() {
                   <ResumeActionButton
                     hasResume={!!resumeFile}
                     pending={normalizeFileMutation.isPending}
+                    disabled={demoMode}
                     onClick={() => fileInputRef.current?.click()}
                   />
                 }
@@ -411,12 +413,13 @@ function PdfNavButton({ direction, onClick }: { direction: 'prev' | 'next'; onCl
 // tactile than the standard Button: filled pill, soft accent glow that
 // intensifies on hover/lift, icon that nudges up on hover. Lives in the
 // TabHeader's top-right slot rather than buried under the preview.
-function ResumeActionButton({ hasResume, pending, onClick }: { hasResume: boolean; pending: boolean; onClick: () => void }) {
+function ResumeActionButton({ hasResume, pending, disabled, onClick }: { hasResume: boolean; pending: boolean; disabled?: boolean; onClick: () => void }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      disabled={pending}
+      disabled={pending || disabled}
+      title={disabled ? DEMO_DISABLED_TITLE : undefined}
       className="group inline-flex items-center gap-2 rounded-full bg-[var(--ed-accent)] text-[var(--ed-paper)] pl-4 pr-5 py-[0.6rem] text-[0.76rem] font-semibold uppercase tracking-[0.06em] shadow-[0_2px_14px_-4px_color-mix(in_oklab,var(--ed-accent)_60%,transparent)] transition-all duration-200 hover:bg-[var(--ed-accent-deep)] hover:-translate-y-[1.5px] hover:shadow-[0_8px_22px_-4px_color-mix(in_oklab,var(--ed-accent)_70%,transparent)] active:translate-y-0 disabled:opacity-50 disabled:pointer-events-none disabled:translate-y-0 disabled:shadow-none"
     >
       {pending ? (

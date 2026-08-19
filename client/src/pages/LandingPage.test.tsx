@@ -1,13 +1,26 @@
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderWithRouter } from "../test/render";
+import { api } from "../lib/api";
 import Landing from "./LandingPage";
+
+vi.mock("../lib/api", async () => {
+  const actual = await vi.importActual<typeof import("../lib/api")>("../lib/api");
+  return { ...actual, api: vi.fn() };
+});
+
+function mockRoutes(routes: Record<string, unknown>) {
+  vi.mocked(api).mockImplementation((path: string) =>
+    path in routes ? Promise.resolve(routes[path]) : Promise.reject(new Error(`Unmocked api() call: ${path}`)),
+  );
+}
 
 describe("LandingPage", () => {
   beforeEach(() => {
     // Tests navigate via the real BrowserRouter (shared jsdom window) —
     // reset the URL so a prior test's navigation doesn't leak into this one.
     window.history.pushState({}, "", "/");
+    mockRoutes({ "/config": { demoMode: false } });
   });
 
   it("renders the page title", () => {
@@ -52,6 +65,23 @@ describe("LandingPage", () => {
     await userEvent.upload(input, file);
 
     expect(window.location.pathname).toBe("/processing");
+  });
+
+  it("in demo mode, clicking the CTA skips the file picker and goes straight to the fake processing animation", async () => {
+    // Real upload is 403'd server-side in DemoMode anyway (it persists a
+    // file) — the demo skips the picker and plays ProcessingPage's canned
+    // beat with nothing real underneath instead.
+    mockRoutes({ "/config": { demoMode: true } });
+    const user = userEvent.setup();
+    const clickSpy = vi.spyOn(HTMLInputElement.prototype, "click");
+    renderWithRouter(<Landing />);
+
+    await waitFor(() => expect(api).toHaveBeenCalledWith("/config"));
+    await user.click(screen.getByRole("button", { name: /upload your résumé/i }));
+
+    expect(clickSpy).not.toHaveBeenCalled();
+    expect(window.location.pathname).toBe("/processing");
+    clickSpy.mockRestore();
   });
 
   it("renders the footer line with a GitHub link", () => {

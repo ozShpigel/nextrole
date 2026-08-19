@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Upload } from 'lucide-react';
+import { useDemoMode } from '../lib/queries';
 
 // Company marks for the "Companies like these" marquee — simplified but
 // recognizable, self-contained (each carries its own backing shape/color
@@ -153,6 +154,7 @@ function LogoMarquee() {
 
 export default function Landing() {
   const navigate = useNavigate();
+  const demoMode = useDemoMode();
   const [loaded, setLoaded] = useState<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -179,6 +181,19 @@ export default function Landing() {
     navigate('/processing', { state: { file } });
   }
 
+  // The read-only demo never accepts a real upload (the endpoint that would
+  // persist it is 403'd in DemoMode) — skip the file picker entirely and go
+  // straight to the canned beat. With no file in route state, ProcessingPage
+  // already plays the identical staged animation on nothing real and lands on
+  // /search on its own.
+  function onUploadClick(): void {
+    if (demoMode) {
+      navigate('/processing');
+      return;
+    }
+    fileInputRef.current?.click();
+  }
+
   return (
     <div className="editorial editorial-grain home-atmosphere relative min-h-[calc(100vh-56px)] flex flex-col items-center justify-center text-center p-[clamp(1.5rem,3.5vw,3rem)] overflow-x-clip">
 
@@ -200,7 +215,7 @@ export default function Landing() {
         <div className="mt-9 flex flex-wrap items-center justify-center gap-5">
           <button
             type="button"
-            onClick={() => fileInputRef.current?.click()}
+            onClick={onUploadClick}
             className="group inline-flex items-center gap-2 rounded-full bg-[var(--ed-accent)] text-[var(--ed-paper)] px-6 py-[0.65rem] text-[0.74rem] font-semibold uppercase tracking-[0.08em] transition-all hover:bg-[var(--ed-accent-deep)] hover:-translate-y-[1px]"
           >
             <Upload size={14} className="transition-transform group-hover:-translate-y-0.5" aria-hidden="true" />

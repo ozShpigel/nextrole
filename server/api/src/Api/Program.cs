@@ -130,6 +130,23 @@ catch (Exception ex)
     startupLogger.LogError(ex, "Failed to ensure application indexes — continuing startup");
 }
 
+// Demo-only: keep the Seeder's fake discovery pool inside the Matches page's
+// default 14-day window without needing a manual reseed after every restart.
+if (builder.Configuration.GetValue<bool>("DemoMode"))
+{
+    try
+    {
+        await DemoJobFreshnessInitializer.RefreshAsync(
+            app.Services.GetRequiredService<IMongoClient>(),
+            builder.Configuration["MongoDB:DatabaseName"] ?? "job-tracker",
+            startupLogger);
+    }
+    catch (Exception ex)
+    {
+        startupLogger.LogError(ex, "Failed to refresh demo job freshness — continuing startup");
+    }
+}
+
 app.UseCors();
 app.UseRateLimiter();
 

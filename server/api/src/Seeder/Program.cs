@@ -473,6 +473,16 @@ await profileProvider.UpsertInterviewPrepAsync(
         "picked it up and used it.",
     qaRubric: new List<QaEntry>
     {
+        new() { Question = "Tell me about yourself.",
+            Answer = "I'm a backend-leaning software engineer with about nine years of experience building and " +
+                     "operating web services in e-commerce and healthtech. Most recently at Lumen Retail I've led " +
+                     "the checkout platform serving millions of orders a month — cutting payment-failure retries by " +
+                     "40% and driving the move off a single monolith into independently deployable services. Before " +
+                     "that I was at Atlas Health building patient-facing scheduling features and setting up the " +
+                     "observability that was missing there. I care most about owning a service end to end, from " +
+                     "design through on-call, and I mentor junior engineers along the way. I'm looking for a role " +
+                     "with more scope and a clearer path toward technical leadership.",
+            Categories = new List<string> { "HR" } },
         new() { Question = "Where do you see yourself in 5 years?",
             Answer = "Growing into a senior/tech-lead role where I own a significant area of the product and help set " +
                      "technical direction while still writing code — deepening system design and mentoring rather than " +
@@ -516,6 +526,38 @@ await profileProvider.UpsertInterviewPrepAsync(
                      "approach. It shows up mostly in how I reason about cost and reliability trade-offs when I'm " +
                      "proposing infra changes now, not in day-to-day coding.",
             Categories = new List<string> { "Technical" } },
+        new() { Question = "You also listed a side project called Pace — what's that?",
+            Answer = "Pace is a small habit-tracking app I built mostly to actually learn React Native properly, since " +
+                     "my day job is all web. It syncs across devices through a lightweight offline-first data layer, so " +
+                     "it still works mid-flight or on a bad connection and reconciles once you're back online. It was " +
+                     "mainly a learning exercise — hands-on experience with mobile state management and offline sync " +
+                     "patterns I hadn't touched before.",
+            Categories = new List<string> { "Technical", "HR" },
+            Topic = "Pace" },
+        new() { Question = "What's shelfie?",
+            Answer = "A weekend project — it catalogs a home bookshelf from photos and suggests what to read next based " +
+                     "on reading history. It started as an excuse to play with a vision API I hadn't used before and " +
+                     "turned into something I actually use. It's the smallest of my side projects, but a good example " +
+                     "of scratching my own itch instead of building something for a portfolio.",
+            Categories = new List<string> { "HR" },
+            Topic = "shelfie" },
+        new() { Question = "What's your biggest weakness?",
+            Answer = "I default to wanting to fully understand a system before touching it, which paid off on something " +
+                     "like the checkout migration but can slow me down on a change that just needs a quick, contained " +
+                     "fix. I've gotten better at explicitly asking whether a given change actually needs that depth " +
+                     "before I dive in, instead of applying the same rigor everywhere.",
+            Categories = new List<string> { "HR" } },
+        new() { Question = "What are you looking for in terms of compensation?",
+            Answer = "I'm flexible, and mostly care that the total package — base, equity, benefits — is competitive " +
+                     "for a Senior-level backend role in this market. I'd rather have that conversation once we're both " +
+                     "confident it's a fit on both sides.",
+            Categories = new List<string> { "HR" } },
+        new() { Question = "Do you have a preference for remote, hybrid, or in-office?",
+            Answer = "I'm comfortable with any of them — I've worked effectively in-office and remote. What actually " +
+                     "matters more to me is whether the team has good habits around async communication and " +
+                     "documentation, since that's what determines whether remote or hybrid works well, not the policy " +
+                     "itself.",
+            Categories = new List<string> { "HR" } },
     });
 Console.WriteLine("Interview-prep synced.");
 

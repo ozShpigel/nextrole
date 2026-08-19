@@ -8,6 +8,11 @@ import { EMPTY_PROFILE, hydrateProfile, mergeNormalizedProfile } from '../lib/pr
 import type { ProfileResponse, StructuredProfile, NormalizedProfile } from '../lib/types';
 import { Skeleton } from '../components/ui/skeleton';
 import { ChipInput } from '../components/ChipInput';
+import { PersonaAvatar } from '../components/PersonaAvatar';
+
+// The demo persona's name — swaps the initials-circle fallback for a
+// (non-photorealistic) avatar illustration on the demo instance only.
+const DEMO_PERSONA_NAME = 'Alex Morgan';
 
 type Tab = 'about' | 'values' | 'resume';
 
@@ -169,9 +174,15 @@ export default function SettingsPage() {
             NextRole has no Job preferences/Work vault/Subscription etc. */}
         <aside className="max-sm:order-first">
           <div className="flex flex-col items-start gap-[0.35rem] mb-8">
-            <div className="w-14 h-14 rounded-full bg-[var(--ed-accent)]/15 border border-[var(--ed-accent)]/40 flex items-center justify-center ed-display text-[1.1rem] font-bold text-[var(--ed-accent)] mb-3">
-              {initials(profile.fullName || '?')}
-            </div>
+            {profile.fullName === DEMO_PERSONA_NAME ? (
+              <div className="rounded-full overflow-hidden mb-3">
+                <PersonaAvatar size={56} />
+              </div>
+            ) : (
+              <div className="w-14 h-14 rounded-full bg-[var(--ed-accent)]/15 border border-[var(--ed-accent)]/40 flex items-center justify-center ed-display text-[1.1rem] font-bold text-[var(--ed-accent)] mb-3">
+                {initials(profile.fullName || '?')}
+              </div>
+            )}
             <h2 className="ed-display text-[1.15rem] font-bold text-[var(--ed-ink)] leading-tight">
               {profile.fullName || 'Your profile'}
             </h2>

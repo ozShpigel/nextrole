@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Upload } from 'lucide-react';
 import { useDemoMode } from '../lib/queries';
+import { FakeFileDialog } from '../components/FakeFileDialog';
 
 // Company marks for the "Companies like these" marquee — simplified but
 // recognizable, self-contained (each carries its own backing shape/color
@@ -156,6 +157,7 @@ export default function Landing() {
   const navigate = useNavigate();
   const demoMode = useDemoMode();
   const [loaded, setLoaded] = useState<boolean>(false);
+  const [showFakeDialog, setShowFakeDialog] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -182,13 +184,14 @@ export default function Landing() {
   }
 
   // The read-only demo never accepts a real upload (the endpoint that would
-  // persist it is 403'd in DemoMode) — skip the file picker entirely and go
-  // straight to the canned beat. With no file in route state, ProcessingPage
-  // already plays the identical staged animation on nothing real and lands on
-  // /search on its own.
+  // persist it is 403'd in DemoMode) — show a fake OS file-open dialog
+  // (FakeFileDialog) with the demo persona's résumé pre-selected instead of
+  // the real picker, then go straight to the canned beat. With no file in
+  // route state, ProcessingPage already plays the identical staged animation
+  // on nothing real and lands on /search on its own.
   function onUploadClick(): void {
     if (demoMode) {
-      navigate('/processing');
+      setShowFakeDialog(true);
       return;
     }
     fileInputRef.current?.click();
@@ -229,6 +232,15 @@ export default function Landing() {
             className="hidden"
             data-testid="resume-file-input"
           />
+          {showFakeDialog && (
+            <FakeFileDialog
+              onSelect={() => {
+                setShowFakeDialog(false);
+                navigate('/processing');
+              }}
+              onCancel={() => setShowFakeDialog(false)}
+            />
+          )}
           <Link
             to="/search"
             className="inline-flex items-center gap-2 text-[0.74rem] font-semibold uppercase tracking-[0.1em] text-[var(--ed-ink-soft)] transition-colors hover:text-[var(--ed-ink)]"

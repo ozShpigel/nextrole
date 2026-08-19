@@ -1,3 +1,4 @@
+using System.Text.Json;
 using ApplicationTracker.Core.Models;
 using ApplicationTracker.Core.Profile;
 using ApplicationTracker.Infrastructure.Pdf;
@@ -40,8 +41,13 @@ Console.WriteLine($"Seeding demo data → host={host}, tracker DB='{trackerDb}',
 
 var client = new MongoClient(connectionString);
 
-// 1) Persona — reuse the API's seed path so the stored shape matches exactly
-//    (structured + rendered content). Seeds only if absent (idempotent).
+// 1) Persona — sample-profile.json is the single source of truth for the demo
+// persona's content, with a hardcoded fake identity (name/email/phone/
+// LinkedIn — never part of the file, and the only user-editable fields) laid
+// on top. Synced unconditionally on every run, not just when absent: this is
+// fictional data with no "real user edit" to protect, and the demo DB has at
+// times been used interactively, so this also doubles as the fix for a real
+// name/contact ever having ended up here.
 var config = new ConfigurationBuilder()
     .AddInMemoryCollection(new Dictionary<string, string?>
     {
@@ -53,31 +59,25 @@ var config = new ConfigurationBuilder()
 
 var profileProvider = new MongoProfileProvider(
     client, config, new MemoryCache(new MemoryCacheOptions()), NullLogger<MongoProfileProvider>.Instance);
-var profile = await profileProvider.GetProfileDocumentAsync();
-Console.WriteLine($"Profile persona ensured ({profile.Structured.Experience.Length} role(s) in sample).");
 
-// 1a) Contact fields are never part of sample-profile.json (so the initial
-// seed leaves them blank) but ARE user-editable, and this demo DB has at
-// times been used interactively — enforce fake contact info on every run
-// so a real name/email/phone/LinkedIn can never sit behind the public demo.
-// Unconditional (not idempotent): this is a privacy invariant, not one-time
-// content.
-const string DemoFullName = "Alex Morgan";
-var demoProfile = profile.Structured with
+var sampleProfileJson = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "Data/sample-profile.json"));
+var sampleProfile = JsonSerializer.Deserialize<StructuredProfile>(sampleProfileJson, new JsonSerializerOptions
 {
-    FullName = DemoFullName,
+    PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+    PropertyNameCaseInsensitive = true,
+}) ?? new StructuredProfile();
+
+var demoProfile = sampleProfile with
+{
+    FullName = "Alex Morgan",
     Email = "alex.morgan@example.com",
     Phone = "+1-555-0100",
     Location = "Tel Aviv, Israel",
     LinkedIn = "linkedin.com/in/alex-morgan-demo",
 };
-if (demoProfile != profile.Structured)
-{
-    await profileProvider.UpsertProfileAsync(demoProfile);
-    profile = await profileProvider.GetProfileDocumentAsync();
-    Console.WriteLine("Profile contact fields reset to the fake demo persona.");
-}
-else Console.WriteLine("Profile contact fields already demo-safe — skipped.");
+await profileProvider.UpsertProfileAsync(demoProfile);
+var profile = await profileProvider.GetProfileDocumentAsync();
+Console.WriteLine($"Profile persona synced from sample-profile.json ({profile.Structured.Experience.Length} role(s), {profile.Structured.SideProjects.Length} side project(s)).");
 
 // 1b) A résumé file to preview on the Profile page's Résumé tab — rendered
 // straight from the seeded StructuredProfile (no LLM call), reusing the exact

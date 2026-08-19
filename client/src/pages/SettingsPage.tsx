@@ -323,8 +323,8 @@ export default function SettingsPage() {
                           continuous-scroll layout bleeds the top of the next
                           page into whatever vertical space is left over. */}
                       <embed
-                        key={pdfPage}
-                        src={`${apiUrl('/match/profile/resume-file/download')}#toolbar=0&navpanes=0&scrollbar=0&view=${pageAspect ? 'FitH' : 'Fit'}&page=${pdfPage}`}
+                        key={`${resumeFile.uploadedAt}-${pdfPage}`}
+                        src={`${apiUrl('/match/profile/resume-file/download')}?v=${encodeURIComponent(resumeFile.uploadedAt)}#toolbar=0&navpanes=0&scrollbar=0&view=${pageAspect ? 'FitH' : 'Fit'}&page=${pdfPage}`}
                         type="application/pdf"
                         className="w-[calc(100%+20px)] h-[calc(100%+20px)] block pointer-events-none"
                       />

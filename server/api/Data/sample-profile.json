@@ -1,5 +1,5 @@
 {
-  "summary": "Senior software engineer with ~9 years building web applications and backend services across product teams in e-commerce and healthtech.",
+  "summary": "Senior software engineer with ~9 years building web applications and backend services across product teams in e-commerce and healthtech. Comfortable owning a service end to end — design, implementation, on-call, and the roadmap conversations in between.",
   "seniority": "Senior",
   "domains": ["e-commerce", "healthtech"],
   "experience": [
@@ -10,8 +10,12 @@
       "highlights": [
         "Lead engineer on the checkout platform serving millions of orders per month",
         "Designed and shipped a service that reduced payment-failure retries by 40%",
-        "Introduced contract tests and CI gates that cut production regressions",
-        "Mentored three engineers and ran the team's design-review process"
+        "Introduced contract tests and CI gates that cut production regressions by roughly a third",
+        "Mentored three engineers and ran the team's design-review process",
+        "Drove the migration from a single checkout monolith to independently deployable services",
+        "Partnered with product and design on a cart-recovery flow that lifted completed-checkout rate by 8%",
+        "Led the postmortem process for the checkout team, turning recurring incidents into concrete follow-up work",
+        "Introduced a lightweight RFC process the wider platform org later adopted"
       ]
     },
     {
@@ -21,7 +25,11 @@
       "highlights": [
         "Built patient-facing scheduling features end to end (React + Node.js)",
         "Migrated a monolith module to a service with zero-downtime cutover",
-        "Improved API p95 latency by 35% through query and caching work"
+        "Improved API p95 latency by 35% through query and caching work",
+        "Set up structured logging and dashboards that cut incident triage time roughly in half",
+        "Rotated on-call for the scheduling service and authored its first runbook",
+        "Partnered with a compliance team to add audit logging ahead of a HIPAA review",
+        "Onboarded and paired with two new hires during their first quarter"
       ]
     },
     {
@@ -30,16 +38,50 @@
       "dates": "2014–2017",
       "highlights": [
         "Delivered features across a Java/Spring web application",
-        "Wrote the team's first automated integration test suite"
+        "Wrote the team's first automated integration test suite",
+        "Fixed a recurring data-sync bug that had been open for two release cycles",
+        "Built an internal reporting dashboard that replaced a manual weekly spreadsheet"
+      ]
+    },
+    {
+      "title": "Software Engineering Intern",
+      "company": "Brightline Labs",
+      "dates": "2013–2014",
+      "highlights": [
+        "Built an internal admin tool for support staff to look up order history",
+        "Shadowed on-call and wrote onboarding docs for the next intern cohort",
+        "Fixed a batch of low-priority UI bugs during a pre-launch stabilization sprint"
       ]
     }
   ],
   "skills": [
-    { "category": "Languages", "items": ["TypeScript", "Python", "Java"] },
-    { "category": "Frameworks", "items": ["React", "Node.js", "Spring Boot"] },
-    { "category": "Infrastructure", "items": ["AWS", "Docker", "GitHub Actions"] },
-    { "category": "Databases", "items": ["PostgreSQL", "Redis"] },
-    { "category": "Practices", "items": ["REST API design", "CI/CD", "Test automation"] }
+    { "category": "Languages", "items": ["TypeScript", "Python", "Java", "SQL"] },
+    { "category": "Frameworks", "items": ["React", "Node.js", "Spring Boot", "Express"] },
+    { "category": "Infrastructure", "items": ["AWS", "Docker", "GitHub Actions", "Terraform", "Kubernetes"] },
+    { "category": "Databases", "items": ["PostgreSQL", "Redis", "DynamoDB"] },
+    { "category": "Practices", "items": ["REST API design", "CI/CD", "Test automation", "Observability", "Incident response"] }
+  ],
+  "education": [
+    "B.Sc. Computer Science, Tel Aviv University, 2014",
+    "AWS Certified Solutions Architect – Associate, 2022"
+  ],
+  "spokenLanguages": ["English (fluent)", "Hebrew (native)"],
+  "sideProjects": [
+    {
+      "name": "RouteCast",
+      "description": "An open-source CLI that records and replays webhook events for local development, so testing integrations doesn't require a live tunnel.",
+      "links": ["https://github.com/alexmorgan-demo/routecast"]
+    },
+    {
+      "name": "Pace",
+      "description": "A small habit-tracking app built to learn React Native — synced across devices with a lightweight offline-first data layer.",
+      "links": ["https://github.com/alexmorgan-demo/pace"]
+    },
+    {
+      "name": "shelfie",
+      "description": "A weekend project that catalogs a home bookshelf from photos and suggests what to read next based on reading history.",
+      "links": []
+    }
   ],
   "strengths": [
     "Clear written communication and documentation",
@@ -53,5 +95,5 @@
     "Quality, reliability, and observability",
     "Continuous learning and honest communication"
   ],
-  "rawExperienceText": "Senior software engineer, ~9 years. Lumen Retail (2021–Present) — Senior Software Engineer on the checkout platform (millions of orders/month); cut payment-failure retries 40%; added contract tests and CI gates. Atlas Health (2017–2021) — Software Engineer; patient scheduling features in React + Node.js; migrated a monolith module to a service with zero downtime; improved API p95 latency 35%. Brightline Labs (2014–2017) — Junior Software Engineer; Java/Spring web app; built the first integration test suite. Skills: TypeScript, Python, Java, React, Node.js, Spring Boot, AWS, Docker, GitHub Actions, PostgreSQL, Redis, REST API design, CI/CD."
+  "rawExperienceText": "Senior software engineer, ~9 years. Lumen Retail (2021–Present) — Senior Software Engineer on the checkout platform (millions of orders/month); cut payment-failure retries 40%; added contract tests and CI gates; drove migration off the checkout monolith; cart-recovery flow lifted completed-checkout rate 8%; ran postmortems and introduced a lightweight RFC process. Atlas Health (2017–2021) — Software Engineer; patient scheduling features in React + Node.js; migrated a monolith module to a service with zero downtime; improved API p95 latency 35%; set up structured logging/dashboards; rotated on-call; added audit logging for a HIPAA review. Brightline Labs (2014–2017) — Junior Software Engineer; Java/Spring web app; built the first integration test suite; fixed a long-open data-sync bug; built an internal reporting dashboard. Brightline Labs (2013–2014) — Software Engineering Intern; internal admin tool; onboarding docs. B.Sc. Computer Science, Tel Aviv University, 2014; AWS Certified Solutions Architect – Associate, 2022. Skills: TypeScript, Python, Java, SQL, React, Node.js, Spring Boot, Express, AWS, Docker, GitHub Actions, Terraform, Kubernetes, PostgreSQL, Redis, DynamoDB, REST API design, CI/CD, Test automation, Observability, Incident response. Side projects: RouteCast (open-source webhook CLI), Pace (React Native habit tracker), shelfie (bookshelf cataloging app)."
 }

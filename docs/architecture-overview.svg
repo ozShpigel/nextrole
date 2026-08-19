@@ -1,0 +1,132 @@
+<svg viewBox="0 0 900 460" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="ov-title ov-desc" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">
+  <title id="ov-title">NextRole system overview</title>
+  <desc id="ov-desc">Client, API, Scraper, and Mailbot communicate over HTTP. The API is the only service that calls Claude; the Scraper and Mailbot delegate their AI needs to it. External systems — LinkedIn/Indeed, MongoDB Atlas, Claude, and Gmail — are drawn with dashed borders.</desc>
+
+  <defs>
+    <marker id="ov-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L8,4 L0,8 Z" fill="#57524b"/>
+    </marker>
+    <marker id="ov-arrow-accent" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L8,4 L0,8 Z" fill="#b5502e"/>
+    </marker>
+  </defs>
+
+  <!-- ===== connectors (drawn first, under the boxes) ===== -->
+  <g fill="none" stroke="#57524b" stroke-width="1.6">
+    <!-- Client -> API -->
+    <line x1="450" y1="76" x2="450" y2="145" marker-end="url(#ov-arrow)"/>
+    <!-- Client -> Scraper -->
+    <line x1="392" y1="76" x2="158" y2="149" marker-end="url(#ov-arrow)"/>
+    <!-- Scraper -> API -->
+    <line x1="240" y1="182" x2="344" y2="186" marker-end="url(#ov-arrow)"/>
+    <!-- Mailbot -> API -->
+    <line x1="660" y1="182" x2="556" y2="186" marker-end="url(#ov-arrow)"/>
+    <!-- Scraper -> LinkedIn/Indeed -->
+    <line x1="130" y1="214" x2="122" y2="339" marker-end="url(#ov-arrow)"/>
+    <!-- Scraper -> MongoDB Atlas -->
+    <line x1="205" y1="214" x2="310" y2="339" marker-end="url(#ov-arrow)"/>
+    <!-- API -> MongoDB Atlas -->
+    <line x1="405" y1="227" x2="375" y2="339" marker-end="url(#ov-arrow)"/>
+    <!-- Mailbot -> Gmail -->
+    <line x1="765" y1="214" x2="775" y2="339" marker-end="url(#ov-arrow)"/>
+  </g>
+  <!-- API -> Claude (the one path every AI call takes) -->
+  <line x1="500" y1="227" x2="530" y2="339" fill="none" stroke="#b5502e" stroke-width="2.4" marker-end="url(#ov-arrow-accent)"/>
+
+  <!-- ===== connector labels (self-contained chips so they read on any background) ===== -->
+  <g font-size="10.5" fill="#3a352f" text-anchor="middle">
+    <g>
+      <rect x="420" y="100" width="60" height="17" rx="4" fill="#f4f1ea" stroke="#cfc7ba" stroke-width="1"/>
+      <text x="450" y="112">HTTP</text>
+    </g>
+    <g>
+      <rect x="255" y="98" width="60" height="17" rx="4" fill="#f4f1ea" stroke="#cfc7ba" stroke-width="1"/>
+      <text x="285" y="110">HTTP</text>
+    </g>
+    <g>
+      <rect x="240" y="160" width="112" height="17" rx="4" fill="#f4f1ea" stroke="#cfc7ba" stroke-width="1"/>
+      <text x="296" y="172">delegates AI calls</text>
+    </g>
+    <g>
+      <rect x="562" y="160" width="90" height="17" rx="4" fill="#f4f1ea" stroke="#cfc7ba" stroke-width="1"/>
+      <text x="607" y="172">parses email</text>
+    </g>
+    <g>
+      <rect x="90" y="268" width="52" height="17" rx="4" fill="#f4f1ea" stroke="#cfc7ba" stroke-width="1"/>
+      <text x="116" y="280">scrape</text>
+    </g>
+    <g>
+      <rect x="205" y="288" width="86" height="17" rx="4" fill="#f4f1ea" stroke="#cfc7ba" stroke-width="1"/>
+      <text x="248" y="300">store jobs</text>
+    </g>
+    <g>
+      <rect x="330" y="288" width="96" height="17" rx="4" fill="#f4f1ea" stroke="#cfc7ba" stroke-width="1"/>
+      <text x="378" y="300">tracking data</text>
+    </g>
+    <g>
+      <rect x="720" y="268" width="80" height="17" rx="4" fill="#f4f1ea" stroke="#cfc7ba" stroke-width="1"/>
+      <text x="760" y="280">read inbox</text>
+    </g>
+    <g>
+      <rect x="500" y="288" width="112" height="17" rx="4" fill="#fdf0ea" stroke="#e0aa93" stroke-width="1"/>
+      <text x="556" y="300" fill="#8a3a20">every AI call</text>
+    </g>
+  </g>
+
+  <!-- ===== internal services (solid) ===== -->
+  <g stroke="#2b2521" stroke-width="1.6">
+    <rect x="340" y="20" width="220" height="56" rx="10" fill="#f4f1ea"/>
+    <rect x="40" y="150" width="200" height="64" rx="10" fill="#f4f1ea"/>
+    <rect x="660" y="150" width="200" height="64" rx="10" fill="#f4f1ea"/>
+  </g>
+  <!-- API: the AI hub, drawn with the accent color to stand out -->
+  <rect x="345" y="146" width="210" height="80" rx="10" fill="#f4f1ea" stroke="#b5502e" stroke-width="2.2"/>
+
+  <g text-anchor="middle" fill="#211c18">
+    <text x="450" y="44" font-size="15" font-weight="600">Client</text>
+    <text x="450" y="62" font-size="11" fill="#6b6259">React SPA · Nginx (production)</text>
+
+    <text x="140" y="177" font-size="15" font-weight="600">Scraper</text>
+    <text x="140" y="195" font-size="11" fill="#6b6259">Python</text>
+
+    <text x="450" y="176" font-size="15" font-weight="600">API</text>
+    <text x="450" y="192" font-size="10" font-weight="700" fill="#b5502e" letter-spacing="0.6">AI HUB · ALL CLAUDE CALLS</text>
+    <text x="450" y="209" font-size="11" fill="#6b6259">.NET</text>
+
+    <text x="760" y="177" font-size="15" font-weight="600">Mailbot</text>
+    <text x="760" y="195" font-size="11" fill="#6b6259">Cron · one-shot, not a service</text>
+  </g>
+
+  <!-- ===== external systems (dashed) ===== -->
+  <g stroke="#5b6572" stroke-width="1.6" stroke-dasharray="5 4" fill="#eef0f2">
+    <rect x="40" y="340" width="170" height="56" rx="10"/>
+    <rect x="255" y="340" width="170" height="56" rx="10"/>
+    <rect x="470" y="340" width="170" height="56" rx="10"/>
+    <rect x="690" y="340" width="170" height="56" rx="10"/>
+  </g>
+  <g text-anchor="middle" fill="#252b32">
+    <text x="125" y="363" font-size="13" font-weight="600">LinkedIn / Indeed</text>
+    <text x="125" y="381" font-size="10" fill="#5b6572">Job boards</text>
+
+    <text x="340" y="363" font-size="13" font-weight="600">MongoDB Atlas</text>
+    <text x="340" y="381" font-size="10" fill="#5b6572">Tracking + discovery data</text>
+
+    <text x="555" y="363" font-size="13" font-weight="600">Claude</text>
+    <text x="555" y="381" font-size="10" fill="#5b6572">Anthropic</text>
+
+    <text x="775" y="363" font-size="13" font-weight="600">Gmail</text>
+    <text x="775" y="381" font-size="10" fill="#5b6572">Inbox sync</text>
+  </g>
+
+  <!-- ===== legend ===== -->
+  <g font-size="11" fill="#6b6259">
+    <rect x="40" y="418" width="14" height="14" rx="3" fill="#f4f1ea" stroke="#2b2521" stroke-width="1.4"/>
+    <text x="62" y="429">NextRole service</text>
+
+    <rect x="220" y="418" width="14" height="14" rx="3" fill="#eef0f2" stroke="#5b6572" stroke-width="1.4" stroke-dasharray="4 3"/>
+    <text x="242" y="429">External system</text>
+
+    <line x1="400" y1="425" x2="428" y2="425" stroke="#b5502e" stroke-width="2.4" marker-end="url(#ov-arrow-accent)"/>
+    <text x="436" y="429" fill="#8a3a20">Every Claude call</text>
+  </g>
+</svg>

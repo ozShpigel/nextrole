@@ -69,12 +69,7 @@ NextRole consists of four loosely-coupled services, communicating over HTTP:
 3. **Scraper** — the ingest engine: scrapes LinkedIn/Indeed, filters titles with AI triage, classifies seniority, and scores every relevant job against your profile in batches — delegating its AI needs to the API.
 4. **Mailbot** — a one-shot cron process (not a service): reads Gmail, has the API parse each email with Claude, and applies status/interview updates to the tracker.
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/images/architecture-dark.svg">
-  <img alt="NextRole architecture — the Client on top; the Scraper, API, and Mailbot services in the middle with the API as the AI hub; external providers (job boards, MongoDB Atlas, Claude, Gmail) along the bottom" src="docs/images/architecture-light.svg">
-</picture>
-
-> Diagram note: the SVGs above still depict the retired vector-search/OpenAI-embeddings flow — pending a redraw to match the ingest-time batched-scoring architecture described in the text.
+<img alt="NextRole architecture — the Client on top; the Scraper, API, and Mailbot services in the middle with the API as the AI hub; external providers (job boards, MongoDB Atlas, Claude, Gmail) along the bottom" src="docs/architecture-overview.svg">
 
 **The life of a job** ties the parts together: the scraper discovers it, AI triage checks the title is on-target, and it's scored against your profile — in batches of up to 5, one shared Claude call per batch — the moment it's found. Saving a result copies it into the tracker database — and from there the mailbot keeps its status current from your inbox.
 
@@ -86,12 +81,7 @@ This is how NextRole finds jobs and figures out which ones actually fit you, in 
 
 The enrichment prefetch step is still retrieval-augmented generation — it's just retrieval by live web search (Glassdoor ratings, recent company news) rather than vector similarity: no embeddings, no vector index, nothing pre-indexed. Each job's scoring call gets whatever the web search actually turned up for that company, injected straight into the Evaluator's prompt alongside your profile.
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/images/flow-search-dark.svg">
-  <img alt="Discovery & scoring flow — scrape, AI title triage, seniority classification, enrichment prefetch, and batched Evaluator scoring, storing fully-scored jobs the Matches page browses" src="docs/images/flow-search-light.svg">
-</picture>
-
-> Diagram note: the SVG above still depicts the retired vector-search/advisor flow — pending a redraw.
+<img alt="Discovery & scoring flow — scrape, AI title triage, seniority classification, enrichment prefetch, and batched Evaluator scoring, storing fully-scored jobs the Matches page browses" src="docs/discovery-scoring.svg">
 
 ### Mock interview (stateless turn engine)
 

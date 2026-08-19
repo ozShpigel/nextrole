@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Sparkles, FileCheck, RefreshCw } from 'lucide-react';
-import { useApplications, useDemoMode, DEMO_DISABLED_TITLE } from '../lib/queries';
+import { useApplications } from '../lib/queries';
 import { useDeleteApplication, useGeneratePack } from '../lib/mutations';
 import { formatDate, formatTime, verdictLabel, daysSince } from '../lib/format';
 import { edVerdictColor } from './AnalysisCard';
@@ -129,10 +129,9 @@ interface RowProps {
   onGeneratePack?: () => void;
   onReviewPack?: () => void;
   packGenerating?: boolean;
-  demoMode?: boolean;
 }
 
-function Row({ app, index = 0, muted, onOpen, onDelete, onGeneratePack, onReviewPack, packGenerating, demoMode }: RowProps) {
+function Row({ app, index = 0, muted, onOpen, onDelete, onGeneratePack, onReviewPack, packGenerating }: RowProps) {
   const days = daysSince(app.updatedAt);
   const showPackAction = !!(onGeneratePack || onReviewPack);
   const tone = edVerdictColor(app.matchVerdict);
@@ -158,8 +157,8 @@ function Row({ app, index = 0, muted, onOpen, onDelete, onGeneratePack, onReview
           <button
             type="button"
             aria-label={app.hasPack ? `Review résumé pack for ${app.company}` : `Generate résumé pack for ${app.company}`}
-            title={demoMode && !app.hasPack ? DEMO_DISABLED_TITLE : (app.hasPack ? 'Review Pack' : 'Generate Pack')}
-            disabled={packGenerating || (demoMode && !app.hasPack)}
+            title={app.hasPack ? 'Review Pack' : 'Generate Pack'}
+            disabled={packGenerating}
             className="w-7 h-7 flex items-center justify-center text-[var(--ed-ink-faint)] opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity duration-200 hover:text-[var(--ed-accent)] disabled:opacity-40 disabled:cursor-not-allowed"
             onClick={(e: React.MouseEvent) => {
               e.stopPropagation();
@@ -192,7 +191,6 @@ export default function ApplicationList() {
   const { data: apps = [], error, isLoading } = useApplications();
   const deleteAppMutation = useDeleteApplication();
   const generatePackMutation = useGeneratePack();
-  const demoMode = useDemoMode();
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; jobUrl: string | null } | null>(null);
   const [showAllAwaiting, setShowAllAwaiting] = useState(false);
 
@@ -283,7 +281,6 @@ export default function ApplicationList() {
               onGeneratePack={() => generatePackMutation.mutate(a.id)}
               onReviewPack={() => navigate(`/tracker/${a.id}/pack`)}
               packGenerating={generatePackMutation.isPending && generatePackMutation.variables === a.id}
-              demoMode={demoMode}
             />
           ))}
         </section>

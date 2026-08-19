@@ -265,8 +265,7 @@ export default function ActivePage() {
                 <Card key={a.id} app={a} index={i} dragFrom={demoMode ? undefined : 'added'}>
                   <button
                     type="button"
-                    disabled={demoMode || (generatePack.isPending && generatePack.variables === a.id)}
-                    title={demoMode ? DEMO_DISABLED_TITLE : undefined}
+                    disabled={generatePack.isPending && generatePack.variables === a.id}
                     className={`${ED_PRIMARY} px-3 py-[0.4rem] inline-flex items-center gap-[0.35rem]`}
                     onClick={() => generatePack.mutate(a.id)}
                   >
@@ -295,8 +294,8 @@ export default function ActivePage() {
                   </button>
                   <button
                     type="button"
-                    disabled={demoMode || (generatePack.isPending && generatePack.variables === a.id)}
-                    title={demoMode ? DEMO_DISABLED_TITLE : 'Regenerate the résumé pack'}
+                    disabled={generatePack.isPending && generatePack.variables === a.id}
+                    title="Regenerate the résumé pack"
                     aria-label={`Regenerate résumé pack for ${a.company}`}
                     className={`${ED_GHOST} px-3 py-[0.4rem] inline-flex items-center gap-[0.35rem]`}
                     onClick={() => generatePack.mutate(a.id)}

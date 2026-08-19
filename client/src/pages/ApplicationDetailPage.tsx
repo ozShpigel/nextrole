@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { useApplicationDetail, useDemoMode, DEMO_DISABLED_TITLE } from '../lib/queries';
+import { useApplicationDetail } from '../lib/queries';
 import { useGenerateCompanySummary, useGenerateWhyWorkHere, useGeneratePack } from '../lib/mutations';
 import { StatusBadge } from '../components/Status';
 import CollapsibleSection from '../components/CollapsibleSection';
@@ -88,7 +88,6 @@ export default function ApplicationDetail() {
 
   const detailQuery = useApplicationDetail(id!);
   const generatePackMutation = useGeneratePack();
-  const demoMode = useDemoMode();
 
   function closeAndReload(): void {
     setModal(null);
@@ -150,8 +149,7 @@ export default function ApplicationDetail() {
               <button
                 type="button"
                 className={`${ED_PRIMARY} w-full inline-flex items-center justify-center gap-[0.35rem]`}
-                disabled={demoMode || (packPending && !showReviewPack)}
-                title={demoMode ? DEMO_DISABLED_TITLE : undefined}
+                disabled={packPending && !showReviewPack}
                 onClick={() => (showReviewPack ? navigate(`/tracker/${app.id}/pack`) : generatePackMutation.mutate(app.id))}
               >
                 {packPending && !showReviewPack

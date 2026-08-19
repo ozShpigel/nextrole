@@ -155,17 +155,26 @@ describe('ApplicationList — résumé pack action (To Apply only)', () => {
     );
   });
 
-  it('disables Generate Pack with the demo title under DemoMode', async () => {
+  it('allows Generate Pack under DemoMode — the one persisting write the demo permits', async () => {
+    const user = userEvent.setup();
     mockRoutes({
       'GET /config': { demoMode: true },
       'GET /applications': [toApplyApp],
+      'POST /applications/t1/pack': {
+        tailoredSummary: 'Tailored summary', experience: [], highlightedSkills: [],
+        generatedAt: '2026-01-01T00:00:00Z',
+      },
     });
     renderWithRouter(<ApplicationList />);
     await waitFor(() => expect(screen.getByText('Queue Role')).toBeInTheDocument());
 
     const generateBtn = await screen.findByRole('button', { name: 'Generate résumé pack for QueueCo' });
-    expect(generateBtn).toBeDisabled();
-    expect(generateBtn).toHaveAttribute('title', 'Disabled in the read-only demo');
+    expect(generateBtn).not.toBeDisabled();
+    await user.click(generateBtn);
+
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Review résumé pack for QueueCo' })).toBeInTheDocument(),
+    );
   });
 
   it('navigates to the dedicated Résumé Pack page when Review Pack is clicked', async () => {

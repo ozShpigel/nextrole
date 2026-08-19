@@ -201,12 +201,25 @@ if (demoMode)
         "/api/mock-interview/turn",
         "/api/mock-interview/debrief", "/api/emails/parse",
     };
+    // Generate Pack is the one *persisting* write allowed in demo — a
+    // deliberate exception to "AI analyses stay enabled, everything else
+    // 403s": it's the headline feature, cost is capped by the shared "pack"
+    // rate limit (10/min, same as production), and the worst case of two
+    // visitors regenerating the same seeded application's pack at once is
+    // cosmetic (fictional data, last write wins). Matched by path pattern
+    // since the id is dynamic; POST only — PUT on the same path is the
+    // no-AI manual-edit route and stays blocked like every other write.
+    var resumePackGeneratePath = new System.Text.RegularExpressions.Regex(
+        @"^/api/applications/[0-9a-fA-F-]{36}/pack$",
+        System.Text.RegularExpressions.RegexOptions.Compiled);
     app.Use(async (ctx, next) =>
     {
         var method = ctx.Request.Method;
         var mutating = HttpMethods.IsPost(method) || HttpMethods.IsPut(method)
             || HttpMethods.IsPatch(method) || HttpMethods.IsDelete(method);
-        if (mutating && !analysisAllowlist.Contains(ctx.Request.Path.Value ?? ""))
+        var path = ctx.Request.Path.Value ?? "";
+        var isAllowedGeneratePack = HttpMethods.IsPost(method) && resumePackGeneratePath.IsMatch(path);
+        if (mutating && !analysisAllowlist.Contains(path) && !isAllowedGeneratePack)
         {
             ctx.Response.StatusCode = StatusCodes.Status403Forbidden;
             await ctx.Response.WriteAsJsonAsync(new { error = "This is a read-only demo." });

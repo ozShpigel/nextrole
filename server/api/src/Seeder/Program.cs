@@ -518,10 +518,10 @@ await criteriaCol.ReplaceOneAsync(
     new BsonDocument
     {
         ["id"] = criteriaId, ["name"] = demoCriteriaName,
-        ["job_titles"] = new BsonArray { "Backend Engineer", "Platform Engineer", "Software Engineer" },
-        ["locations"] = new BsonArray { "Tel Aviv", "Remote" },
+        ["job_titles"] = new BsonArray { "Senior Software Developer" },
+        ["locations"] = new BsonArray { "Tel Aviv" },
         ["site_names"] = new BsonArray { "linkedin", "indeed" },
-        ["results_wanted"] = 25, ["hours_old"] = 72, ["country"] = "Israel",
+        ["results_wanted"] = 25, ["hours_old"] = 168, ["country"] = "Israel",
         ["is_remote"] = BsonNull.Value, ["min_score_to_save"] = 70, ["is_active"] = true,
         ["created_at"] = existingCriteria?.GetValue("created_at", now.AddDays(-6)) ?? now.AddDays(-6),
         ["updated_at"] = now,

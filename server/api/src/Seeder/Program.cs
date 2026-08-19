@@ -118,6 +118,7 @@ var db = client.GetDatabase(trackerDb);
 var apps = db.GetCollection<Application>("applications");
 var statusUpdates = db.GetCollection<StatusUpdate>("statusUpdates");
 var interviews = db.GetCollection<Interview>("interviews");
+var resumePacksCol = db.GetCollection<ResumePack>("resumePacks");
 
 var now = DateTime.UtcNow;
 
@@ -239,20 +240,32 @@ var seeds = new List<(Application App, Interview[] Interviews, string? MatchAnal
     }, null),
 };
 
-// Idempotency: skip any application that already exists by (Company, JobTitle),
-// case-insensitively (mirrors the unique index).
+// Self-healing: keyed by (Company, JobTitle) case-insensitively (mirrors the
+// unique index). An already-existing curated application gets its
+// demo-mutable fields (Status/AppliedAt/UpdatedAt — what the Active board's
+// "I Applied"/"Remove" actions change) force-reset back to the seed's
+// values, rather than skipped, so a demo visitor's status changes don't
+// stick around forever. New ones are inserted as before.
 var existing = await apps.Find(FilterDefinition<Application>.Empty).ToListAsync();
-var existingKeys = existing
-    .Select(a => $"{a.Company}|{a.JobTitle}".ToLowerInvariant())
-    .ToHashSet();
+var existingByKey = existing.ToDictionary(a => $"{a.Company}|{a.JobTitle}".ToLowerInvariant());
+var curatedKeys = seeds.Select(s => $"{s.App.Company}|{s.App.JobTitle}".ToLowerInvariant()).ToHashSet();
 
-int created = 0, skipped = 0, backfilled = 0;
+int created = 0, reset = 0, backfilled = 0;
 foreach (var (app, ivs, matchAnalysisJson) in seeds)
 {
     var key = $"{app.Company}|{app.JobTitle}".ToLowerInvariant();
-    if (existingKeys.Contains(key))
+    if (existingByKey.TryGetValue(key, out var current))
     {
-        skipped++;
+        if (current.Status != app.Status || current.AppliedAt != app.AppliedAt)
+        {
+            await apps.UpdateOneAsync(
+                a => a.Id == current.Id,
+                Builders<Application>.Update
+                    .Set(a => a.Status, app.Status)
+                    .Set(a => a.AppliedAt, app.AppliedAt)
+                    .Set(a => a.UpdatedAt, app.UpdatedAt));
+            reset++;
+        }
         // Backfill MatchAnalysis onto an already-seeded app from an earlier run
         // (only if still unset, so this never clobbers real data).
         if (matchAnalysisJson != null)
@@ -280,17 +293,28 @@ foreach (var (app, ivs, matchAnalysisJson) in seeds)
     foreach (var iv in ivs)
         await interviews.InsertOneAsync(iv with { ApplicationId = app.Id });
 
-    existingKeys.Add(key);
     created++;
 }
 
-Console.WriteLine($"Applications: {created} created, {skipped} skipped (already present), {backfilled} backfilled with match analysis.");
+// Cleanup: any application NOT in the curated seed list is a demo-visitor
+// artifact (added via the Matches page's "Add" button) — remove it and its
+// cascaded rows so a reseed fully restores the curated board.
+var orphans = existing.Where(a => !curatedKeys.Contains($"{a.Company}|{a.JobTitle}".ToLowerInvariant())).ToList();
+if (orphans.Count > 0)
+{
+    var orphanIds = orphans.Select(a => a.Id).ToList();
+    await apps.DeleteManyAsync(a => orphanIds.Contains(a.Id));
+    await interviews.DeleteManyAsync(i => orphanIds.Contains(i.ApplicationId));
+    await statusUpdates.DeleteManyAsync(s => orphanIds.Contains(s.ApplicationId));
+    await resumePacksCol.DeleteManyAsync(p => orphanIds.Contains(p.ApplicationId));
+}
+
+Console.WriteLine($"Applications: {created} created, {reset} reset to curated state, {backfilled} backfilled with match analysis, {orphans.Count} demo-added orphans removed.");
 
 // 2a) A résumé pack for Solace Fintech so the Active board's "Ready" column
 // (DecidedToApply + a generated pack) isn't permanently empty — Generate Pack
 // itself isn't demo-allowlisted, so a visitor could never fill this column
 // themselves. Idempotent — skip if a pack already exists for that application.
-var resumePacksCol = db.GetCollection<ResumePack>("resumePacks");
 var solaceApp = await apps.Find(a => a.Company == "Solace Fintech").FirstOrDefaultAsync();
 if (solaceApp is not null && await resumePacksCol.Find(p => p.ApplicationId == solaceApp.Id).FirstOrDefaultAsync() is null)
 {
@@ -316,9 +340,11 @@ else Console.WriteLine("Résumé pack already present or Solace Fintech app miss
 
 // 2b) Fake mailbot-parsed messages tied to the applications above — Messages is
 // otherwise permanently empty on the demo (the real mailbot refuses to run
-// against a DemoMode tracker). Idempotent — skip if any message already exists.
+// against a DemoMode tracker). Self-healing: always deleted and reinserted
+// fresh (not skip-if-any-exist) so a demo visitor marking one read doesn't
+// stick around past the next reseed — mirrors the discovery jobs pattern.
 var messagesCol = db.GetCollection<TrackedEmail>("messages");
-if (!await messagesCol.Find(FilterDefinition<TrackedEmail>.Empty).AnyAsync())
+await messagesCol.DeleteManyAsync(FilterDefinition<TrackedEmail>.Empty);
 {
     var appIdByCompany = (await apps.Find(FilterDefinition<Application>.Empty).ToListAsync())
         .ToDictionary(a => a.Company, a => a.Id);
@@ -409,9 +435,8 @@ if (!await messagesCol.Find(FilterDefinition<TrackedEmail>.Empty).AnyAsync())
         },
     };
     await messagesCol.InsertManyAsync(messages);
-    Console.WriteLine($"Messages seeded: {messages.Count}.");
+    Console.WriteLine($"Messages reset: {messages.Count} reinserted.");
 }
-else Console.WriteLine("Messages already present — skipped.");
 
 // 3) Interview-prep on the demo profile — synced unconditionally (not
 // idempotent) for the same reason the profile persona is: it needs to track

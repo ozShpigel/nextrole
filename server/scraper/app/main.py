@@ -94,16 +94,24 @@ app = FastAPI(title="Scraper Service", version="0.1.0", lifespan=lifespan)
 # runs/jobs/criteria) still work. Off by default. Exact-path allowlist for
 # POSTs that are pure analysis (no persistence) — mirrors the API's
 # analysisAllowlist in Program.cs.
-DEMO_ANALYSIS_ALLOWLIST: set[str] = set()
+#
+# /jobs/unsave is here too: the Active board's "Remove" (mark Withdrawn)
+# calls it as a best-effort follow-up to clear saved_to_tracker so the
+# originating Matches card reverts from "Added" back to "Add" — without it
+# Remove still worked but silently left Matches stuck on "Added" forever
+# (the call 403'd and useUpdateAppStatus swallows that failure). Same
+# blast radius as save/dismiss: flips one boolean on an already-seeded
+# discovered_jobs doc, matched by job_url, no new data. /jobs/import
+# (arbitrary URL scraping) stays blocked — no such bound there.
+DEMO_ANALYSIS_ALLOWLIST: set[str] = {"/api/discovery/jobs/unsave"}
 
 # Matches page "Add": the one persisting write allowed in demo, matched by
 # path pattern since the job id is dynamic — mirrors the API's
 # resumePackGeneratePath exception in Program.cs. Bounded to the existing
-# seeded discovery pool (saving an already-scored job), unlike
-# /api/discovery/jobs/import (arbitrary URL scraping) or /unsave, which stay
-# blocked. The downstream tracker save this triggers is itself gated on the
-# API side by the X-Source: ingest header this service already attaches to
-# every scraper→API call, so a client can't reach that write directly.
+# seeded discovery pool (saving an already-scored job). The downstream
+# tracker save this triggers is itself gated on the API side by the
+# X-Source: ingest header this service already attaches to every
+# scraper→API call, so a client can't reach that write directly.
 DEMO_SAVE_JOB_PATTERN = re.compile(r"^/api/discovery/jobs/[0-9a-fA-F-]{36}/save$")
 
 # Matches page "Dismiss": same shape as save — flips one boolean

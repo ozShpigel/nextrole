@@ -48,13 +48,19 @@ describe('InterviewPrepPage', () => {
     expect(startButton).toHaveAttribute('title', 'Disabled in the read-only demo');
   });
 
-  it('lets the user edit questions locally under DemoMode, but disables the save button', async () => {
-    // Adding/editing a question is pure local state (QaCardGrid's onChange) —
-    // only persisting it is a real write, so that's the only thing demo mode
-    // should block. Blocking it silently (disabled + tooltip) instead of
-    // letting the save 403 avoids a jarring "Error saving" banner.
+  it('allows saving edited questions under DemoMode — self-healing on reseed', async () => {
+    // PUT /api/match/interview-prep is allowlisted in demo (Program.cs):
+    // it replaces the whole rubric, but UpsertInterviewPrepAsync already
+    // runs unconditionally on every Seeder run, so a demo visitor's edits
+    // don't survive a reseed.
     vi.mocked(api).mockResolvedValue({ demoMode: true });
-    vi.mocked(matchApi).mockResolvedValue(mockPrepResponse);
+    vi.mocked(matchApi).mockImplementation((_path: string, opts?: RequestInit) => {
+      if (opts?.method === 'PUT') {
+        const body = JSON.parse(opts.body as string);
+        return Promise.resolve({ ...mockPrepResponse, qa_rubric: body.qa_rubric }) as never;
+      }
+      return Promise.resolve(mockPrepResponse) as never;
+    });
     const user = userEvent.setup();
 
     renderWithRouter(<InterviewPrepPage />);
@@ -62,12 +68,15 @@ describe('InterviewPrepPage', () => {
 
     await user.click(screen.getByRole('button', { name: /edit/i }));
     const answerBox = screen.getByLabelText('Answer');
-    await user.type(answerBox, ' Extra local edit.');
+    await user.type(answerBox, ' Extra edit.');
 
     const saveButton = screen.getByRole('button', { name: /save interview questions/i });
-    expect(saveButton).toBeDisabled();
-    expect(saveButton).toHaveAttribute('title', 'Disabled in the read-only demo');
-    expect(answerBox).toHaveValue('Growing. Extra local edit.');
+    expect(saveButton).toBeEnabled();
+    await user.click(saveButton);
+
+    await waitFor(() =>
+      expect(vi.mocked(matchApi)).toHaveBeenCalledWith('/interview-prep', expect.objectContaining({ method: 'PUT' })),
+    );
   });
 
   it('saves rubric edits with categories and topic in the PUT body', async () => {

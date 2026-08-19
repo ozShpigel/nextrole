@@ -143,8 +143,7 @@ export default function InterviewPrepPage() {
             type="button"
             className={ED_PRIMARY}
             onClick={saveQa}
-            disabled={!isQaDirty || savingQa || demoMode}
-            title={demoMode ? DEMO_DISABLED_TITLE : undefined}
+            disabled={!isQaDirty || savingQa}
           >
             {savingQa ? 'Saving…' : 'Save interview questions'}
           </button>

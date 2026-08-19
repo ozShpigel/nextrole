@@ -201,6 +201,15 @@ if (demoMode)
         "/api/mock-interview/turn",
         "/api/mock-interview/debrief", "/api/emails/parse",
     };
+    // Interview Prep "Save" — a bigger write than the others below (it
+    // replaces the whole self-presentation + Q&A rubric, not a boolean flip
+    // or a single new row), but self-healing: UpsertInterviewPrepAsync is
+    // already called unconditionally on every Seeder run, so a demo
+    // visitor's edits (or vandalism) don't survive a reseed.
+    var interviewPrepWritePaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+    {
+        "/api/match/interview-prep",
+    };
     // Generate Pack is the one *persisting* write allowed in demo — a
     // deliberate exception to "AI analyses stay enabled, everything else
     // 403s": it's the headline feature, cost is capped by the shared "pack"
@@ -263,7 +272,8 @@ if (demoMode)
         // while letting an already-scored seeded job get saved via Add.
         var isAllowedDiscoverySave = HttpMethods.IsPost(method) && path.Equals("/api/applications", StringComparison.OrdinalIgnoreCase)
             && ctx.Request.Headers["X-Source"].ToString() == "ingest";
-        if (mutating && !analysisAllowlist.Contains(path) && !isAllowedGeneratePack && !isAllowedDiscoverySave && !isAllowedMessageRead && !isAllowedWithdraw)
+        var isAllowedInterviewPrepSave = HttpMethods.IsPut(method) && interviewPrepWritePaths.Contains(path);
+        if (mutating && !analysisAllowlist.Contains(path) && !isAllowedGeneratePack && !isAllowedDiscoverySave && !isAllowedMessageRead && !isAllowedWithdraw && !isAllowedInterviewPrepSave)
         {
             ctx.Response.StatusCode = StatusCodes.Status403Forbidden;
             await ctx.Response.WriteAsJsonAsync(new { error = "This is a read-only demo." });

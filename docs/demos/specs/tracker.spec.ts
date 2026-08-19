@@ -1,38 +1,29 @@
 import { test, expect } from '@playwright/test';
 
-// Single-purpose recording clip: Application Tracker.
+// Single-purpose recording clip: Application Tracking (the Active board).
 //
-// Real seeded fictional data from server/api/src/Seeder/Program.cs (6 tracked
-// applications) — unlike search.spec.ts there's no advisor call involved, so
-// this is a fast, snappy recording with no timing-trim needed. Shows the
-// Tracker dashboard's stats row, then the Recent Activity list, then clicks
-// into the most recently created application (Stratus Cloud / Backend
-// Engineer — first in the list) to reveal the "AI Analysis" score breakdown
-// and expand one dimension. Short and silent, matching the docs/demos pattern
-// (see docs/demos/README.md). No captions: the README heading is the caption.
-//
-// The Dashboard also renders an "Upcoming Interviews" section between the
-// stats row and Recent Activity — all fictional (invented company/interviewer
-// names from the Seeder, confirmed by reading Program.cs before writing this
-// spec), so there's nothing sensitive about it passing through frame during
-// the scroll below. The clip's path still stays deliberately simple: stats ->
-// Recent Activity -> application detail -> AI Analysis, matching the feature
-// this clip illustrates.
-test('tracker shows stats, recent activity, and an AI analysis breakdown', async ({ page }) => {
-  await page.goto('/tracker');
+// Active — not the older /tracker Dashboard — is the primary day-to-day
+// pipeline view reachable from the nav today ("Apps" was removed 2026-08-11;
+// see ActivePage.tsx). Real seeded fictional data from
+// server/api/src/Seeder/Program.cs: four kanban columns (Added / Ready /
+// Applied / Interviewing) tracking real applications end to end. Clicking a
+// card still opens the full Application Detail page with its AI Analysis
+// score breakdown (technical / execution / sustainability) — Stratus Cloud
+// has hand-authored, résumé-grounded reasoning there, not generic tier text,
+// so a reviewer who opens it sees something that actually engages with the
+// résumé. Short and silent, matching the docs/demos pattern (see
+// docs/demos/README.md). No captions: the README heading is the caption.
+test('active board tracks the pipeline, and a card opens its AI analysis breakdown', async ({ page }) => {
+  await page.goto('/active');
 
-  await expect(page.getByText('Recent Activity')).toBeVisible();
-  await page.waitForTimeout(1300); // let stat cards + row entrance animation settle, read the numbers
+  // Wait for real board content, not just the H1 — the heading renders
+  // immediately even while the column data is still loading, so gating on
+  // it alone left the clip mostly blank through a slow first-request cold
+  // start against a freshly-spun-up recording server.
+  await expect(page.getByText('Stratus Cloud')).toBeVisible({ timeout: 15000 });
+  await page.waitForTimeout(1300); // let the column entrance animation settle, read the board
 
-  // Scroll to bring the full Recent Activity list into frame.
-  await page.mouse.wheel(0, 380);
-  await page.waitForTimeout(1300);
-
-  // Click into the app with a real seeded AI Analysis breakdown (Stratus
-  // Cloud / Backend Engineer). "Backend Engineer" alone is no longer unique
-  // (Harborlight Logistics uses it too), so target the company name instead
-  // — rendered as "— Stratus Cloud" (the em dash is baked into the same text
-  // node), so this can't be an exact match.
+  // Open a card with a rich, hand-authored AI Analysis breakdown.
   await page.getByText('Stratus Cloud').click();
 
   await expect(page.getByRole('heading', { name: 'AI Analysis' })).toBeVisible();

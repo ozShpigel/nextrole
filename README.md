@@ -38,9 +38,9 @@ Every collected job is scored against your profile the moment it's discovered �
 
 ### Application tracking
 
-Every save, application, and status update lives in one dashboard — response rate and average score at a glance, a running activity feed, and a per-application AI Analysis breakdown (technical / execution / sustainability) behind every tracked role.
+The Active board tracks every role you're pursuing through four stages — Added, Ready, Applied, Interviewing — with Generate Pack and status updates one click away. Open any card for the full AI Analysis breakdown (technical / execution / sustainability) behind it.
 
-<img alt="Application Tracker: stats row, Recent Activity feed, and a tracked application's AI Analysis score breakdown" src="docs/demos/output/tracker.gif" width="380">
+<img alt="Active board: the Added/Ready/Applied/Interviewing pipeline, and a tracked application's AI Analysis score breakdown" src="docs/demos/output/tracker.gif" width="380">
 
 ### Interview practice
 

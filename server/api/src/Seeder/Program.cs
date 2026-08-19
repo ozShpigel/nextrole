@@ -196,6 +196,45 @@ var seeds = new List<(Application App, Interview[] Interviews, string? MatchAnal
         JobDescription = "Maintain order-management services for a retail platform.",
         CreatedAt = now.AddDays(-35), AppliedAt = now.AddDays(-33), UpdatedAt = now.AddDays(-10),
     }, Array.Empty<Interview>(), null),
+
+    // These four also appear in the discovery pool below (same title/company),
+    // marked saved_to_tracker there — mirrors how a real Matches card looks
+    // once you've added it: "Added" instead of an "Add" button.
+    (new Application
+    {
+        JobTitle = "Senior Backend Engineer", Company = "Meridian Robotics", Status = ApplicationStatus.DecidedToApply,
+        MatchScore = 91, MatchVerdict = "STRONG_YES", JobUrl = "https://example.com/jobs/meridian-robotics",
+        JobDescription = "Build control-plane services for autonomous fleet software.",
+        CreatedAt = now.AddDays(-1), UpdatedAt = now.AddDays(-1),
+    }, Array.Empty<Interview>(), null),
+
+    (new Application
+    {
+        JobTitle = "Staff Software Engineer", Company = "Solace Fintech", Status = ApplicationStatus.DecidedToApply,
+        MatchScore = 88, MatchVerdict = "STRONG_YES", JobUrl = "https://example.com/jobs/solace-fintech",
+        JobDescription = "Own payments infrastructure reliability and scale.",
+        CreatedAt = now.AddDays(-3), UpdatedAt = now.AddDays(-3),
+    }, Array.Empty<Interview>(), null),
+
+    (new Application
+    {
+        JobTitle = "Backend Engineer", Company = "Harborlight Logistics", Status = ApplicationStatus.Applied,
+        MatchScore = 79, MatchVerdict = "YES", JobUrl = "https://example.com/jobs/harborlight-logistics",
+        JobDescription = "Build tracking and routing services for a logistics platform.",
+        CreatedAt = now.AddDays(-11), AppliedAt = now.AddDays(-10), UpdatedAt = now.AddDays(-10),
+    }, Array.Empty<Interview>(), null),
+
+    (new Application
+    {
+        JobTitle = "Platform Engineer", Company = "Kestrel Analytics", Status = ApplicationStatus.PhoneScreen,
+        MatchScore = 77, MatchVerdict = "YES", JobUrl = "https://example.com/jobs/kestrel-analytics",
+        JobDescription = "Internal developer platform and CI/CD.",
+        CreatedAt = now.AddDays(-16), AppliedAt = now.AddDays(-15), UpdatedAt = now.AddDays(-6),
+    }, new[]
+    {
+        new Interview { ApplicationId = Guid.Empty, ScheduledAt = now.AddDays(-6), Type = InterviewType.Phone,
+            Interviewer = "Recruiting", Topics = "Background, role expectations", Completed = true },
+    }, null),
 };
 
 // Idempotency: skip any application that already exists by (Company, JobTitle),
@@ -244,6 +283,34 @@ foreach (var (app, ivs, matchAnalysisJson) in seeds)
 }
 
 Console.WriteLine($"Applications: {created} created, {skipped} skipped (already present), {backfilled} backfilled with match analysis.");
+
+// 2a) A résumé pack for Solace Fintech so the Active board's "Ready" column
+// (DecidedToApply + a generated pack) isn't permanently empty — Generate Pack
+// itself isn't demo-allowlisted, so a visitor could never fill this column
+// themselves. Idempotent — skip if a pack already exists for that application.
+var resumePacksCol = db.GetCollection<ResumePack>("resumePacks");
+var solaceApp = await apps.Find(a => a.Company == "Solace Fintech").FirstOrDefaultAsync();
+if (solaceApp is not null && await resumePacksCol.Find(p => p.ApplicationId == solaceApp.Id).FirstOrDefaultAsync() is null)
+{
+    var sp = profile.Structured;
+    await resumePacksCol.InsertOneAsync(new ResumePack
+    {
+        ApplicationId = solaceApp.Id,
+        TailoredSummary = sp.Summary,
+        Experience = sp.Experience.Select(e => new TailoredExperienceItem
+        {
+            Title = e.Title, Company = e.Company, Dates = e.Dates, Highlights = e.Highlights.ToList(),
+        }).ToList(),
+        HighlightedSkills = sp.Skills.Select(s => new SkillCategory
+        {
+            Category = s.Category, Items = s.Items.ToList(),
+        }).ToList(),
+        SideProjects = sp.SideProjects.ToList(),
+        GeneratedAt = now.AddDays(-3),
+    });
+    Console.WriteLine("Résumé pack seeded for Solace Fintech.");
+}
+else Console.WriteLine("Résumé pack already present or Solace Fintech app missing — skipped.");
 
 // 2b) Fake mailbot-parsed messages tied to the applications above — Messages is
 // otherwise permanently empty on the demo (the real mailbot refuses to run
@@ -471,12 +538,17 @@ var morePostings = new (string Title, string Company, string Location, string De
     ("Mobile Engineer", "Skyline Apps", "Ramat Gan", "iOS/Android app development.", 33, "NO"),
 };
 
+// Also tracked on the Active board (same title/company, see the seeds list
+// above) — shown as "Added" on Matches instead of an "Add" button, the way a
+// job you've already acted on looks in the real app.
+var trackedCompanies = new HashSet<string> { "Meridian Robotics", "Solace Fintech", "Harborlight Logistics", "Kestrel Analytics" };
+
 var jobs = new List<BsonDocument> { stratusJob, northwindJob, cobaltJob };
 foreach (var (i, posting) in morePostings.Select((posting, i) => (i, posting)))
 {
     var at = runAt.AddMinutes(-5 * i);
     jobs.Add(Job(runId, criteriaId, posting.Title, posting.Company, posting.Location, posting.Description, posting.Score, posting.Verdict,
-        posting.Verdict is "STRONG_YES" or "YES", false, at,
+        posting.Verdict is "STRONG_YES" or "YES", trackedCompanies.Contains(posting.Company), at,
         TieredAnalysis(posting.Title, posting.Company, posting.Score, posting.Verdict)));
 }
 

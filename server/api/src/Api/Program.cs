@@ -212,6 +212,18 @@ if (demoMode)
     var resumePackGeneratePath = new System.Text.RegularExpressions.Regex(
         @"^/api/applications/[0-9a-fA-F-]{36}/pack$",
         System.Text.RegularExpressions.RegexOptions.Compiled);
+    // Mark-message-read: flips one boolean on an already-seeded message,
+    // no new data, fully reversible on the next reseed — safe to allow
+    // unconditionally. Without this, the client's optimistic isRead update
+    // (mutations.ts useMarkMessageRead) 403s, its onError invalidates and
+    // refetches to correct the cache, the revert flips isRead back to
+    // false, and the page's useEffect (keyed on selected message id +
+    // isRead) fires the same mutation again — an infinite
+    // optimistic-update/revert loop that reads as the Messages page
+    // flickering.
+    var messageReadPath = new System.Text.RegularExpressions.Regex(
+        @"^/api/messages/[0-9a-fA-F-]{36}/read$",
+        System.Text.RegularExpressions.RegexOptions.Compiled);
     app.Use(async (ctx, next) =>
     {
         var method = ctx.Request.Method;
@@ -219,6 +231,7 @@ if (demoMode)
             || HttpMethods.IsPatch(method) || HttpMethods.IsDelete(method);
         var path = ctx.Request.Path.Value ?? "";
         var isAllowedGeneratePack = HttpMethods.IsPost(method) && resumePackGeneratePath.IsMatch(path);
+        var isAllowedMessageRead = HttpMethods.IsPatch(method) && messageReadPath.IsMatch(path);
         // Matches page "Add": allow POST /api/applications only for the
         // scraper's own save-from-discovery call, identified by the
         // X-Source header it already attaches to every scraper→API request
@@ -230,7 +243,7 @@ if (demoMode)
         // while letting an already-scored seeded job get saved via Add.
         var isAllowedDiscoverySave = HttpMethods.IsPost(method) && path.Equals("/api/applications", StringComparison.OrdinalIgnoreCase)
             && ctx.Request.Headers["X-Source"].ToString() == "ingest";
-        if (mutating && !analysisAllowlist.Contains(path) && !isAllowedGeneratePack && !isAllowedDiscoverySave)
+        if (mutating && !analysisAllowlist.Contains(path) && !isAllowedGeneratePack && !isAllowedDiscoverySave && !isAllowedMessageRead)
         {
             ctx.Response.StatusCode = StatusCodes.Status403Forbidden;
             await ctx.Response.WriteAsJsonAsync(new { error = "This is a read-only demo." });

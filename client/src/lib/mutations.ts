@@ -486,7 +486,12 @@ export function useDeleteMessage() {
 
 // Fire-and-forget: flips the row's dot instantly rather than waiting on a
 // refetch, and swallows failures — a missed read-receipt isn't worth
-// surfacing an error for (e.g. it silently 403s on the read-only demo).
+// surfacing an error for. Deliberately does NOT invalidate/refetch on
+// error: doing so reverted the optimistic isRead flip, which re-triggered
+// MessagesPage's effect (keyed on selected message id + isRead) into
+// mutating again — an infinite retry loop that read as the page
+// flickering on any persistent failure (e.g. the read-only demo, before
+// this endpoint was allowlisted there too).
 export function useMarkMessageRead() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -496,9 +501,6 @@ export function useMarkMessageRead() {
       queryClient.setQueryData<MessageItem[]>(['messages'], (prev) =>
         prev?.map((m) => (m.id === messageId ? { ...m, isRead: true } : m)),
       );
-    },
-    onError: () => {
-      queryClient.invalidateQueries({ queryKey: ['messages'] });
     },
   });
 }

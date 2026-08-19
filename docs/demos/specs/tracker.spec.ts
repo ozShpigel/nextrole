@@ -28,8 +28,12 @@ test('tracker shows stats, recent activity, and an AI analysis breakdown', async
   await page.mouse.wheel(0, 380);
   await page.waitForTimeout(1300);
 
-  // Click into the most recent application (Stratus Cloud / Backend Engineer).
-  await page.getByText('Backend Engineer', { exact: true }).click();
+  // Click into the app with a real seeded AI Analysis breakdown (Stratus
+  // Cloud / Backend Engineer). "Backend Engineer" alone is no longer unique
+  // (Harborlight Logistics uses it too), so target the company name instead
+  // — rendered as "— Stratus Cloud" (the em dash is baked into the same text
+  // node), so this can't be an exact match.
+  await page.getByText('Stratus Cloud').click();
 
   await expect(page.getByRole('heading', { name: 'AI Analysis' })).toBeVisible();
   await page.waitForTimeout(1000);

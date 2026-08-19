@@ -2,31 +2,34 @@ import { test, expect } from '@playwright/test';
 
 // Single-purpose recording clip: Interview Prep.
 //
-// Opens the seeded fictional candidate's interview-prep playbook (persona +
-// prep content seeded by server/api/src/Seeder/Program.cs, no advisor call
-// involved — a fast recording, no timing-trim needed). Shows the
-// Self-Presentation section's HR/Recruiter text, then jumps to the Question
-// Rubric and expands two prepared answers — a natural interaction for this
-// page. Short and silent, matching the docs/demos pattern (see
-// docs/demos/README.md). No captions: the README heading is the caption.
+// Interview Prep is a one-question-at-a-time card carousel (QaCardGrid) with
+// topic filter chips, not the older two-section scrollable page — filters to
+// one topic, clears back to all, then steps through a couple of cards. Real
+// seeded fictional data from server/api/src/Seeder/Program.cs (7 questions,
+// several with topics). Short and silent, matching the docs/demos pattern
+// (see docs/demos/README.md). No captions: the README heading is the
+// caption.
 //
-// The seeded sample profile mixes Hebrew/English content elsewhere in the app
-// (rendered dir="auto"/"rtl" by design — see AGENTS.md); this particular
-// seeded prep content happens to be English, which is equally expected.
-test('interview prep shows self-presentation and question rubric', async ({ page }) => {
+// "Start a practice interview" is disabled in this DemoMode recording config
+// (same read-only gate a real public-demo visitor sees) — this clip stays on
+// the Question Rubric card itself rather than trying to click it.
+test('interview prep filters by topic and steps through prepared questions', async ({ page }) => {
   await page.goto('/interview-prep');
 
-  await expect(page.getByText(/backend-leaning full-stack engineer/)).toBeVisible();
-  await page.waitForTimeout(1500); // let the page's entrance animation settle, read the text
+  await expect(page.getByRole('heading', { name: 'Interview Questions' })).toBeVisible();
+  await page.waitForTimeout(1300); // let the entrance animation settle, read the first card
 
-  // Jump to the Question Rubric section (the sticky section nav button, not
-  // the "Save question rubric" button further down the page).
-  await page.getByRole('button', { name: '02Question rubric' }).click();
-  await page.waitForTimeout(1200); // smooth scrollIntoView
+  // Filter to one topic.
+  await page.getByRole('button', { name: /Checkout platform migration/i }).click();
+  await page.waitForTimeout(1500);
 
-  // Expand two prepared answers.
-  await page.getByRole('button', { name: /disagreed with a teammate/i }).click();
+  // Back to all questions.
+  await page.getByRole('button', { name: /^All \(/ }).click();
+  await page.waitForTimeout(800);
+
+  // Step forward through a couple of cards (hover reveals the nav button).
+  await page.getByRole('button', { name: 'Next question' }).click();
   await page.waitForTimeout(1300);
-  await page.getByRole('button', { name: /Where do you see yourself/i }).click();
+  await page.getByRole('button', { name: 'Next question' }).click();
   await page.waitForTimeout(1700);
 });

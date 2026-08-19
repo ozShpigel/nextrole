@@ -34,19 +34,19 @@ Built as a four-service monorepo (C#, Python, React), deployed to a single VPS v
 
 Every collected job is scored against your profile the moment it's discovered — a full breakdown (technical fit, execution fit, sustainability) and a verdict from STRONG_YES to STRONG_NO, not a similarity ranking. The Matches page is a filtered, sorted browse over what's already been scored. [Details](#job-discovery--scoring)
 
-<img alt="Matches: scored job results with verdict badges and the AI evaluator's breakdown" src="docs/demos/output/search.gif" width="760">
+<img alt="Matches: scored job results with verdict badges and the AI evaluator's breakdown" src="docs/demos/output/search.gif" width="190">
 
 ### Application tracking
 
 Every save, application, and status update lives in one dashboard — response rate and average score at a glance, a running activity feed, and a per-application AI Analysis breakdown (technical / execution / sustainability) behind every tracked role.
 
-<img alt="Application Tracker: stats row, Recent Activity feed, and a tracked application's AI Analysis score breakdown" src="docs/demos/output/tracker.gif" width="760">
+<img alt="Application Tracker: stats row, Recent Activity feed, and a tracked application's AI Analysis score breakdown" src="docs/demos/output/tracker.gif" width="190">
 
 ### Interview practice
 
 Author self-presentations and a Q&A rubric, rehearse from AI-distilled keyword cues, then run turn-by-turn mock interviews whose debrief feeds back into your prep. [Details](#mock-interview-stateless-turn-engine)
 
-<img alt="Interview Prep: self-presentation text and a Question Rubric with grouped, expandable prepared answers" src="docs/demos/output/interview-prep.gif" width="760">
+<img alt="Interview Prep: self-presentation text and a Question Rubric with grouped, expandable prepared answers" src="docs/demos/output/interview-prep.gif" width="190">
 
 A few more things NextRole does:
 

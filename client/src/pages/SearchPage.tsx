@@ -205,9 +205,13 @@ function MatchCard({ job, index, saved, dismissed, demoMode, demoTitle, onSelect
           </button>
         )}
         {!saved && !dismissed && (
-          <button type="button" disabled={demoMode} title={demoTitle} className={`${ED_BTN} ml-auto border-[var(--ed-accent)] text-[var(--ed-accent)] hover:bg-[var(--ed-accent)] hover:text-[var(--ed-paper)] disabled:cursor-not-allowed`} onClick={() => onSave(job.id)}>Add</button>
+          <button type="button" className={`${ED_BTN} ml-auto border-[var(--ed-accent)] text-[var(--ed-accent)] hover:bg-[var(--ed-accent)] hover:text-[var(--ed-paper)]`} onClick={() => onSave(job.id)}>Add</button>
         )}
-        {saved && <span className="ml-auto rounded-full border border-[var(--ed-rule)] px-4 py-[0.5rem] text-[13px] font-medium text-[var(--ed-ink-faint)]">Added</span>}
+        {saved && (
+          <span className="ed-confirm ml-auto inline-flex items-center gap-[0.3rem] rounded-full border border-[var(--ed-rule)] px-4 py-[0.5rem] text-[13px] font-medium text-[var(--ed-ink-faint)]">
+            <Check className="w-3.5 h-3.5" strokeWidth={2.5} aria-hidden="true" /> Added
+          </span>
+        )}
         {dismissed && <span className="ml-auto rounded-full border border-[var(--ed-rule)] px-4 py-[0.5rem] text-[13px] font-medium text-[var(--ed-ink-faint)]">Dismissed</span>}
       </div>
     </article>
@@ -234,8 +238,6 @@ interface MatchRowProps {
   selected: boolean;
   saved: boolean;
   dismissed: boolean;
-  demoMode: boolean;
-  demoTitle: string | undefined;
   onSelect: (id: string) => void;
   onSave: (jobId: string) => void;
 }
@@ -245,7 +247,7 @@ interface MatchRowProps {
 // doesn't require opening the detail panel first. Dismiss is detail-only:
 // it's the rarer action, one extra click there is an acceptable cost for
 // keeping the row uncluttered.
-function MatchRow({ job, index, selected, saved, dismissed, demoMode, demoTitle, onSelect, onSave }: MatchRowProps) {
+function MatchRow({ job, index, selected, saved, dismissed, onSelect, onSave }: MatchRowProps) {
   return (
     <article
       className={`ed-rise flex items-center gap-3 border rounded-2xl px-3 py-[0.65rem] cursor-pointer transition-colors ${dismissed ? 'opacity-40' : ''} ${
@@ -272,16 +274,14 @@ function MatchRow({ job, index, selected, saved, dismissed, demoMode, demoTitle,
       </div>
       <CompactScoreBadge job={job} />
       {saved ? (
-        <span className="shrink-0 w-7 h-7 rounded-full border border-[var(--ed-rule)] flex items-center justify-center text-[var(--ed-ink-faint)]" title="Added">
+        <span className="ed-confirm shrink-0 w-7 h-7 rounded-full border border-[var(--ed-rule)] flex items-center justify-center text-[var(--ed-ink-faint)]" title="Added">
           <Check className="w-3.5 h-3.5" strokeWidth={2.5} />
         </span>
       ) : !dismissed && (
         <button
           type="button"
-          disabled={demoMode}
-          title={demoTitle ?? 'Add'}
           aria-label="Add"
-          className="shrink-0 w-7 h-7 rounded-full border border-[var(--ed-accent)] text-[var(--ed-accent)] flex items-center justify-center transition-all hover:bg-[var(--ed-accent)] hover:text-[var(--ed-paper)] disabled:opacity-50 disabled:pointer-events-none disabled:cursor-not-allowed"
+          className="shrink-0 w-7 h-7 rounded-full border border-[var(--ed-accent)] text-[var(--ed-accent)] flex items-center justify-center transition-all hover:bg-[var(--ed-accent)] hover:text-[var(--ed-paper)]"
           onClick={(e) => { e.stopPropagation(); onSave(job.id); }}
         >
           <Plus className="w-4 h-4" strokeWidth={2.5} />
@@ -359,7 +359,7 @@ function MatchDetail({ job, saved, dismissed, demoMode, demoTitle, onClose, onSa
 
             <div className="flex gap-2 mt-5">
               {!saved && !dismissed && (
-                <button type="button" disabled={demoMode} title={demoTitle} className={`${ED_BTN} flex-1 flex justify-center border-[var(--ed-accent)] text-[var(--ed-accent)] hover:bg-[var(--ed-accent)] hover:text-[var(--ed-paper)] disabled:cursor-not-allowed`} onClick={() => onSave(job.id)}>
+                <button type="button" className={`${ED_BTN} flex-1 flex justify-center border-[var(--ed-accent)] text-[var(--ed-accent)] hover:bg-[var(--ed-accent)] hover:text-[var(--ed-paper)]`} onClick={() => onSave(job.id)}>
                   Add
                 </button>
               )}
@@ -375,7 +375,11 @@ function MatchDetail({ job, saved, dismissed, demoMode, demoTitle, onClose, onSa
                   <X className="w-4 h-4" strokeWidth={2.5} />
                 </button>
               )}
-              {saved && <span className="rounded-full border border-[var(--ed-rule)] px-4 py-[0.5rem] text-[13px] font-medium text-[var(--ed-ink-faint)]">Added</span>}
+              {saved && (
+                <span className="ed-confirm inline-flex items-center gap-[0.3rem] rounded-full border border-[var(--ed-rule)] px-4 py-[0.5rem] text-[13px] font-medium text-[var(--ed-ink-faint)]">
+                  <Check className="w-3.5 h-3.5" strokeWidth={2.5} aria-hidden="true" /> Added
+                </span>
+              )}
               {dismissed && <span className="rounded-full border border-[var(--ed-rule)] px-4 py-[0.5rem] text-[13px] font-medium text-[var(--ed-ink-faint)]">Dismissed</span>}
             </div>
           </div>
@@ -714,8 +718,6 @@ export default function SearchPage() {
                     selected={selectedId === job.id}
                     saved={savedIds.has(job.id) || !!job.saved_to_tracker}
                     dismissed={dismissedIds.has(job.id)}
-                    demoMode={demoMode}
-                    demoTitle={demoTitle}
                     onSelect={setSelectedId}
                     onSave={handleSave}
                   />

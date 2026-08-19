@@ -219,7 +219,18 @@ if (demoMode)
             || HttpMethods.IsPatch(method) || HttpMethods.IsDelete(method);
         var path = ctx.Request.Path.Value ?? "";
         var isAllowedGeneratePack = HttpMethods.IsPost(method) && resumePackGeneratePath.IsMatch(path);
-        if (mutating && !analysisAllowlist.Contains(path) && !isAllowedGeneratePack)
+        // Matches page "Add": allow POST /api/applications only for the
+        // scraper's own save-from-discovery call, identified by the
+        // X-Source header it already attaches to every scraper→API request
+        // (ClaudeClient.cs uses the same header to route Anthropic billing —
+        // never sent by the browser client). This is the same endpoint the
+        // client's "Import Job" feature posts to directly for arbitrary
+        // pasted URLs/descriptions, which must stay blocked (unbounded
+        // scraping/AI cost, no cap) — the header keeps that path 403ing
+        // while letting an already-scored seeded job get saved via Add.
+        var isAllowedDiscoverySave = HttpMethods.IsPost(method) && path.Equals("/api/applications", StringComparison.OrdinalIgnoreCase)
+            && ctx.Request.Headers["X-Source"].ToString() == "ingest";
+        if (mutating && !analysisAllowlist.Contains(path) && !isAllowedGeneratePack && !isAllowedDiscoverySave)
         {
             ctx.Response.StatusCode = StatusCodes.Status403Forbidden;
             await ctx.Response.WriteAsJsonAsync(new { error = "This is a read-only demo." });

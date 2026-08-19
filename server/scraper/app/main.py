@@ -96,13 +96,26 @@ app = FastAPI(title="Scraper Service", version="0.1.0", lifespan=lifespan)
 # analysisAllowlist in Program.cs.
 DEMO_ANALYSIS_ALLOWLIST: set[str] = set()
 
+# Matches page "Add": the one persisting write allowed in demo, matched by
+# path pattern since the job id is dynamic — mirrors the API's
+# resumePackGeneratePath exception in Program.cs. Bounded to the existing
+# seeded discovery pool (saving an already-scored job), unlike
+# /api/discovery/jobs/import (arbitrary URL scraping) or /unsave, which stay
+# blocked. The downstream tracker save this triggers is itself gated on the
+# API side by the X-Source: ingest header this service already attaches to
+# every scraper→API call, so a client can't reach that write directly.
+DEMO_SAVE_JOB_PATTERN = re.compile(r"^/api/discovery/jobs/[0-9a-fA-F-]{36}/save$")
+
 
 @app.middleware("http")
 async def demo_guard(request, call_next):
+    path = request.url.path.rstrip("/")
+    is_allowed_save = request.method == "POST" and DEMO_SAVE_JOB_PATTERN.match(path)
     if (
         settings.demo_mode
         and request.method in ("POST", "PUT", "PATCH", "DELETE")
-        and request.url.path.rstrip("/") not in DEMO_ANALYSIS_ALLOWLIST
+        and path not in DEMO_ANALYSIS_ALLOWLIST
+        and not is_allowed_save
     ):
         from fastapi.responses import JSONResponse
         return JSONResponse(status_code=403, content={"error": "This is a read-only demo."})

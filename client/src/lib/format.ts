@@ -1,3 +1,14 @@
+// Seeded demo/fictional jobs (Seeder/Program.cs's Job() helper) get a
+// placeholder job_url of https://example.com/jobs/<company-slug> — a real,
+// resolvable domain, so the link doesn't error, it just opens IANA's
+// generic "Example Domain" page with nothing job-related on it. A "View
+// Job" link pointing at one is worse than no link — hide it instead.
+const PLACEHOLDER_JOB_URL_PATTERN = /^https?:\/\/example\.com\/jobs\//i;
+
+export function hasRealJobUrl(url: string | null | undefined): boolean {
+  return !!url && !PLACEHOLDER_JOB_URL_PATTERN.test(url);
+}
+
 export function formatDate(dateStr: string | null | undefined): string {
   if (!dateStr) return '-';
   const d = new Date(dateStr);

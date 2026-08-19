@@ -106,16 +106,23 @@ DEMO_ANALYSIS_ALLOWLIST: set[str] = set()
 # every scraper→API call, so a client can't reach that write directly.
 DEMO_SAVE_JOB_PATTERN = re.compile(r"^/api/discovery/jobs/[0-9a-fA-F-]{36}/save$")
 
+# Matches page "Dismiss": same shape as save — flips one boolean
+# (`dismissed`) on an already-seeded discovered_jobs doc, no new data,
+# fully reversible on the next reseed.
+DEMO_DISMISS_JOB_PATTERN = re.compile(r"^/api/discovery/jobs/[0-9a-fA-F-]{36}/dismiss$")
+
 
 @app.middleware("http")
 async def demo_guard(request, call_next):
     path = request.url.path.rstrip("/")
     is_allowed_save = request.method == "POST" and DEMO_SAVE_JOB_PATTERN.match(path)
+    is_allowed_dismiss = request.method == "POST" and DEMO_DISMISS_JOB_PATTERN.match(path)
     if (
         settings.demo_mode
         and request.method in ("POST", "PUT", "PATCH", "DELETE")
         and path not in DEMO_ANALYSIS_ALLOWLIST
         and not is_allowed_save
+        and not is_allowed_dismiss
     ):
         from fastapi.responses import JSONResponse
         return JSONResponse(status_code=403, content={"error": "This is a read-only demo."})

@@ -4,9 +4,10 @@ import { Download, Sparkles, RefreshCw, ChevronLeft, ChevronRight, ExternalLink,
 import { useApplicationDetail, usePack } from '../lib/queries';
 import { useGeneratePack } from '../lib/mutations';
 import { apiUrl } from '../lib/api';
+import { hasRealJobUrl } from '../lib/format';
 import { ResumePackEditModal } from '../components/ResumePackEditModal';
 
-const ED_BTN = 'rounded-full border px-4 py-[0.55rem] text-[0.7rem] font-semibold uppercase tracking-[0.1em] transition-all disabled:opacity-50 disabled:pointer-events-none inline-flex items-center gap-[0.4rem]';
+const ED_BTN = 'rounded-full border px-4 py-[0.55rem] text-[0.8rem] font-semibold tracking-[0.02em] transition-all disabled:opacity-50 disabled:pointer-events-none inline-flex items-center gap-[0.4rem]';
 const ED_GHOST = `${ED_BTN} border-[var(--ed-rule)] text-[var(--ed-ink-soft)] hover:border-[var(--ed-ink)] hover:text-[var(--ed-ink)]`;
 const ED_PRIMARY = `${ED_BTN} border-[var(--ed-accent)] bg-[var(--ed-accent)] text-[var(--ed-paper)] hover:bg-[var(--ed-accent-deep)]`;
 
@@ -140,9 +141,9 @@ export default function ResumePackPage() {
               )}
             </button>
             <button type="button" className={ED_GHOST} onClick={() => setShowEditModal(true)}>
-              <Pencil size={14} /> Edit manually
+              <Pencil size={14} /> Edit Manually
             </button>
-            {app?.jobUrl && (
+            {app?.jobUrl && hasRealJobUrl(app.jobUrl) && (
               <a href={app.jobUrl} target="_blank" rel="noopener noreferrer" className={ED_GHOST}>
                 <ExternalLink size={14} /> View Job
               </a>

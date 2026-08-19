@@ -8,6 +8,7 @@ import CollapsibleSection from '../components/CollapsibleSection';
 import AnalysisCard, { edVerdictColor } from '../components/AnalysisCard';
 import { NoteList, NoteModal } from '../components/Notes';
 import { CompanyAvatar } from '../components/CompanyAvatar';
+import { hasRealJobUrl } from '../lib/format';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ExternalLink, Sparkles, FileCheck, RefreshCw } from 'lucide-react';
 import type { Interview } from '../lib/types';
@@ -158,8 +159,8 @@ export default function ApplicationDetail() {
                 {showReviewPack ? 'Review Pack' : 'Generate Pack'}
               </button>
               <div className="flex gap-2 flex-wrap">
-                {app.jobUrl && (
-                  <a href={app.jobUrl} target="_blank" rel="noopener noreferrer" className={`${ED_GHOST} inline-flex items-center gap-[0.35rem]`}>
+                {hasRealJobUrl(app.jobUrl) && (
+                  <a href={app.jobUrl!} target="_blank" rel="noopener noreferrer" className={`${ED_GHOST} inline-flex items-center gap-[0.35rem]`}>
                     <ExternalLink size={13} aria-hidden="true" />
                     Original
                   </a>

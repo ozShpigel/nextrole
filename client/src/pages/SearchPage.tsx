@@ -3,10 +3,9 @@ import { createPortal } from 'react-dom';
 import { X, SlidersHorizontal, Plus, Check, Search } from 'lucide-react';
 import { useScoredJobs } from '../lib/queries';
 import { useSaveJob, useDismissJob } from '../lib/mutations';
-import { useDemoMode, DEMO_DISABLED_TITLE } from '../lib/queries';
 import type { DiscoveredJobSummary } from '../lib/types';
 import { VERDICT_LABELS } from '../lib/scoring';
-import { cityOnly, formatPostedAgo, isNew } from '../lib/format';
+import { cityOnly, formatPostedAgo, isNew, hasRealJobUrl } from '../lib/format';
 import AnalysisCard, { edVerdictColor } from '../components/AnalysisCard';
 import { CompanyAvatar } from '../components/CompanyAvatar';
 import { JobDescriptionText } from '../components/JobDescriptionText';
@@ -136,8 +135,6 @@ interface MatchCardProps {
   index: number;
   saved: boolean;
   dismissed: boolean;
-  demoMode: boolean;
-  demoTitle: string | undefined;
   onSelect: (id: string) => void;
   onSave: (jobId: string) => void;
   onDismiss: (jobId: string) => void;
@@ -146,7 +143,7 @@ interface MatchCardProps {
 // Default browse view — a full card. Clicking one switches the whole page
 // into the master-detail (list + JD/analysis panel) view, it doesn't expand
 // in place.
-function MatchCard({ job, index, saved, dismissed, demoMode, demoTitle, onSelect, onSave, onDismiss }: MatchCardProps) {
+function MatchCard({ job, index, saved, dismissed, onSelect, onSave, onDismiss }: MatchCardProps) {
   const clickable = !!job.match_analysis;
 
   return (
@@ -195,10 +192,9 @@ function MatchCard({ job, index, saved, dismissed, demoMode, demoTitle, onSelect
         {!saved && !dismissed && (
           <button
             type="button"
-            disabled={demoMode}
-            title={demoTitle ?? 'Dismiss'}
+            title="Dismiss"
             aria-label="Dismiss"
-            className="shrink-0 w-8 h-8 rounded-full border border-[var(--ed-rule)] flex items-center justify-center text-[var(--ed-ink-faint)] transition-all hover:border-[var(--ed-no)] hover:text-[var(--ed-no)] disabled:opacity-50 disabled:pointer-events-none disabled:cursor-not-allowed"
+            className="shrink-0 w-8 h-8 rounded-full border border-[var(--ed-rule)] flex items-center justify-center text-[var(--ed-ink-faint)] transition-all hover:border-[var(--ed-no)] hover:text-[var(--ed-no)]"
             onClick={() => onDismiss(job.id)}
           >
             <X className="w-4 h-4" strokeWidth={2.5} />
@@ -295,14 +291,12 @@ interface MatchDetailProps {
   job: DiscoveredJobSummary;
   saved: boolean;
   dismissed: boolean;
-  demoMode: boolean;
-  demoTitle: string | undefined;
   onClose: () => void;
   onSave: (jobId: string) => void;
   onDismiss: (jobId: string) => void;
 }
 
-function MatchDetail({ job, saved, dismissed, demoMode, demoTitle, onClose, onSave, onDismiss }: MatchDetailProps) {
+function MatchDetail({ job, saved, dismissed, onClose, onSave, onDismiss }: MatchDetailProps) {
   return (
     <>
       <div className="flex items-center gap-3 px-5 py-3 border-b border-[var(--ed-rule)] shrink-0">
@@ -317,8 +311,8 @@ function MatchDetail({ job, saved, dismissed, demoMode, demoTitle, onClose, onSa
         <div className="min-w-0 flex-1 text-[13px] text-[var(--ed-ink-faint)] truncate">
           <span className="text-[var(--ed-ink)] font-medium">{job.title}</span> · {job.company}
         </div>
-        {job.job_url && (
-          <a href={job.job_url} target="_blank" rel="noopener noreferrer" className="shrink-0 text-[13px] text-[var(--ed-ink-faint)] hover:text-[var(--ed-ink)] transition-colors">
+        {hasRealJobUrl(job.job_url) && (
+          <a href={job.job_url!} target="_blank" rel="noopener noreferrer" className="shrink-0 text-[13px] text-[var(--ed-ink-faint)] hover:text-[var(--ed-ink)] transition-colors">
             View posting ↗
           </a>
         )}
@@ -366,10 +360,9 @@ function MatchDetail({ job, saved, dismissed, demoMode, demoTitle, onClose, onSa
               {!saved && !dismissed && (
                 <button
                   type="button"
-                  disabled={demoMode}
-                  title={demoTitle ?? 'Dismiss'}
+                  title="Dismiss"
                   aria-label="Dismiss"
-                  className="shrink-0 w-9 h-9 rounded-full border border-[var(--ed-rule)] flex items-center justify-center text-[var(--ed-ink-faint)] transition-all hover:border-[var(--ed-no)] hover:text-[var(--ed-no)] disabled:opacity-50 disabled:pointer-events-none disabled:cursor-not-allowed"
+                  className="shrink-0 w-9 h-9 rounded-full border border-[var(--ed-rule)] flex items-center justify-center text-[var(--ed-ink-faint)] transition-all hover:border-[var(--ed-no)] hover:text-[var(--ed-no)]"
                   onClick={() => onDismiss(job.id)}
                 >
                   <X className="w-4 h-4" strokeWidth={2.5} />
@@ -489,8 +482,6 @@ export default function SearchPage() {
 
   const saveJob = useSaveJob();
   const dismissJob = useDismissJob();
-  const demoMode = useDemoMode();
-  const demoTitle = demoMode ? DEMO_DISABLED_TITLE : undefined;
 
   function toggleLevel(level: string): void {
     setLevels((prev) => {
@@ -733,8 +724,6 @@ export default function SearchPage() {
                   job={selectedJob}
                   saved={savedIds.has(selectedJob.id) || !!selectedJob.saved_to_tracker}
                   dismissed={dismissedIds.has(selectedJob.id)}
-                  demoMode={demoMode}
-                  demoTitle={demoTitle}
                   onClose={() => setSelectedId(null)}
                   onSave={handleSave}
                   onDismiss={handleDismiss}
@@ -751,8 +740,6 @@ export default function SearchPage() {
                   index={idx}
                   saved={savedIds.has(job.id) || !!job.saved_to_tracker}
                   dismissed={dismissedIds.has(job.id)}
-                  demoMode={demoMode}
-                  demoTitle={demoTitle}
                   onSelect={setSelectedId}
                   onSave={handleSave}
                   onDismiss={handleDismiss}

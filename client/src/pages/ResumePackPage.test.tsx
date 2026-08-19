@@ -27,7 +27,7 @@ function mockRoutes(routes: Record<string, unknown>) {
 
 const mockApplication = {
   application: {
-    id: 'app-1', jobTitle: 'Staff Engineer', company: 'Acme', jobUrl: 'https://example.com/jobs/1',
+    id: 'app-1', jobTitle: 'Staff Engineer', company: 'Acme', jobUrl: 'https://acme.example/careers/staff-engineer',
   },
 };
 
@@ -59,13 +59,28 @@ describe('ResumePackPage', () => {
     expect(downloadLink).toHaveAttribute('download');
 
     const viewJobLink = screen.getByRole('link', { name: /view job/i });
-    expect(viewJobLink).toHaveAttribute('href', 'https://example.com/jobs/1');
+    expect(viewJobLink).toHaveAttribute('href', 'https://acme.example/careers/staff-engineer');
     expect(viewJobLink).toHaveAttribute('target', '_blank');
   });
 
   it('hides the View Job link when the application has no job URL', async () => {
     mockRoutes({
       'GET /applications/app-1': { application: { ...mockApplication.application, jobUrl: null } },
+      'GET /applications/app-1/pack': {
+        tailoredSummary: 'A grounded, tailored summary.', experience: [], highlightedSkills: [],
+        generatedAt: '2026-01-15T00:00:00Z',
+      },
+    });
+
+    renderWithRouter(<ResumePackPage />);
+
+    expect(await screen.findByText(/generated/i)).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /view job/i })).not.toBeInTheDocument();
+  });
+
+  it('hides the View Job link for a seeded placeholder job URL', async () => {
+    mockRoutes({
+      'GET /applications/app-1': { application: { ...mockApplication.application, jobUrl: 'https://example.com/jobs/acme' } },
       'GET /applications/app-1/pack': {
         tailoredSummary: 'A grounded, tailored summary.', experience: [], highlightedSkills: [],
         generatedAt: '2026-01-15T00:00:00Z',

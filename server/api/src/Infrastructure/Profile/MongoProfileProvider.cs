@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using ApplicationTracker.Core.Models;
 using ApplicationTracker.Core.Profile;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
@@ -26,7 +27,115 @@ public sealed class MongoProfileProvider : IProfileProvider
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         PropertyNameCaseInsensitive = true,
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+        Converters = { new LegacySkillGroupArrayConverter(), new LegacySideProjectArrayConverter() },
     };
+
+    // Reads a doc persisted before the Skills schema change (commit 6b5bc7f) —
+    // a fixed {languages, frameworks, infrastructure, databases, other} object —
+    // as the current SkillGroup[] shape, instead of throwing and 500ing
+    // GetProfileDocumentAsync for any profile never re-saved since. New-shape
+    // arrays pass through unchanged.
+    private sealed class LegacySkillGroupArrayConverter : JsonConverter<SkillGroup[]>
+    {
+        public override SkillGroup[] Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            var el = JsonElement.ParseValue(ref reader);
+            if (el.ValueKind == JsonValueKind.Array)
+            {
+                var list = new List<SkillGroup>();
+                foreach (var item in el.EnumerateArray())
+                {
+                    var category = item.TryGetProperty("category", out var c) && c.ValueKind == JsonValueKind.String ? c.GetString() ?? "" : "";
+                    var items = item.TryGetProperty("items", out var i) && i.ValueKind == JsonValueKind.Array
+                        ? i.EnumerateArray().Where(v => v.ValueKind == JsonValueKind.String).Select(v => v.GetString()!).ToArray()
+                        : Array.Empty<string>();
+                    list.Add(new SkillGroup { Category = category, Items = items });
+                }
+                return list.ToArray();
+            }
+            if (el.ValueKind == JsonValueKind.Object)
+            {
+                var list = new List<SkillGroup>();
+                void AddBucket(string jsonKey, string label)
+                {
+                    if (el.TryGetProperty(jsonKey, out var arr) && arr.ValueKind == JsonValueKind.Array)
+                    {
+                        var items = arr.EnumerateArray().Where(v => v.ValueKind == JsonValueKind.String).Select(v => v.GetString()!).ToArray();
+                        if (items.Length > 0) list.Add(new SkillGroup { Category = label, Items = items });
+                    }
+                }
+                AddBucket("languages", "Languages");
+                AddBucket("frameworks", "Frameworks");
+                AddBucket("infrastructure", "Infrastructure");
+                AddBucket("databases", "Databases");
+                AddBucket("other", "Other");
+                return list.ToArray();
+            }
+            return Array.Empty<SkillGroup>();
+        }
+
+        public override void Write(Utf8JsonWriter writer, SkillGroup[] value, JsonSerializerOptions options)
+        {
+            writer.WriteStartArray();
+            foreach (var g in value)
+            {
+                writer.WriteStartObject();
+                writer.WriteString("category", g.Category);
+                writer.WritePropertyName("items");
+                writer.WriteStartArray();
+                foreach (var it in g.Items) writer.WriteStringValue(it);
+                writer.WriteEndArray();
+                writer.WriteEndObject();
+            }
+            writer.WriteEndArray();
+        }
+    }
+
+    // Reads a doc persisted before SideProjects became structured (commit
+    // 657de40) — a flat string[] — as the current SideProjectItem[] shape.
+    private sealed class LegacySideProjectArrayConverter : JsonConverter<SideProjectItem[]>
+    {
+        public override SideProjectItem[] Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            var el = JsonElement.ParseValue(ref reader);
+            if (el.ValueKind != JsonValueKind.Array) return Array.Empty<SideProjectItem>();
+            var list = new List<SideProjectItem>();
+            foreach (var item in el.EnumerateArray())
+            {
+                if (item.ValueKind == JsonValueKind.String)
+                {
+                    list.Add(new SideProjectItem { Description = item.GetString() ?? "" });
+                }
+                else if (item.ValueKind == JsonValueKind.Object)
+                {
+                    var name = item.TryGetProperty("name", out var n) && n.ValueKind == JsonValueKind.String ? n.GetString() ?? "" : "";
+                    var desc = item.TryGetProperty("description", out var d) && d.ValueKind == JsonValueKind.String ? d.GetString() ?? "" : "";
+                    var links = item.TryGetProperty("links", out var l) && l.ValueKind == JsonValueKind.Array
+                        ? l.EnumerateArray().Where(v => v.ValueKind == JsonValueKind.String).Select(v => v.GetString()!).ToList()
+                        : new List<string>();
+                    list.Add(new SideProjectItem { Name = name, Description = desc, Links = links });
+                }
+            }
+            return list.ToArray();
+        }
+
+        public override void Write(Utf8JsonWriter writer, SideProjectItem[] value, JsonSerializerOptions options)
+        {
+            writer.WriteStartArray();
+            foreach (var p in value)
+            {
+                writer.WriteStartObject();
+                writer.WriteString("name", p.Name);
+                writer.WriteString("description", p.Description);
+                writer.WritePropertyName("links");
+                writer.WriteStartArray();
+                foreach (var link in p.Links) writer.WriteStringValue(link);
+                writer.WriteEndArray();
+                writer.WriteEndObject();
+            }
+            writer.WriteEndArray();
+        }
+    }
 
     private static BsonDocument ToBson(StructuredProfile p) =>
         BsonDocument.Parse(JsonSerializer.Serialize(p, StructuredJson));

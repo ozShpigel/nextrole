@@ -146,31 +146,16 @@ var seeds = new List<(Application App, Interview[] Interviews, string? MatchAnal
         CreatedAt = now.AddDays(-2), UpdatedAt = now.AddDays(-2),
     }, Array.Empty<Interview>(), stratusMatchAnalysisJson),
 
+    // Every tracked application below also appears in the discovery pool further
+    // down (same title/company/score — see trackedCompanies), marked
+    // saved_to_tracker there: a reviewer clicking through from Matches sees the
+    // exact same job already sitting on the Active board, the way a real "Added"
+    // card behaves, instead of two disconnected fake datasets.
     (new Application
     {
-        JobTitle = "Full Stack Engineer", Company = "Vela Systems", Status = ApplicationStatus.Applied,
-        MatchScore = 76, MatchVerdict = "YES", JobUrl = "https://example.com/jobs/vela-fullstack",
-        JobDescription = "Ship product features across a TypeScript/Node stack.",
-        CreatedAt = now.AddDays(-9), AppliedAt = now.AddDays(-8), UpdatedAt = now.AddDays(-8),
-    }, Array.Empty<Interview>(), null),
-
-    (new Application
-    {
-        JobTitle = "Software Engineer", Company = "Orchard Health", Status = ApplicationStatus.PhoneScreen,
-        MatchScore = 71, MatchVerdict = "YES", JobUrl = "https://example.com/jobs/orchard-swe",
-        JobDescription = "Backend + data work for a digital health product.",
-        CreatedAt = now.AddDays(-14), AppliedAt = now.AddDays(-12), UpdatedAt = now.AddDays(-4),
-    }, new[]
-    {
-        new Interview { ApplicationId = Guid.Empty, ScheduledAt = now.AddDays(-3), Type = InterviewType.Phone,
-            Interviewer = "Dana Levin", Topics = "Background, role expectations", Completed = true },
-    }, null),
-
-    (new Application
-    {
-        JobTitle = "Senior Software Engineer", Company = "Nimbus Data", Status = ApplicationStatus.TechnicalInterview,
-        MatchScore = 88, MatchVerdict = "STRONG_YES", JobUrl = "https://example.com/jobs/nimbus-senior",
-        JobDescription = "Own distributed data pipelines and service reliability.",
+        JobTitle = "DevOps Engineer", Company = "Ridgeline Cloud", Status = ApplicationStatus.TechnicalInterview,
+        MatchScore = 72, MatchVerdict = "YES", JobUrl = "https://example.com/jobs/ridgeline-cloud",
+        JobDescription = "Infra automation for a cloud consultancy.",
         CreatedAt = now.AddDays(-20), AppliedAt = now.AddDays(-18), UpdatedAt = now.AddDays(-2),
     }, new[]
     {
@@ -182,24 +167,41 @@ var seeds = new List<(Application App, Interview[] Interviews, string? MatchAnal
 
     (new Application
     {
-        JobTitle = "Platform Engineer", Company = "Beacon Labs", Status = ApplicationStatus.OfferReceived,
-        MatchScore = 84, MatchVerdict = "STRONG_YES", Salary = "$150k base",
-        JobUrl = "https://example.com/jobs/beacon-platform",
-        JobDescription = "Developer platform and CI/CD tooling for product teams.",
+        JobTitle = "Full Stack Engineer", Company = "Verdant Foods", Status = ApplicationStatus.OfferReceived,
+        MatchScore = 68, MatchVerdict = "YES", Salary = "$150k base",
+        JobUrl = "https://example.com/jobs/verdant-foods",
+        JobDescription = "Ship features across a React/Node e-commerce stack.",
         CreatedAt = now.AddDays(-30), AppliedAt = now.AddDays(-28), UpdatedAt = now.AddDays(-1),
     }, Array.Empty<Interview>(), null),
 
     (new Application
     {
-        JobTitle = "Backend Developer", Company = "Ironwood Retail", Status = ApplicationStatus.Rejected,
-        MatchScore = 58, MatchVerdict = "MAYBE", JobUrl = "https://example.com/jobs/ironwood-backend",
-        JobDescription = "Maintain order-management services for a retail platform.",
+        JobTitle = "Site Reliability Engineer", Company = "Anchorpoint Security", Status = ApplicationStatus.Applied,
+        MatchScore = 63, MatchVerdict = "MAYBE", JobUrl = "https://example.com/jobs/anchorpoint-security",
+        JobDescription = "On-call, observability, and incident response for a security product.",
+        CreatedAt = now.AddDays(-9), AppliedAt = now.AddDays(-8), UpdatedAt = now.AddDays(-8),
+    }, Array.Empty<Interview>(), null),
+
+    (new Application
+    {
+        JobTitle = "Software Engineer", Company = "Bramble Media", Status = ApplicationStatus.PhoneScreen,
+        MatchScore = 61, MatchVerdict = "MAYBE", JobUrl = "https://example.com/jobs/bramble-media",
+        JobDescription = "Build content pipelines for a media platform.",
+        CreatedAt = now.AddDays(-14), AppliedAt = now.AddDays(-12), UpdatedAt = now.AddDays(-4),
+    }, new[]
+    {
+        new Interview { ApplicationId = Guid.Empty, ScheduledAt = now.AddDays(-3), Type = InterviewType.Phone,
+            Interviewer = "Dana Levin", Topics = "Background, role expectations", Completed = true },
+    }, null),
+
+    (new Application
+    {
+        JobTitle = "Backend Engineer", Company = "Coppermine Insurance", Status = ApplicationStatus.Rejected,
+        MatchScore = 54, MatchVerdict = "MAYBE", JobUrl = "https://example.com/jobs/coppermine-insurance",
+        JobDescription = "Maintain claims-processing services.",
         CreatedAt = now.AddDays(-35), AppliedAt = now.AddDays(-33), UpdatedAt = now.AddDays(-10),
     }, Array.Empty<Interview>(), null),
 
-    // These four also appear in the discovery pool below (same title/company),
-    // marked saved_to_tracker there — mirrors how a real Matches card looks
-    // once you've added it: "Added" instead of an "Add" button.
     (new Application
     {
         JobTitle = "Senior Backend Engineer", Company = "Meridian Robotics", Status = ApplicationStatus.DecidedToApply,
@@ -327,81 +329,81 @@ if (!await messagesCol.Find(FilterDefinition<TrackedEmail>.Empty).AnyAsync())
     {
         new()
         {
-            GmailMessageId = "demo-seed-vela-received", ApplicationId = AppId("Vela Systems"),
-            Company = "Vela Systems", JobTitle = "Full Stack Engineer", UpdateType = "ApplicationReceived",
-            From = "careers@velasystems.example", Subject = "We've received your application",
-            Snippet = "Thanks for applying to the Full Stack Engineer role at Vela Systems. Our team will review your application and follow up within two weeks.",
+            GmailMessageId = "demo-seed-anchorpoint-received", ApplicationId = AppId("Anchorpoint Security"),
+            Company = "Anchorpoint Security", JobTitle = "Site Reliability Engineer", UpdateType = "ApplicationReceived",
+            From = "careers@anchorpointsecurity.example", Subject = "We've received your application",
+            Snippet = "Thanks for applying to the Site Reliability Engineer role at Anchorpoint Security. Our team will review your application and follow up within two weeks.",
             ReceivedAt = now.AddDays(-8),
         },
         new()
         {
-            GmailMessageId = "demo-seed-orchard-received", ApplicationId = AppId("Orchard Health"),
-            Company = "Orchard Health", JobTitle = "Software Engineer", UpdateType = "ApplicationReceived",
-            From = "talent@orchardhealth.example", Subject = "Application received — Software Engineer",
-            Snippet = "Hi, thanks for your interest in Orchard Health. We're reviewing applications now and will be in touch soon.",
+            GmailMessageId = "demo-seed-bramble-received", ApplicationId = AppId("Bramble Media"),
+            Company = "Bramble Media", JobTitle = "Software Engineer", UpdateType = "ApplicationReceived",
+            From = "talent@bramblemedia.example", Subject = "Application received — Software Engineer",
+            Snippet = "Hi, thanks for your interest in Bramble Media. We're reviewing applications now and will be in touch soon.",
             ReceivedAt = now.AddDays(-12),
         },
         new()
         {
-            GmailMessageId = "demo-seed-orchard-interview", ApplicationId = AppId("Orchard Health"),
-            Company = "Orchard Health", JobTitle = "Software Engineer", UpdateType = "InterviewScheduled",
-            From = "dana.levin@orchardhealth.example", Subject = "Let's schedule a call",
+            GmailMessageId = "demo-seed-bramble-interview", ApplicationId = AppId("Bramble Media"),
+            Company = "Bramble Media", JobTitle = "Software Engineer", UpdateType = "InterviewScheduled",
+            From = "dana.levin@bramblemedia.example", Subject = "Let's schedule a call",
             Snippet = "I'd love to set up a quick phone screen to learn more about your background — are you free later this week?",
             ReceivedAt = now.AddDays(-5),
         },
         new()
         {
-            GmailMessageId = "demo-seed-nimbus-received", ApplicationId = AppId("Nimbus Data"),
-            Company = "Nimbus Data", JobTitle = "Senior Software Engineer", UpdateType = "ApplicationReceived",
-            From = "recruiting@nimbusdata.example", Subject = "Thanks for applying to Nimbus Data",
-            Snippet = "We've received your application for Senior Software Engineer and will reach out if there's a fit.",
+            GmailMessageId = "demo-seed-ridgeline-received", ApplicationId = AppId("Ridgeline Cloud"),
+            Company = "Ridgeline Cloud", JobTitle = "DevOps Engineer", UpdateType = "ApplicationReceived",
+            From = "recruiting@ridgelinecloud.example", Subject = "Thanks for applying to Ridgeline Cloud",
+            Snippet = "We've received your application for DevOps Engineer and will reach out if there's a fit.",
             ReceivedAt = now.AddDays(-18),
         },
         new()
         {
-            GmailMessageId = "demo-seed-nimbus-recruiter-call", ApplicationId = AppId("Nimbus Data"),
-            Company = "Nimbus Data", JobTitle = "Senior Software Engineer", UpdateType = "InterviewScheduled",
-            From = "recruiting@nimbusdata.example", Subject = "Quick intro call?",
+            GmailMessageId = "demo-seed-ridgeline-recruiter-call", ApplicationId = AppId("Ridgeline Cloud"),
+            Company = "Ridgeline Cloud", JobTitle = "DevOps Engineer", UpdateType = "InterviewScheduled",
+            From = "recruiting@ridgelinecloud.example", Subject = "Quick intro call?",
             Snippet = "Your background looks like a strong match — do you have 20 minutes this week for an intro call with our recruiting team?",
             ReceivedAt = now.AddDays(-7),
         },
         new()
         {
-            GmailMessageId = "demo-seed-nimbus-technical", ApplicationId = AppId("Nimbus Data"),
-            Company = "Nimbus Data", JobTitle = "Senior Software Engineer", UpdateType = "InterviewScheduled",
-            From = "priya.nair@nimbusdata.example", Subject = "Technical interview confirmed",
+            GmailMessageId = "demo-seed-ridgeline-technical", ApplicationId = AppId("Ridgeline Cloud"),
+            Company = "Ridgeline Cloud", JobTitle = "DevOps Engineer", UpdateType = "InterviewScheduled",
+            From = "priya.nair@ridgelinecloud.example", Subject = "Technical interview confirmed",
             Snippet = "Confirming your technical interview with Priya Nair — system design and coding. Looking forward to it.",
             ReceivedAt = now.AddDays(-2),
         },
         new()
         {
-            GmailMessageId = "demo-seed-beacon-received", ApplicationId = AppId("Beacon Labs"),
-            Company = "Beacon Labs", JobTitle = "Platform Engineer", UpdateType = "ApplicationReceived",
-            From = "careers@beaconlabs.example", Subject = "Application received — Platform Engineer",
+            GmailMessageId = "demo-seed-verdant-received", ApplicationId = AppId("Verdant Foods"),
+            Company = "Verdant Foods", JobTitle = "Full Stack Engineer", UpdateType = "ApplicationReceived",
+            From = "careers@verdantfoods.example", Subject = "Application received — Full Stack Engineer",
             Snippet = "Thanks for applying! We'll be in touch once our team has reviewed your background.",
             ReceivedAt = now.AddDays(-28),
         },
         new()
         {
-            GmailMessageId = "demo-seed-beacon-offer", ApplicationId = AppId("Beacon Labs"),
-            Company = "Beacon Labs", JobTitle = "Platform Engineer", UpdateType = "OfferReceived",
-            From = "careers@beaconlabs.example", Subject = "An offer from Beacon Labs",
-            Snippet = "We're excited to offer you the Platform Engineer role. Details on compensation and next steps are attached.",
+            GmailMessageId = "demo-seed-verdant-offer", ApplicationId = AppId("Verdant Foods"),
+            Company = "Verdant Foods", JobTitle = "Full Stack Engineer", UpdateType = "OfferReceived",
+            From = "careers@verdantfoods.example", Subject = "An offer from Verdant Foods",
+            Snippet = "We're excited to offer you the Full Stack Engineer role. Details on compensation and next steps are attached.",
             ReceivedAt = now.AddDays(-1),
         },
         new()
         {
-            GmailMessageId = "demo-seed-ironwood-received", ApplicationId = AppId("Ironwood Retail"),
-            Company = "Ironwood Retail", JobTitle = "Backend Developer", UpdateType = "ApplicationReceived",
-            From = "jobs@ironwoodretail.example", Subject = "Application received — Backend Developer",
-            Snippet = "Thanks for applying to Ironwood Retail. Our hiring team is reviewing applications now.",
+            GmailMessageId = "demo-seed-coppermine-received", ApplicationId = AppId("Coppermine Insurance"),
+            Company = "Coppermine Insurance", JobTitle = "Backend Engineer", UpdateType = "ApplicationReceived",
+            From = "jobs@coppermineinsurance.example", Subject = "Application received — Backend Engineer",
+            Snippet = "Thanks for applying to Coppermine Insurance. Our hiring team is reviewing applications now.",
             ReceivedAt = now.AddDays(-33),
         },
         new()
         {
-            GmailMessageId = "demo-seed-ironwood-rejected", ApplicationId = AppId("Ironwood Retail"),
-            Company = "Ironwood Retail", JobTitle = "Backend Developer", UpdateType = "Rejected",
-            From = "jobs@ironwoodretail.example", Subject = "Update on your application",
+            GmailMessageId = "demo-seed-coppermine-rejected", ApplicationId = AppId("Coppermine Insurance"),
+            Company = "Coppermine Insurance", JobTitle = "Backend Engineer", UpdateType = "Rejected",
+            From = "jobs@coppermineinsurance.example", Subject = "Update on your application",
             Snippet = "After careful consideration, we've decided to move forward with other candidates for this role. We wish you the best in your search.",
             ReceivedAt = now.AddDays(-10),
         },
@@ -594,7 +596,11 @@ var morePostings = new (string Title, string Company, string Location, string De
 // Also tracked on the Active board (same title/company, see the seeds list
 // above) — shown as "Added" on Matches instead of an "Add" button, the way a
 // job you've already acted on looks in the real app.
-var trackedCompanies = new HashSet<string> { "Harborlight Logistics", "Kestrel Analytics" };
+var trackedCompanies = new HashSet<string>
+{
+    "Harborlight Logistics", "Kestrel Analytics",
+    "Ridgeline Cloud", "Verdant Foods", "Anchorpoint Security", "Bramble Media", "Coppermine Insurance",
+};
 
 var jobs = new List<BsonDocument> { stratusJob, northwindJob, cobaltJob, meridianJob, solaceJob };
 foreach (var (i, posting) in morePostings.Select((posting, i) => (i, posting)))

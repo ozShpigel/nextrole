@@ -34,19 +34,19 @@ Built as a four-service monorepo (C#, Python, React), deployed to a single VPS v
 
 Every collected job is scored against your profile the moment it's discovered — a full breakdown (technical fit, execution fit, sustainability) and a verdict from STRONG_YES to STRONG_NO, not a similarity ranking. The Matches page is a filtered, sorted browse over what's already been scored. [Details](#job-discovery--scoring)
 
-<img alt="Matches: scored job results with verdict badges and the AI evaluator's breakdown" src="docs/demos/output/search.gif" width="190">
+<img alt="Matches: scored job results with verdict badges and the AI evaluator's breakdown" src="docs/demos/output/search.gif" width="380">
 
 ### Application tracking
 
 Every save, application, and status update lives in one dashboard — response rate and average score at a glance, a running activity feed, and a per-application AI Analysis breakdown (technical / execution / sustainability) behind every tracked role.
 
-<img alt="Application Tracker: stats row, Recent Activity feed, and a tracked application's AI Analysis score breakdown" src="docs/demos/output/tracker.gif" width="190">
+<img alt="Application Tracker: stats row, Recent Activity feed, and a tracked application's AI Analysis score breakdown" src="docs/demos/output/tracker.gif" width="380">
 
 ### Interview practice
 
-Author self-presentations and a Q&A rubric, rehearse from AI-distilled keyword cues, then run turn-by-turn mock interviews whose debrief feeds back into your prep. [Details](#mock-interview-stateless-turn-engine)
+Author self-presentations and a Q&A rubric, then rehearse from AI-distilled keyword cues drawn straight from your prepared answers.
 
-<img alt="Interview Prep: self-presentation text and a Question Rubric with grouped, expandable prepared answers" src="docs/demos/output/interview-prep.gif" width="190">
+<img alt="Interview Prep: self-presentation text and a Question Rubric with grouped, expandable prepared answers" src="docs/demos/output/interview-prep.gif" width="380">
 
 A few more things NextRole does:
 
@@ -55,7 +55,6 @@ A few more things NextRole does:
 - **Email sync**: The mailbot detects interview invites, rejections, and offers in Gmail and updates the tracker automatically — idempotent, and it never moves an application backwards. [Details](#email-sync-mailbot)
 - **Résumé upload**: Drop in a PDF and your profile is normalized automatically — the PDF goes to Claude natively, no extraction library.
 - **Generate Pack**: A one-click, AI-tailored résumé PDF per application — reorders and re-emphasizes your real profile toward that job's description, never invents facts, and renders on demand (nothing stored as a file). [Details](docs/resume-pack.md)
-- **Mock interview**: Turn-by-turn AI interview practice — the client replays the whole transcript each turn so the server stays stateless, and the debrief can feed rewrites straight back into your prep rubric. [Details](#mock-interview-stateless-turn-engine)
 - **Prompt-injection defense**: Untrusted external data — job descriptions, scraped news, raw emails — is always XML-wrapped in the user message and kept out of the system prompt.
 
 ---
@@ -73,7 +72,7 @@ NextRole consists of four loosely-coupled services, communicating over HTTP:
 
 **The life of a job** ties the parts together: the scraper discovers it, AI triage checks the title is on-target, and it's scored against your profile — in batches of up to 5, one shared Claude call per batch — the moment it's found. Saving a result copies it into the tracker database — and from there the mailbot keeps its status current from your inbox.
 
-The diagrams below break the three core engines down — *how* each feature moves data through the services (dashed nodes are external systems).
+The diagrams below break the core engines down — *how* each feature moves data through the services (dashed nodes are external systems).
 
 ### Job discovery & scoring
 
@@ -82,15 +81,6 @@ This is how NextRole finds jobs and figures out which ones actually fit you, in 
 The enrichment prefetch step is still retrieval-augmented generation — it's just retrieval by live web search (Glassdoor ratings, recent company news) rather than vector similarity: no embeddings, no vector index, nothing pre-indexed. Each job's scoring call gets whatever the web search actually turned up for that company, injected straight into the Evaluator's prompt alongside your profile.
 
 <img alt="Discovery & scoring flow — scrape, AI title triage, seniority classification, enrichment prefetch, and batched Evaluator scoring, storing fully-scored jobs the Matches page browses" src="docs/discovery-scoring.svg">
-
-### Mock interview (stateless turn engine)
-
-Practice interviews with Claude playing the interviewer, one question at a time. The client holds the whole transcript and **replays it every turn** — the server keeps no session state. Trusted context (profile, prep) goes in the system prompt; untrusted data (job context, the transcript) is XML-wrapped in the user message. Cheap Haiku per turn, Sonnet once for the debrief.
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/images/flow-mock-interview-dark.svg">
-  <img alt="Mock interview flow — the client replays the transcript each turn to the API, which builds one request per call with a trusted SYSTEM block (profile, prep) and an untrusted XML-wrapped USER block (answers, job context); Haiku answers each turn, Sonnet writes the debrief, and rewrites can be adopted into the prep rubric" src="docs/images/flow-mock-interview-light.svg">
-</picture>
 
 ### Email sync (Mailbot)
 
@@ -105,7 +95,7 @@ Keeps your tracker up to date without you lifting a finger. A one-shot cron proc
 
 ## Public demo
 
-[**nextrole.cloud**](https://nextrole.cloud) runs the same image as a private instance, pointed at a separate database of seeded fictional data instead of a real one — no signup, no login. AI scoring, the mock interview, and every read are fully live; anything that would persist a change to the tracker (adding an application, generating a pack, saving profile edits) is blocked with a read-only banner. It's reseeded from `dotnet run --project server/api/src/Seeder`, which is safe to re-run any time. [Details](docs/demo-mode.md) · [Hosting your own](docs/hosting-a-public-demo.md)
+[**nextrole.cloud**](https://nextrole.cloud) runs the same image as a private instance, pointed at a separate database of seeded fictional data instead of a real one — no signup, no login. AI scoring and every read are fully live; anything that would persist a change to the tracker (adding an application, generating a pack, saving profile edits) is blocked with a read-only banner. It's reseeded from `dotnet run --project server/api/src/Seeder`, which is safe to re-run any time. [Details](docs/demo-mode.md) · [Hosting your own](docs/hosting-a-public-demo.md)
 
 ---
 

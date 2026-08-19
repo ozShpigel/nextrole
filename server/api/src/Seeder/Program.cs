@@ -518,13 +518,34 @@ var cobaltJob = Job(runId, criteriaId, "Data Engineer", "Cobalt Systems", "Tel A
         Array.Empty<string>(), new[] { "Some Glassdoor reviews mention long hours" },
         "Mixed signals on work-life balance."));
 
+// Hand-authored, résumé-grounded reasoning for the two highest-scoring jobs
+// (also tracked on the Active board) — a reviewer who opens the score
+// breakdown should see it reference the résumé's actual content, not generic
+// tier text, or the "AI scoring" story falls apart under a click.
+var meridianJob = Job(runId, criteriaId, "Senior Backend Engineer", "Meridian Robotics", "Tel Aviv",
+    "Build control-plane services for autonomous fleet software.", 91, "STRONG_YES", true, true, runAt,
+    Analysis("Senior Backend Engineer", "Meridian Robotics", 91, "STRONG_YES", true, (18, 14), (14, 14), (12, 11, 10),
+        new[] { "Led the checkout platform's move off a monolith into independently deployable services",
+                "Direct experience owning distributed backend systems at scale (millions of orders/month)" },
+        Array.Empty<string>(),
+        "Excellent fit — the control-plane/distributed-systems work here is a close match for the checkout platform ownership on the résumé, and seniority lines up.",
+        new[] { "Recently expanded its Tel Aviv engineering team" }, Array.Empty<string>(),
+        "Growing headcount locally, consistent with an active hiring push."));
+var solaceJob = Job(runId, criteriaId, "Staff Software Engineer", "Solace Fintech", "Remote",
+    "Own payments infrastructure reliability and scale.", 88, "STRONG_YES", true, true, runAt,
+    Analysis("Staff Software Engineer", "Solace Fintech", 88, "STRONG_YES", true, (17, 14), (15, 13), (11, 10, 8),
+        new[] { "Directly reduced payment-failure retries by 40% on a high-volume checkout platform",
+                "Strong reliability/observability track record (structured logging, dashboards, on-call runbooks)" },
+        new[] { "Staff-level scope is a step up from the résumé's current title" },
+        "Very strong fit — payments reliability is close to exactly what the résumé already shows hands-on impact in; the step to Staff is a stretch but a reasonable one.",
+        Array.Empty<string>(), Array.Empty<string>(),
+        "No notable recent news."));
+
 // Broader pool — score/verdict/company/title varied for a realistic-looking
 // spread; breakdown text is tier-derived (TieredAnalysis) rather than hand-authored
 // per posting.
 var morePostings = new (string Title, string Company, string Location, string Description, int Score, string Verdict)[]
 {
-    ("Senior Backend Engineer", "Meridian Robotics", "Tel Aviv", "Build control-plane services for autonomous fleet software.", 91, "STRONG_YES"),
-    ("Staff Software Engineer", "Solace Fintech", "Remote", "Own payments infrastructure reliability and scale.", 88, "STRONG_YES"),
     ("Backend Engineer", "Harborlight Logistics", "Herzliya", "Build tracking and routing services for a logistics platform.", 79, "YES"),
     ("Platform Engineer", "Kestrel Analytics", "Remote", "Internal developer platform and CI/CD.", 77, "YES"),
     ("DevOps Engineer", "Ridgeline Cloud", "Remote", "Infra automation for a cloud consultancy.", 72, "YES"),
@@ -541,9 +562,9 @@ var morePostings = new (string Title, string Company, string Location, string De
 // Also tracked on the Active board (same title/company, see the seeds list
 // above) — shown as "Added" on Matches instead of an "Add" button, the way a
 // job you've already acted on looks in the real app.
-var trackedCompanies = new HashSet<string> { "Meridian Robotics", "Solace Fintech", "Harborlight Logistics", "Kestrel Analytics" };
+var trackedCompanies = new HashSet<string> { "Harborlight Logistics", "Kestrel Analytics" };
 
-var jobs = new List<BsonDocument> { stratusJob, northwindJob, cobaltJob };
+var jobs = new List<BsonDocument> { stratusJob, northwindJob, cobaltJob, meridianJob, solaceJob };
 foreach (var (i, posting) in morePostings.Select((posting, i) => (i, posting)))
 {
     var at = runAt.AddMinutes(-5 * i);

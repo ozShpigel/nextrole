@@ -1,11 +1,12 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderWithRouter } from '../test/render';
-import { matchApi } from '../lib/api';
+import { matchApi, api } from '../lib/api';
 import InterviewPrepPage from './InterviewPrepPage';
 
 vi.mock('../lib/api', () => ({
   matchApi: vi.fn(),
+  api: vi.fn(),
 }));
 
 const mockPrepResponse = {
@@ -18,6 +19,7 @@ const mockPrepResponse = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.mocked(api).mockResolvedValue({ demoMode: false });
 });
 
 describe('InterviewPrepPage', () => {
@@ -33,6 +35,39 @@ describe('InterviewPrepPage', () => {
     // Single-card view: only the first entry is visible up front.
     expect(screen.getByText('Where do you see yourself in 5 years?')).toBeInTheDocument();
     expect(screen.getByText('Growing.')).toBeInTheDocument();
+  });
+
+  it('disables Start a practice interview with the demo title under DemoMode', async () => {
+    vi.mocked(api).mockResolvedValue({ demoMode: true });
+    vi.mocked(matchApi).mockResolvedValue(mockPrepResponse);
+
+    renderWithRouter(<InterviewPrepPage />);
+
+    const startButton = await screen.findByRole('button', { name: /start a practice interview/i });
+    expect(startButton).toBeDisabled();
+    expect(startButton).toHaveAttribute('title', 'Disabled in the read-only demo');
+  });
+
+  it('lets the user edit questions locally under DemoMode, but disables the save button', async () => {
+    // Adding/editing a question is pure local state (QaCardGrid's onChange) —
+    // only persisting it is a real write, so that's the only thing demo mode
+    // should block. Blocking it silently (disabled + tooltip) instead of
+    // letting the save 403 avoids a jarring "Error saving" banner.
+    vi.mocked(api).mockResolvedValue({ demoMode: true });
+    vi.mocked(matchApi).mockResolvedValue(mockPrepResponse);
+    const user = userEvent.setup();
+
+    renderWithRouter(<InterviewPrepPage />);
+    await screen.findByText('Where do you see yourself in 5 years?');
+
+    await user.click(screen.getByRole('button', { name: /edit/i }));
+    const answerBox = screen.getByLabelText('Answer');
+    await user.type(answerBox, ' Extra local edit.');
+
+    const saveButton = screen.getByRole('button', { name: /save interview questions/i });
+    expect(saveButton).toBeDisabled();
+    expect(saveButton).toHaveAttribute('title', 'Disabled in the read-only demo');
+    expect(answerBox).toHaveValue('Growing. Extra local edit.');
   });
 
   it('saves rubric edits with categories and topic in the PUT body', async () => {

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { MessageSquare, Sparkles } from 'lucide-react';
-import { useInterviewPrep } from '../lib/queries';
+import { useInterviewPrep, useDemoMode, DEMO_DISABLED_TITLE } from '../lib/queries';
 import { useSaveInterviewPrep } from '../lib/mutations';
 import type { InterviewPrepResponse, QaEntry } from '../lib/types';
 import { Skeleton } from '../components/ui/skeleton';
@@ -30,6 +30,7 @@ function SectionHeader({ name }: { name: string }) {
 /* Page                                                               */
 /* ------------------------------------------------------------------ */
 export default function InterviewPrepPage() {
+  const demoMode = useDemoMode();
   const query = useInterviewPrep();
   const saveMutation = useSaveInterviewPrep();
   const [initialized, setInitialized] = useState(false);
@@ -100,9 +101,20 @@ export default function InterviewPrepPage() {
           Interview <span className="italic font-medium text-[var(--ed-accent)]">Prep</span>
         </h1>
         <div className="mt-5 flex items-center gap-5 flex-wrap">
-          <Link to="/practice-interview" className={`${ED_PRIMARY} inline-flex items-center gap-[0.45rem]`}>
-            <MessageSquare size={15} /> Start a practice interview
-          </Link>
+          {demoMode ? (
+            <button
+              type="button"
+              disabled
+              title={DEMO_DISABLED_TITLE}
+              className={`${ED_PRIMARY} inline-flex items-center gap-[0.45rem]`}
+            >
+              <MessageSquare size={15} /> Start a practice interview
+            </button>
+          ) : (
+            <Link to="/practice-interview" className={`${ED_PRIMARY} inline-flex items-center gap-[0.45rem]`}>
+              <MessageSquare size={15} /> Start a practice interview
+            </Link>
+          )}
           <Link
             to="/interview-insights"
             className="inline-flex items-center gap-[0.4rem] text-[0.72rem] font-semibold uppercase tracking-[0.1em] text-[var(--ed-ink-soft)] transition-colors hover:text-[var(--ed-ink)]"
@@ -127,7 +139,13 @@ export default function InterviewPrepPage() {
               Discard changes
             </button>
           )}
-          <button type="button" className={ED_PRIMARY} onClick={saveQa} disabled={!isQaDirty || savingQa}>
+          <button
+            type="button"
+            className={ED_PRIMARY}
+            onClick={saveQa}
+            disabled={!isQaDirty || savingQa || demoMode}
+            title={demoMode ? DEMO_DISABLED_TITLE : undefined}
+          >
             {savingQa ? 'Saving…' : 'Save interview questions'}
           </button>
         </div>

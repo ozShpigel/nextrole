@@ -14,15 +14,17 @@
 
 **NextRole** is an AI-powered platform that runs your job hunt end-to-end: it discovers listings from LinkedIn and Indeed, scores every one against your professional profile as it's found, watches your inbox for replies, and tracks every role from first application to final outcome — with Claude working as analyst, evaluator, and interview coach along the way.
 
-Built as a four-service monorepo (C#, Python, React), deployed to production on Render.
+Built as a four-service monorepo (C#, Python, React), deployed to a single VPS via Docker Compose.
 
 > **Single-tenant by design** — one user, no login. NextRole is your private tool, running against your own database.
 
 > **Cost**: Claude (Anthropic) is pay-as-you-go — running your own instance has an ongoing cost proportional to how much you scrape, not a one-time fee. MongoDB Atlas's free tier is enough to get started.
 
+> **Try it live**: [nextrole.cloud](https://nextrole.cloud) is a public read-only demo — a seeded fictional profile, real AI scoring, no login, nothing you do there is saved. See [Public demo](#public-demo).
+
 ### Contents
 
-[Highlighted Features](#highlighted-features) · [Architecture](#architecture) · [Getting Started](#getting-started) · [Testing](#testing) · [Deployment & CI/CD](#deployment--cicd) · [Contributing](#contributing) · [License](#license)
+[Highlighted Features](#highlighted-features) · [Architecture](#architecture) · [Public Demo](#public-demo) · [Getting Started](#getting-started) · [Testing](#testing) · [Deployment & CI/CD](#deployment--cicd) · [Contributing](#contributing) · [License](#license)
 
 ---
 
@@ -52,6 +54,8 @@ A few more things NextRole does:
 - **AI job scoring**: Paste any job description and get a weighted compatibility score with a sub-component breakdown and an honest verdict. [Details](docs/scoring-and-search.md)
 - **Email sync**: The mailbot detects interview invites, rejections, and offers in Gmail and updates the tracker automatically — idempotent, and it never moves an application backwards. [Details](#email-sync-mailbot)
 - **Résumé upload**: Drop in a PDF and your profile is normalized automatically — the PDF goes to Claude natively, no extraction library.
+- **Generate Pack**: A one-click, AI-tailored résumé PDF per application — reorders and re-emphasizes your real profile toward that job's description, never invents facts, and renders on demand (nothing stored as a file). [Details](docs/resume-pack.md)
+- **Mock interview**: Turn-by-turn AI interview practice — the client replays the whole transcript each turn so the server stays stateless, and the debrief can feed rewrites straight back into your prep rubric. [Details](#mock-interview-stateless-turn-engine)
 - **Prompt-injection defense**: Untrusted external data — job descriptions, scraped news, raw emails — is always XML-wrapped in the user message and kept out of the system prompt.
 
 ---
@@ -107,6 +111,12 @@ Keeps your tracker up to date without you lifting a finger. A one-shot cron proc
 
 ---
 
+## Public demo
+
+[**nextrole.cloud**](https://nextrole.cloud) runs the same image as a private instance, pointed at a separate database of seeded fictional data instead of a real one — no signup, no login. AI scoring, the mock interview, and every read are fully live; anything that would persist a change to the tracker (adding an application, generating a pack, saving profile edits) is blocked with a read-only banner. It's reseeded from `dotnet run --project server/api/src/Seeder`, which is safe to re-run any time. [Details](docs/demo-mode.md) · [Hosting your own](docs/hosting-a-public-demo.md)
+
+---
+
 ## Getting started
 
 For the Docker path you only need [Docker](https://www.docker.com/), a [MongoDB](https://www.mongodb.com/) instance (Atlas free tier works), and an [Anthropic API key](https://console.anthropic.com/):
@@ -148,12 +158,12 @@ Each service has its own GitHub Actions workflow with **path-based triggers** �
 
 | Workflow | Trigger path | Builds | Deploys |
 |----------|-------------|--------|---------|
-| `api.yml` | `server/api/**` | Docker image → `ghcr.io` | Render webhook |
-| `scraper.yml` | `server/scraper/**` | Docker image → `ghcr.io` | Render webhook |
-| `mailbot.yml` | `server/mailbot/**` | Docker image → `ghcr.io` | Render webhook |
-| `frontend.yml` | `client/**` | Docker image → `ghcr.io` | Render webhook |
+| `api.yml` | `server/api/**` | Docker image → `ghcr.io` | SSH → Hetzner VPS |
+| `scraper.yml` | `server/scraper/**` | Docker image → `ghcr.io` | SSH → Hetzner VPS |
+| `mailbot.yml` | `server/mailbot/**` | Docker image → `ghcr.io` | SSH → Hetzner VPS (cron profile) |
+| `frontend.yml` | `client/**` | Docker image → `ghcr.io` | SSH → Hetzner VPS |
 
-Each pipeline logs into GHCR, builds the service's Dockerfile, tags `:latest`, and triggers a Render deploy.
+Each pipeline logs into GHCR, builds the service's Dockerfile, tags `:latest`, then SSHes into the VPS and runs `docker compose pull` + `docker compose up -d --force-recreate` for that service. The public demo (`nextrole.cloud`), the Basic-Auth-gated private frontend, and the private API all run as separate Compose services on the same box, differing only in environment variables.
 
 ---
 

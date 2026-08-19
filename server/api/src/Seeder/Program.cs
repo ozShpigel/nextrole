@@ -411,54 +411,86 @@ if (!await messagesCol.Find(FilterDefinition<TrackedEmail>.Empty).AnyAsync())
 }
 else Console.WriteLine("Messages already present — skipped.");
 
-// 3) Interview-prep on the demo profile (idempotent — skip if already authored).
-var prep = await profileProvider.GetInterviewPrepAsync();
-if (string.IsNullOrWhiteSpace(prep.SelfPresentationHr))
-{
-    await profileProvider.UpsertInterviewPrepAsync(
-        selfPresentationHr:
-            "I'm a backend-leaning full-stack engineer with about six years of experience building and " +
-            "operating web services. I care most about shipping reliable software with a small, focused team, " +
-            "and I enjoy owning features end to end — from API design through deployment and on-call. I also " +
-            "mentor junior engineers and like improving developer experience. I'm looking for a role where I can " +
-            "own a meaningful part of the product and grow toward technical leadership.",
-        selfPresentationTechnical:
-            "My core stack is C#/.NET and TypeScript/Node on the backend with React on the front end, running on " +
-            "cloud infrastructure with MongoDB and Postgres. I've designed and operated distributed services — REST " +
-            "APIs, background workers, and event-driven pipelines — with an emphasis on observability and graceful " +
-            "degradation. Recently I've worked on LLM integrations: prompt design, structured outputs, and cost/latency " +
-            "trade-offs. I value clear boundaries, testing at the right level, and pragmatic system design.",
-        presentingWorkProject:
-            "I led the rebuild of our order-processing service. The legacy monolith couldn't keep up at peak, so I " +
-            "extracted the hot path into a queue-backed worker, added idempotency keys to make retries safe, and added " +
-            "structured logging and dashboards. It cut p95 latency by ~40% and eliminated the duplicate-charge incidents " +
-            "we'd been seeing. The hardest part was migrating without downtime — I used dual-write and shadow-reads before " +
-            "cutting over.",
-        presentingPersonalProject:
-            "On the side I built a small open-source CLI that watches a folder and syncs media to a self-hosted server. " +
-            "It's not fancy, but it taught me a lot about filesystem events, backpressure, and writing a tool other people " +
-            "rely on — which pushed me to care about clear docs and a stable interface.",
-        qaRubric: new List<QaEntry>
-        {
-            new() { Question = "Where do you see yourself in 5 years?",
-                Answer = "Growing into a senior/tech-lead role where I own a significant area of the product and help set " +
-                         "technical direction while still writing code — deepening system design and mentoring rather than " +
-                         "moving fully into management.",
-                Categories = new List<string> { "HR" } },
-            new() { Question = "Tell me about a time you disagreed with a teammate.",
-                Answer = "On the order-processing rebuild a teammate wanted a full rewrite; I argued for a strangler-fig " +
-                         "approach to cut risk. I laid out the migration and rollback plan, we tried it behind a flag, and the " +
-                         "incremental cutover saved weeks and avoided downtime.",
-                Categories = new List<string> { "Behavioral" },
-                Topic = "Order-processing rebuild" },
-            new() { Question = "Why are you looking to leave your current role?",
-                Answer = "I've shipped things I'm proud of, but I've grown past the scope available to me. I want harder " +
-                         "technical problems and a clearer path toward technical leadership.",
-                Categories = new List<string> { "HR" } },
-        });
-    Console.WriteLine("Interview-prep seeded.");
-}
-else Console.WriteLine("Interview-prep already present — skipped.");
+// 3) Interview-prep on the demo profile — synced unconditionally (not
+// idempotent) for the same reason the profile persona is: it needs to track
+// sample-profile.json's actual content, and previously went stale here (it
+// still referenced "C#/.NET" and an "order-processing service" from an
+// earlier persona iteration, neither of which appear on the résumé anymore).
+await profileProvider.UpsertInterviewPrepAsync(
+    selfPresentationHr:
+        "I'm a backend-leaning software engineer with about nine years of experience building and operating " +
+        "web services in e-commerce and healthtech. I care most about shipping reliable software with a small, " +
+        "focused team, and I enjoy owning a service end to end — from design through deployment and on-call. I " +
+        "also mentor junior engineers and like improving how a team ships. I'm looking for a role where I can own " +
+        "a meaningful part of the product and grow toward technical leadership.",
+    selfPresentationTechnical:
+        "My core stack is TypeScript/React and Node.js/Express on the frontend and API layer, Java/Spring Boot " +
+        "for backend services, and Python for scripting and data work. I run this on AWS with Docker, Terraform, " +
+        "and Kubernetes, backed by PostgreSQL, Redis, and DynamoDB. I've designed and operated distributed " +
+        "services at real scale — a checkout platform handling millions of orders a month — with an emphasis on " +
+        "observability, structured logging, and graceful degradation. I value clear boundaries, testing at the " +
+        "right level, and pragmatic system design over cleverness.",
+    presentingWorkProject:
+        "I led moving our checkout platform off a single monolith into independently deployable services. The " +
+        "monolith couldn't keep up at peak and a chunk of failed checkouts were retry storms after payment " +
+        "failures, so I redesigned the retry path, added contract tests and CI gates to stop regressions, and " +
+        "split out the highest-traffic pieces first. It cut payment-failure retries by 40% and cut production " +
+        "regressions by roughly a third. The hardest part was sequencing the migration without downtime on a " +
+        "service processing millions of orders a month — I leaned on the CI gates and a staged rollout rather " +
+        "than a single cutover.",
+    presentingPersonalProject:
+        "On the side I built RouteCast, an open-source CLI that records and replays webhook events for local " +
+        "development, so testing an integration doesn't require a live tunnel back to your machine. It came out " +
+        "of being annoyed at how fragile tunnel-based webhook testing was on a previous project. It taught me a " +
+        "lot about designing a good CLI interface and writing docs clear enough that a few other people actually " +
+        "picked it up and used it.",
+    qaRubric: new List<QaEntry>
+    {
+        new() { Question = "Where do you see yourself in 5 years?",
+            Answer = "Growing into a senior/tech-lead role where I own a significant area of the product and help set " +
+                     "technical direction while still writing code — deepening system design and mentoring rather than " +
+                     "moving fully into management.",
+            Categories = new List<string> { "HR" } },
+        new() { Question = "Tell me about a time you disagreed with a teammate.",
+            Answer = "On the checkout platform migration a teammate wanted a full rewrite; I argued for peeling off the " +
+                     "highest-traffic services first behind contract tests instead, to cut risk. I laid out the migration " +
+                     "and rollback plan, we tried the incremental approach, and it avoided downtime and shipped in stages " +
+                     "instead of one high-risk cutover.",
+            Categories = new List<string> { "Behavioral" },
+            Topic = "Checkout platform migration" },
+        new() { Question = "Why are you looking to leave your current role?",
+            Answer = "I've shipped things I'm proud of, but I've grown past the scope available to me at Lumen Retail. " +
+                     "I want harder technical problems and a clearer path toward technical leadership.",
+            Categories = new List<string> { "HR" } },
+        new() { Question = "Walk me through a production incident you handled under pressure.",
+            Answer = "At Atlas Health I was on-call for the patient scheduling service when we started seeing elevated " +
+                     "error rates after a deploy. I hadn't had structured logging or dashboards for that service yet, so " +
+                     "triage was slow — that incident is exactly why I set them up afterward, along with the service's " +
+                     "first on-call runbook. The next time something went wrong, triage took minutes instead of the better " +
+                     "part of an hour.",
+            Categories = new List<string> { "Technical", "Behavioral" },
+            Topic = "Atlas Health on-call" },
+        new() { Question = "Tell me about a side project you're proud of.",
+            Answer = "RouteCast — an open-source CLI that records and replays webhook events for local dev, so testing " +
+                     "an integration doesn't need a live tunnel. It's a small tool, but real people other than me use it, " +
+                     "which pushed me to care about the CLI's ergonomics and docs a lot more than a purely internal tool " +
+                     "would have required.",
+            Categories = new List<string> { "HR", "Technical" },
+            Topic = "RouteCast" },
+        new() { Question = "How do you approach mentoring more junior engineers?",
+            Answer = "Mostly through design review and pairing rather than lecturing — I'd rather ask questions that get " +
+                     "someone to the right design themselves than hand it to them. At Lumen Retail I mentored three " +
+                     "engineers and ran the team's design-review process; the goal was making review fast enough that " +
+                     "people actually wanted feedback early, not just at the end.",
+            Categories = new List<string> { "Behavioral" } },
+        new() { Question = "Why did you get the AWS Solutions Architect certification, and does it actually show up in your work?",
+            Answer = "I'd been doing infra work — Terraform, Docker, Kubernetes — mostly by pattern-matching what already " +
+                     "existed, and wanted to actually understand the trade-offs instead of just copying the last " +
+                     "approach. It shows up mostly in how I reason about cost and reliability trade-offs when I'm " +
+                     "proposing infra changes now, not in day-to-day coding.",
+            Categories = new List<string> { "Technical" } },
+    });
+Console.WriteLine("Interview-prep synced.");
 
 // 4) Discovery — one active criterion + a completed run + a pool of fake, already-
 //    scored jobs. These collections live in the tracker DB and use the Python

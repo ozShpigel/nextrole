@@ -54,7 +54,7 @@ export default function App() {
     <div className="relative">
       {config?.demoMode && (
         <div className="bg-primary/10 text-foreground border-b border-border text-center text-[0.78rem] font-medium py-[0.4rem] px-4">
-          Live demo — real AI scoring, nothing is saved.
+          Live demo — real AI scoring.
         </div>
       )}
       <nav data-app-nav className="bg-background/80 backdrop-blur-[20px] border-b border-border sticky top-0 z-50">

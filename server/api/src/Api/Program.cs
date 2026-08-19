@@ -224,6 +224,17 @@ if (demoMode)
     var messageReadPath = new System.Text.RegularExpressions.Regex(
         @"^/api/messages/[0-9a-fA-F-]{36}/read$",
         System.Text.RegularExpressions.RegexOptions.Compiled);
+    // Active board "Remove": scoped to the Withdrawn transition only, by
+    // sniffing the request body — unlike the other exceptions above this one
+    // is NOT self-healing yet (the Seeder skips applications that already
+    // exist by company+title, so it won't reset a demo visitor's Withdrawn
+    // status on the next reseed). Deliberately allowed anyway per product
+    // decision; making reseed reset Status too is tracked as a follow-up.
+    // Every other status transition on this endpoint (Applied, Rejected,
+    // etc.) stays blocked.
+    var updateStatusPath = new System.Text.RegularExpressions.Regex(
+        @"^/api/applications/[0-9a-fA-F-]{36}/status$",
+        System.Text.RegularExpressions.RegexOptions.Compiled);
     app.Use(async (ctx, next) =>
     {
         var method = ctx.Request.Method;
@@ -232,6 +243,15 @@ if (demoMode)
         var path = ctx.Request.Path.Value ?? "";
         var isAllowedGeneratePack = HttpMethods.IsPost(method) && resumePackGeneratePath.IsMatch(path);
         var isAllowedMessageRead = HttpMethods.IsPatch(method) && messageReadPath.IsMatch(path);
+        var isAllowedWithdraw = false;
+        if (HttpMethods.IsPut(method) && updateStatusPath.IsMatch(path))
+        {
+            ctx.Request.EnableBuffering();
+            using var reader = new StreamReader(ctx.Request.Body, System.Text.Encoding.UTF8, leaveOpen: true);
+            var body = await reader.ReadToEndAsync();
+            ctx.Request.Body.Position = 0;
+            isAllowedWithdraw = body.Contains("\"Withdrawn\"", StringComparison.OrdinalIgnoreCase);
+        }
         // Matches page "Add": allow POST /api/applications only for the
         // scraper's own save-from-discovery call, identified by the
         // X-Source header it already attaches to every scraper→API request
@@ -243,7 +263,7 @@ if (demoMode)
         // while letting an already-scored seeded job get saved via Add.
         var isAllowedDiscoverySave = HttpMethods.IsPost(method) && path.Equals("/api/applications", StringComparison.OrdinalIgnoreCase)
             && ctx.Request.Headers["X-Source"].ToString() == "ingest";
-        if (mutating && !analysisAllowlist.Contains(path) && !isAllowedGeneratePack && !isAllowedDiscoverySave && !isAllowedMessageRead)
+        if (mutating && !analysisAllowlist.Contains(path) && !isAllowedGeneratePack && !isAllowedDiscoverySave && !isAllowedMessageRead && !isAllowedWithdraw)
         {
             ctx.Response.StatusCode = StatusCodes.Status403Forbidden;
             await ctx.Response.WriteAsJsonAsync(new { error = "This is a read-only demo." });

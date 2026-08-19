@@ -202,10 +202,9 @@ export default function ActivePage() {
     return (
       <button
         type="button"
-        disabled={demoMode}
-        title={demoMode ? DEMO_DISABLED_TITLE : 'Remove from board (marks Withdrawn)'}
+        title="Remove from board (marks Withdrawn)"
         aria-label={`Remove application at ${company} from board`}
-        className="ml-auto w-6 h-6 flex items-center justify-center text-[var(--ed-ink-faint)] hover:text-[var(--ed-no)] transition-[color,opacity] disabled:opacity-40 disabled:pointer-events-none opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+        className="ml-auto w-6 h-6 flex items-center justify-center text-[var(--ed-ink-faint)] hover:text-[var(--ed-no)] transition-[color,opacity] opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
         onClick={() => updateStatus.mutate({ appId, newStatus: 'Withdrawn', jobUrl })}
       >
         <X size={13} aria-hidden="true" />

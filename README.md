@@ -84,6 +84,8 @@ The diagrams below break the three core engines down — *how* each feature move
 
 This is how NextRole finds jobs and figures out which ones actually fit you, in one pass — no separate on-demand search step. **Per discovery run**: scrape → AI title triage → seniority classification → company/news enrichment prefetch → batched Evaluator scoring (up to 5 jobs sharing one Claude call, each still judged independently against your profile) → store. The Matches page then just filters and sorts what's already been scored.
 
+The enrichment prefetch step is still retrieval-augmented generation — it's just retrieval by live web search (Glassdoor ratings, recent company news) rather than vector similarity: no embeddings, no vector index, nothing pre-indexed. Each job's scoring call gets whatever the web search actually turned up for that company, injected straight into the Evaluator's prompt alongside your profile.
+
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/flow-search-dark.svg">
   <img alt="Discovery & scoring flow — scrape, AI title triage, seniority classification, enrichment prefetch, and batched Evaluator scoring, storing fully-scored jobs the Matches page browses" src="docs/images/flow-search-light.svg">

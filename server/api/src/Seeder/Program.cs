@@ -56,13 +56,36 @@ var profileProvider = new MongoProfileProvider(
 var profile = await profileProvider.GetProfileDocumentAsync();
 Console.WriteLine($"Profile persona ensured ({profile.Structured.Experience.Length} role(s) in sample).");
 
+// 1a) Contact fields are never part of sample-profile.json (so the initial
+// seed leaves them blank) but ARE user-editable, and this demo DB has at
+// times been used interactively — enforce fake contact info on every run
+// so a real name/email/phone/LinkedIn can never sit behind the public demo.
+// Unconditional (not idempotent): this is a privacy invariant, not one-time
+// content.
+const string DemoFullName = "Alex Morgan";
+var demoProfile = profile.Structured with
+{
+    FullName = DemoFullName,
+    Email = "alex.morgan@example.com",
+    Phone = "+1-555-0100",
+    Location = "Tel Aviv, Israel",
+    LinkedIn = "linkedin.com/in/alex-morgan-demo",
+};
+if (demoProfile != profile.Structured)
+{
+    await profileProvider.UpsertProfileAsync(demoProfile);
+    profile = await profileProvider.GetProfileDocumentAsync();
+    Console.WriteLine("Profile contact fields reset to the fake demo persona.");
+}
+else Console.WriteLine("Profile contact fields already demo-safe — skipped.");
+
 // 1b) A résumé file to preview on the Profile page's Résumé tab — rendered
 // straight from the seeded StructuredProfile (no LLM call), reusing the exact
 // renderer real Generate Pack output goes through, so it previews identically.
-// Idempotent — skip if one already exists (never clobber a real upload).
+// Always regenerated (not idempotent) so a contact-field reset above is
+// reflected in the PDF header too.
 var resumeFileCol = client.GetDatabase(profileDb).GetCollection<ResumeFile>("resumeFile");
 var resumeFileRepo = new ResumeFileRepository(resumeFileCol);
-if (await resumeFileRepo.GetAsync() is null)
 {
     var sp = profile.Structured;
     var pack = new ResumePack
@@ -87,9 +110,8 @@ if (await resumeFileRepo.GetAsync() is null)
         UploadedAt = DateTime.UtcNow,
         PageCount = PdfPageCounter.CountPages(pdfBytes),
     });
-    Console.WriteLine($"Résumé file seeded ({pdfBytes.Length} bytes).");
+    Console.WriteLine($"Résumé file seeded/refreshed ({pdfBytes.Length} bytes).");
 }
-else Console.WriteLine("Résumé file already present — skipped.");
 
 // 2) Fictional applications across varied statuses (invented companies only).
 var db = client.GetDatabase(trackerDb);
@@ -222,6 +244,105 @@ foreach (var (app, ivs, matchAnalysisJson) in seeds)
 }
 
 Console.WriteLine($"Applications: {created} created, {skipped} skipped (already present), {backfilled} backfilled with match analysis.");
+
+// 2b) Fake mailbot-parsed messages tied to the applications above — Messages is
+// otherwise permanently empty on the demo (the real mailbot refuses to run
+// against a DemoMode tracker). Idempotent — skip if any message already exists.
+var messagesCol = db.GetCollection<TrackedEmail>("messages");
+if (!await messagesCol.Find(FilterDefinition<TrackedEmail>.Empty).AnyAsync())
+{
+    var appIdByCompany = (await apps.Find(FilterDefinition<Application>.Empty).ToListAsync())
+        .ToDictionary(a => a.Company, a => a.Id);
+
+    Guid? AppId(string company) => appIdByCompany.TryGetValue(company, out var id) ? id : null;
+
+    var messages = new List<TrackedEmail>
+    {
+        new()
+        {
+            GmailMessageId = "demo-seed-vela-received", ApplicationId = AppId("Vela Systems"),
+            Company = "Vela Systems", JobTitle = "Full Stack Engineer", UpdateType = "ApplicationReceived",
+            From = "careers@velasystems.example", Subject = "We've received your application",
+            Snippet = "Thanks for applying to the Full Stack Engineer role at Vela Systems. Our team will review your application and follow up within two weeks.",
+            ReceivedAt = now.AddDays(-8),
+        },
+        new()
+        {
+            GmailMessageId = "demo-seed-orchard-received", ApplicationId = AppId("Orchard Health"),
+            Company = "Orchard Health", JobTitle = "Software Engineer", UpdateType = "ApplicationReceived",
+            From = "talent@orchardhealth.example", Subject = "Application received — Software Engineer",
+            Snippet = "Hi, thanks for your interest in Orchard Health. We're reviewing applications now and will be in touch soon.",
+            ReceivedAt = now.AddDays(-12),
+        },
+        new()
+        {
+            GmailMessageId = "demo-seed-orchard-interview", ApplicationId = AppId("Orchard Health"),
+            Company = "Orchard Health", JobTitle = "Software Engineer", UpdateType = "InterviewScheduled",
+            From = "dana.levin@orchardhealth.example", Subject = "Let's schedule a call",
+            Snippet = "I'd love to set up a quick phone screen to learn more about your background — are you free later this week?",
+            ReceivedAt = now.AddDays(-5),
+        },
+        new()
+        {
+            GmailMessageId = "demo-seed-nimbus-received", ApplicationId = AppId("Nimbus Data"),
+            Company = "Nimbus Data", JobTitle = "Senior Software Engineer", UpdateType = "ApplicationReceived",
+            From = "recruiting@nimbusdata.example", Subject = "Thanks for applying to Nimbus Data",
+            Snippet = "We've received your application for Senior Software Engineer and will reach out if there's a fit.",
+            ReceivedAt = now.AddDays(-18),
+        },
+        new()
+        {
+            GmailMessageId = "demo-seed-nimbus-recruiter-call", ApplicationId = AppId("Nimbus Data"),
+            Company = "Nimbus Data", JobTitle = "Senior Software Engineer", UpdateType = "InterviewScheduled",
+            From = "recruiting@nimbusdata.example", Subject = "Quick intro call?",
+            Snippet = "Your background looks like a strong match — do you have 20 minutes this week for an intro call with our recruiting team?",
+            ReceivedAt = now.AddDays(-7),
+        },
+        new()
+        {
+            GmailMessageId = "demo-seed-nimbus-technical", ApplicationId = AppId("Nimbus Data"),
+            Company = "Nimbus Data", JobTitle = "Senior Software Engineer", UpdateType = "InterviewScheduled",
+            From = "priya.nair@nimbusdata.example", Subject = "Technical interview confirmed",
+            Snippet = "Confirming your technical interview with Priya Nair — system design and coding. Looking forward to it.",
+            ReceivedAt = now.AddDays(-2),
+        },
+        new()
+        {
+            GmailMessageId = "demo-seed-beacon-received", ApplicationId = AppId("Beacon Labs"),
+            Company = "Beacon Labs", JobTitle = "Platform Engineer", UpdateType = "ApplicationReceived",
+            From = "careers@beaconlabs.example", Subject = "Application received — Platform Engineer",
+            Snippet = "Thanks for applying! We'll be in touch once our team has reviewed your background.",
+            ReceivedAt = now.AddDays(-28),
+        },
+        new()
+        {
+            GmailMessageId = "demo-seed-beacon-offer", ApplicationId = AppId("Beacon Labs"),
+            Company = "Beacon Labs", JobTitle = "Platform Engineer", UpdateType = "OfferReceived",
+            From = "careers@beaconlabs.example", Subject = "An offer from Beacon Labs",
+            Snippet = "We're excited to offer you the Platform Engineer role. Details on compensation and next steps are attached.",
+            ReceivedAt = now.AddDays(-1),
+        },
+        new()
+        {
+            GmailMessageId = "demo-seed-ironwood-received", ApplicationId = AppId("Ironwood Retail"),
+            Company = "Ironwood Retail", JobTitle = "Backend Developer", UpdateType = "ApplicationReceived",
+            From = "jobs@ironwoodretail.example", Subject = "Application received — Backend Developer",
+            Snippet = "Thanks for applying to Ironwood Retail. Our hiring team is reviewing applications now.",
+            ReceivedAt = now.AddDays(-33),
+        },
+        new()
+        {
+            GmailMessageId = "demo-seed-ironwood-rejected", ApplicationId = AppId("Ironwood Retail"),
+            Company = "Ironwood Retail", JobTitle = "Backend Developer", UpdateType = "Rejected",
+            From = "jobs@ironwoodretail.example", Subject = "Update on your application",
+            Snippet = "After careful consideration, we've decided to move forward with other candidates for this role. We wish you the best in your search.",
+            ReceivedAt = now.AddDays(-10),
+        },
+    };
+    await messagesCol.InsertManyAsync(messages);
+    Console.WriteLine($"Messages seeded: {messages.Count}.");
+}
+else Console.WriteLine("Messages already present — skipped.");
 
 // 3) Interview-prep on the demo profile (idempotent — skip if already authored).
 var prep = await profileProvider.GetInterviewPrepAsync();

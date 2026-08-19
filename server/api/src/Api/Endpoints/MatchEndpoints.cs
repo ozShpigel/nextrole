@@ -377,9 +377,18 @@ public static class MatchEndpoints
 
         // Metadata for the currently-stored résumé file — plain read, never demo-gated.
         app.MapGet("/api/match/profile/resume-file", async (
+            HttpContext http,
             IResumeFileRepository resumeFileRepo,
             CancellationToken ct) =>
         {
+            // Neither this nor /download below set an explicit cache policy
+            // otherwise, so a plain GET is eligible for the browser's own
+            // heuristic caching — a replaced résumé can then keep showing
+            // the old file/pageCount until a full reload, since an SPA's own
+            // fetch() calls aren't covered by a hard-refresh's cache bypass
+            // (that only applies to the navigation's own document/scripts).
+            http.Response.Headers.CacheControl = "no-store";
+
             var file = await resumeFileRepo.GetAsync(ct);
             if (file is null) return Results.NotFound();
 
@@ -411,9 +420,16 @@ public static class MatchEndpoints
         // Raw bytes — no Content-Disposition filename, so browsers render PDFs
         // inline (via <embed>) instead of forcing a download. Plain read.
         app.MapGet("/api/match/profile/resume-file/download", async (
+            HttpContext http,
             IResumeFileRepository resumeFileRepo,
             CancellationToken ct) =>
         {
+            // See the no-store comment on the metadata endpoint above — same
+            // reasoning, and this is the one the client also cache-busts with
+            // a query param, belt-and-suspenders since the client can't
+            // control what an <embed>'s underlying PDF plugin caches either.
+            http.Response.Headers.CacheControl = "no-store";
+
             var file = await resumeFileRepo.GetAsync(ct);
             if (file is null) return Results.NotFound();
             return Results.File(file.Bytes, file.ContentType);

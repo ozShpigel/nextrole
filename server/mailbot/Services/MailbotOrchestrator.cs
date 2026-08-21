@@ -94,8 +94,35 @@ public sealed class MailbotOrchestrator
                 return result;
             }
 
-            // Steps 3-5: parse, match, apply (shared with re-sync)
-            var (parsed, updated) = await ProcessEmailsAsync(emails, companies, activeApps, result, ct);
+            // Skip mail already parsed on a prior run — the LookbackDays window
+            // overlaps by design, so without this every email in the overlap
+            // burns a redundant Claude call for an outcome already applied
+            // (message upsert + status update are both idempotent, so this
+            // changes nothing observable, only cost). Best-effort: if the
+            // known-ID lookup fails, fall back to processing everything rather
+            // than risk missing a real update.
+            var knownIds = await _tracker.GetKnownGmailMessageIdsAsync(ct);
+            if (knownIds is not null)
+            {
+                var before = emails.Count;
+                emails = emails.Where(e => !knownIds.Contains(e.GmailMessageId)).ToList();
+                _logger.LogInformation("Skipped {Skipped} already-processed email(s), {Remaining} to parse",
+                    before - emails.Count, emails.Count);
+            }
+
+            if (!emails.Any())
+            {
+                _logger.LogInformation("No new emails to parse after dedup");
+                result.Success = true;
+                return result;
+            }
+
+            // Steps 3-5: parse, match, apply (shared with re-sync). One fixed
+            // reference date for the whole run — not each email's own
+            // ReceivedAt — so every email shares a byte-identical system
+            // prompt and the 1h prompt cache actually reuses across the run.
+            var (parsed, updated) = await ProcessEmailsAsync(
+                emails, companies, activeApps, result, ct, referenceDateOverride: DateTime.UtcNow);
             result.EmailsParsed = parsed;
             result.ApplicationsUpdated = updated;
             result.Success = true;
@@ -165,7 +192,7 @@ public sealed class MailbotOrchestrator
             // App matching still uses the full company name; the parser (told only this
             // company) ignores any over-fetched mail.
             var searchName = CoreCompany(company);
-            var query = $"\"{searchName}\"";
+            var query = $"\"{searchName}\" {GmailEmailService.NoiseExclusions}";
             _logger.LogInformation("Re-sync Gmail search term: '{Term}'", searchName);
             var emails = (await _gmail.GetEmailsByQueryAsync(query, ct))
                 .OrderBy(e => e.ReceivedAt)
@@ -250,7 +277,7 @@ public sealed class MailbotOrchestrator
     /// </summary>
     private async Task<(int Parsed, int Updated)> ProcessEmailsAsync(
         List<EmailMessage> emails, List<string> companies, List<TrackerApplication> candidates,
-        SyncResult result, CancellationToken ct)
+        SyncResult result, CancellationToken ct, DateTime? referenceDateOverride = null)
     {
         var parsed = 0;
         var updated = 0;
@@ -259,7 +286,7 @@ public sealed class MailbotOrchestrator
         {
             try
             {
-                var update = await _parser.ParseEmailAsync(email, companies, ct);
+                var update = await _parser.ParseEmailAsync(email, companies, referenceDateOverride, ct);
                 if (update == null) continue;
                 parsed++;
 

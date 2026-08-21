@@ -129,6 +129,17 @@ public sealed class GmailEmailService : IGmailEmailService
         _logger.LogInformation("Gmail service initialized");
     }
 
+    // Automated senders that never carry a genuine employer decision — verified
+    // against live mailbox data (2026-08-21): every false-positive match in a
+    // real run traced to one of these (LinkedIn job-alert digests, profile-view
+    // stats, connection/message teasers, "application sent/viewed" trackers;
+    // Indeed's recommendation bot). LinkedIn's message-teaser emails never
+    // include the actual message body, so nothing parseable is ever lost by
+    // excluding the domain upfront — a real employer reply always comes from
+    // the company's own domain or ATS, never from these. Shared with re-sync's
+    // query (MailbotOrchestrator) so both paths get the same reduction.
+    public const string NoiseExclusions = "-from:linkedin.com -from:donotreply@match.indeed.com";
+
     // Daily sync: search recent mail directly by the tracked companies' names.
     // Search is retroactive by nature, so a company added to the tracker today is
     // found against the whole window immediately — no label/filter dependency.
@@ -144,7 +155,7 @@ public sealed class GmailEmailService : IGmailEmailService
 
         // Gmail:Query, when set, overrides the built query verbatim (ops escape hatch).
         var effectiveQuery = string.IsNullOrWhiteSpace(_query)
-            ? $"newer_than:{_lookbackDays}d ({BuildCompanyNamesQuery(coreCompanies)})"
+            ? $"newer_than:{_lookbackDays}d ({BuildCompanyNamesQuery(coreCompanies)}) {NoiseExclusions}"
             : _query;
 
         var emails = await FetchByQueryAsync(effectiveQuery, ct);

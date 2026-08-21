@@ -174,6 +174,24 @@ public sealed class TrackerApiClient : ITrackerApiClient
         return false;
     }
 
+    public async Task<HashSet<string>?> GetKnownGmailMessageIdsAsync(CancellationToken ct = default)
+    {
+        using var response = await SendWithRetryAsync(
+            () => _http.GetAsync("/api/messages/gmail-ids", ct),
+            "GetKnownGmailMessageIdsAsync",
+            ct);
+
+        if (response is null || !response.IsSuccessStatusCode)
+        {
+            _logger.LogWarning("Failed to get known Gmail message IDs. Status: {Status}",
+                response?.StatusCode.ToString() ?? "no response");
+            return null;
+        }
+
+        return await response.Content.ReadFromJsonAsync<HashSet<string>>(cancellationToken: ct)
+            ?? new HashSet<string>();
+    }
+
     private async Task<HttpResponseMessage?> SendWithRetryAsync(
         Func<Task<HttpResponseMessage>> send,
         string operationName,

@@ -24,6 +24,7 @@ public sealed class HttpEmailParser : IEmailParser
     public async Task<EmailUpdate?> ParseEmailAsync(
         EmailMessage email,
         List<string> knownCompanies,
+        DateTime? referenceDateOverride = null,
         CancellationToken ct = default)
     {
         try
@@ -34,7 +35,7 @@ public sealed class HttpEmailParser : IEmailParser
                 from = email.From,
                 body = email.Body,
                 knownCompanies,
-                receivedAt = email.ReceivedAt
+                receivedAt = referenceDateOverride ?? email.ReceivedAt
             };
 
             using var response = await _http.PostAsJsonAsync("/api/emails/parse", request, ct);

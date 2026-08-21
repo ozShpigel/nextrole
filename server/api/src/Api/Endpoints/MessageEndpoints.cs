@@ -60,6 +60,18 @@ public static class MessageEndpoints
         .WithName("GetMessages")
         .WithSummary("List mailbot-parsed emails, most recent first");
 
+        // Lets the mailbot skip already-processed mail before spending a Claude
+        // call on it — a lightweight projection, not the full message list.
+        app.MapGet("/api/messages/gmail-ids", async (
+            ITrackedEmailRepository repo,
+            CancellationToken ct) =>
+        {
+            var ids = await repo.GetGmailMessageIdsAsync(ct);
+            return Results.Ok(ids);
+        })
+        .WithName("GetTrackedGmailMessageIds")
+        .WithSummary("List GmailMessageIds already persisted (mailbot dedup check)");
+
         // Same demo-allowlist stance as the POST above — a real mutation, not
         // non-persisting analysis.
         app.MapDelete("/api/messages/{id:guid}", async (

@@ -192,7 +192,7 @@ If the email is from one of the tracked companies AND is job-related, return JSO
   "interviewEndTime": "HH:MM (end) or null — set only when the email gives a time range (e.g. '2:00 PM - 3:00 PM' → interviewTime 14:00, interviewEndTime 15:00). Never guess an end.",
   "interviewer": "name or null",
   "interviewType": "Phone" | "Technical" | "Final" | "HR" | null,
-  "notes": "important details or null"
+  "notes": "important details in 15 words or fewer, or null — never restate the email"
 }}
 
 Choosing "interviewType":

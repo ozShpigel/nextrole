@@ -14,6 +14,8 @@ public interface ITrackerApiClient
     Task<bool> AddInterviewAsync(Guid appId, AddInterviewRequest interview, CancellationToken ct = default);
     /// <summary>Persists a parsed email (upserted server-side by GmailMessageId) so it shows on the client's Messages tab.</summary>
     Task<bool> AddMessageAsync(AddMessageRequest message, CancellationToken ct = default);
+    /// <summary>GmailMessageIds already persisted from a prior run — lets the daily sync skip a Claude call on mail it has already parsed. Null on transport failure (caller should treat as "skip nothing" rather than block the run).</summary>
+    Task<HashSet<string>?> GetKnownGmailMessageIdsAsync(CancellationToken ct = default);
 }
 
 public sealed record AddInterviewRequest

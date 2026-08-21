@@ -33,6 +33,14 @@ public sealed class TrackedEmailRepository : ITrackedEmailRepository
             .ToListAsync(ct);
     }
 
+    public async Task<HashSet<string>> GetGmailMessageIdsAsync(CancellationToken ct = default)
+    {
+        var ids = await _emails.Find(FilterDefinition<TrackedEmail>.Empty)
+            .Project(e => e.GmailMessageId)
+            .ToListAsync(ct);
+        return ids.ToHashSet();
+    }
+
     public async Task DeleteAsync(Guid id, CancellationToken ct = default)
     {
         await _emails.DeleteOneAsync(e => e.Id == id, ct);

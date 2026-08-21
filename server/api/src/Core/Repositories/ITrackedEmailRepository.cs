@@ -9,6 +9,10 @@ public interface ITrackedEmailRepository
     // re-processing idempotent instead of piling up duplicate rows.
     Task<TrackedEmail> UpsertAsync(TrackedEmail email, CancellationToken ct = default);
     Task<List<TrackedEmail>> GetAllAsync(CancellationToken ct = default);
+    // Projection-only — lets the mailbot skip already-processed mail before
+    // spending a Claude call on it, without pulling every full document over
+    // the wire.
+    Task<HashSet<string>> GetGmailMessageIdsAsync(CancellationToken ct = default);
     Task DeleteAsync(Guid id, CancellationToken ct = default);
     Task MarkReadAsync(Guid id, CancellationToken ct = default);
 }

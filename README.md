@@ -12,9 +12,15 @@
 ![MongoDB Atlas](https://img.shields.io/badge/MongoDB-Atlas-47A248?logo=mongodb&logoColor=white)
 ![Claude](https://img.shields.io/badge/Claude-Anthropic-D97757)
 
+Evaluating whether a job actually fits you means reading it closely, looking up the company, and cross-checking against your CV, strengths, values, and dealbreakers. You can't do that six hundred times. Every job you do apply to needs its own résumé. And once you've applied, replies get lost among dozens of emails.
+
 **NextRole** is an AI-powered platform that runs your job hunt end-to-end: it discovers listings from LinkedIn and Indeed, scores every one against your professional profile as it's found, watches your inbox for replies, and tracks every role from first application to final outcome — with Claude working as analyst, evaluator, and interview coach along the way.
 
 Built as a four-service monorepo (C#, Python, React), deployed to a single VPS via Docker Compose.
+
+NextRole keeps three things: your profile, every job it has ever scored, and the board of what you're pursuing. The board feeds the mailbot — it knows which companies to watch in Gmail because they're on it.
+
+**A typical morning takes five minutes**: open Matches, scan what came in overnight, add what looks good, glance at replies. The board is already up to date.
 
 > **Single-tenant by design** — one user, no login. NextRole is your private tool, running against your own database.
 
@@ -38,7 +44,7 @@ Every collected job is scored against your profile the moment it's discovered �
 
 ### Application tracking
 
-The Active board tracks every role you're pursuing through four stages — Added, Ready, Applied, Interviewing — with Generate Pack and status updates one click away. Open any card for the full AI Analysis breakdown (technical / execution / sustainability) behind it.
+The Active board tracks every role you're pursuing through four columns — Added, Ready, Applied, Interviewing — with Generate Pack and status updates one click away. (Ready is Added with a résumé pack already generated; Interviewing groups the phone-screen, technical, and final-round stages.) Open any card for the full AI Analysis breakdown (technical / execution / sustainability) behind it.
 
 <img alt="Active board: the Added/Ready/Applied/Interviewing pipeline, and a tracked application's AI Analysis score breakdown" src="docs/demos/output/tracker.gif" width="380">
 
@@ -50,8 +56,8 @@ Author self-presentations and a Q&A rubric, then rehearse from AI-distilled keyw
 
 A few more things NextRole does:
 
-- **Automated job discovery**: Search criteria (titles, locations, boards) run on a daily cron — the system scrapes LinkedIn/Indeed, drops off-target titles with AI triage, and embeds everything for search.
-- **AI job scoring**: Paste any job description and get a weighted compatibility score with a sub-component breakdown and an honest verdict. [Details](docs/scoring-and-search.md)
+- **Automated job discovery**: Search criteria (titles, locations, boards) run on a daily cron — the system scrapes LinkedIn/Indeed and drops off-target titles with AI triage.
+- **Manual scoring**: Paste any single job description and get a weighted compatibility score with a sub-component breakdown and an honest verdict. [Details](docs/scoring-and-search.md)
 - **Email sync**: The mailbot detects interview invites, rejections, and offers in Gmail and updates the tracker automatically — idempotent, and it never moves an application backwards. [Details](#email-sync-mailbot)
 - **Résumé upload**: Drop in a PDF and your profile is normalized automatically — the PDF goes to Claude natively, no extraction library.
 - **Generate Pack**: A one-click, AI-tailored résumé PDF per application — reorders and re-emphasizes your real profile toward that job's description, never invents facts, and renders on demand (nothing stored as a file). [Details](docs/resume-pack.md)
@@ -81,6 +87,8 @@ This is how NextRole finds jobs and figures out which ones actually fit you, in 
 The enrichment prefetch step is still retrieval-augmented generation — it's just retrieval by live web search (Glassdoor ratings, recent company news) rather than vector similarity: no embeddings, no vector index, nothing pre-indexed. Each job's scoring call gets whatever the web search actually turned up for that company, injected straight into the Evaluator's prompt alongside your profile.
 
 <img alt="Discovery & scoring flow — scrape, AI title triage, seniority classification, enrichment prefetch, and batched Evaluator scoring, storing fully-scored jobs the Matches page browses" src="docs/discovery-scoring.svg">
+
+<img alt="One job record accumulating data at every pipeline step — scraped fields, a triage gate that drops off-target jobs, then external company context, an AI seniority band, and the final score with verdict" src="docs/enrichment.svg">
 
 ### Email sync (Mailbot)
 

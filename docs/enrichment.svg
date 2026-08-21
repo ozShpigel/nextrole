@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="920" height="470" viewBox="0 0 920 470" role="img">
+<title>One job record accumulating data through the discovery pipeline</title>
+<desc>Five columns, one per pipeline stage. The scraped record passes a triage gate that drops off-target jobs, then gains company context, a seniority band, and finally a score with verdict.</desc>
+<rect x="0" y="0" width="920" height="470" fill="#ffffff"/>
+
+<text x="40" y="42" font-family="Helvetica,Arial,sans-serif" font-size="19" font-weight="500" fill="#1c2126">Discovery pipeline — one job record, enriched at every step</text>
+<text x="40" y="66" font-family="Helvetica,Arial,sans-serif" font-size="13" fill="#73726c">Triage is the only stage that removes. Everything after it adds a layer.</text>
+<line x1="40" y1="86" x2="880" y2="86" stroke="#e0ded8" stroke-width="1"/>
+
+<defs><marker id="a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="#b4b2a9" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+
+<text x="110" y="116" font-family="Helvetica,Arial,sans-serif" font-size="14" font-weight="500" fill="#1c2126" text-anchor="middle">Scrape</text>
+<text x="285" y="116" font-family="Helvetica,Arial,sans-serif" font-size="14" font-weight="500" fill="#1c2126" text-anchor="middle">Triage</text>
+<text x="460" y="116" font-family="Helvetica,Arial,sans-serif" font-size="14" font-weight="500" fill="#1c2126" text-anchor="middle">Enrich</text>
+<text x="635" y="116" font-family="Helvetica,Arial,sans-serif" font-size="14" font-weight="500" fill="#1c2126" text-anchor="middle">Classify</text>
+<text x="810" y="116" font-family="Helvetica,Arial,sans-serif" font-size="14" font-weight="500" fill="#1c2126" text-anchor="middle">Score</text>
+
+<path d="M188 178 L207 178" stroke="#b4b2a9" stroke-width="1.5" fill="none" marker-end="url(#a)"/>
+<path d="M363 178 L382 178" stroke="#b4b2a9" stroke-width="1.5" fill="none" marker-end="url(#a)"/>
+<path d="M538 178 L557 178" stroke="#b4b2a9" stroke-width="1.5" fill="none" marker-end="url(#a)"/>
+<path d="M713 178 L732 178" stroke="#b4b2a9" stroke-width="1.5" fill="none" marker-end="url(#a)"/>
+
+<rect x="40" y="140" width="140" height="76" rx="6" fill="#f1efe8" stroke="#b4b2a9" stroke-width="0.8"/>
+<text x="110" y="163" font-family="Helvetica,Arial,sans-serif" font-size="12" fill="#444441" text-anchor="middle">title, company</text>
+<text x="110" y="182" font-family="Helvetica,Arial,sans-serif" font-size="12" fill="#444441" text-anchor="middle">location</text>
+<text x="110" y="201" font-family="Helvetica,Arial,sans-serif" font-size="12" fill="#444441" text-anchor="middle">raw description</text>
+
+<rect x="215" y="140" width="140" height="76" rx="6" fill="#f1efe8" stroke="#b4b2a9" stroke-width="0.8"/>
+<text x="285" y="163" font-family="Helvetica,Arial,sans-serif" font-size="12" fill="#444441" text-anchor="middle">title, company</text>
+<text x="285" y="182" font-family="Helvetica,Arial,sans-serif" font-size="12" fill="#444441" text-anchor="middle">location</text>
+<text x="285" y="201" font-family="Helvetica,Arial,sans-serif" font-size="12" fill="#444441" text-anchor="middle">raw description</text>
+<rect x="215" y="222" width="140" height="34" rx="6" fill="none" stroke="#b4b2a9" stroke-width="1" stroke-dasharray="4 3"/>
+<text x="285" y="243" font-family="Helvetica,Arial,sans-serif" font-size="11.5" fill="#8b8a83" text-anchor="middle">off-target dropped</text>
+
+<rect x="390" y="140" width="140" height="76" rx="6" fill="#f1efe8" stroke="#b4b2a9" stroke-width="0.8"/>
+<text x="460" y="163" font-family="Helvetica,Arial,sans-serif" font-size="12" fill="#444441" text-anchor="middle">title, company</text>
+<text x="460" y="182" font-family="Helvetica,Arial,sans-serif" font-size="12" fill="#444441" text-anchor="middle">location</text>
+<text x="460" y="201" font-family="Helvetica,Arial,sans-serif" font-size="12" fill="#444441" text-anchor="middle">raw description</text>
+<rect x="390" y="222" width="140" height="76" rx="6" fill="#e1f5ee" stroke="#1d9e75" stroke-width="0.8"/>
+<text x="460" y="245" font-family="Helvetica,Arial,sans-serif" font-size="12" fill="#085041" text-anchor="middle">Glassdoor reviews</text>
+<text x="460" y="264" font-family="Helvetica,Arial,sans-serif" font-size="12" fill="#085041" text-anchor="middle">recent news</text>
+<text x="460" y="283" font-family="Helvetica,Arial,sans-serif" font-size="12" fill="#085041" text-anchor="middle">company size</text>
+
+<rect x="565" y="140" width="140" height="76" rx="6" fill="#f1efe8" stroke="#b4b2a9" stroke-width="0.8"/>
+<text x="635" y="163" font-family="Helvetica,Arial,sans-serif" font-size="12" fill="#444441" text-anchor="middle">title, company</text>
+<text x="635" y="182" font-family="Helvetica,Arial,sans-serif" font-size="12" fill="#444441" text-anchor="middle">location</text>
+<text x="635" y="201" font-family="Helvetica,Arial,sans-serif" font-size="12" fill="#444441" text-anchor="middle">raw description</text>
+<rect x="565" y="222" width="140" height="76" rx="6" fill="#e1f5ee" stroke="#1d9e75" stroke-width="0.8"/>
+<text x="635" y="245" font-family="Helvetica,Arial,sans-serif" font-size="12" fill="#085041" text-anchor="middle">Glassdoor reviews</text>
+<text x="635" y="264" font-family="Helvetica,Arial,sans-serif" font-size="12" fill="#085041" text-anchor="middle">recent news</text>
+<text x="635" y="283" font-family="Helvetica,Arial,sans-serif" font-size="12" fill="#085041" text-anchor="middle">company size</text>
+<rect x="565" y="304" width="140" height="34" rx="6" fill="#e6f1fb" stroke="#378add" stroke-width="0.8"/>
+<text x="635" y="325" font-family="Helvetica,Arial,sans-serif" font-size="12" fill="#0c447c" text-anchor="middle">seniority band</text>
+
+<rect x="740" y="140" width="140" height="76" rx="6" fill="#f1efe8" stroke="#b4b2a9" stroke-width="0.8"/>
+<text x="810" y="163" font-family="Helvetica,Arial,sans-serif" font-size="12" fill="#444441" text-anchor="middle">title, company</text>
+<text x="810" y="182" font-family="Helvetica,Arial,sans-serif" font-size="12" fill="#444441" text-anchor="middle">location</text>
+<text x="810" y="201" font-family="Helvetica,Arial,sans-serif" font-size="12" fill="#444441" text-anchor="middle">raw description</text>
+<rect x="740" y="222" width="140" height="76" rx="6" fill="#e1f5ee" stroke="#1d9e75" stroke-width="0.8"/>
+<text x="810" y="245" font-family="Helvetica,Arial,sans-serif" font-size="12" fill="#085041" text-anchor="middle">Glassdoor reviews</text>
+<text x="810" y="264" font-family="Helvetica,Arial,sans-serif" font-size="12" fill="#085041" text-anchor="middle">recent news</text>
+<text x="810" y="283" font-family="Helvetica,Arial,sans-serif" font-size="12" fill="#085041" text-anchor="middle">company size</text>
+<rect x="740" y="304" width="140" height="34" rx="6" fill="#e6f1fb" stroke="#378add" stroke-width="0.8"/>
+<text x="810" y="325" font-family="Helvetica,Arial,sans-serif" font-size="12" fill="#0c447c" text-anchor="middle">seniority band</text>
+<rect x="740" y="344" width="140" height="72" rx="6" fill="#d6e9fa" stroke="#185fa5" stroke-width="1.5"/>
+<text x="810" y="366" font-family="Helvetica,Arial,sans-serif" font-size="13" font-weight="500" fill="#042c53" text-anchor="middle">87 / 100</text>
+<text x="810" y="386" font-family="Helvetica,Arial,sans-serif" font-size="12" fill="#0c447c" text-anchor="middle">STRONG_YES</text>
+<text x="810" y="405" font-family="Helvetica,Arial,sans-serif" font-size="12" fill="#0c447c" text-anchor="middle">fit breakdown</text>
+
+<rect x="40" y="428" width="13" height="13" rx="3" fill="#f1efe8" stroke="#b4b2a9" stroke-width="0.8"/>
+<text x="60" y="439" font-family="Helvetica,Arial,sans-serif" font-size="12" fill="#73726c">scraped</text>
+<rect x="150" y="428" width="13" height="13" rx="3" fill="#e1f5ee" stroke="#1d9e75" stroke-width="0.8"/>
+<text x="170" y="439" font-family="Helvetica,Arial,sans-serif" font-size="12" fill="#73726c">external sources</text>
+<rect x="300" y="428" width="13" height="13" rx="3" fill="#e6f1fb" stroke="#378add" stroke-width="0.8"/>
+<text x="320" y="439" font-family="Helvetica,Arial,sans-serif" font-size="12" fill="#73726c">added by AI</text>
+</svg>

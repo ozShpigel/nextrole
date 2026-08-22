@@ -16,6 +16,7 @@ services:
       #   - Scoring__VerdictBands__Yes=55
       #   - Prompts__Analyzer=...   # full prompt text
       #   - Prompts__Evaluator=...  # full prompt text
+      - Prompts__HebrewOutput=${PROMPTS_HEBREW_OUTPUT:-false}
 
   scraper:
     build:

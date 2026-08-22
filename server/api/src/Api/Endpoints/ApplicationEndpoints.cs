@@ -33,7 +33,7 @@ public static class ApplicationEndpoints
                     ApplicationId = created.Id,
                     FromStatus = ApplicationStatus.Analyzing,
                     ToStatus = created.Status,
-                    Note = "משרה נוספה למעקב"
+                    Note = "Job added to tracking"
                 }, ct);
 
                 logger.LogInformation("Application created: {Id} - {Title} at {Company}", created.Id, created.JobTitle, created.Company);

@@ -286,7 +286,7 @@ export default function AnalysisCard({ matchAnalysisJson }: AnalysisCardProps) {
               <h4 className="font-medium text-[16px] text-[var(--ed-ink)] mb-3">Company News Signals</h4>
               <SignalRows green={a.companyNewsAnalysis.greenSignals} red={a.companyNewsAnalysis.redSignals} />
               {a.companyNewsAnalysis.summary && (
-                <p dir="rtl" className="text-[16px] text-[var(--ed-ink-soft)] leading-[1.6] mt-2 text-right">{a.companyNewsAnalysis.summary}</p>
+                <p dir="auto" className="text-[16px] text-[var(--ed-ink-soft)] leading-[1.6] mt-2">{a.companyNewsAnalysis.summary}</p>
               )}
             </div>
           )}
@@ -297,7 +297,7 @@ export default function AnalysisCard({ matchAnalysisJson }: AnalysisCardProps) {
               <h4 className="font-medium text-[16px] text-[var(--ed-ink)] mb-3">Employee Review Signals</h4>
               <SignalRows green={a.employeeReviewsAnalysis.greenSignals} red={a.employeeReviewsAnalysis.redSignals} />
               {a.employeeReviewsAnalysis.summary && (
-                <p dir="rtl" className="text-[16px] text-[var(--ed-ink-soft)] leading-[1.6] mt-2 text-right">{a.employeeReviewsAnalysis.summary}</p>
+                <p dir="auto" className="text-[16px] text-[var(--ed-ink-soft)] leading-[1.6] mt-2">{a.employeeReviewsAnalysis.summary}</p>
               )}
             </div>
           )}

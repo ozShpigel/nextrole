@@ -185,7 +185,7 @@ export default function MockInterviewPage() {
 
   const [phase, setPhase] = useState<Phase>('setup');
   const [persona, setPersona] = useState<MockPersona>('hr');
-  const [language, setLanguage] = useState<MockLanguage>('he');
+  const [language, setLanguage] = useState<MockLanguage>('en');
   const [questionTarget, setQuestionTarget] = useState(6);
   const [transcript, setTranscript] = useState<MockTurn[]>([]);
   const [finished, setFinished] = useState(false);
@@ -546,7 +546,7 @@ function SessionRow({ s, onReview }: { s: MockSessionListItem; onReview: (id: st
 /* ------------------------------------------------------------------ */
 function ReviewView({ sessionId, onBack }: { sessionId: string; onBack: () => void }) {
   const q = useMockSession(sessionId, true);
-  const dir: 'rtl' | 'ltr' = q.data?.language === 'en' ? 'ltr' : 'rtl';
+  const dir: 'rtl' | 'ltr' = q.data?.language === 'he' ? 'rtl' : 'ltr';
 
   return (
     <div>

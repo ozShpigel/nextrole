@@ -9,4 +9,12 @@ public sealed class PromptOptions
 {
     public string Analyzer { get; set; } = PromptSeeds.Analyst;
     public string Evaluator { get; set; } = PromptSeeds.Evaluator;
+
+    // Controls the {{OUTPUT_LANGUAGE}} token substituted into every
+    // narrative-generating prompt (Evaluator, NarrativeEnrichment,
+    // CompanySummary, PresentationCues, WhyWorkHere, TitleTriage,
+    // InterviewInsights). Default false = English everywhere. Set true
+    // (Prompts__HebrewOutput=true) only on the deployment that wants Hebrew
+    // narrative output.
+    public bool HebrewOutput { get; set; } = false;
 }

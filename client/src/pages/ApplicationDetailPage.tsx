@@ -236,7 +236,7 @@ function CompanySummaryBlock({ appId, initialSummary }: { appId: string; initial
         }
       />
       {summary ? (
-        <p dir="rtl" className="text-[16px] leading-[1.8] text-[var(--ed-ink)] whitespace-pre-wrap text-right m-0">
+        <p dir="auto" className="text-[16px] leading-[1.8] text-[var(--ed-ink)] whitespace-pre-wrap m-0">
           {summary}
         </p>
       ) : (
@@ -283,7 +283,7 @@ function WhyWorkHereBlock({ appId, initialAnswer }: { appId: string; initialAnsw
       />
       {answer ? (
         <div className="relative">
-          <p dir="rtl" className="text-[16px] leading-[1.8] text-[var(--ed-ink)] whitespace-pre-wrap text-right m-0 pl-16">
+          <p dir="auto" className="text-[16px] leading-[1.8] text-[var(--ed-ink)] whitespace-pre-wrap m-0 pl-16">
             {answer}
           </p>
           <button

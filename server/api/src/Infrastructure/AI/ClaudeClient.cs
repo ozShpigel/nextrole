@@ -158,6 +158,12 @@ public sealed class ClaudeClient : IClaudeClient
     private string EvaluatorPrompt =>
         string.IsNullOrWhiteSpace(_prompts.Evaluator) ? PromptSeeds.Evaluator : _prompts.Evaluator;
 
+    // {{OUTPUT_LANGUAGE}} substitution for the prompts that don't go through
+    // PromptBuilder (which does its own copy of this same resolution). Default
+    // English; Hebrew only when Prompts__HebrewOutput=true.
+    private string ResolveOutputLanguage(string prompt) =>
+        prompt.Replace("{{OUTPUT_LANGUAGE}}", _prompts.HebrewOutput ? "Hebrew" : "English");
+
     public Task<(ParsedJob Parsed, ClaudeCallSnapshot Snapshot)> ParseJobDescriptionAsync(string jobDescription, CancellationToken cancellationToken = default)
         => ParseJobDescriptionAsync(jobDescription, AnalystPrompt, _scoring.Analyst, cancellationToken);
 
@@ -329,7 +335,7 @@ public sealed class ClaudeClient : IClaudeClient
 
         var parameters = new MessageParameters
         {
-            System = new List<SystemMessage> { new(PromptSeeds.CompanySummary) },
+            System = new List<SystemMessage> { new(ResolveOutputLanguage(PromptSeeds.CompanySummary)) },
             Messages = new List<Message> { new(RoleType.User, companyName) },
             MaxTokens = 512,
             Model = "claude-haiku-4-5-20251001",
@@ -352,13 +358,13 @@ public sealed class ClaudeClient : IClaudeClient
         // System prompt: trusted instructions + the user's own (trusted) profile
         // and self-presentation. External company/job data goes in the user
         // message wrapped in XML tags (treated as untrusted data).
-        var systemBuilder = new System.Text.StringBuilder(PromptSeeds.WhyWorkHere);
+        var systemBuilder = new System.Text.StringBuilder(ResolveOutputLanguage(PromptSeeds.WhyWorkHere));
         if (!string.IsNullOrWhiteSpace(profile))
-            systemBuilder.Append("\n\n# פרופיל המועמד\n").Append(profile.Trim());
+            systemBuilder.Append("\n\n# Candidate Profile\n").Append(profile.Trim());
         if (!string.IsNullOrWhiteSpace(prep.SelfPresentationHr))
-            systemBuilder.Append("\n\n# הצגה עצמית (HR)\n").Append(prep.SelfPresentationHr.Trim());
+            systemBuilder.Append("\n\n# Self-Presentation (HR)\n").Append(prep.SelfPresentationHr.Trim());
         if (!string.IsNullOrWhiteSpace(prep.SelfPresentationTechnical))
-            systemBuilder.Append("\n\n# הצגה עצמית (טכנית)\n").Append(prep.SelfPresentationTechnical.Trim());
+            systemBuilder.Append("\n\n# Self-Presentation (Technical)\n").Append(prep.SelfPresentationTechnical.Trim());
 
         var userBuilder = new System.Text.StringBuilder();
         userBuilder.Append("<company>").Append(app.Company).Append("</company>\n");
@@ -400,7 +406,7 @@ public sealed class ClaudeClient : IClaudeClient
 
         var parameters = new MessageParameters
         {
-            System = new List<SystemMessage> { new(PromptSeeds.PresentationCues) },
+            System = new List<SystemMessage> { new(ResolveOutputLanguage(PromptSeeds.PresentationCues)) },
             Messages = new List<Message> { new(RoleType.User, userMessage) },
             MaxTokens = 1024,
             Model = "claude-haiku-4-5-20251001",
@@ -445,7 +451,7 @@ public sealed class ClaudeClient : IClaudeClient
 
         var parameters = new MessageParameters
         {
-            System = new List<SystemMessage> { new(PromptSeeds.TitleTriage) },
+            System = new List<SystemMessage> { new(ResolveOutputLanguage(PromptSeeds.TitleTriage)) },
             Messages = new List<Message> { new(RoleType.User, userMessage) },
             MaxTokens = 2000,
             Model = _scoring.Analyst.Model,
@@ -646,7 +652,7 @@ public sealed class ClaudeClient : IClaudeClient
 
         var userMessage = BuildInterviewInsightsUserMessage(retros);
         var (result, _) = await CallClaudeAsync<InterviewInsightsSynthesis>(
-            PromptSeeds.InterviewInsights, userMessage, _scoring.InterviewInsights, "interview-insights", cancellationToken);
+            ResolveOutputLanguage(PromptSeeds.InterviewInsights), userMessage, _scoring.InterviewInsights, "interview-insights", cancellationToken);
 
         return result;
     }
@@ -712,36 +718,36 @@ public sealed class ClaudeClient : IClaudeClient
         var sb = new System.Text.StringBuilder(seed);
 
         var personaLine = context.Persona == "technical"
-            ? "אתה בתפקיד מראיין/ת טכני/ת. התמקד בעומק טכני, החלטות הנדסיות, פתרון בעיות, מערכות וניסיון מעשי."
-            : "אתה בתפקיד מראיין/ת HR / מגייס/ת. התמקד במוטיבציה, התאמה תרבותית, ערכים, ציפיות ותקשורת בין-אישית.";
-        sb.Append("\n\n# סוג המראיין\n").Append(personaLine);
+            ? "You are acting as a technical interviewer. Focus on technical depth, engineering decisions, problem-solving, systems, and hands-on experience."
+            : "You are acting as an HR / recruiter interviewer. Focus on motivation, cultural fit, values, expectations, and interpersonal communication.";
+        sb.Append("\n\n# Interviewer type\n").Append(personaLine);
 
         if (context.Language == "en")
-            sb.Append("\n\n# שפת הראיון\nנהל את שיח הראיון — השאלות וה-nudge — באנגלית.");
+            sb.Append("\n\n# Interview language\nConduct the interview dialogue — questions and nudge — in English.");
         else
-            sb.Append("\n\n# שפת הראיון\nנהל את שיח הראיון בעברית. מונחים טכניים נשארים באנגלית.");
+            sb.Append("\n\n# Interview language\nConduct the interview dialogue in Hebrew. Technical terms stay in English.");
 
         if (seed == PromptSeeds.MockInterviewTurn)
-            sb.Append("\n\n# מספר שאלות מתוכנן\nכ-").Append(context.QuestionTarget)
-              .Append(" שאלות (כולל שאלות המשך). סיים סביב מספר זה.");
+            sb.Append("\n\n# Planned number of questions\nAbout ").Append(context.QuestionTarget)
+              .Append(" questions (including follow-ups). Wrap up around this number.");
 
         if (!string.IsNullOrWhiteSpace(profile))
-            sb.Append("\n\n# פרופיל המועמד\n").Append(profile.Trim());
+            sb.Append("\n\n# Candidate Profile\n").Append(profile.Trim());
 
         var presentation = context.Persona == "technical" ? prep.SelfPresentationTechnical : prep.SelfPresentationHr;
         if (!string.IsNullOrWhiteSpace(presentation))
-            sb.Append("\n\n# הצגה עצמית\n").Append(presentation.Trim());
+            sb.Append("\n\n# Self-Presentation\n").Append(presentation.Trim());
         if (!string.IsNullOrWhiteSpace(prep.PresentingWorkProject))
-            sb.Append("\n\n# הצגת פרויקט מהעבודה\n").Append(prep.PresentingWorkProject.Trim());
+            sb.Append("\n\n# Work Project Pitch\n").Append(prep.PresentingWorkProject.Trim());
         if (!string.IsNullOrWhiteSpace(prep.PresentingPersonalProject))
-            sb.Append("\n\n# הצגת פרויקט אישי\n").Append(prep.PresentingPersonalProject.Trim());
+            sb.Append("\n\n# Personal Project Pitch\n").Append(prep.PresentingPersonalProject.Trim());
 
         var questions = prep.QaRubric
             .Select(q => q.Question?.Trim() ?? "")
             .Where(q => q.Length > 0)
             .ToList();
         if (questions.Count > 0)
-            sb.Append("\n\n# שלד שאלות שהמשתמש הכין\n")
+            sb.Append("\n\n# Question outline the user prepared\n")
               .Append(string.Join("\n", questions.Select(q => "- " + q)));
 
         return sb.ToString();

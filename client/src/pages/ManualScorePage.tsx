@@ -1,16 +1,14 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useScoreJob, useAddApplication } from '../lib/mutations';
-import type { MatchResponse } from '../lib/types';
+import { Link2, Check } from 'lucide-react';
+import { useAddApplication } from '../lib/mutations';
+import type { MatchResponse, ImportJobResult } from '../lib/types';
 import AnalysisCard from '../components/AnalysisCard';
 import { InterviewModal } from '../components/Interviews';
+import { ScoreJobModal, type ScoredJob } from '../components/ScoreJobModal';
 import { STATUS_LABELS } from '../lib/tracker';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
-
-const MIN_DESCRIPTION = 50;
 
 // Analyzing is the discovery pipeline's pre-decision state — a job you scored
 // and chose to save has, by definition, moved past it.
@@ -25,24 +23,23 @@ interface SavedRef {
 }
 
 export default function ManualScorePage() {
+  const [showScoreModal, setShowScoreModal] = useState(false);
+  const [imported, setImported] = useState<ImportJobResult[]>([]);
+
   const [title, setTitle] = useState('');
   const [company, setCompany] = useState('');
-  const [location, setLocation] = useState('');
   const [description, setDescription] = useState('');
 
   const [result, setResult] = useState<MatchResponse | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState('DecidedToApply');
   const [saved, setSaved] = useState<SavedRef | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [showInterviewModal, setShowInterviewModal] = useState(false);
   const [interviewScheduled, setInterviewScheduled] = useState(false);
 
-  const scoreJob = useScoreJob();
-  const addApplication = useAddApplication();
+  const resultRef = useRef<HTMLDivElement>(null);
 
-  const trimmedDescription = description.trim();
-  const canScore = trimmedDescription.length >= MIN_DESCRIPTION && !scoreJob.isPending;
+  const addApplication = useAddApplication();
 
   // The save needs a job title + company. Prefer what the user typed; fall back
   // to what the analyst extracted from the description.
@@ -50,24 +47,27 @@ export default function ManualScorePage() {
   const resolvedCompany = (company.trim() || result?.company || '').trim();
   const canSave = !!result && !!resolvedTitle && !!resolvedCompany && !saved && !addApplication.isPending;
 
-  function handleScore(): void {
-    if (!canScore) return;
-    setError(null);
-    setSaveError(null);
+  useEffect(() => {
+    if (result || imported.length > 0) resultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [result, imported]);
+
+  function handleScored(job: ScoredJob): void {
+    setImported([]);
+    setTitle(job.title);
+    setCompany(job.company);
+    setDescription(job.description);
+    setResult(job.result);
     setSaved(null);
+    setSaveError(null);
+    setShowInterviewModal(false);
+    setInterviewScheduled(false);
+    setStatus('DecidedToApply');
+    setShowScoreModal(false);
+  }
+
+  function handleImported(results: ImportJobResult[]): void {
     setResult(null);
-    scoreJob.mutate(
-      {
-        jobDescription: trimmedDescription,
-        title: title.trim() || undefined,
-        company: company.trim() || undefined,
-        location: location.trim() || undefined,
-      },
-      {
-        onSuccess: (data) => setResult(data),
-        onError: (e) => setError((e as Error).message),
-      },
-    );
+    setImported((prev) => [...prev, ...results]);
   }
 
   function handleSave(): void {
@@ -87,7 +87,7 @@ export default function ManualScorePage() {
         jobTitle: resolvedTitle,
         company: resolvedCompany,
         status,
-        jobDescription: trimmedDescription,
+        jobDescription: description,
         matchScore: result.overallScore ?? null,
         matchVerdict: result.verdict,
         matchAnalysis: JSON.stringify(analysis),
@@ -104,18 +104,17 @@ export default function ManualScorePage() {
     );
   }
 
-  function handleReset(): void {
+  function handleScoreAnother(): void {
     setTitle('');
     setCompany('');
-    setLocation('');
     setDescription('');
     setResult(null);
-    setError(null);
-    setStatus('DecidedToApply');
+    setImported([]);
     setSaved(null);
     setSaveError(null);
     setShowInterviewModal(false);
     setInterviewScheduled(false);
+    setShowScoreModal(true);
   }
 
   return (
@@ -131,66 +130,77 @@ export default function ManualScorePage() {
           Score a <span className="italic font-medium text-[var(--ed-accent)]">Job</span>
         </h1>
         <p className="mt-3 text-[var(--ed-ink-soft)] text-[0.95rem] max-w-[560px] leading-[1.6]">
-          Paste a job description to score it against your profile — the same AI analysis as discovery, on demand. Save the ones worth pursuing straight to your tracker.
+          See how well any job matches your profile — before you apply.
         </p>
         <div className="mt-5 border-t-[3px] border-double border-[var(--ed-rule-strong)]" />
       </header>
 
-      <div className="border border-[var(--ed-rule)] p-6 mb-9">
-        <div className="grid grid-cols-2 gap-4 mb-4 max-[640px]:grid-cols-1">
-          <div className="flex flex-col gap-[0.4rem]">
-            <Label htmlFor="ms-title">Job Title</Label>
-            <Input id="ms-title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Senior Backend Engineer" />
+      {!result && imported.length === 0 && (
+        <div className="border border-[var(--ed-rule)] bg-[var(--ed-panel)]/40 p-9 flex flex-col items-center text-center gap-4">
+          <div className="w-11 h-11 rounded-lg bg-[var(--ed-accent)]/15 text-[var(--ed-accent)] flex items-center justify-center">
+            <Link2 size={20} aria-hidden="true" />
           </div>
-          <div className="flex flex-col gap-[0.4rem]">
-            <Label htmlFor="ms-company">Company</Label>
-            <Input id="ms-company" value={company} onChange={(e) => setCompany(e.target.value)} placeholder="e.g. Acme Inc." />
+          <div>
+            <p className="text-[16px] font-medium text-[var(--ed-ink)]">Paste a link or the description</p>
+            <p className="mt-1 text-[0.85rem] text-[var(--ed-ink-faint)]">We&apos;ll score it against your profile in seconds.</p>
           </div>
-        </div>
-        <div className="flex flex-col gap-[0.4rem] mb-4">
-          <Label htmlFor="ms-location">Location <span className="text-[var(--ed-ink-faint)] font-normal">(optional)</span></Label>
-          <Input id="ms-location" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="e.g. Tel Aviv / Remote" />
-        </div>
-        <div className="flex flex-col gap-[0.4rem]">
-          <Label htmlFor="ms-description">Job Description</Label>
-          <Textarea
-            id="ms-description"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder="Paste the full job description here…"
-            dir="auto"
-            className="min-h-[280px] resize-y font-sans text-[0.88rem] leading-[1.6]"
-          />
-          <div className="flex items-center justify-between text-[0.72rem] text-[var(--ed-ink-faint)] tracking-[0.02em]">
-            <span>{title.trim() || company.trim() ? '' : 'Title and company are optional — the analyst will extract them if left blank.'}</span>
-            <span className="tabular-nums">{trimmedDescription.length.toLocaleString()} chars{trimmedDescription.length > 0 && trimmedDescription.length < MIN_DESCRIPTION ? ` · need ${MIN_DESCRIPTION}+` : ''}</span>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2 mt-5">
-          <button type="button" className={ED_PRIMARY} onClick={handleScore} disabled={!canScore}>
-            {scoreJob.isPending ? 'Scoring…' : 'Score Job'}
+          <button type="button" className={ED_PRIMARY} onClick={() => setShowScoreModal(true)}>
+            Score a Job
           </button>
-          {(result || description || title || company || location) && (
-            <button type="button" className={ED_GHOST} onClick={handleReset} disabled={scoreJob.isPending}>
-              Clear
-            </button>
-          )}
-          {scoreJob.isPending && (
-            <span className="text-[0.8rem] text-[var(--ed-ink-faint)]">Running analyst + evaluator — this can take up to a minute.</span>
-          )}
         </div>
+      )}
 
-        {error && (
-          <div className="mt-4 p-3 bg-[var(--ed-no)]/10 text-[var(--ed-no)] text-[0.88rem] border border-[var(--ed-no)]/30">{error}</div>
-        )}
-      </div>
+      {showScoreModal && (
+        <ScoreJobModal
+          onClose={() => setShowScoreModal(false)}
+          onScored={handleScored}
+          onImported={handleImported}
+        />
+      )}
+
+      <div ref={resultRef} />
+
+      {imported.length > 0 && (
+        <div className="border border-[var(--ed-rule)] bg-[var(--ed-panel)]/40 p-6">
+          <div className="flex items-center justify-between gap-4 mb-4">
+            <span className="text-[0.7rem] font-semibold uppercase tracking-[0.14em] text-[var(--ed-ink-faint)]">
+              Imported to Active
+            </span>
+            <button type="button" className={ED_GHOST} onClick={handleScoreAnother}>
+              Score Another
+            </button>
+          </div>
+          <div className="flex flex-col gap-3">
+            {imported.map((r) => (
+              <div key={r.url} className="flex items-center justify-between gap-4">
+                <span className="flex items-center gap-2 text-[0.9rem] text-[var(--ed-ink)]">
+                  <Check size={15} className="shrink-0 text-[var(--ed-yes)]" aria-hidden="true" />
+                  {r.title ?? 'Untitled role'}{r.company ? ` at ${r.company}` : ''}
+                  {typeof r.score === 'number' && (
+                    <span className="text-[var(--ed-ink-faint)]">— score {r.score}{r.verdict ? ` · ${r.verdict}` : ''}</span>
+                  )}
+                </span>
+              </div>
+            ))}
+          </div>
+          <Link to="/active" className={`${ED_PRIMARY} inline-block mt-5`}>View in Active</Link>
+        </div>
+      )}
 
       {result && (
         <>
+          <div className="flex items-center justify-between gap-4 mb-4">
+            <span className="text-[0.7rem] font-semibold uppercase tracking-[0.14em] text-[var(--ed-ink-faint)]">
+              {resolvedTitle && resolvedCompany ? `${resolvedTitle} · ${resolvedCompany}` : 'Result'}
+            </span>
+            <button type="button" className={ED_GHOST} onClick={handleScoreAnother}>
+              Score Another
+            </button>
+          </div>
+
           <AnalysisCard matchAnalysisJson={JSON.stringify(result)} />
 
-          <div className="border border-[var(--ed-rule)] p-5 flex items-center justify-between gap-4 flex-wrap">
+          <div className="border border-[var(--ed-rule)] bg-[var(--ed-panel)]/40 p-5 flex items-center justify-between gap-4 flex-wrap">
             {saved ? (
               <>
                 <span className="text-[0.88rem] text-[var(--ed-yes)] font-semibold uppercase tracking-[0.06em]">
@@ -210,7 +220,7 @@ export default function ManualScorePage() {
                 <div className="text-[0.85rem] text-[var(--ed-ink-soft)] leading-[1.5]">
                   {canSave
                     ? <>Save <span className="text-[var(--ed-ink)] font-semibold">{resolvedTitle}</span> at <span className="text-[var(--ed-ink)] font-semibold">{resolvedCompany}</span>.</>
-                    : 'Add a job title and company above to save it.'}
+                    : 'Missing a job title or company — reopen and add one to save it.'}
                 </div>
                 <div className="flex items-center gap-3 flex-wrap">
                   <div className="flex items-center gap-2">

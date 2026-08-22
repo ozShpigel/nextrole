@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link2, ChevronDown } from 'lucide-react';
+import { Link2, ChevronDown, Loader2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
@@ -126,9 +126,14 @@ export function ScoreJobModal({ onClose, onScored, onImported }: ScoreJobModalPr
         )}
 
         <details className="group" open={showManual} onToggle={(e) => setShowManual((e.target as HTMLDetailsElement).open)}>
-          <summary className="cursor-pointer list-none inline-flex items-center gap-1 text-sm font-medium text-primary">
-            Or paste the description
-            <ChevronDown size={15} className="transition-transform group-open:rotate-180" aria-hidden="true" />
+          <summary className="cursor-pointer list-none flex items-center justify-between gap-2">
+            <span className="inline-flex items-center gap-1 text-sm font-medium text-primary">
+              Or paste the description
+              <ChevronDown size={15} className="transition-transform group-open:rotate-180" aria-hidden="true" />
+            </span>
+            {urls.length > 0 && !tooMany && (
+              <span className="text-xs text-muted-foreground">{urls.length} link{urls.length === 1 ? '' : 's'} detected</span>
+            )}
           </summary>
           <div className="mt-3 flex flex-col gap-3">
             <div className="grid grid-cols-2 gap-3">
@@ -166,6 +171,7 @@ export function ScoreJobModal({ onClose, onScored, onImported }: ScoreJobModalPr
               disabled={!canScore}
               onClick={handleScore}
             >
+              {scoreJob.isPending && <Loader2 size={15} className="animate-spin" aria-hidden="true" />}
               {scoreJob.isPending ? 'Scoring…' : 'Score Job'}
             </Button>
           </div>
@@ -176,6 +182,7 @@ export function ScoreJobModal({ onClose, onScored, onImported }: ScoreJobModalPr
         <DialogFooter>
           <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
           <Button type="button" onClick={handleImportUrls} disabled={!canImport}>
+            {importJobs.isPending && <Loader2 size={15} className="animate-spin" aria-hidden="true" />}
             {importJobs.isPending ? 'Importing…' : 'Import Job'}
           </Button>
         </DialogFooter>

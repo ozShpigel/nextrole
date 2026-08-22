@@ -112,15 +112,23 @@ public sealed class ClaudeClient : IClaudeClient
             throw new InvalidOperationException("Anthropic:ApiKey is not configured");
         }
 
-        var httpClient = httpClientFactory.CreateClient("anthropic");
-        _client = new AnthropicClient(apiKey, httpClient);
+        // Anthropic.SDK's AnthropicClient applies its API key to the HttpClient
+        // it's given (confirmed empirically against SDK 5.9.0: it's sticky on
+        // that HttpClient instance, not sent per-request) — sharing ONE
+        // HttpClient across multiple AnthropicClient instances means whichever
+        // one set the header first "wins" for every call through any of them,
+        // silently defeating per-source key routing below. Each client gets
+        // its own HttpClient from the factory (still pools connections/handlers
+        // under the hood — this is the intended way to call CreateClient more
+        // than once) so its own key actually takes effect.
+        _client = new AnthropicClient(apiKey, httpClientFactory.CreateClient("anthropic"));
 
         var sourceKeys = configuration.GetSection("Anthropic:ApiKeys").Get<Dictionary<string, string>>() ?? [];
         _clientsBySource = new Dictionary<string, AnthropicClient>(StringComparer.OrdinalIgnoreCase);
         foreach (var (source, key) in sourceKeys)
         {
             if (!string.IsNullOrWhiteSpace(key))
-                _clientsBySource[source] = new AnthropicClient(key, httpClient);
+                _clientsBySource[source] = new AnthropicClient(key, httpClientFactory.CreateClient("anthropic"));
         }
 
         _httpContextAccessor = httpContextAccessor;

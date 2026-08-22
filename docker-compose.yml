@@ -7,6 +7,12 @@ services:
       - "5002:8080"
     environment:
       - Anthropic__ApiKey=${ANTHROPIC_API_KEY}
+      # Per-source key for scraper-initiated calls (ClaudeClient.ResolveClient,
+      # routed by the X-Source: ingest header set in
+      # server/scraper/app/services/tracker_client.py) — optional, blank-
+      # guarded back to the default key above if unset. Lets the Anthropic
+      # console bill discovery/ingest scoring separately from everything else.
+      - Anthropic__ApiKeys__ingest=${ANTHROPIC_INGEST_API_KEY:-}
       - MongoDB__ConnectionString=${MONGODB_CONNECTION_STRING}
       - MongoDB__ProfileDatabase=${JOBMATCH_MONGO_DB:-jobmatch}
       # Read-only scoring config & prompts (Options pattern). Optional overrides —

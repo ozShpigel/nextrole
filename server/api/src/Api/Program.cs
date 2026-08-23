@@ -124,6 +124,7 @@ try
         app.Services.GetRequiredService<IMongoCollection<Note>>(),
         app.Services.GetRequiredService<IMongoCollection<StatusUpdate>>(),
         app.Services.GetRequiredService<IMongoCollection<TrackedEmail>>(),
+        app.Services.GetRequiredService<IMongoCollection<MatchSnapshot>>(),
         startupLogger);
 }
 catch (Exception ex)

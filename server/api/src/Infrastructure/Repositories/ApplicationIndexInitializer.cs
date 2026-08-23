@@ -25,6 +25,8 @@ public static class ApplicationIndexInitializer
 
     private const string ApplicationIdIndex = "idx_applicationid";
     private const string UniqueGmailMessageIdIndex = "uniq_gmailmessageid";
+    private const string SnapshotTtlIndex = "ttl_createdat_90d";
+    private static readonly TimeSpan SnapshotTtl = TimeSpan.FromDays(90);
 
     public static async Task EnsureIndexesAsync(
         IMongoCollection<Application> applications,
@@ -32,6 +34,7 @@ public static class ApplicationIndexInitializer
         IMongoCollection<Note> notes,
         IMongoCollection<StatusUpdate> statusUpdates,
         IMongoCollection<TrackedEmail> messages,
+        IMongoCollection<MatchSnapshot> matchSnapshots,
         ILogger logger,
         CancellationToken ct = default)
     {
@@ -85,6 +88,20 @@ public static class ApplicationIndexInitializer
             cancellationToken: ct);
         logger.LogInformation(
             "Ensured unique index {Index} on messages(GmailMessageId)", UniqueGmailMessageIdIndex);
+
+        // matchSnapshots is content-addressed (see MatchSnapshot) — a
+        // document can outlive every application that ever referenced it
+        // (e.g. all of them deleted) with nothing to clean it up. Nothing in
+        // this codebase currently reads SnapshotId back for display, so
+        // there's no live read path a TTL could break; 90 days bounds growth
+        // the same way the scraper's own discovered_jobs TTL does (60 days —
+        // longer here since these came from tracked, not just discovered, jobs).
+        await matchSnapshots.Indexes.CreateOneAsync(
+            new CreateIndexModel<MatchSnapshot>(Builders<MatchSnapshot>.IndexKeys.Ascending(s => s.CreatedAt),
+                new CreateIndexOptions { Name = SnapshotTtlIndex, ExpireAfter = SnapshotTtl }),
+            cancellationToken: ct);
+        logger.LogInformation(
+            "Ensured TTL index {Index} on matchSnapshots(CreatedAt), expires after {Days}d", SnapshotTtlIndex, SnapshotTtl.TotalDays);
     }
 
     private static async Task RemoveDuplicateMessagesAsync(

@@ -123,6 +123,7 @@ try
         app.Services.GetRequiredService<IMongoCollection<Interview>>(),
         app.Services.GetRequiredService<IMongoCollection<Note>>(),
         app.Services.GetRequiredService<IMongoCollection<StatusUpdate>>(),
+        app.Services.GetRequiredService<IMongoCollection<TrackedEmail>>(),
         startupLogger);
 }
 catch (Exception ex)

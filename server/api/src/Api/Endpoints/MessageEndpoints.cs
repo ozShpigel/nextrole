@@ -85,9 +85,10 @@ public static class MessageEndpoints
         .WithName("DeleteMessage")
         .WithSummary("Delete a mailbot-parsed email");
 
-        // Client-only UI state, not a tracker record change — stays OUT of the
-        // demo allowlist anyway (same stance as delete above) since it still
-        // persists to the seeded demo data.
+        // Client-only UI state, not a tracker record change — unlike delete
+        // above, this IS in the demo allowlist (Program.cs's messageReadPath):
+        // blocking it made the client's optimistic isRead update 403, revert,
+        // and re-fire in a loop that read as the Messages page flickering.
         app.MapPatch("/api/messages/{id:guid}/read", async (
             Guid id,
             ITrackedEmailRepository repo,

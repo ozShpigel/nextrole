@@ -155,7 +155,9 @@ app.UseRateLimiter();
 // Optional shared-secret gate for a privately *hosted* instance (no auth otherwise —
 // single-tenant by design): when ApiKey is set, every request must carry a matching
 // X-Api-Key header. The demo and local instances leave it unset. /health stays open
-// for Render health checks; /api/config only reveals demoMode.
+// for external uptime/health checks (nothing in this repo's deploy config wires one
+// up automatically today, but gating it behind the key would break one if added);
+// /api/config only reveals demoMode.
 var apiKeySecret = builder.Configuration["ApiKey"];
 if (!string.IsNullOrEmpty(apiKeySecret))
 {

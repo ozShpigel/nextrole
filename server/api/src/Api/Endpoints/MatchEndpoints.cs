@@ -450,6 +450,10 @@ public static class MatchEndpoints
         .WithName("DownloadResumeFile")
         .WithSummary("Stream the currently-stored résumé file for inline preview");
 
+        // Unused: the Settings History UI was deliberately removed
+        // (SettingsPage.test.tsx asserts no "History" button renders) but this
+        // pair and MongoProfileProvider's underlying write path were left in
+        // place — no client caller as of 2026-08-23.
         app.MapGet("/api/match/profile/history/{field}", async (
             string field,
             IProfileProvider provider,
@@ -474,6 +478,7 @@ public static class MatchEndpoints
         .WithName("GetProfileHistory")
         .WithSummary("List prior versions of the profile content");
 
+        // Unused, same as the GET above.
         app.MapPost("/api/match/profile/history/{field}/restore", async (
             string field,
             [FromBody] RestoreHistoryRequest request,
@@ -584,6 +589,7 @@ public static class MatchEndpoints
         .WithName("UpdateInterviewPrep")
         .WithSummary("Update interview prep content (all fields optional, carry-forward semantics)");
 
+        // Unused: same dead History UI as /api/match/profile/history above.
         app.MapGet("/api/match/interview-prep/history/{field}", async (
             string field,
             IProfileProvider provider,
@@ -608,6 +614,7 @@ public static class MatchEndpoints
         .WithName("GetInterviewPrepHistory")
         .WithSummary("List prior versions of an interview prep field");
 
+        // Unused, same as the GET above.
         app.MapPost("/api/match/interview-prep/history/{field}/restore", async (
             string field,
             [FromBody] RestoreHistoryRequest request,

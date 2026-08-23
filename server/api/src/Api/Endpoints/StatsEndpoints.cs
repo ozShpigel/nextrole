@@ -47,6 +47,9 @@ public static class StatsEndpoints
         .WithName("GetStats")
         .WithSummary("Get application statistics");
 
+        // Unused: no client/scraper/mailbot caller as of 2026-08-23 — the client's
+        // own Timeline.tsx builds its view client-side from data GET
+        // /api/applications/{id} already returns, never called this route.
         app.MapGet("/api/applications/{id:guid}/timeline", async (
             Guid id,
             IStatusUpdateRepository statusRepo,

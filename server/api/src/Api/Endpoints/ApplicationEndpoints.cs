@@ -14,12 +14,32 @@ public static class ApplicationEndpoints
         app.MapPost("/api/applications", async (
             [FromBody] Application application,
             IApplicationRepository repo,
+            IMatchSnapshotRepository snapshots,
             IStatusUpdateRepository statusRepo,
             ILogger<Program> logger,
             CancellationToken ct) =>
         {
             try
             {
+                // Content-address the raw Claude snapshot text into its own
+                // collection before persisting — batch-scored jobs send the
+                // same shared text on every one of their applications, and
+                // this collapses N copies to one stored document (see
+                // MatchSnapshot). The raw fields themselves are [BsonIgnore]
+                // on Application, so clearing them here also keeps the
+                // response body honest about what actually got stored.
+                var snapshotId = await snapshots.UpsertAsync(
+                    application.AnalystSnapshotInput, application.AnalystSnapshotOutput,
+                    application.EvaluatorSnapshotInput, application.EvaluatorSnapshotOutput, ct);
+                application = application with
+                {
+                    SnapshotId = snapshotId,
+                    AnalystSnapshotInput = null,
+                    AnalystSnapshotOutput = null,
+                    EvaluatorSnapshotInput = null,
+                    EvaluatorSnapshotOutput = null,
+                };
+
                 var (created, isNew) = await repo.CreateAsync(application, ct);
 
                 if (!isNew)

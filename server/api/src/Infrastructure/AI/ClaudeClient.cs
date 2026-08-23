@@ -295,24 +295,49 @@ public sealed class ClaudeClient : IClaudeClient
     {
         _logger.LogInformation("Parsing email: {Subject}", subject);
 
+        // Company names come from scraped job postings — untrusted. They must not
+        // be interpolated into the system prompt; they go in the user message,
+        // XML-wrapped like the email itself, so prompt-injection attempts in a
+        // poisoned company name are treated as data, not instructions.
         var companiesList = string.Join(", ", knownCompanies);
         // Reference date for resolving day-first / year-less / relative interview
         // dates (e.g. "28.6" → 2026-06-28). Use the email's own received date when
         // known (so re-syncing old mail resolves the right year); else now.
         var refDate = (referenceDate ?? DateTime.UtcNow).ToString("yyyy-MM-dd");
-        var systemPrompt = string.Format(PromptSeeds.EmailParser, companiesList, refDate);
-        var userMessage = $"<email>\n<subject>{subject}</subject>\n<from>{from}</from>\n<body>{body}</body>\n</email>";
+        var systemPrompt = string.Format(PromptSeeds.EmailParser, refDate);
 
         var parameters = new MessageParameters
         {
-            // System prompt (known-companies list + reference date) repeats across
-            // every email in a mailbot run — cache it so only the first email per
+            // System prompt (instructions + reference date) repeats across every
+            // email in a mailbot run — cache it so only the first email per
             // distinct reference date pays full input price.
             System = new List<SystemMessage>
             {
                 new(systemPrompt, new CacheControl { Type = CacheControlType.ephemeral, TTL = CacheDuration.OneHour }),
             },
-            Messages = new List<Message> { new(RoleType.User, userMessage) },
+            Messages = new List<Message>
+            {
+                new()
+                {
+                    Role = RoleType.User,
+                    Content = new List<ContentBase>
+                    {
+                        // The known-companies list also repeats across every email in
+                        // a run — cache it as its own block so moving it out of the
+                        // system prompt doesn't reintroduce the cache-fragmentation
+                        // cost bug this project already fixed once.
+                        new TextContent
+                        {
+                            Text = $"<known_companies>\n{companiesList}\n</known_companies>",
+                            CacheControl = new CacheControl { Type = CacheControlType.ephemeral, TTL = CacheDuration.OneHour },
+                        },
+                        new TextContent
+                        {
+                            Text = $"<email>\n<subject>{subject}</subject>\n<from>{from}</from>\n<body>{body}</body>\n</email>",
+                        },
+                    },
+                },
+            },
             MaxTokens = 512,
             // Simple structured extraction — Haiku handles it at ~1/3 the cost of
             // Sonnet, and the daily 3d-lookback re-parses every email ~3 times.

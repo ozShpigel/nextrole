@@ -105,9 +105,12 @@ public static class MatchEndpoints
 
 
         // Title triage: one Haiku call per discovery run, before any embedding.
-        // Scraper-internal — called once per run, so no
-        // rate limiting. Flags clearly off-target titles (job-board padding);
-        // the scraper fails open (keeps everything) when this call errors.
+        // Intended to be called once per run by the scraper, but it's reachable
+        // (and allowlisted in demo) without auth, so it shares the "discovery"
+        // rate-limit bucket like every other batched ingest-time AI call — a
+        // real once-per-run call never gets close to that bucket's headroom.
+        // Flags clearly off-target titles (job-board padding); the scraper
+        // fails open (keeps everything) when this call errors.
         app.MapPost("/api/match/title-triage", async (
             [FromBody] TitleTriageRequest request,
             ApplicationTracker.Core.AI.IClaudeClient claude,
@@ -116,10 +119,14 @@ public static class MatchEndpoints
         {
             if (string.IsNullOrWhiteSpace(request?.SearchIntent))
                 return Results.BadRequest(new { error = "SearchIntent is required" });
+            if (request.SearchIntent.Length > 500)
+                return Results.BadRequest(new { error = "SearchIntent exceeds maximum length of 500 characters" });
             if (request.Titles is null || request.Titles.Count == 0)
                 return Results.BadRequest(new { error = "at least one title is required" });
             if (request.Titles.Count > 200)
                 return Results.BadRequest(new { error = "too many titles (max 200)" });
+            if (request.Titles.Any(t => t.Title.Length > 500))
+                return Results.BadRequest(new { error = "a title exceeds maximum length of 500 characters" });
             try
             {
                 var result = await claude.TriageTitlesAsync(request, ct);
@@ -131,6 +138,7 @@ public static class MatchEndpoints
                 return Results.Problem(detail: "An error occurred while triaging titles", statusCode: 500);
             }
         })
+        .RequireRateLimiting("discovery")
         .WithName("TriageTitles")
         .WithSummary("Filter scraped job titles by search-intent relevance (one Haiku call per run)");
 
@@ -138,9 +146,11 @@ public static class MatchEndpoints
         // like title-triage above. Classifies each relevant scraped job's
         // ACTUAL seniority band from title+description — source-agnostic,
         // replacing reliance on jobspy's LinkedIn-only job_level tag as the
-        // client-side filter. Scraper-internal — called once per run, no rate
-        // limiting; fails open (every job gets actualSeniority=null, which
-        // never excludes) when this call errors.
+        // client-side filter. Same reachability caveat as title-triage above —
+        // shares the "discovery" bucket and caps per-description length so an
+        // unauthenticated caller can't drive unbounded Anthropic spend; fails
+        // open (every job gets actualSeniority=null, which never excludes)
+        // when this call errors.
         app.MapPost("/api/match/seniority-classify", async (
             [FromBody] SeniorityClassifyRequest request,
             ApplicationTracker.Core.AI.IClaudeClient claude,
@@ -151,6 +161,8 @@ public static class MatchEndpoints
                 return Results.BadRequest(new { error = "at least one job is required" });
             if (request.Jobs.Count > 200)
                 return Results.BadRequest(new { error = "too many jobs (max 200)" });
+            if (request.Jobs.Any(j => (j.Description?.Length ?? 0) > 50_000))
+                return Results.BadRequest(new { error = "a job description exceeds maximum length of 50,000 characters" });
             try
             {
                 var result = await claude.ClassifySeniorityAsync(request, ct);
@@ -162,6 +174,7 @@ public static class MatchEndpoints
                 return Results.Problem(detail: "An error occurred while classifying job seniority", statusCode: 500);
             }
         })
+        .RequireRateLimiting("discovery")
         .WithName("ClassifySeniority")
         .WithSummary("Classify scraped jobs' actual seniority band from title+description (one Haiku call per run)");
 

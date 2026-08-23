@@ -16,9 +16,15 @@ public static class EmailParseEndpoints
         {
             if (request.KnownCompanies is null || request.KnownCompanies.Count == 0)
                 return Results.BadRequest(new { error = "KnownCompanies is required" });
+            if (request.KnownCompanies.Count > 1000)
+                return Results.BadRequest(new { error = "too many known companies (max 1000)" });
 
             if (string.IsNullOrWhiteSpace(request.Subject) && string.IsNullOrWhiteSpace(request.Body))
                 return Results.BadRequest(new { error = "Subject or Body is required" });
+            if ((request.Subject?.Length ?? 0) > 500)
+                return Results.BadRequest(new { error = "Subject exceeds maximum length of 500 characters" });
+            if ((request.Body?.Length ?? 0) > 50_000)
+                return Results.BadRequest(new { error = "Body exceeds maximum length of 50,000 characters" });
 
             try
             {
@@ -41,6 +47,11 @@ public static class EmailParseEndpoints
                 return Results.Problem("An error occurred while parsing the email", statusCode: 500);
             }
         })
+        // Mailbot-triggered, batch-style (one call per synced email, not
+        // interactive) — shares the "discovery" bucket like the scraper's
+        // other batched AI calls. Also reachable/allowlisted in demo, so this
+        // isn't optional the way an internal-only call would be.
+        .RequireRateLimiting("discovery")
         .WithName("ParseEmail")
         .WithSummary("Parse a job-related email using AI");
 

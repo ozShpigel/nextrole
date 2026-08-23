@@ -322,10 +322,9 @@ export default function ActivePage() {
               ))}
               {appliedStale.length > 0 && (
                 <details className="mt-1 group">
-                  <summary className="cursor-pointer list-none inline-flex items-baseline gap-[0.6rem] py-[0.4rem] text-[var(--ed-ink-faint)] hover:text-[var(--ed-ink-soft)] transition-colors">
+                  <summary className="cursor-pointer list-none inline-flex items-baseline gap-[0.5rem] py-[0.4rem] text-[var(--ed-ink-faint)] hover:text-[var(--ed-ink-soft)] transition-colors">
                     <span aria-hidden="true" className="text-[13px] leading-none transition-transform group-open:rotate-90">▸</span>
-                    <span className="text-[13px] uppercase tracking-[0.16em] font-medium">Older</span>
-                    <span className="text-[13px] text-[var(--ed-ink-faint)]/70 tabular-nums">· {appliedStale.length} silent {APPLIED_STALE_DAYS}d+</span>
+                    <span className="text-[13px] tabular-nums">{appliedStale.length} more</span>
                   </summary>
                   <div className="flex flex-col gap-4 border-t border-[var(--ed-rule)] pt-4 mt-1">
                     {appliedStale.map((a, i) => (

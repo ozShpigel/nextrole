@@ -8,7 +8,8 @@ EXPECTED="caddy api client scraper demo-api demo-client demo-scraper"
 DOWN=""
 
 for svc in $EXPECTED; do
-  status=$(docker compose ps --format '{{.State}}' "$svc" 2>/dev/null || echo "missing")
+  status=$(docker compose ps -a --format '{{.State}}' "$svc" 2>/dev/null || echo "missing")
+  status=${status:-missing}
   [ "$status" = "running" ] || DOWN="$DOWN $svc($status)"
 done
 

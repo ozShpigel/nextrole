@@ -66,6 +66,8 @@ services:
       - ./gmail-token.json:/etc/secrets/gmail-token.json:ro
   loki:
     image: grafana/loki:3.0.0
+    ports:
+      - "127.0.0.1:3100:3100"    
     command: -config.file=/etc/loki/config.yml
     volumes:
       - ./monitoring/loki-config.yml:/etc/loki/config.yml:ro

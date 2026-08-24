@@ -16,11 +16,9 @@ scrape_configs:
       - source_labels: ['__meta_docker_container_name']
         regex: '/nextrole-(.*)-[0-9]+'
         target_label: 'service'
+      - target_label: 'env'
+        replacement: 'prod'
       - source_labels: ['service']
         regex: 'demo-.*'
         target_label: 'env'
         replacement: 'demo'
-      - source_labels: ['service']
-        regex: '^(?!demo-).*'
-        target_label: 'env'
-        replacement: 'prod'

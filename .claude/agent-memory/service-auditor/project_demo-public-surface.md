@@ -22,6 +22,15 @@ no auth. Cost/abuse exposure is decided by the intersection of "nginx proxies it
 "demo allowlist permits it" × "endpoint has a rate-limit bucket" — three independent
 lists that nobody edits together.
 
+**Known standing gap (verified 2026-08-23, not yet fixed):** the three ingest-only
+routes (`title-triage`, `seniority-classify`, `discovery-score-batch`) are in the demo
+allowlist and internet-facing via the `/api/match` prefix, yet no demo flow can reach
+them — the demo scraper's own `demo_guard` 403s the run-trigger that is their only
+caller. They also carry the loosest size caps in the service (200 jobs/call;
+5 × 50K chars). Re-verify before re-raising; the fix belongs at the nginx layer, since
+`seed-demo-jobs` calls the demo API container-internally and would break if the
+allowlist entry were simply removed.
+
 **How to apply:** when auditing `server/api`, never judge an endpoint's exposure from
 `Program.cs` alone. Cross-check the nginx prefix rules, then check whether the route
 carries `.RequireRateLimiting(...)`. Endpoints justified in code comments as

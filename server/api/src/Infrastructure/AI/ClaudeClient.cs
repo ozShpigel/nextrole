@@ -159,6 +159,14 @@ public sealed class ClaudeClient : IClaudeClient
         return _client;
     }
 
+    // Raw X-Source header value (or null), for callers that just want to
+    // attribute a call rather than route its API key — see ResolveClient().
+    private string? CurrentSource()
+    {
+        var source = _httpContextAccessor.HttpContext?.Request.Headers["X-Source"].ToString();
+        return string.IsNullOrEmpty(source) ? null : source;
+    }
+
     // Configured prompts, blank-guarded back to the bundled seed so an empty
     // override env var can never silently ship an empty system prompt.
     private string AnalystPrompt =>
@@ -237,7 +245,7 @@ public sealed class ClaudeClient : IClaudeClient
         return (result, snapshot);
     }
 
-    public async Task<(List<MatchBatchResult> Results, ClaudeCallSnapshot Snapshot)> EvaluateMatchBatchAsync(string profile, IReadOnlyList<EvaluationBatchItem> jobs, CancellationToken cancellationToken = default)
+    public async Task<(List<MatchBatchResult> Results, ClaudeCallSnapshot Snapshot, string? Source)> EvaluateMatchBatchAsync(string profile, IReadOnlyList<EvaluationBatchItem> jobs, CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Evaluating {Count} jobs in one batch call", jobs.Count);
 
@@ -259,7 +267,7 @@ public sealed class ClaudeClient : IClaudeClient
 
         var results = jobs.Select(j => new MatchBatchResult { Id = j.Id, Response = byId[j.Id] }).ToList();
         _logger.LogInformation("Batch evaluation completed: {Count} results", results.Count);
-        return (results, snapshot);
+        return (results, snapshot, CurrentSource());
     }
 
     private sealed record MatchBatchApiEnvelope

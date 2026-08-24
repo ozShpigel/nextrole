@@ -22,7 +22,11 @@ public interface IClaudeClient
     // the batch (fail loud rather than silently drop one — mirrors the
     // eval-verdict tool's "no partial results" discipline, now on the
     // production path too).
-    Task<(List<MatchBatchResult> Results, ClaudeCallSnapshot Snapshot)> EvaluateMatchBatchAsync(string profile, IReadOnlyList<EvaluationBatchItem> jobs, CancellationToken cancellationToken = default);
+    // Source is the resolved X-Source header (or null) — read here because
+    // IHttpContextAccessor only exists at this Infrastructure layer; returned
+    // so JobMatchService (Core, no HTTP context) can attach it to its
+    // per-job "Job scored" log without taking on that dependency itself.
+    Task<(List<MatchBatchResult> Results, ClaudeCallSnapshot Snapshot, string? Source)> EvaluateMatchBatchAsync(string profile, IReadOnlyList<EvaluationBatchItem> jobs, CancellationToken cancellationToken = default);
 
     // Batched ingest-time parsing: ONE Analyst call parses every job in the
     // batch independently — same fail-loud missing-id contract as

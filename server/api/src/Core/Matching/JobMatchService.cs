@@ -89,7 +89,7 @@ public sealed class JobMatchService : IJobMatchService
             CompanyProfile = p.Item.CompanyProfile,
         }).ToList();
 
-        var (batchResults, evalSnap) = await _claudeClient.EvaluateMatchBatchAsync(profile, evaluationItems, cancellationToken);
+        var (batchResults, evalSnap, source) = await _claudeClient.EvaluateMatchBatchAsync(profile, evaluationItems, cancellationToken);
         var responseById = batchResults.ToDictionary(r => r.Id, r => r.Response);
 
         var results = parsed.Select(p =>
@@ -108,6 +108,13 @@ public sealed class JobMatchService : IJobMatchService
                 EvaluatorSnapshotInput = evalSnap.Input,
                 EvaluatorSnapshotOutput = evalSnap.Output,
             };
+            // Structured, one line per job — post-correction (Correct() may
+            // have overridden the model's own verdict, e.g. via HardBlockers)
+            // so this reflects what actually gets stored, not the raw model
+            // output. Grep/alert on this in Loki for high-score matches.
+            _logger.LogInformation(
+                "Job scored: source={Source} score={Score} verdict={Verdict} company={Company} title={Title}",
+                source, corrected.OverallScore, corrected.Verdict, corrected.Company, corrected.JobTitle);
             return new MatchBatchResult { Id = p.Item.Id, Response = corrected };
         }).ToList();
 

@@ -57,6 +57,7 @@ services:
 
   mailbot:
     image: ghcr.io/ozshpigel/mailbot:latest
+    entrypoint: sh -c "dotnet Mailbot.dll; sleep 20"
     profiles: ["cron"]
     env_file: [.env.mailbot]
     environment:

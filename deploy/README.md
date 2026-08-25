@@ -40,3 +40,50 @@ Scheduled jobs run as systemd timers rather than always-on containers.
 - Frontend API URLs are Vite build-time variables. They must be unset in
   GitHub Actions variables so the code falls back to relative paths.
 - Cron schedules are UTC.
+
+## Monitoring
+
+Grafana, Loki, and Promtail run as containers on the VPS. Grafana is bound to
+localhost only — reach it over an SSH tunnel:
+
+    ssh -fN nextrole          # requires a Host entry in ~/.ssh/config
+    # then open http://localhost:3001
+
+Logs are labelled `env` (prod/demo) and `service` (api, scraper, ingest, caddy, ...).
+Useful queries:
+
+    {env="prod"} |= "jobId=<uuid>"     # one job's full path through the pipeline
+    {env="prod"} |= "runId=<uuid>"     # everything that happened in one discovery run
+    {service="ingest"} |= "Job skipped"
+
+### Gotchas
+
+**Mailbot logs are not in Grafana.** Its container runs for about a second, which is
+shorter than promtail's 15s container-discovery interval, so promtail usually never
+sees it. Use `journalctl -u nextrole-mailbot.service` instead.
+
+**Restart promtail before the run you want to inspect.** Promtail does not collect
+retroactively — logs written before a config change or restart are lost to Loki even
+though they remain in journald.
+
+**`deploy/` is not synced to the server by CI.** The GitHub Actions workflows build
+images and run `docker compose pull` / `up`, but never copy `compose.yml`, the
+monitoring configs, or the systemd units. After changing anything under `deploy/`,
+copy it manually:
+
+    scp deploy/compose.yml root@<host>:/srv/nextrole/
+    scp deploy/monitoring/*.yml root@<host>:/srv/nextrole/monitoring/
+
+To check for drift:
+
+    diff <(ssh nextrole 'cat /srv/nextrole/compose.yml') deploy/compose.yml
+
+**`docker compose pull` alone is not enough.** A running container keeps using its old
+image until recreated. Always follow with `--force-recreate`, and remember that the
+cron-profile containers (`ingest`, `mailbot`) are pulled separately:
+
+    docker compose pull api scraper
+    docker compose up -d --force-recreate api scraper
+    docker compose --profile cron pull ingest mailbot
+
+Verify with `docker inspect -f '{{.State.StartedAt}}' nextrole-api-1`.

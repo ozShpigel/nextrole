@@ -6,7 +6,7 @@ source .env
 
 LOKI="http://127.0.0.1:3100"
 THRESHOLD=70
-WINDOW_HOURS=8
+WINDOW_HOURS=1
 
 END=$(date +%s)000000000
 START=$(( $(date +%s) - WINDOW_HOURS*3600 ))000000000

@@ -11,7 +11,7 @@ scrape_configs:
   - job_name: docker
     docker_sd_configs:
       - host: unix:///var/run/docker.sock
-        refresh_interval: 5s
+        refresh_interval: 15s
     relabel_configs:
       - source_labels: ['__meta_docker_container_name']
         regex: '/nextrole-([a-z-]+?)(?:-run)?-[0-9a-f]+'

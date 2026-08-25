@@ -11,6 +11,13 @@ namespace ApplicationTracker.Core.Matching;
 public sealed record MatchBatchRequest
 {
     public List<MatchBatchItem> Jobs { get; init; } = [];
+
+    // The discovery run this batch belongs to, if any (the scraper's
+    // DiscoveryRun id) — not sent by non-discovery callers like Import Job.
+    // Request-level, not per-job: attached to the "Job scored" log line so a
+    // job can be traced end-to-end in Loki alongside the scraper's own
+    // per-stage logs, which already carry the same run id.
+    public string? RunId { get; init; }
 }
 
 public sealed record MatchBatchItem

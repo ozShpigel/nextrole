@@ -2,6 +2,7 @@ import logging
 import random
 import re
 import time
+from uuid import uuid4
 
 import pandas as pd
 from jobspy import scrape_jobs
@@ -164,6 +165,7 @@ def scrape_for_criteria(criteria: SearchCriteria) -> tuple[list[dict], dict]:
                     company_profile = {k: v for k, v in company_profile.items() if v} or None
 
                     all_jobs.append({
+                        "id": str(uuid4()),
                         "title": str(row.get("title", "")),
                         "company": str(row.get("company", "")),
                         "location": str(row.get("location", "")),

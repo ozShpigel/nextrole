@@ -1,7 +1,6 @@
 import asyncio
 import logging
 from datetime import datetime, timezone
-from uuid import uuid4
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
@@ -81,6 +80,9 @@ async def run_discovery(db: AsyncIOMotorDatabase, settings: Settings, criteria_i
         jobs, search_stats = await asyncio.get_running_loop().run_in_executor(
             None, scraper.scrape_for_criteria, criteria
         )
+        for job in jobs:
+            logger.info("Job scraped: runId=%s jobId=%s company=%s title=%s",
+                        run.id, job.get("id"), job.get("company"), job.get("title"))
 
         run.jobs_scraped = len(jobs)
         run.searches_total = search_stats["searches_total"]
@@ -154,6 +156,13 @@ async def run_discovery(db: AsyncIOMotorDatabase, settings: Settings, criteria_i
 
         relevant_indices = [i for i in range(len(jobs)) if _is_relevant(i)]
 
+        for i, job in enumerate(jobs):
+            t = triage.get(i)
+            kept = t["relevant"] if t else True
+            reason = (t or {}).get("reason")
+            logger.info("Job triaged: runId=%s jobId=%s kept=%s reason=%s",
+                        run.id, job.get("id"), kept, reason)
+
         # Enrichment prefetch: unique companies across every relevant job,
         # deduped once up front — same prefetch-then-cache pattern the old RAG
         # search path used per-search, just applied to the whole run's
@@ -164,6 +173,17 @@ async def run_discovery(db: AsyncIOMotorDatabase, settings: Settings, criteria_i
             glassdoor_client.prefetch_glassdoor_ratings(relevant_companies),
             company_size_client.prefetch_company_sizes(relevant_companies),
         )
+
+        unique_relevant_companies = list(
+            {c.strip().lower(): c for c in relevant_companies if c and c.strip()}.values()
+        )
+        for company in unique_relevant_companies:
+            key = company.strip().lower()
+            gd = glassdoor_cache.get(key)
+            nc = news_cache.get(key)
+            sz = company_size_cache.get(key)
+            logger.info("Company enriched: runId=%s company=%s glassdoor=%s news=%s size=%s",
+                        run.id, company, bool(gd), len(nc or []), bool(sz))
 
         def _enrich_company_profile(job_data: dict, key: str) -> dict | None:
             # jobspy's LinkedIn scraper never populates numEmployees (only
@@ -191,6 +211,9 @@ async def run_discovery(db: AsyncIOMotorDatabase, settings: Settings, criteria_i
         seniority_by_original_index = {
             relevant_indices[i]: level for i, level in seniority.items()
         }
+        for i in relevant_indices:
+            logger.info("Job classified: runId=%s jobId=%s seniority=%s",
+                        run.id, jobs[i].get("id"), seniority_by_original_index.get(i))
 
         # Duplicate check is cheap and still useful as a flag (the job stays
         # searchable; the UI marks it as already tracked).
@@ -218,6 +241,7 @@ async def run_discovery(db: AsyncIOMotorDatabase, settings: Settings, criteria_i
             try:
                 disc_job = DiscoveredJob(
                     **_base_job(i, job_data),
+                    id=job_data.get("id"),
                     triaged_out=True,
                     triage_reason=(triage.get(i) or {}).get("reason"),
                 )
@@ -226,10 +250,11 @@ async def run_discovery(db: AsyncIOMotorDatabase, settings: Settings, criteria_i
             except Exception as e:
                 logger.error("Error ingesting triaged-out job %d '%s': %s", i, job_data.get("title"), e)
 
-        # Job ids are generated up front (not left to DiscoveredJob's default
-        # factory) so the batch-score response can be correlated back to the
-        # right document before it's ever constructed.
-        relevant_with_ids = [(i, jobs[i], str(uuid4())) for i in relevant_indices]
+        # Job ids are now generated at scrape time (scraper.py), not here —
+        # carried on the job dict since before triage, so triaged-out jobs
+        # and "Job scraped"/"Job triaged"/"Job classified" log lines share
+        # the same id as the eventually-persisted DiscoveredJob.
+        relevant_with_ids = [(i, jobs[i], jobs[i]["id"]) for i in relevant_indices]
         batch_sem = asyncio.Semaphore(MAX_CONCURRENT_SCORE_BATCHES)
 
         async def _score_and_insert_batch(chunk: list[tuple[int, dict, str]]):
@@ -253,7 +278,7 @@ async def run_discovery(db: AsyncIOMotorDatabase, settings: Settings, criteria_i
                 })
 
             async with batch_sem:
-                scores = await match_client.score_job_batch(settings, items)
+                scores = await match_client.score_job_batch(settings, items, run_id=run.id)
 
             for i, job_data, job_id in chunk:
                 try:

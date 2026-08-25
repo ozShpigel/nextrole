@@ -118,7 +118,7 @@ async def score_job(settings: Settings, job_description: str) -> dict | None:
     return None
 
 
-async def score_job_batch(settings: Settings, jobs: list[dict]) -> dict[str, dict] | None:
+async def score_job_batch(settings: Settings, jobs: list[dict], run_id: str | None = None) -> dict[str, dict] | None:
     """Scores up to 5 jobs in ONE Evaluator call — the primary ingest-time
     scoring path (`POST /api/match/discovery-score-batch`). Each job is still
     scored independently against the fixed rubric; batching only shares the
@@ -127,6 +127,10 @@ async def score_job_batch(settings: Settings, jobs: list[dict]) -> dict[str, dic
     Each item in `jobs` needs: id, jobDescription, and the same optional
     fields as `score_job` plus companyNews/glassdoorData/companyProfile.
 
+    run_id: the discovery run this batch belongs to, if any (omitted for
+    non-discovery callers like Import Job) — carried through to the API's
+    "Job scored" log line so a job can be traced end-to-end in Loki.
+
     Returns {id: MatchResponse dict}, or None on any failure — the caller
     MUST fail open (store the whole batch unscored, retry next cycle) on
     None, matching the "batches are small, don't retry at single-job
@@ -134,6 +138,9 @@ async def score_job_batch(settings: Settings, jobs: list[dict]) -> dict[str, dic
     """
     if not jobs:
         return None
+    payload = {"jobs": jobs}
+    if run_id:
+        payload["runId"] = run_id
     resp = await _request_with_retry(
         "POST",
         f"{settings.api_base_url}/api/match/discovery-score-batch",
@@ -141,7 +148,7 @@ async def score_job_batch(settings: Settings, jobs: list[dict]) -> dict[str, dic
         timeout=240.0,
         operation="discovery-score-batch",
         retry_on_timeout=False,
-        json={"jobs": jobs},
+        json=payload,
     )
     if resp is None or resp.status_code != 200:
         logger.error("Discovery batch-score call failed (%s)",

@@ -113,8 +113,8 @@ public sealed class JobMatchService : IJobMatchService
             // so this reflects what actually gets stored, not the raw model
             // output. Grep/alert on this in Loki for high-score matches.
             _logger.LogInformation(
-                "Job scored: source={Source} score={Score} verdict={Verdict} company={Company} title={Title}",
-                source, corrected.OverallScore, corrected.Verdict, corrected.Company, corrected.JobTitle);
+                "Job scored: source={Source} score={Score} verdict={Verdict} company={Company} title={Title} jobId={JobId} runId={RunId}",
+                source, corrected.OverallScore, corrected.Verdict, corrected.Company, corrected.JobTitle, p.Item.Id, request.RunId);
             return new MatchBatchResult { Id = p.Item.Id, Response = corrected };
         }).ToList();
 

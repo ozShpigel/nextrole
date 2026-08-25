@@ -116,6 +116,10 @@ async def run_discovery(db: AsyncIOMotorDatabase, settings: Settings, criteria_i
         jobs = [j for j in jobs if j.get("job_url") not in existing_by_url]
         run.jobs_already_known = before_dedup - len(jobs)
 
+        for job in already_known_jobs:
+            logger.info("Job skipped: runId=%s jobId=%s reason=%s",
+                        run.id, job.get("id"), "already_known")
+
         # An "already known" job is otherwise fully discarded here — free
         # opportunity to backfill/refresh its stored date_posted from this
         # scrape's fresher attempt (e.g. LinkedIn's own date_posted extraction
@@ -295,6 +299,8 @@ async def run_discovery(db: AsyncIOMotorDatabase, settings: Settings, criteria_i
                     match_response = (scores or {}).get(job_id)
                     if match_response is None:
                         run.jobs_score_failed += 1
+                        logger.info("Job skipped: runId=%s jobId=%s reason=%s",
+                                    run.id, job_id, "score_failed")
                         disc_job = DiscoveredJob(id=job_id, **base, is_duplicate=is_dup)
                     else:
                         run.jobs_scored += 1
@@ -325,7 +331,8 @@ async def run_discovery(db: AsyncIOMotorDatabase, settings: Settings, criteria_i
                         )
                     await db.discovered_jobs.insert_one(disc_job.model_dump())
                 except Exception as e:
-                    logger.error("Error ingesting scored job %d '%s': %s", i, job_data.get("title"), e)
+                    logger.error("Job skipped: runId=%s jobId=%s reason=%s error=%s",
+                                 run.id, job_id, "ingest_error", e)
 
         chunks = [
             relevant_with_ids[i:i + SCORE_BATCH_SIZE]

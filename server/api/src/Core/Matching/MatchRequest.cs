@@ -21,6 +21,13 @@ public sealed record MatchRequest
     // revenue, description, url) — free, no extra HTTP call. Context/narrative
     // only, like GlassdoorData's overall rating — never changes numeric scores.
     public CompanyProfile? CompanyProfile { get; init; }
+
+    // Optional profile override: when present, scored against this instead of
+    // the stored profile (rendered via ProfileRenderer, same as the normal
+    // path — never a pre-rendered string). Lets eval harnesses score against a
+    // frozen profile instead of whatever is currently in Mongo. Single-job
+    // path only; the batch path always uses the stored profile.
+    public ApplicationTracker.Core.Profile.StructuredProfile? Profile { get; init; }
 }
 
 public sealed record CompanyProfile

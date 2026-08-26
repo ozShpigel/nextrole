@@ -38,10 +38,14 @@ public sealed record VerdictBands
 
 public sealed record ScoringConfig
 {
+    // Temperature = 0: extraction is a mechanical, evidence-based read of the
+    // posting (title, company, requirements), not prose — the Evaluator scores
+    // whatever ParsedJob this call produces, so sampling drift here compounds
+    // into scoring variance downstream.
     public RoleScoringConfig Analyst { get; init; } = new()
     {
         Model = "claude-haiku-4-5-20251001",
-        Temperature = 0.3m,
+        Temperature = 0m,
         MaxTokens = 2048,
     };
 
@@ -58,14 +62,23 @@ public sealed record ScoringConfig
     // eval-verdict` after this change and watch for regressions before trusting
     // it unattended — Haiku is more likely to miss the nuanced hard-filter/
     // rubric reasoning Sonnet was chosen for.
-    public RoleScoringConfig Evaluator { get; init; } = new() { Model = "claude-haiku-4-5-20251001", MaxTokens = 8192 };
+    //
+    // Temperature = 0 (was the uncommented 0.5m base default below — an
+    // omission, not a decision): scoring is a mechanical, evidence-based
+    // judgement, not prose — the prompt itself states "consistency, clarity,
+    // and conservative interpretation are required." Left at 0.5, this showed
+    // up as 9-10 point sub-score swings across identical runs (same JD, same
+    // frozen profile, same prompt).
+    public RoleScoringConfig Evaluator { get; init; } = new() { Model = "claude-haiku-4-5-20251001", MaxTokens = 8192, Temperature = 0m };
 
     // Batched ingest-time scoring: same rubric/model as Evaluator, N jobs (cap
     // 5, see MatchEndpoints) in ONE call — each job gets a full breakdown, so
     // output scales with batch size (~3-3.5K tokens/job observed for a single
     // job). 16000 covers a 5-job batch with real headroom; still one shared
     // system-prompt/profile input cost instead of N, which is the entire point.
-    public RoleScoringConfig EvaluatorBatch { get; init; } = new() { Model = "claude-haiku-4-5-20251001", MaxTokens = 16000 };
+    // Temperature = 0 — same rationale as Evaluator above: same rubric, same
+    // need for consistent, non-creative scoring.
+    public RoleScoringConfig EvaluatorBatch { get; init; } = new() { Model = "claude-haiku-4-5-20251001", MaxTokens = 16000, Temperature = 0m };
 
     // Batched ingest-time parsing: same extraction schema/model as Analyst, N
     // jobs (cap 5) in ONE call sharing one system-prompt cost instead of N —
@@ -73,7 +86,9 @@ public sealed record ScoringConfig
     // system prompt is likely below Haiku's cacheable minimum), so batching is
     // the only lever for its input-cost repetition. ~350-390 tokens/job
     // observed for ParsedJob output; 4096 covers a 5-job batch with headroom.
-    public RoleScoringConfig AnalystBatch { get; init; } = new() { Model = "claude-haiku-4-5-20251001", Temperature = 0.3m, MaxTokens = 4096 };
+    // Temperature = 0 — same rationale as Analyst above: mechanical extraction,
+    // not prose.
+    public RoleScoringConfig AnalystBatch { get; init; } = new() { Model = "claude-haiku-4-5-20251001", Temperature = 0m, MaxTokens = 4096 };
 
     // Narrative enrichment: on-demand upgrade of 4 fields only (not the full
     // scores+breakdown schema) — fires once per Add click (~4% of scored

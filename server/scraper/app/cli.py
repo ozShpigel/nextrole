@@ -8,6 +8,7 @@ pattern. Run it as a Render Cron Job using the scraper image:
     python -m app.cli run-all             # every is_active criteria (cron)
     python -m app.cli run <criteria_id>   # one specific criteria
     python -m app.cli eval-verdict        # golden-set Evaluator verdict report
+    python -m app.cli eval-subscore       # golden-set Evaluator sub-score report (frozen profile)
     python -m app.cli seed-demo-jobs      # (re)seed the demo search pool
 
 Because nothing is exposed over HTTP, no X-Cron-Key guard is needed and there's
@@ -24,7 +25,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 
 from app.config import Settings
 from app.indexes import ensure_ttl_index
-from app.services import demo_seed, orchestrator, verdict_eval
+from app.services import demo_seed, orchestrator, subscore_eval, verdict_eval
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("cli")
@@ -96,6 +97,13 @@ async def _eval_verdict(runs: int):
         print(verdict_eval.format_multi_run_report(all_results))
 
 
+async def _eval_subscore():
+    # No Mongo needed — scores against the frozen tests/fixtures/golden-profile.json via the API.
+    settings = Settings()
+    results = await subscore_eval.run_eval(settings)
+    print(subscore_eval.format_report(results))
+
+
 def main():
     parser = argparse.ArgumentParser(prog="app.cli", description="Discovery ingest cron entrypoint")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -116,6 +124,10 @@ def main():
         "--runs", type=int, default=1,
         help="repeat N times and report a noise baseline (pass-rate spread + flaky cases)")
 
+    sub.add_parser(
+        "eval-subscore",
+        help="Golden-set Evaluator sub-score report: per-dimension band checks against a frozen profile")
+
     args = parser.parse_args()
 
     if args.command == "run":
@@ -126,6 +138,8 @@ def main():
         asyncio.run(_seed_demo_jobs())
     elif args.command == "eval-verdict":
         asyncio.run(_eval_verdict(args.runs))
+    elif args.command == "eval-subscore":
+        asyncio.run(_eval_subscore())
     else:  # pragma: no cover — argparse enforces a valid command
         parser.print_help()
         sys.exit(1)

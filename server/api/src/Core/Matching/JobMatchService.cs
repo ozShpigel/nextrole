@@ -37,7 +37,9 @@ public sealed class JobMatchService : IJobMatchService
     {
         _logger.LogInformation("Starting job match analysis");
 
-        var profile = await _profileProvider.GetProfileAsync(cancellationToken);
+        var profile = request.Profile is not null
+            ? ProfileRenderer.Render(request.Profile)
+            : await _profileProvider.GetProfileAsync(cancellationToken);
 
         var (parsedJob, analystSnap) = await ParseAsync(request, cancellationToken);
         var (matchResponse, evalSnap) = await _claudeClient.EvaluateMatchAsync(profile, parsedJob, request.CompanyNews, request.GlassdoorData, request.CompanyProfile, cancellationToken);
@@ -142,6 +144,7 @@ public sealed class JobMatchService : IJobMatchService
     {
         r = EnforceReviewCaps(r, reviewCap);
         r = EnforceStackedGapsCap(r);
+        r = EnforceScoreBounds(r);
         var verdict = VerdictFromScore(r.OverallScore, cfg.VerdictBands) ?? r.Verdict;
         // The model reliably identifies a disqualifying condition in its
         // reasoning but doesn't reliably apply the consequence to its own
@@ -258,6 +261,68 @@ public sealed class JobMatchService : IJobMatchService
                    && breakdown.SustainabilityPaceFit.Score is int s
             ? t + e + s
             : r.OverallScore;
+        return r with { Breakdown = breakdown, OverallScore = overall };
+    }
+
+    // The prompt states two invariants — every score >= 0 (the Sustainability
+    // Fit section's implicit floor, now explicit — see PromptSeeds.cs) and
+    // overallScore = sum of the three dimension scores (the INVARIANTS block)
+    // — but nothing verified either one in code before this. EnforceReviewCaps
+    // above only clamps components carrying a model-reported ReviewAdjustment;
+    // a component/dimension score outside [0, maxScore] with no review evidence
+    // passed straight through untouched. Runs after EnforceReviewCaps and
+    // EnforceStackedGapsCap so it clamps their output too, unconditionally —
+    // logged at Information so schema violations are visible in Loki instead
+    // of being silently fixed.
+    private MatchResponse EnforceScoreBounds(MatchResponse r)
+    {
+        var changed = false;
+
+        int? Clamp(int? score, int? maxScore, string field)
+        {
+            if (score is not int original) return score;
+            var corrected = Math.Clamp(original, 0, maxScore ?? int.MaxValue);
+            if (corrected == original) return original;
+            changed = true;
+            _logger.LogInformation(
+                "Score corrected: field={Field} from={Original} to={Corrected} reason={Reason}",
+                field, original, corrected, original < 0 ? "below floor" : "above maxScore");
+            return corrected;
+        }
+
+        ScoreComponent[] ClampComponents(ScoreComponent[] components, string dimension) =>
+            components.Select(c => c with { Score = Clamp(c.Score, c.MaxScore, $"{dimension}.{c.Name}") }).ToArray();
+
+        var techComponents = ClampComponents(r.Breakdown.TechnicalFit.Components, "TechnicalFit");
+        var techScore = Clamp(r.Breakdown.TechnicalFit.Score, r.Breakdown.TechnicalFit.MaxScore, "TechnicalFit");
+
+        var execComponents = ClampComponents(r.Breakdown.EngineeringExecutionFit.Components, "EngineeringExecutionFit");
+        var execScore = Clamp(r.Breakdown.EngineeringExecutionFit.Score, r.Breakdown.EngineeringExecutionFit.MaxScore, "EngineeringExecutionFit");
+
+        var sustComponents = ClampComponents(r.Breakdown.SustainabilityPaceFit.Components, "SustainabilityPaceFit");
+        var sustScore = Clamp(r.Breakdown.SustainabilityPaceFit.Score, r.Breakdown.SustainabilityPaceFit.MaxScore, "SustainabilityPaceFit");
+
+        // Recomputed from the (now-clamped) dimension scores rather than trusted
+        // from the model's own arithmetic, per the overallScore invariant.
+        var overall = techScore is int t && execScore is int e && sustScore is int s
+            ? t + e + s
+            : r.OverallScore;
+        if (overall != r.OverallScore)
+        {
+            changed = true;
+            _logger.LogInformation(
+                "Score corrected: field={Field} from={Original} to={Corrected} reason={Reason}",
+                "overallScore", r.OverallScore, overall, "sum of dimensions");
+        }
+
+        if (!changed) return r;
+
+        var breakdown = r.Breakdown with
+        {
+            TechnicalFit = r.Breakdown.TechnicalFit with { Components = techComponents, Score = techScore },
+            EngineeringExecutionFit = r.Breakdown.EngineeringExecutionFit with { Components = execComponents, Score = execScore },
+            SustainabilityPaceFit = r.Breakdown.SustainabilityPaceFit with { Components = sustComponents, Score = sustScore },
+        };
         return r with { Breakdown = breakdown, OverallScore = overall };
     }
 }

@@ -1,0 +1,166 @@
+{
+    "fullName":  "Test Candidate",
+    "email":  "test@example.com",
+    "phone":  "",
+    "location":  "Rishon LeZion, Israel",
+    "linkedIn":  "",
+    "summary":  "Platform Engineer with over a decade of experience building internal platforms, automation, and infrastructure for engineering teams in fintech, retail commerce, security, and defense.",
+    "seniority":  "Senior",
+    "domains":  [
+                    "fintech",
+                    "retail commerce",
+                    "security",
+                    "defense"
+                ],
+    "experience":  [
+                       {
+                           "title":  "Platform Developer",
+                           "company":  "Payoneer",
+                           "dates":  "2023–2026",
+                           "highlights":  [
+                                              "Led the company-wide LaunchDarkly feature-flag integration: designed the architecture with internal and vendor architects, built a CI/CD module that generates flags from YAML, defined the permissions model, and wrote onboarding and architecture documentation so 700+ developers could manage feature flags independently and safely.",
+                                              "Owned an internal NuGet automation system that updates packages through pull requests and blocks releases with outdated dependencies, processing 14K+ runs per day to enforce compliance and protect production stability.",
+                                              "Documented the dependency automation architecture in a component map adopted by DevOps, helping standardize understanding of a mission-critical internal service.",
+                                              "Worked in a distributed microservices environment using .NET service templates, Kafka and RabbitMQ for messaging, and MongoDB and SQL Server for data storage.",
+                                              "Stepped in as interim Scrum Master when needed to keep team delivery moving."
+                                          ]
+                       },
+                       {
+                           "title":  "Platform Developer \u0026 DevOps",
+                           "company":  "NCR Corporation",
+                           "dates":  "2019–2023",
+                           "highlights":  [
+                                              "Led development of internal .NET automation tools that streamlined development, testing, and deployment, reducing release time by 50%.",
+                                              "Managed and expanded development infrastructure across Azure, Kubernetes, Terraform, Ansible, and GitHub Actions.",
+                                              "Helped define infrastructure standards and delivery workflows through shared tooling used by development teams.",
+                                              "Designed a core adapter that enabled external client UIs to integrate cleanly with the platform."
+                                          ]
+                       },
+                       {
+                           "title":  "Software Developer",
+                           "company":  "Crow",
+                           "dates":  "2015–2018",
+                           "highlights":  [
+                                              "Built and published a cross-platform Web API service to Azure from scratch, enabling control of a smart electronic security system and contributing to roughly a 10% increase in product orders, about 100 additional units.",
+                                              "Developed and maintained a Representational State Transfer (REST) API handling customer requests from web and mobile applications.",
+                                              "Built a REST API that triggered SMS notifications to customers through a third-party API.",
+                                              "Worked hands-on with C++, C#, Node.js, and Azure."
+                                          ]
+                       },
+                       {
+                           "title":  "Software Developer",
+                           "company":  "HP",
+                           "dates":  "2013–2015",
+                           "highlights":  [
+                                              "Developed on a highly complex, distributed server-side system.",
+                                              "Worked with C#, PL/SQL, Linux, and Oracle databases."
+                                          ]
+                       },
+                       {
+                           "title":  "Software Developer",
+                           "company":  "CONTROP",
+                           "dates":  "2011–2013",
+                           "highlights":  [
+                                              "Developed configuration-management software for a platform controlling and monitoring multiple sensors and electro-optical systems, owning the software lifecycle from requirements through deployment and maintenance.",
+                                              "Reduced product complexity by building file-manager software that simplified system configuration.",
+                                              "Built client and server software with C++ using object-oriented programming (OOP), Standard Template Library (STL), Microsoft Foundation Class (MFC), XML, design patterns, and multithreaded development in a near-real-time environment, including serial communication (RS232) and ActiveX."
+                                          ]
+                       }
+                   ],
+    "skills":  [
+                   {
+                       "category":  "Infrastructure",
+                       "items":  [
+                                     "Kubernetes",
+                                     "Helm",
+                                     "Terraform",
+                                     "Ansible",
+                                     "Azure",
+                                     "Docker"
+                                 ]
+                   },
+                   {
+                       "category":  "CI/CD \u0026 Automation",
+                       "items":  [
+                                     "GitHub Actions",
+                                     "Jenkins",
+                                     "Linux",
+                                     "Bash",
+                                     "PowerShell",
+                                     "LaunchDarkly"
+                                 ]
+                   },
+                   {
+                       "category":  "Monitoring \u0026 Observability",
+                       "items":  [
+                                     "Coralogix",
+                                     "Dynatrace",
+                                     "Prometheus",
+                                     "Grafana"
+                                 ]
+                   },
+                   {
+                       "category":  "Backend",
+                       "items":  [
+                                     "C#",
+                                     ".NET",
+                                     "ASP.NET",
+                                     "Web API",
+                                     "TypeScript",
+                                     "Python",
+                                     "C++"
+                                 ]
+                   },
+                   {
+                       "category":  "Messaging \u0026 Data",
+                       "items":  [
+                                     "Kafka",
+                                     "RabbitMQ",
+                                     "MongoDB",
+                                     "SQL Server"
+                                 ]
+                   },
+                   {
+                       "category":  "AI",
+                       "items":  [
+                                     "LLM integration (Anthropic API)",
+                                     "evaluation pipelines",
+                                     "Claude Code",
+                                     "Copilot"
+                                 ]
+                   }
+               ],
+    "education":  [
+                      "B.Sc. Computer Science, HIT Holon, 2012"
+                  ],
+    "militaryService":  [
+                            "Electro-Optical Engineer, Israeli Air Force (IDF), 2004–2007"
+                        ],
+    "sideProjects":  [
+                         {
+                             "name":  "NextRole",
+                             "description":  "An end-to-end job-search platform — discovers roles and scores CV-to-role fit at ingest time via a two-stage AI pipeline (fast triage, then deep evaluation), generates AI-tailored résumés per application, and auto-updates status via a Gmail-integrated worker. Built on .NET, Python, MongoDB, and React; containerized with Docker, deployed on Render.",
+                             "links":  [
+
+                                       ]
+                         }
+                     ],
+    "spokenLanguages":  [
+                            "Hebrew (Native)",
+                            "English (Fluent)"
+                        ],
+    "strengths":  [
+                      "Complexity reduction",
+                      "Owning data reliability end to end",
+                      "Sustainable delivery"
+                  ],
+    "coreValues":  [
+                       "Enabling others",
+                       "Sustainable pace",
+                       "Clarity over complexity"
+                   ],
+    "redFlags":  [
+                     "Early-stage startup"
+                 ],
+    "rawExperienceText":  ""
+}

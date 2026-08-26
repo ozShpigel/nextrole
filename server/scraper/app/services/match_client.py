@@ -93,15 +93,22 @@ async def classify_seniority(settings: Settings, jobs: list[dict]) -> dict[int, 
     return levels
 
 
-async def score_job(settings: Settings, job_description: str) -> dict | None:
+async def score_job(settings: Settings, job_description: str, profile: dict | None = None) -> dict | None:
     """One Analyst+Evaluator call pair against a single job description —
     the same path the manual "Score a Job" page uses (`POST /api/match`,
     jobDescription only, letting the Analyst extract title/company).
+
+    `profile`, when given, is a StructuredProfile dict scored against instead
+    of whatever is currently stored server-side (see MatchRequest.Profile) —
+    used by the golden-set eval to score against a frozen profile.
 
     Returns the raw MatchResponse dict, or None on any failure.
     """
     if not job_description:
         return None
+    payload = {"jobDescription": job_description}
+    if profile:
+        payload["profile"] = profile
     resp = await _request_with_retry(
         "POST",
         f"{settings.api_base_url}/api/match",
@@ -109,7 +116,7 @@ async def score_job(settings: Settings, job_description: str) -> dict | None:
         timeout=120.0,
         operation="score-job",
         retry_on_timeout=False,
-        json={"jobDescription": job_description},
+        json=payload,
     )
     if resp is not None and resp.status_code == 200:
         return resp.json()

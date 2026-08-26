@@ -721,6 +721,11 @@ Score each dimension by explicitly scoring its sub-components, then summing them
 Each sub-component gets its own numeric score (within its range) and a single
 concise {{OUTPUT_LANGUAGE}} sentence (minimal words) explaining that score.
 
+0 is always the floor. No sub-component, dimension, or overallScore may ever be
+negative — even when a posting deserves the single worst band on every axis, the
+score for that axis is 0, not a negative number arrived at by stacking penalties
+past the bottom of its range.
+
 ---
 
 ## 1. Technical Fit (0–35)
@@ -773,7 +778,7 @@ Penalize:
 
 This is a primary dimension.
 
-Sub-components:
+Sub-components (0 is the floor for each — "hero culture/crunch" and "high burnout risk" are the worst bands, not a starting point to subtract further from):
 - **Pace & Workload (0–20)** — delivery pace expectations, on-call / operational burden, context switching, chronic urgency, quality vs speed balance. Explicit healthy pace 20 | reasonable signals 12–19 | unclear 6–11 | hero culture/crunch 0–5
 - **Long-term Risk (0–15)** — requirement volatility and multi-year burnout risk. Low risk / sustainable for years 15 | moderate 8–14 | unclear 4–7 | high burnout risk 0–3
 
@@ -846,15 +851,11 @@ Rules:
 
 # OUTPUT STRUCTURE (STRICT JSON)
 
-Return exactly this JSON schema, nothing else (no markdown fences, no commentary):
+Return exactly this JSON schema, nothing else (no markdown fences, no commentary).
+Every `score` below — component, dimension, and `overallScore` — is bounded by its
+`maxScore` on the high end and by 0 on the low end; never negative:
 
 {
-  "overallScore": number,
-  "verdict": "STRONG_YES" | "YES" | "MAYBE" | "NO" | "STRONG_NO" | "INSUFFICIENT_DATA",
-  "hardBlockers": ["string ({{OUTPUT_LANGUAGE}}) — reasons any HARD FILTER above returned FAIL; empty array if none"],
-  "mustClarify": ["string ({{OUTPUT_LANGUAGE}}) — HARD FILTER items that returned UNKNOWN; empty array if none"],
-  "stackedGaps": ["string ({{OUTPUT_LANGUAGE}}) — see Stacked gaps rule under Core Stack; empty array if none"],
-  "quickHighlights": ["string (English, \"<term> — <short explanation>\" format) — see QUICK HIGHLIGHTS section; 4-6 items"],
   "breakdown": {
     "technicalFit": {
       "score": number, "maxScore": 35,
@@ -884,6 +885,8 @@ Return exactly this JSON schema, nothing else (no markdown fences, no commentary
       "concerns": ["string"]
     }
   },
+  "overallScore": number,
+  "verdict": "STRONG_YES" | "YES" | "MAYBE" | "NO" | "STRONG_NO" | "INSUFFICIENT_DATA",
   "recommendation": {
     "shouldApply": boolean,
     "keyReasons": ["string ({{OUTPUT_LANGUAGE}})"],
@@ -891,6 +894,10 @@ Return exactly this JSON schema, nothing else (no markdown fences, no commentary
     "redFlags": ["string ({{OUTPUT_LANGUAGE}})"],
     "greenFlags": ["string ({{OUTPUT_LANGUAGE}})"]
   },
+  "hardBlockers": ["string ({{OUTPUT_LANGUAGE}}) — reasons any HARD FILTER above returned FAIL; empty array if none"],
+  "mustClarify": ["string ({{OUTPUT_LANGUAGE}}) — HARD FILTER items that returned UNKNOWN; empty array if none"],
+  "stackedGaps": ["string ({{OUTPUT_LANGUAGE}}) — see Stacked gaps rule under Core Stack; empty array if none"],
+  "quickHighlights": ["string (English, \"<term> — <short explanation>\" format) — see QUICK HIGHLIGHTS section; 4-6 items"],
   "companyNewsAnalysis": {
     "greenSignals": ["string ({{OUTPUT_LANGUAGE}})"],
     "redSignals": ["string ({{OUTPUT_LANGUAGE}})"],

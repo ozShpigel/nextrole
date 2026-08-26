@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { User, FileText, Upload, RefreshCw, Award, ChevronLeft, ChevronRight } from 'lucide-react';
+import { User, FileText, Upload, Download, RefreshCw, Award, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useProfile, useResumeFile, useDemoMode, DEMO_DISABLED_TITLE } from '../lib/queries';
 import { useSaveProfile, useNormalizeProfileFile } from '../lib/mutations';
 import { apiUrl } from '../lib/api';
@@ -288,12 +288,24 @@ export default function SettingsPage() {
                 icon={<FileText size={18} />}
                 name="Resume"
                 right={
-                  <ResumeActionButton
-                    hasResume={!!resumeFile}
-                    pending={normalizeFileMutation.isPending}
-                    disabled={demoMode}
-                    onClick={() => fileInputRef.current?.click()}
-                  />
+                  <div className="flex items-center gap-2">
+                    {resumeFile && (
+                      <a
+                        href={apiUrl('/match/profile/resume-file/download')}
+                        download={resumeFile.fileName}
+                        className="inline-flex items-center gap-2 rounded-full border border-[var(--ed-rule)] text-[var(--ed-ink-soft)] pl-4 pr-5 py-[0.6rem] text-[0.76rem] font-semibold uppercase tracking-[0.06em] transition-colors hover:border-[var(--ed-ink-faint)] hover:text-[var(--ed-ink)]"
+                      >
+                        <Download size={15} aria-hidden="true" />
+                        Download
+                      </a>
+                    )}
+                    <ResumeActionButton
+                      hasResume={!!resumeFile}
+                      pending={normalizeFileMutation.isPending}
+                      disabled={demoMode}
+                      onClick={() => fileInputRef.current?.click()}
+                    />
+                  </div>
                 }
               />
 

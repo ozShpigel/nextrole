@@ -364,7 +364,7 @@ public sealed class ClaudeClient : IClaudeClient
             return null;
         }
 
-        var jsonContent = ExtractJson(content);
+        var jsonContent = ExtractJson(content, "parse-email");
         var result = JsonSerializer.Deserialize<EmailParseResult>(jsonContent, CaseInsensitive);
         _logger.LogInformation("Parsed email from {Company}: {Type}", result?.Company, result?.UpdateType);
         return result;
@@ -459,7 +459,7 @@ public sealed class ClaudeClient : IClaudeClient
         var content = response.Message?.ToString()?.Trim()
             ?? throw new InvalidOperationException("Empty response from Claude API");
 
-        var json = ExtractJson(content);
+        var json = ExtractJson(content, "presentation-cues");
         var parsed = JsonSerializer.Deserialize<PresentationCuesResult>(json, CaseInsensitive);
         var cues = (parsed?.Cues ?? [])
             .Select(c => c?.Trim() ?? "")
@@ -504,7 +504,7 @@ public sealed class ClaudeClient : IClaudeClient
         var content = response.Message?.ToString()?.Trim()
             ?? throw new InvalidOperationException("Empty response from Claude API");
 
-        var json = ExtractJson(content);
+        var json = ExtractJson(content, "title-triage");
         var parsed = JsonSerializer.Deserialize<TitleTriageResponse>(json, CaseInsensitive)
             ?? throw new InvalidOperationException("Could not parse title triage response");
 
@@ -538,7 +538,7 @@ public sealed class ClaudeClient : IClaudeClient
         var content = response.Message?.ToString()?.Trim()
             ?? throw new InvalidOperationException("Empty response from Claude API");
 
-        var json = ExtractJson(content);
+        var json = ExtractJson(content, "seniority-classify");
         var parsed = JsonSerializer.Deserialize<SeniorityClassifyResponse>(json, CaseInsensitive)
             ?? throw new InvalidOperationException("Could not parse seniority classification response");
 
@@ -607,7 +607,7 @@ public sealed class ClaudeClient : IClaudeClient
         var content = response.Message?.ToString()?.Trim()
             ?? throw new InvalidOperationException("Empty response from Claude API");
 
-        var json = ExtractJson(content);
+        var json = ExtractJson(content, "normalize-profile");
         var result = JsonSerializer.Deserialize<NormalizedProfile>(json, CaseInsensitive)
             ?? throw new InvalidOperationException("Failed to deserialize NormalizedProfile");
 
@@ -647,7 +647,7 @@ public sealed class ClaudeClient : IClaudeClient
         var content = response.Message?.ToString()?.Trim()
             ?? throw new InvalidOperationException("Empty response from Claude API");
 
-        var json = ExtractJson(content);
+        var json = ExtractJson(content, "mock-interview-turn");
         var result = JsonSerializer.Deserialize<MockTurnResult>(json, CaseInsensitive)
             ?? throw new InvalidOperationException("Failed to deserialize MockTurnResult");
         return result;
@@ -675,7 +675,7 @@ public sealed class ClaudeClient : IClaudeClient
         var content = response.Message?.ToString()?.Trim()
             ?? throw new InvalidOperationException("Empty response from Claude API");
 
-        var json = ExtractJson(content);
+        var json = ExtractJson(content, "mock-interview-debrief");
         var result = JsonSerializer.Deserialize<MockInterviewDebrief>(json, CaseInsensitive)
             ?? throw new InvalidOperationException("Failed to deserialize MockInterviewDebrief");
         return result;
@@ -926,20 +926,35 @@ public sealed class ClaudeClient : IClaudeClient
 
             try
             {
-                var jsonContent = ExtractJson(content);
+                var jsonContent = ExtractJson(content, label);
                 var result = JsonSerializer.Deserialize<T>(jsonContent, CaseInsensitive)
                     ?? throw new InvalidOperationException($"Failed to deserialize {typeof(T).Name}");
                 return (result, new ClaudeCallSnapshot(inputJson, content));
             }
-            catch (JsonException ex) when (attempt == 0)
+            // Broadened from JsonException alone: a duplicate top-level key used
+            // to throw ArgumentException from deep inside JsonObject's lazy
+            // dictionary build (see ExtractJson/BuildNode), which this catch
+            // never matched — the whole call died uncaught, no retry, no
+            // preserved output. Any parse/deserialize-stage failure now gets the
+            // same one repair-retry, and the raw content is always logged before
+            // we decide whether to retry or give up (cancellation excluded —
+            // that's the caller aborting, not a bad model response).
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                _logger.LogWarning("Claude {Label} returned non-JSON, retrying: {Error}", label, ex.Message);
-                parameters.Messages = new List<Message>
+                var preview = content.Length > 2000 ? content[..2000] + "...[truncated]" : content;
+                _logger.LogWarning(ex,
+                    "Claude {Label} parse-stage failure (attempt {Attempt}/2): {Content}",
+                    label, attempt + 1, preview);
+
+                if (attempt == 0)
                 {
-                    new(RoleType.User, userMessage),
-                    new(RoleType.Assistant, content),
-                    new(RoleType.User, "Your response was not valid JSON. Return ONLY the JSON object, no commentary.")
-                };
+                    parameters.Messages = new List<Message>
+                    {
+                        new(RoleType.User, userMessage),
+                        new(RoleType.Assistant, content),
+                        new(RoleType.User, "Your response was not valid JSON. Return ONLY the JSON object, no commentary.")
+                    };
+                }
             }
         }
 
@@ -979,7 +994,7 @@ public sealed class ClaudeClient : IClaudeClient
         }, new JsonSerializerOptions { WriteIndented = false });
     }
 
-    private static string ExtractJson(string? content)
+    private string ExtractJson(string? content, string label)
     {
         if (string.IsNullOrWhiteSpace(content))
             throw new InvalidOperationException("Empty content from Claude API");
@@ -1008,7 +1023,7 @@ public sealed class ClaudeClient : IClaudeClient
         JsonNode? node;
         try
         {
-            node = JsonNode.Parse(json);
+            node = ParseTolerant(json, label);
         }
         catch (JsonException)
         {
@@ -1024,40 +1039,68 @@ public sealed class ClaudeClient : IClaudeClient
             if (firstBrace >= 0 && lastBrace > firstBrace)
                 repaired = repaired.Substring(firstBrace, lastBrace - firstBrace + 1);
 
-            node = JsonNode.Parse(repaired);
+            node = ParseTolerant(repaired, label);
         }
 
         if (node != null)
-        {
-            NormalizeKeys(node);
             json = node.ToJsonString();
-        }
 
         return json;
     }
 
-    private static void NormalizeKeys(JsonNode node)
+    // Parses via JsonDocument (which tolerates duplicate object keys — its
+    // EnumerateObject() yields every occurrence, no exception) and rebuilds
+    // the tree into fresh JsonNodes, instead of JsonNode.Parse followed by a
+    // post-hoc key-normalization pass. JsonNode.Parse itself never throws on
+    // a duplicate key either, but JsonObject's backing dictionary is built
+    // lazily the moment anything enumerates/indexes it — a plain post-parse
+    // walk (the old NormalizeKeys, via obj.ToList()) forced that build and
+    // threw ArgumentException the moment the model restated a key (observed:
+    // `hardBlockers` emitted twice in one response). Building fresh JsonObjects
+    // here sidesteps that entirely — the indexer set is overwrite-or-add, never
+    // Add-only — and folds snake_case normalization + duplicate-key handling
+    // into the same pass.
+    private JsonNode? ParseTolerant(string json, string label)
     {
-        if (node is JsonObject obj)
+        using var doc = JsonDocument.Parse(json);
+        return BuildNode(doc.RootElement, label);
+    }
+
+    private JsonNode? BuildNode(JsonElement element, string label)
+    {
+        switch (element.ValueKind)
         {
-            var entries = obj.ToList();
-            foreach (var (key, value) in entries)
-            {
-                var camelKey = SnakeToCamel(key);
-                if (camelKey != key)
+            case JsonValueKind.Object:
+                var obj = new JsonObject();
+                foreach (var prop in element.EnumerateObject())
                 {
-                    obj.Remove(key);
+                    var camelKey = SnakeToCamel(prop.Name);
+                    var value = BuildNode(prop.Value, label);
+                    if (obj.ContainsKey(camelKey))
+                    {
+                        // Last occurrence wins — models typically restate a
+                        // field to correct themselves, so the later value is
+                        // the intended one. Catches both a literal duplicate
+                        // key and a snake_case/camelCase collision (e.g.
+                        // `hard_blockers` + `hardBlockers`), which previously
+                        // overwrote silently with no trace at all.
+                        _logger.LogWarning(
+                            "Duplicate JSON key from model: key={Key} label={Label} — kept last occurrence",
+                            camelKey, label);
+                    }
                     obj[camelKey] = value;
                 }
-                if (value != null) NormalizeKeys(value);
-            }
-        }
-        else if (node is JsonArray arr)
-        {
-            foreach (var item in arr)
-            {
-                if (item != null) NormalizeKeys(item);
-            }
+                return obj;
+            case JsonValueKind.Array:
+                var arr = new JsonArray();
+                foreach (var item in element.EnumerateArray())
+                    arr.Add(BuildNode(item, label));
+                return arr;
+            case JsonValueKind.Null:
+            case JsonValueKind.Undefined:
+                return null;
+            default:
+                return JsonNode.Parse(element.GetRawText());
         }
     }
 

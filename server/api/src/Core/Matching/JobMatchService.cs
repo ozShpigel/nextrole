@@ -44,7 +44,7 @@ public sealed class JobMatchService : IJobMatchService
         var (parsedJob, analystSnap) = await ParseAsync(request, cancellationToken);
         var (matchResponse, evalSnap) = await _claudeClient.EvaluateMatchAsync(profile, parsedJob, request.CompanyNews, request.GlassdoorData, request.CompanyProfile, cancellationToken);
 
-        var corrected = Correct(matchResponse, _scoring, ReviewCap(request.GlassdoorData?.ReviewCount), parsedJob) with
+        var corrected = Correct(matchResponse, _scoring, ReviewCap(request.GlassdoorData?.ReviewCount), parsedJob, request.GlassdoorData) with
         {
             JobTitle = parsedJob.JobTitle,
             Company = parsedJob.Company,
@@ -97,7 +97,7 @@ public sealed class JobMatchService : IJobMatchService
         var results = parsed.Select(p =>
         {
             var raw = responseById[p.Item.Id];
-            var corrected = Correct(raw, _scoring, ReviewCap(p.Item.GlassdoorData?.ReviewCount), p.ParsedJob) with
+            var corrected = Correct(raw, _scoring, ReviewCap(p.Item.GlassdoorData?.ReviewCount), p.ParsedJob, p.Item.GlassdoorData) with
             {
                 JobTitle = p.ParsedJob.JobTitle,
                 Company = p.ParsedJob.Company,
@@ -140,12 +140,12 @@ public sealed class JobMatchService : IJobMatchService
 
     // Re-derive verdict from the numeric score (authoritative bands) and recompute
     // shouldApply from the save threshold — the AI's own verdict/flag are advisory.
-    private MatchResponse Correct(MatchResponse r, ScoringConfig cfg, int reviewCap, ParsedJob parsedJob)
+    private MatchResponse Correct(MatchResponse r, ScoringConfig cfg, int reviewCap, ParsedJob parsedJob, GlassdoorData? glassdoorData)
     {
         r = EnforceReviewCaps(r, reviewCap);
         r = EnforceStackedGapsCap(r);
         r = EnforceScoreBounds(r);
-        r = EnforceEvidenceCaps(r, parsedJob);
+        r = EnforceEvidenceCaps(r, parsedJob, glassdoorData);
         var verdict = VerdictFromScore(r.OverallScore, cfg.VerdictBands) ?? r.Verdict;
         // The model reliably identifies a disqualifying condition in its
         // reasoning but doesn't reliably apply the consequence to its own
@@ -337,11 +337,10 @@ public sealed class JobMatchService : IJobMatchService
     // model, and extended thinking all failed to move it. Runs after
     // EnforceScoreBounds.
     //
-    // To add a second signal (e.g. no process/review evidence in the JD ->
-    // cap engineeringExecutionFit's components), add one more `if` block
-    // below that calls CapNamedComponents against the dimension it
-    // affects — this method's shape doesn't need to change.
-    private MatchResponse EnforceEvidenceCaps(MatchResponse r, ParsedJob parsedJob)
+    // Proven on the technical signal; process and pace follow the exact same
+    // shape — one more `if` block each calling CapNamedComponents against the
+    // dimension it affects, no restructuring needed.
+    private MatchResponse EnforceEvidenceCaps(MatchResponse r, ParsedJob parsedJob, GlassdoorData? glassdoorData)
     {
         var breakdown = r.Breakdown;
         var changed = false;
@@ -379,6 +378,48 @@ public sealed class JobMatchService : IJobMatchService
                 breakdown = breakdown with
                 {
                     TechnicalFit = breakdown.TechnicalFit with { Components = components, Score = components.Sum(c => c.Score ?? 0) },
+                };
+            }
+        }
+
+        // Signal: no process signals -> Role Clarity & Ownership / Engineering
+        // Maturity & Stability are capped at the top of their "unclear" band.
+        // Unconditional — there's no external source for process evidence
+        // (unlike pace, below), only the JD itself.
+        if (parsedJob.ProcessSignals.Length == 0)
+        {
+            var (components, capped) = CapNamedComponents(
+                r.Breakdown.EngineeringExecutionFit.Components, "EngineeringExecutionFit",
+                new Dictionary<string, int> { ["Role Clarity & Ownership"] = 7, ["Engineering Maturity & Stability"] = 7 },
+                "no_process_signals");
+            if (capped)
+            {
+                changed = true;
+                breakdown = breakdown with
+                {
+                    EngineeringExecutionFit = breakdown.EngineeringExecutionFit with { Components = components, Score = components.Sum(c => c.Score ?? 0) },
+                };
+            }
+        }
+
+        // Signal: no pace signals -> Pace & Workload / Long-term Risk are
+        // capped at the top of their "unclear" band. Conditional on
+        // glassdoorData also being absent — the Analyst only reads the job
+        // description, so a JD silent on pace can still be paired with real
+        // Glassdoor evidence reaching the Evaluator separately; capping here
+        // would discard that evidence rather than a genuine absence of it.
+        if (parsedJob.PaceSignals.Length == 0 && glassdoorData is null)
+        {
+            var (components, capped) = CapNamedComponents(
+                r.Breakdown.SustainabilityPaceFit.Components, "SustainabilityPaceFit",
+                new Dictionary<string, int> { ["Pace & Workload"] = 11, ["Long-term Risk"] = 7 },
+                "no_pace_signals");
+            if (capped)
+            {
+                changed = true;
+                breakdown = breakdown with
+                {
+                    SustainabilityPaceFit = breakdown.SustainabilityPaceFit with { Components = components, Score = components.Sum(c => c.Score ?? 0) },
                 };
             }
         }

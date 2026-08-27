@@ -49,6 +49,8 @@ supplied separately and take precedence over anything parsed from the body.
     "databases": ["string"]
   },
   "namedTechnologies": ["string"],
+  "processSignals": ["string"],
+  "paceSignals": ["string"],
   "domainContext": "string | null",
   "responsibilities": ["string"],
   "warnings": ["string"]
@@ -74,6 +76,17 @@ supplied separately and take precedence over anything parsed from the body.
   infrastructure", "modern tooling", "container platforms" do not. Empty array if the
   posting names none. Overlap with `technicalRequirements`/`requiredSkills` is expected —
   this is a flat, literal inventory, not a new category to sort into.
+- `processSignals`: concrete statements about how the team works — code review, design
+  docs, testing requirements, ownership boundaries, planning cadence, incident process,
+  documented runbooks. Only what is literally stated. "mandatory code review on every
+  change" counts. "collaborative environment" does not. Empty array if the posting states
+  none.
+- `paceSignals`: concrete statements about workload or pace — on-call arrangements, working
+  hours, deadline culture, time-off policy, team size vs scope, stability or churn. Only
+  what is literally stated. "on-call one week in six" counts. "fast-paced" alone does not —
+  that is a mood, not a stated arrangement (still capture it in `culturalSignals`, per the
+  rules above, but it does not belong here on its own). Empty array if the posting states
+  none.
 - `experienceLevel`: seniority as stated (e.g. "Senior", "5+ years"), else null.
 - `warnings`: parser-flagged ambiguities or missing critical info — not judgements of fit.
 

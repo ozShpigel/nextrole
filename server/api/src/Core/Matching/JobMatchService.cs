@@ -363,14 +363,20 @@ public sealed class JobMatchService : IJobMatchService
         }
 
         // Signal: no named technologies -> Core Stack / System Design are
-        // capped at the top of their "unclear" band (PromptSeeds.cs's
-        // technicalFit sub-component bands) rather than trusted to land
-        // there on their own.
+        // capped in the "mid" range rather than trusted to land there on
+        // their own. Not the top of "unclear" (PromptSeeds.cs's technicalFit
+        // sub-component bands) — on real postings, silence is the norm, not
+        // the outlier, so capping at the unclear ceiling turned a correction
+        // on an edge case into a ~15-point penalty on the common case (54% of
+        // the golden set tripped at least one cap). 12+7=19/35=54.3% keeps a
+        // fully-silent dimension inside eval-subscore's mid band (<=57% of
+        // max) with margin — 35's own mid ceiling is 19.95, so 20 already
+        // rounds into high.
         if (parsedJob.NamedTechnologies.Length == 0)
         {
             var (components, capped) = CapNamedComponents(
                 r.Breakdown.TechnicalFit.Components, "TechnicalFit",
-                new Dictionary<string, int> { ["Core Stack"] = 11, ["System Design"] = 7 },
+                new Dictionary<string, int> { ["Core Stack"] = 12, ["System Design"] = 7 },
                 "no_named_technologies");
             if (capped)
             {
@@ -383,14 +389,16 @@ public sealed class JobMatchService : IJobMatchService
         }
 
         // Signal: no process signals -> Role Clarity & Ownership / Engineering
-        // Maturity & Stability are capped at the top of their "unclear" band.
-        // Unconditional — there's no external source for process evidence
-        // (unlike pace, below), only the JD itself.
+        // Maturity & Stability are capped in the "mid" range (see the
+        // technical cap above for why not the "unclear" ceiling). 9+8=17/30
+        // = 56.7% of max, inside eval-subscore's mid band. Unconditional —
+        // there's no external source for process evidence (unlike pace,
+        // below), only the JD itself.
         if (parsedJob.ProcessSignals.Length == 0)
         {
             var (components, capped) = CapNamedComponents(
                 r.Breakdown.EngineeringExecutionFit.Components, "EngineeringExecutionFit",
-                new Dictionary<string, int> { ["Role Clarity & Ownership"] = 7, ["Engineering Maturity & Stability"] = 7 },
+                new Dictionary<string, int> { ["Role Clarity & Ownership"] = 9, ["Engineering Maturity & Stability"] = 8 },
                 "no_process_signals");
             if (capped)
             {
@@ -403,16 +411,19 @@ public sealed class JobMatchService : IJobMatchService
         }
 
         // Signal: no pace signals -> Pace & Workload / Long-term Risk are
-        // capped at the top of their "unclear" band. Conditional on
-        // glassdoorData also being absent — the Analyst only reads the job
-        // description, so a JD silent on pace can still be paired with real
-        // Glassdoor evidence reaching the Evaluator separately; capping here
-        // would discard that evidence rather than a genuine absence of it.
+        // capped in the "mid" range (see the technical cap above for why not
+        // the "unclear" ceiling, and for the same 35-point-max rounding
+        // reason: 12+7=19/35=54.3%, not 12+8=20/35=57.14%, which rounds into
+        // high). Conditional on glassdoorData also being absent — the
+        // Analyst only reads the job description, so a JD silent on pace can
+        // still be paired with real Glassdoor evidence reaching the
+        // Evaluator separately; capping here would discard that evidence
+        // rather than a genuine absence of it.
         if (parsedJob.PaceSignals.Length == 0 && glassdoorData is null)
         {
             var (components, capped) = CapNamedComponents(
                 r.Breakdown.SustainabilityPaceFit.Components, "SustainabilityPaceFit",
-                new Dictionary<string, int> { ["Pace & Workload"] = 11, ["Long-term Risk"] = 7 },
+                new Dictionary<string, int> { ["Pace & Workload"] = 12, ["Long-term Risk"] = 7 },
                 "no_pace_signals");
             if (capped)
             {

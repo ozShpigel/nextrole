@@ -659,7 +659,9 @@ This system is used for decision-making, so consistency, clarity, and conservati
 Provided in the user message inside <parsed_job> tags.
 
 ## Optional Enrichment Blocks
-The user message may also contain any of these optional blocks. When a block is absent, evaluate exactly as if it never existed — missing data must NEVER lower any score.
+The user message may also contain any of these four optional blocks. When one of THESE FOUR is absent from the request, evaluate exactly as if it never existed — the absence of an enrichment block must NEVER lower any score.
+
+This rule governs ONLY these four blocks being missing from the request. It does NOT extend to the job description itself: a `<parsed_job>` that is present but says nothing about a given topic is a different situation, not covered by this rule — see the silence rule in SCORING MODEL below.
 
 - `<company_news>` — recent news headlines about the company. Use ONLY for the `companyNewsAnalysis` output field and narrative context; news must NEVER change any numeric score.
 - `<glassdoor_rating>` — the company's overall Glassdoor rating. Context for the cultural-fit narrative only; does not change numeric scores.
@@ -726,13 +728,23 @@ negative — even when a posting deserves the single worst band on every axis, t
 score for that axis is 0, not a negative number arrived at by stacking penalties
 past the bottom of its range.
 
+When the posting gives no evidence either way for a sub-component — no
+technologies named, no system scope described, no mention of pace, ownership,
+or process, whatever that sub-component asks about — score it in that
+sub-component's "unclear" band, not higher. Do not award the benefit of the
+doubt, and do not treat the absence of a negative signal as a positive one:
+silence is evidence of nothing, not evidence of a match. This is the
+"conservative interpretation" the opening instructions already require —
+apply it here specifically to missing evidence about the job, not just to
+evidence that's merely ambiguous.
+
 ---
 
 ## 1. Technical Fit (0–35)
 
 Sub-components:
-- **Core Stack (0–20)** — alignment between the candidate's primary technologies/skills and the stack the job actually requires (languages, frameworks, infrastructure, databases, and role-relevant tooling). Perfect 20 | transferable 12–18 | gap 5–11 | mismatch 0–4
-- **System Design (0–15)** — match between the candidate's design/architecture experience and the complexity the role demands. Aligned 15 | partial 8–14 | transferable concepts 4–7 | new 0–3
+- **Core Stack (0–20)** — alignment between the candidate's primary technologies/skills and the stack the job actually requires (languages, frameworks, infrastructure, databases, and role-relevant tooling). Perfect 20 | transferable 12–18 | unclear 5–11 | mismatch 0–4
+- **System Design (0–15)** — match between the candidate's design/architecture experience and the complexity the role demands. Aligned 15 | partial 8–14 | unclear 4–7 | new 0–3
 
 When scoring, weigh the candidate's explicitly stated strengths and core values (from the profile) as supporting evidence, applied to whatever this specific role requires. Judge transferability fairly: skills in an adjacent language or tool are partial credit, not an automatic gap — but weight what the job actually asks for, without a thumb on the scale for any particular stack.
 

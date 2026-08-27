@@ -113,7 +113,7 @@ async def score_job(settings: Settings, job_description: str, profile: dict | No
         "POST",
         f"{settings.api_base_url}/api/match",
         settings=settings,
-        timeout=120.0,
+        timeout=180.0,
         operation="score-job",
         retry_on_timeout=False,
         json=payload,

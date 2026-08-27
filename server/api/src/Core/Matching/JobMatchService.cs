@@ -44,7 +44,7 @@ public sealed class JobMatchService : IJobMatchService
         var (parsedJob, analystSnap) = await ParseAsync(request, cancellationToken);
         var (matchResponse, evalSnap) = await _claudeClient.EvaluateMatchAsync(profile, parsedJob, request.CompanyNews, request.GlassdoorData, request.CompanyProfile, cancellationToken);
 
-        var corrected = Correct(matchResponse, _scoring, ReviewCap(request.GlassdoorData?.ReviewCount)) with
+        var corrected = Correct(matchResponse, _scoring, ReviewCap(request.GlassdoorData?.ReviewCount), parsedJob) with
         {
             JobTitle = parsedJob.JobTitle,
             Company = parsedJob.Company,
@@ -97,7 +97,7 @@ public sealed class JobMatchService : IJobMatchService
         var results = parsed.Select(p =>
         {
             var raw = responseById[p.Item.Id];
-            var corrected = Correct(raw, _scoring, ReviewCap(p.Item.GlassdoorData?.ReviewCount)) with
+            var corrected = Correct(raw, _scoring, ReviewCap(p.Item.GlassdoorData?.ReviewCount), p.ParsedJob) with
             {
                 JobTitle = p.ParsedJob.JobTitle,
                 Company = p.ParsedJob.Company,
@@ -140,11 +140,12 @@ public sealed class JobMatchService : IJobMatchService
 
     // Re-derive verdict from the numeric score (authoritative bands) and recompute
     // shouldApply from the save threshold — the AI's own verdict/flag are advisory.
-    private MatchResponse Correct(MatchResponse r, ScoringConfig cfg, int reviewCap)
+    private MatchResponse Correct(MatchResponse r, ScoringConfig cfg, int reviewCap, ParsedJob parsedJob)
     {
         r = EnforceReviewCaps(r, reviewCap);
         r = EnforceStackedGapsCap(r);
         r = EnforceScoreBounds(r);
+        r = EnforceEvidenceCaps(r, parsedJob);
         var verdict = VerdictFromScore(r.OverallScore, cfg.VerdictBands) ?? r.Verdict;
         // The model reliably identifies a disqualifying condition in its
         // reasoning but doesn't reliably apply the consequence to its own
@@ -323,6 +324,72 @@ public sealed class JobMatchService : IJobMatchService
             EngineeringExecutionFit = r.Breakdown.EngineeringExecutionFit with { Components = execComponents, Score = execScore },
             SustainabilityPaceFit = r.Breakdown.SustainabilityPaceFit with { Components = sustComponents, Score = sustScore },
         };
+        return r with { Breakdown = breakdown, OverallScore = overall };
+    }
+
+    // Structured facts the Analyst extracts (e.g. ParsedJob.NamedTechnologies)
+    // that mechanically cap a dimension's components when the JD gives no
+    // evidence for that signal. The model reliably notices the absence in its
+    // own reasoning text but doesn't reliably route the score to the
+    // "unclear" band the prompt tells it to use for exactly this case —
+    // verified empirically via eval-subscore's silence cases: band wording,
+    // an explicit silence rule, narrowing an over-broad rule, a stronger
+    // model, and extended thinking all failed to move it. Runs after
+    // EnforceScoreBounds.
+    //
+    // To add a second signal (e.g. no process/review evidence in the JD ->
+    // cap engineeringExecutionFit's components), add one more `if` block
+    // below that calls CapNamedComponents against the dimension it
+    // affects — this method's shape doesn't need to change.
+    private MatchResponse EnforceEvidenceCaps(MatchResponse r, ParsedJob parsedJob)
+    {
+        var breakdown = r.Breakdown;
+        var changed = false;
+
+        (ScoreComponent[] Components, bool Capped) CapNamedComponents(
+            ScoreComponent[] components, string dimension, IReadOnlyDictionary<string, int> capsByName, string reason)
+        {
+            var capped = false;
+            var result = components.Select(c =>
+            {
+                if (!capsByName.TryGetValue(c.Name, out var max) || c.Score is not int score || score <= max)
+                    return c;
+                capped = true;
+                _logger.LogInformation(
+                    "Score capped: field={Field} from={Original} to={Capped} reason={Reason}",
+                    $"{dimension}.{c.Name}", score, max, reason);
+                return c with { Score = max };
+            }).ToArray();
+            return (result, capped);
+        }
+
+        // Signal: no named technologies -> Core Stack / System Design are
+        // capped at the top of their "unclear" band (PromptSeeds.cs's
+        // technicalFit sub-component bands) rather than trusted to land
+        // there on their own.
+        if (parsedJob.NamedTechnologies.Length == 0)
+        {
+            var (components, capped) = CapNamedComponents(
+                r.Breakdown.TechnicalFit.Components, "TechnicalFit",
+                new Dictionary<string, int> { ["Core Stack"] = 11, ["System Design"] = 7 },
+                "no_named_technologies");
+            if (capped)
+            {
+                changed = true;
+                breakdown = breakdown with
+                {
+                    TechnicalFit = breakdown.TechnicalFit with { Components = components, Score = components.Sum(c => c.Score ?? 0) },
+                };
+            }
+        }
+
+        if (!changed) return r;
+
+        var overall = breakdown.TechnicalFit.Score is int t
+                   && breakdown.EngineeringExecutionFit.Score is int e
+                   && breakdown.SustainabilityPaceFit.Score is int s
+            ? t + e + s
+            : r.OverallScore;
         return r with { Breakdown = breakdown, OverallScore = overall };
     }
 }

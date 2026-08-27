@@ -48,6 +48,7 @@ supplied separately and take precedence over anything parsed from the body.
     "infrastructure": ["string"],
     "databases": ["string"]
   },
+  "namedTechnologies": ["string"],
   "domainContext": "string | null",
   "responsibilities": ["string"],
   "warnings": ["string"]
@@ -67,6 +68,12 @@ supplied separately and take precedence over anything parsed from the body.
 - `technicalRequirements`: split the stated tech stack into languages / frameworks /
   infrastructure / databases; anything that doesn't fit a group goes in `requiredSkills` or
   `niceToHaveSkills`.
+- `namedTechnologies`: concrete technologies, platforms, languages, or tools the posting
+  EXPLICITLY names — only what is literally stated, never what the role implies or what a
+  posting like this usually involves. "Kubernetes", "Terraform", "C#" count. "cloud
+  infrastructure", "modern tooling", "container platforms" do not. Empty array if the
+  posting names none. Overlap with `technicalRequirements`/`requiredSkills` is expected —
+  this is a flat, literal inventory, not a new category to sort into.
 - `experienceLevel`: seniority as stated (e.g. "Senior", "5+ years"), else null.
 - `warnings`: parser-flagged ambiguities or missing critical info — not judgements of fit.
 

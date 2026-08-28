@@ -798,7 +798,7 @@ List every genuinely missing named technology/skill the role REQUIRES in the out
 
 ---
 
-## 2. Cultural & Operational Fit (0–30)
+## 2. Engineering Execution Fit (0–30)
 
 Sub-components:
 - **Role Clarity & Ownership (0–15)** — clarity of expectations, ownership boundaries, autonomy vs micromanagement. Clear & autonomous 15 | mostly defined 8–14 | ambiguous 4–7 | diluted/micromanaged 0–3
@@ -813,7 +813,7 @@ Penalize:
 
 ---
 
-## 3. Sustainability Fit (0–35)
+## 3. Sustainability Pace Fit (0–35)
 
 This is a primary dimension.
 

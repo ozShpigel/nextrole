@@ -15,6 +15,21 @@ public static class ResumePackValidator
     {
         var violations = new List<ValidationViolation>();
 
+        // 0. tailoredSummary has a 60-word ceiling stated in the prompt, but
+        // models count words poorly — log-only, never truncate (a cut summary
+        // mid-sentence is worse than a long one).
+        var summaryWordCount = synthesis.TailoredSummary
+            .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)
+            .Length;
+        if (summaryWordCount > 60)
+        {
+            violations.Add(new ValidationViolation
+            {
+                Kind = "TailoredSummaryTooLong",
+                Detail = $"words={summaryWordCount} (ceiling=60)",
+            });
+        }
+
         // 1. Every provenance Source must appear verbatim in the exact profile
         // text the model was given — the model's own claimed grounding for a
         // rephrased clause, checked against what it actually had.

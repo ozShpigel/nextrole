@@ -146,6 +146,7 @@ public sealed class JobMatchService : IJobMatchService
         r = EnforceStackedGapsCap(r);
         r = EnforceScoreBounds(r);
         r = EnforceEvidenceCaps(r, parsedJob, glassdoorData);
+        r = EnforceQuickHighlightsLength(r);
         var verdict = VerdictFromScore(r.OverallScore, cfg.VerdictBands) ?? r.Verdict;
         // The model reliably identifies a disqualifying condition in its
         // reasoning but doesn't reliably apply the consequence to its own
@@ -443,5 +444,30 @@ public sealed class JobMatchService : IJobMatchService
             ? t + e + s
             : r.OverallScore;
         return r with { Breakdown = breakdown, OverallScore = overall };
+    }
+
+    // The prompt states a 6-word ceiling per quickHighlights line, but models
+    // count words poorly — enforced here instead: log the violation, then
+    // drop the "— explanation" half so only the term remains (the prompt
+    // already sanctions a bare term as the fallback for an over-length line).
+    private MatchResponse EnforceQuickHighlightsLength(MatchResponse r)
+    {
+        if (r.QuickHighlights.Length == 0) return r;
+
+        var changed = false;
+        var corrected = r.QuickHighlights.Select(line =>
+        {
+            var wordCount = line.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Length;
+            if (wordCount <= 6) return line;
+
+            changed = true;
+            var termOnly = line.Split('—', 2)[0].Trim();
+            _logger.LogInformation(
+                "Quick highlight over length: words={WordCount} line=\"{Line}\" corrected=\"{Corrected}\"",
+                wordCount, line, termOnly);
+            return termOnly;
+        }).ToArray();
+
+        return changed ? r with { QuickHighlights = corrected } : r;
     }
 }

@@ -74,10 +74,11 @@ public sealed class JobMatchService : IJobMatchService
 
         var parsed = request.Jobs.Select(item =>
         {
-            var parsedJob = parsedById[item.Id] with
+            var verified = EnforceCulturalSignalsVerbatim(parsedById[item.Id], item.JobDescription);
+            var parsedJob = verified with
             {
-                JobTitle = !string.IsNullOrWhiteSpace(item.Title) ? item.Title! : parsedById[item.Id].JobTitle,
-                Company = !string.IsNullOrWhiteSpace(item.Company) ? item.Company : parsedById[item.Id].Company,
+                JobTitle = !string.IsNullOrWhiteSpace(item.Title) ? item.Title! : verified.JobTitle,
+                Company = !string.IsNullOrWhiteSpace(item.Company) ? item.Company : verified.Company,
             };
             return (Item: item, ParsedJob: parsedJob);
         }).ToList();
@@ -130,13 +131,59 @@ public sealed class JobMatchService : IJobMatchService
     private async Task<(ParsedJob Parsed, ClaudeCallSnapshot Snapshot)> ParseAsync(MatchRequest request, CancellationToken cancellationToken = default)
     {
         var (parsed, snap) = await _claudeClient.ParseJobDescriptionAsync(request.JobDescription, cancellationToken);
-        var parsedJob = parsed with
+        var verified = EnforceCulturalSignalsVerbatim(parsed, request.JobDescription);
+        var parsedJob = verified with
         {
-            JobTitle = !string.IsNullOrWhiteSpace(request.Title) ? request.Title! : parsed.JobTitle,
-            Company = !string.IsNullOrWhiteSpace(request.Company) ? request.Company : parsed.Company,
+            JobTitle = !string.IsNullOrWhiteSpace(request.Title) ? request.Title! : verified.JobTitle,
+            Company = !string.IsNullOrWhiteSpace(request.Company) ? request.Company : verified.Company,
         };
         return (parsedJob, snap);
     }
+
+    // The Analyst's field note for culturalSignals instructs "verbatim...
+    // capture exact text" (PromptSeeds.cs), but it doesn't reliably hold — the
+    // model sometimes copies its own field-note examples ("wear many hats",
+    // "fast-paced") into the output as if they'd been extracted from the
+    // posting, and the Evaluator then cites them as evidence for a hard
+    // filter the posting never actually triggered. Runs on the Analyst's raw
+    // output before it reaches the Evaluator — unlike Correct()'s other
+    // Enforce* methods, which all run on the Evaluator's output instead.
+    private ParsedJob EnforceCulturalSignalsVerbatim(ParsedJob parsedJob, string jobDescription)
+    {
+        var normalizedJd = NormalizeWhitespace(jobDescription);
+
+        string[] Filter(string[] signals, string category)
+        {
+            return signals.Where(signal =>
+            {
+                var found = normalizedJd.Contains(NormalizeWhitespace(signal), StringComparison.OrdinalIgnoreCase);
+                if (!found)
+                {
+                    _logger.LogWarning(
+                        "Fabricated cultural signal dropped: signal={Signal} category={Category}",
+                        signal, category);
+                }
+                return found;
+            }).ToArray();
+        }
+
+        var negative = Filter(parsedJob.CulturalSignals.Negative, "negative");
+        var positive = Filter(parsedJob.CulturalSignals.Positive, "positive");
+        var neutral = Filter(parsedJob.CulturalSignals.Neutral, "neutral");
+
+        if (negative.Length == parsedJob.CulturalSignals.Negative.Length
+            && positive.Length == parsedJob.CulturalSignals.Positive.Length
+            && neutral.Length == parsedJob.CulturalSignals.Neutral.Length)
+            return parsedJob;
+
+        return parsedJob with
+        {
+            CulturalSignals = parsedJob.CulturalSignals with { Negative = negative, Positive = positive, Neutral = neutral }
+        };
+    }
+
+    private static string NormalizeWhitespace(string s) =>
+        string.Join(' ', s.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
 
     // Re-derive verdict from the numeric score (authoritative bands) and recompute
     // shouldApply from the save threshold — the AI's own verdict/flag are advisory.

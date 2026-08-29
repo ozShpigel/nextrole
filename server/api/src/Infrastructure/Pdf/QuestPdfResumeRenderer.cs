@@ -51,7 +51,7 @@ public sealed class QuestPdfResumeRenderer : IResumePdfRenderer
                                 {
                                     if (!isFirst)
                                         text.Span(" | ").FontSize(9).FontColor(Colors.Grey.Darken1);
-                                    text.Hyperlink("LinkedIn", profile.LinkedIn!).FontSize(9).FontColor(HeaderColor).Underline();
+                                    text.Hyperlink("LinkedIn", NormalizeUrl(profile.LinkedIn!)).FontSize(9).FontColor(HeaderColor).Underline();
                                 }
                             });
                         }
@@ -163,7 +163,7 @@ public sealed class QuestPdfResumeRenderer : IResumePdfRenderer
                                                 {
                                                     if (i > 0)
                                                         text.Span("  ·  ").FontSize(8.5f).FontColor(Colors.Grey.Darken1);
-                                                    text.Hyperlink(LinkLabel(project.Links[i], ref usedDemoLabel), project.Links[i])
+                                                    text.Hyperlink(LinkLabel(project.Links[i], ref usedDemoLabel), NormalizeUrl(project.Links[i]))
                                                         .FontSize(8.5f).FontColor(HeaderColor).Underline();
                                                 }
                                             });
@@ -230,6 +230,17 @@ public sealed class QuestPdfResumeRenderer : IResumePdfRenderer
             return "Live demo";
         }
         return "Link";
+    }
+
+    // Profile/project links are stored scheme-less (e.g. "linkedin.com/in/name") since
+    // that's how the AI extractor and the Settings free-text field save them. QuestPDF
+    // renders a schemeless href as-is, and a PDF viewer resolves that as a relative path
+    // against the file's own folder rather than as an external URL — so it must gain a
+    // scheme here, at render time, before reaching Hyperlink().
+    private static string NormalizeUrl(string url)
+    {
+        var trimmed = url.Trim();
+        return Uri.IsWellFormedUriString(trimmed, UriKind.Absolute) ? trimmed : $"https://{trimmed}";
     }
 
     private static List<string> Clean(string[]? items) =>

@@ -56,11 +56,16 @@ Useful queries:
     {env="prod"} |= "runId=<uuid>"     # everything that happened in one discovery run
     {service="ingest"} |= "Job skipped"
 
+The mailbot's `sleep 20` is deliberate: the container otherwise exits
+in about a second, faster than promtail's container-discovery interval,
+and its logs never reach Loki.    
+
 ### Gotchas
 
-**Mailbot logs are not in Grafana.** Its container runs for about a second, which is
-shorter than promtail's 15s container-discovery interval, so promtail usually never
-sees it. Use `journalctl -u nextrole-mailbot.service` instead.
+**The mailbot's `sleep 20` is deliberate.** Its container otherwise exits in about a
+second — faster than promtail's container-discovery interval — and its logs never
+reach Loki. The `entrypoint: sh -c "dotnet Mailbot.dll; sleep 20"` line in
+`compose.yml` keeps the container alive long enough to be scraped. Don't remove it.
 
 **Restart promtail before the run you want to inspect.** Promtail does not collect
 retroactively — logs written before a config change or restart are lost to Loki even

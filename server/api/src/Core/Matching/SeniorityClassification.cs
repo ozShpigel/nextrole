@@ -13,7 +13,7 @@ public sealed record SeniorityClassifyRequest
 
 public sealed record SeniorityClassifyItem
 {
-    public int Index { get; init; }
+    public string JobId { get; init; } = "";
     public string Title { get; init; } = "";
     public string? Description { get; init; }
 }
@@ -25,6 +25,6 @@ public sealed record SeniorityClassifyResponse
 
 public sealed record SeniorityClassifyResult
 {
-    public int Index { get; init; }
+    public string JobId { get; init; } = "";
     public string? Level { get; init; }
 }

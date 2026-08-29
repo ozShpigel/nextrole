@@ -482,7 +482,7 @@ public sealed class ClaudeClient : IClaudeClient
             request.Titles.Count, request.SearchIntent);
 
         var titlesJson = JsonSerializer.Serialize(
-            request.Titles.Select(t => new { t.Index, t.Title, t.Company }),
+            request.Titles.Select(t => new { t.JobId, t.Title, t.Company }),
             new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
 
         // Titles come from external job boards — untrusted, XML-wrapped as data.
@@ -518,7 +518,7 @@ public sealed class ClaudeClient : IClaudeClient
         _logger.LogInformation("Classifying seniority for {Count} scraped jobs", request.Jobs.Count);
 
         var jobsJson = JsonSerializer.Serialize(
-            request.Jobs.Select(j => new { j.Index, j.Title, j.Description }),
+            request.Jobs.Select(j => new { j.JobId, j.Title, j.Description }),
             new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
 
         // Scraped postings — untrusted, XML-wrapped as data.

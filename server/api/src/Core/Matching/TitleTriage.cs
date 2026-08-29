@@ -12,7 +12,7 @@ public sealed record TitleTriageRequest
 
 public sealed record TitleTriageItem
 {
-    public int Index { get; init; }
+    public string JobId { get; init; } = "";
     public string Title { get; init; } = "";
     public string? Company { get; init; }
 }
@@ -24,7 +24,7 @@ public sealed record TitleTriageResponse
 
 public sealed record TitleTriageResult
 {
-    public int Index { get; init; }
+    public string JobId { get; init; } = "";
     public bool Relevant { get; init; }
     public string? Reason { get; init; }
 }

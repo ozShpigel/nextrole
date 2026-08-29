@@ -279,8 +279,8 @@ RULES
 - Titles may be in any language (Hebrew is common). Translate mentally and judge by the same rules — an unfamiliar language is NOT "uncertain" and never a reason to keep (e.g. intent "Platform Engineer" → "מהנדס תכן מכני" is off-target exactly like "Mechanical Design Engineer").
 
 OUTPUT — return ONLY this JSON, nothing else (no markdown fences):
-{ "results": [ { "index": <int>, "relevant": <bool>, "reason": "<short {{OUTPUT_LANGUAGE}} phrase explaining why it is off-target; include ONLY when relevant=false>" } ] }
-Include every input index exactly once.
+{ "results": [ { "jobId": "<string, copied verbatim from the input>", "relevant": <bool>, "reason": "<short {{OUTPUT_LANGUAGE}} phrase explaining why it is off-target; include ONLY when relevant=false>" } ] }
+Include every input jobId exactly once.
 """;
 
     // Source-agnostic seniority classification: replaces reliance on
@@ -308,8 +308,8 @@ RULES
 - LEAN PERMISSIVE on ambiguity between two adjacent bands: prefer null over a confident-sounding guess you are not sure of.
 
 OUTPUT — return ONLY this JSON, nothing else (no markdown fences):
-{ "results": [ { "index": <int>, "level": "<one of the five bands, or null>" } ] }
-Include every input index exactly once.
+{ "results": [ { "jobId": "<string, copied verbatim from the input>", "level": "<one of the five bands, or null>" } ] }
+Include every input jobId exactly once.
 """;
 
     public const string WhyWorkHere = """

@@ -10,17 +10,24 @@ async def triage_titles(
     settings: Settings,
     search_intent: str,
     jobs: list[dict],
-) -> dict[int, dict] | None:
+) -> dict[str, dict] | None:
     """One Haiku call per run: flags scraped titles that are clearly off-target
     for the search intent (job-board padding), before any embedding.
 
-    Returns {job_index: {"relevant": bool, "reason": str | None}}, or None on
-    any failure — the caller MUST fail open (keep every job) on None."""
+    Returns {job_id: {"relevant": bool, "reason": str | None}}, or None on
+    any failure — the caller MUST fail open (keep every job) on None.
+
+    Correlates results by jobId (assigned at scrape time), not list
+    position. A response that fails outright (bad status, unparseable body)
+    still fails open. A response that parses but can't be correlated by
+    jobId is a version mismatch (an API still on the old index-based
+    contract) — that raises instead of silently falling back to positional
+    matching, per the CD pipeline's independent-deploy skew window."""
     if not search_intent or not jobs:
         return None
     titles = [
-        {"index": i, "title": j.get("title") or "", "company": j.get("company") or None}
-        for i, j in enumerate(jobs)
+        {"jobId": j["id"], "title": j.get("title") or "", "company": j.get("company") or None}
+        for j in jobs
     ]
     resp = await _request_with_retry(
         "POST",
@@ -37,33 +44,39 @@ async def triage_titles(
         return None
     try:
         results = (resp.json() or {}).get("results") or []
-        triage = {
-            r["index"]: {"relevant": bool(r.get("relevant", True)), "reason": r.get("reason")}
-            for r in results
-            if isinstance(r.get("index"), int)
-        }
     except Exception as e:
         logger.warning("Title triage response unparseable (%s) — keeping all jobs", e)
         return None
+    if results and not all(isinstance(r, dict) and r.get("jobId") for r in results):
+        raise RuntimeError(
+            "Title triage response missing jobId — API/scraper version mismatch"
+        )
+    triage = {
+        r["jobId"]: {"relevant": bool(r.get("relevant", True)), "reason": r.get("reason")}
+        for r in results
+    }
     dropped = sum(1 for v in triage.values() if not v["relevant"])
     logger.info("Title triage: %d/%d titles kept for intent '%s'",
                 len(jobs) - dropped, len(jobs), search_intent)
     return triage
 
 
-async def classify_seniority(settings: Settings, jobs: list[dict]) -> dict[int, str | None] | None:
+async def classify_seniority(settings: Settings, jobs: list[dict]) -> dict[str, str | None] | None:
     """One Haiku call per run: classifies each relevant scraped job's actual
     seniority band from title+description — source-agnostic, unlike jobspy's
     LinkedIn-only job_level tag.
 
-    Returns {job_index: level | None}, or None on any failure — the caller
+    Returns {job_id: level | None}, or None on any failure — the caller
     MUST fail open (actual_job_level stays None everywhere, which never
-    excludes) on None."""
+    excludes) on None.
+
+    Correlates results by jobId (assigned at scrape time), not list
+    position — see triage_titles for the version-mismatch rationale."""
     if not jobs:
         return None
     items = [
-        {"index": i, "title": j.get("title") or "", "description": j.get("description")}
-        for i, j in enumerate(jobs)
+        {"jobId": j["id"], "title": j.get("title") or "", "description": j.get("description")}
+        for j in jobs
     ]
     resp = await _request_with_retry(
         "POST",
@@ -80,14 +93,14 @@ async def classify_seniority(settings: Settings, jobs: list[dict]) -> dict[int, 
         return None
     try:
         results = (resp.json() or {}).get("results") or []
-        levels = {
-            r["index"]: r.get("level")
-            for r in results
-            if isinstance(r.get("index"), int)
-        }
     except Exception as e:
         logger.warning("Seniority classification response unparseable (%s) — leaving actual_job_level unset", e)
         return None
+    if results and not all(isinstance(r, dict) and r.get("jobId") for r in results):
+        raise RuntimeError(
+            "Seniority classification response missing jobId — API/scraper version mismatch"
+        )
+    levels = {r["jobId"]: r.get("level") for r in results}
     labeled = sum(1 for v in levels.values() if v)
     logger.info("Seniority classification: %d/%d jobs labeled", labeled, len(jobs))
     return levels

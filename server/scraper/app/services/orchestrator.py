@@ -155,13 +155,13 @@ async def run_discovery(db: AsyncIOMotorDatabase, settings: Settings, criteria_i
         ) or {}
 
         def _is_relevant(idx: int) -> bool:
-            t = triage.get(idx)
+            t = triage.get(jobs[idx]["id"])
             return t is None or t["relevant"]
 
         relevant_indices = [i for i in range(len(jobs)) if _is_relevant(i)]
 
-        for i, job in enumerate(jobs):
-            t = triage.get(i)
+        for job in jobs:
+            t = triage.get(job["id"])
             kept = t["relevant"] if t else True
             reason = (t or {}).get("reason")
             logger.info("Job triaged: runId=%s jobId=%s kept=%s reason=%s",
@@ -208,22 +208,18 @@ async def run_discovery(db: AsyncIOMotorDatabase, settings: Settings, criteria_i
         # LinkedIn-only job_level as the client-side filter). Only classify
         # jobs that survived triage; fails open (None everywhere) on error.
         relevant_jobs = [jobs[i] for i in relevant_indices]
+        # Keyed by jobId directly (assigned at scrape time) — no index remap
+        # needed even though classify_seniority only saw relevant_jobs.
         seniority = await match_client.classify_seniority(settings, relevant_jobs) or {}
-        # classify_seniority is indexed against relevant_jobs, not the
-        # original jobs list (triaged-out jobs were never sent) — remap back
-        # to the original indices used everywhere else below.
-        seniority_by_original_index = {
-            relevant_indices[i]: level for i, level in seniority.items()
-        }
         for i in relevant_indices:
             logger.info("Job classified: runId=%s jobId=%s seniority=%s",
-                        run.id, jobs[i].get("id"), seniority_by_original_index.get(i))
+                        run.id, jobs[i]["id"], seniority.get(jobs[i]["id"]))
 
         # Duplicate check is cheap and still useful as a flag (the job stays
         # searchable; the UI marks it as already tracked).
         dup_sem = asyncio.Semaphore(5)
 
-        def _base_job(i: int, job_data: dict) -> dict:
+        def _base_job(job_data: dict) -> dict:
             return {
                 "run_id": run.id,
                 "criteria_id": criteria.id,
@@ -235,36 +231,36 @@ async def run_discovery(db: AsyncIOMotorDatabase, settings: Settings, criteria_i
                 "date_posted": job_data.get("date_posted"),
                 "site": job_data.get("site", "linkedin"),
                 "job_level": job_data.get("job_level"),
-                "actual_job_level": seniority_by_original_index.get(i),
+                "actual_job_level": seniority.get(job_data.get("id")),
                 "is_remote": job_data.get("is_remote"),
                 "company_logo": job_data.get("company_logo"),
                 "company_profile": job_data.get("company_profile"),
             }
 
-        async def _insert_triaged_out(i: int, job_data: dict):
+        async def _insert_triaged_out(job_data: dict):
             try:
                 disc_job = DiscoveredJob(
-                    **_base_job(i, job_data),
+                    **_base_job(job_data),
                     id=job_data.get("id"),
                     triaged_out=True,
-                    triage_reason=(triage.get(i) or {}).get("reason"),
+                    triage_reason=(triage.get(job_data.get("id")) or {}).get("reason"),
                 )
                 await db.discovered_jobs.insert_one(disc_job.model_dump())
                 run.jobs_triaged_out += 1
             except Exception as e:
-                logger.error("Error ingesting triaged-out job %d '%s': %s", i, job_data.get("title"), e)
+                logger.error("Error ingesting triaged-out job '%s': %s", job_data.get("title"), e)
 
         # Job ids are now generated at scrape time (scraper.py), not here —
         # carried on the job dict since before triage, so triaged-out jobs
         # and "Job scraped"/"Job triaged"/"Job classified" log lines share
         # the same id as the eventually-persisted DiscoveredJob.
-        relevant_with_ids = [(i, jobs[i], jobs[i]["id"]) for i in relevant_indices]
+        relevant_with_ids = [(jobs[i], jobs[i]["id"]) for i in relevant_indices]
         batch_sem = asyncio.Semaphore(MAX_CONCURRENT_SCORE_BATCHES)
 
-        async def _score_and_insert_batch(chunk: list[tuple[int, dict, str]]):
+        async def _score_and_insert_batch(chunk: list[tuple[dict, str]]):
             items = []
             enriched_profiles: dict[str, dict | None] = {}
-            for i, job_data, job_id in chunk:
+            for job_data, job_id in chunk:
                 key = (job_data.get("company") or "").strip().lower()
                 profile = _enrich_company_profile(job_data, key)
                 enriched_profiles[job_id] = profile
@@ -284,10 +280,10 @@ async def run_discovery(db: AsyncIOMotorDatabase, settings: Settings, criteria_i
             async with batch_sem:
                 scores = await match_client.score_job_batch(settings, items, run_id=run.id)
 
-            for i, job_data, job_id in chunk:
+            for job_data, job_id in chunk:
                 try:
                     key = (job_data.get("company") or "").strip().lower()
-                    base = _base_job(i, job_data)
+                    base = _base_job(job_data)
                     base["company_profile"] = enriched_profiles.get(job_id, base["company_profile"])
                     async with dup_sem:
                         is_dup = await tracker_client.check_duplicate(
@@ -340,7 +336,7 @@ async def run_discovery(db: AsyncIOMotorDatabase, settings: Settings, criteria_i
         ]
         triaged_out_indices = [i for i in range(len(jobs)) if not _is_relevant(i)]
         await asyncio.gather(
-            *[_insert_triaged_out(i, jobs[i]) for i in triaged_out_indices],
+            *[_insert_triaged_out(jobs[i]) for i in triaged_out_indices],
             *[_score_and_insert_batch(chunk) for chunk in chunks],
         )
 

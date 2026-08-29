@@ -127,6 +127,8 @@ public static class MatchEndpoints
                 return Results.BadRequest(new { error = "too many titles (max 200)" });
             if (request.Titles.Any(t => t.Title.Length > 500))
                 return Results.BadRequest(new { error = "a title exceeds maximum length of 500 characters" });
+            if (request.Titles.Any(t => string.IsNullOrWhiteSpace(t.JobId)))
+                return Results.BadRequest(new { error = "jobId is required for every title (scraper/API version mismatch)" });
             try
             {
                 var result = await claude.TriageTitlesAsync(request, ct);
@@ -163,6 +165,8 @@ public static class MatchEndpoints
                 return Results.BadRequest(new { error = "too many jobs (max 200)" });
             if (request.Jobs.Any(j => (j.Description?.Length ?? 0) > 50_000))
                 return Results.BadRequest(new { error = "a job description exceeds maximum length of 50,000 characters" });
+            if (request.Jobs.Any(j => string.IsNullOrWhiteSpace(j.JobId)))
+                return Results.BadRequest(new { error = "jobId is required for every job (scraper/API version mismatch)" });
             try
             {
                 var result = await claude.ClassifySeniorityAsync(request, ct);

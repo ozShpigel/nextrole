@@ -701,15 +701,17 @@ This rule governs ONLY these four blocks being missing from the request. It does
 
 Each filter must be evaluated strictly as:
 
-- FAIL → immediate `STRONG_NO`, add reason to `hardBlockers`
+- FAIL → immediate `STRONG_NO`, add an entry to `hardBlockers` tagged with the exact filter that fired (see the five `filter` values in OUTPUT STRUCTURE below — the four filters here plus `people_management` under Technical Fit)
 - UNKNOWN → add to `mustClarify`, continue evaluation
 - PASS → continue evaluation
 
 If any filter is FAIL → final verdict MUST be `STRONG_NO`.
 
+`hardBlockers` may ONLY be populated by these five filters. Any other concern — a technical gap, an experience mismatch, a workload worry — belongs in the relevant dimension's `concerns`, not here, even if it feels disqualifying.
+
 ---
 
-## 1. Work Arrangement
+## 1. Work Arrangement (`filter: work_arrangement`)
 
 Evaluate only against a work-arrangement constraint the candidate has EXPLICITLY stated in the profile.
 - Job's arrangement explicitly conflicts with the candidate's explicitly stated constraint → FAIL
@@ -718,7 +720,7 @@ Evaluate only against a work-arrangement constraint the candidate has EXPLICITLY
 
 ---
 
-## 2. Scope Discipline
+## 2. Scope Discipline (`filter: scope_discipline`)
 
 - Contains: "wear many hats", "jack of all trades", "rockstar", "ninja", or equivalent → FAIL
 - Clearly defined engineering-focused role → PASS
@@ -726,7 +728,7 @@ Evaluate only against a work-arrangement constraint the candidate has EXPLICITLY
 
 ---
 
-## 3. Sustainability Signals
+## 3. Sustainability Signals (`filter: sustainability_signals`)
 
 - “fast-paced”, “move fast”, “high velocity” used as core cultural identity WITHOUT balancing signals (quality, reliability, sustainability, engineering discipline) → FAIL
 - “fast-paced” mentioned once as generic description → UNKNOWN
@@ -734,7 +736,7 @@ Evaluate only against a work-arrangement constraint the candidate has EXPLICITLY
 
 ---
 
-## 4. Candidate-Stated Dealbreakers
+## 4. Candidate-Stated Dealbreakers (`filter: candidate_dealbreaker`)
 
 Evaluate only against dealbreakers the candidate has EXPLICITLY listed in their profile's `<red_flags>` (skip this filter entirely when the profile lists none — never invent a dealbreaker the candidate didn't state).
 
@@ -783,7 +785,7 @@ Compare the level the role demands with the level the candidate has DEMONSTRABLY
 - The level gap MUST be stated in the System Design `reason` and appear in `recommendation.redFlags`.
 - This works on demonstrated scope, not words: a profile showing architecture-level ownership counts even without the title; conversely, a plain seniority prefix ("Senior Software Engineer") is NOT a level gap for an experienced engineer — this rule targets genuine role-kind jumps, not years-of-experience arithmetic.
 
-**People-management is disqualifying, not just a score gap — add it to `hardBlockers`** (this triggers the HARD FILTERS gate above → verdict MUST be `STRONG_NO`), in addition to capping System Design:
+**People-management is disqualifying, not just a score gap — add it to `hardBlockers`, tagged `filter: people_management`** (this triggers the HARD FILTERS gate above → verdict MUST be `STRONG_NO`), in addition to capping System Design:
 - This applies when the JD requires the candidate to formally manage people — as the role's OWN duties ("lead the DevOps team", "grow and manage a team", "2+ years leading a team") — OR as a stated PRIOR-experience qualification for applying to this role ("Experience as a DevOps lead, minimum 5 years", "X years in a management capacity"). Both count identically: a requirement about the candidate's history is not satisfied by the new role having an individual-contributor-sounding title — read the actual requirement text, not the job title.
 - Individual-contributor mentoring — "mentor fellow engineers", code reviews, informal guidance, helping juniors — is NOT people-management; do not FAIL for this alone.
 - Leading INITIATIVES or PROJECTS end-to-end (technical ownership, driving implementations) is NOT people-management either — only formal responsibility for people (hiring, growing, being their manager) counts.
@@ -933,7 +935,7 @@ Every `score` below — component, dimension, and `overallScore` — is bounded 
     "redFlags": ["string ({{OUTPUT_LANGUAGE}})"],
     "greenFlags": ["string ({{OUTPUT_LANGUAGE}})"]
   },
-  "hardBlockers": ["string ({{OUTPUT_LANGUAGE}}) — reasons any HARD FILTER above returned FAIL; empty array if none"],
+  "hardBlockers": [{ "filter": "work_arrangement | scope_discipline | sustainability_signals | candidate_dealbreaker | people_management", "reason": "string ({{OUTPUT_LANGUAGE}})" }],
   "mustClarify": ["string ({{OUTPUT_LANGUAGE}}) — HARD FILTER items that returned UNKNOWN; empty array if none"],
   "stackedGaps": ["string ({{OUTPUT_LANGUAGE}}) — see Stacked gaps rule under Core Stack; empty array if none"],
   "quickHighlights": ["string (English, \"<term> — <short explanation>\" format) — see QUICK HIGHLIGHTS section; 4-6 items"],

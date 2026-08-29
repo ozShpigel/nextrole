@@ -86,7 +86,7 @@ interface MatchAnalysis {
   companyNewsAnalysis?: SignalAnalysis;
   employeeReviewsAnalysis?: SignalAnalysis;
   honestAssessment?: string;
-  hardBlockers?: string[];
+  hardBlockers?: { filter: string; reason: string }[];
   mustClarify?: string[];
   stackedGaps?: string[];
 }
@@ -180,7 +180,7 @@ export default function AnalysisCard({ matchAnalysisJson }: AnalysisCardProps) {
             <div className="mb-6 p-[0.9rem_1.1rem] rounded-xl border border-[var(--ed-ink)]">
               <span className={SUBLABEL}>Hard Blockers</span>
               <ul className="list-disc pl-5 m-0">
-                {a.hardBlockers.map((item, i) => <li key={i} className="text-[16px] mb-[0.3rem] text-[var(--ed-ink)] leading-[1.6]">{item}</li>)}
+                {a.hardBlockers.map((item, i) => <li key={i} className="text-[16px] mb-[0.3rem] text-[var(--ed-ink)] leading-[1.6]">{item.reason}</li>)}
               </ul>
             </div>
           )}

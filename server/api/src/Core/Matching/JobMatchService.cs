@@ -37,14 +37,24 @@ public sealed class JobMatchService : IJobMatchService
     {
         _logger.LogInformation("Starting job match analysis");
 
-        var profile = request.Profile is not null
-            ? ProfileRenderer.Render(request.Profile)
-            : await _profileProvider.GetProfileAsync(cancellationToken);
+        string profile;
+        string[] redFlags;
+        if (request.Profile is not null)
+        {
+            profile = ProfileRenderer.Render(request.Profile);
+            redFlags = request.Profile.RedFlags;
+        }
+        else
+        {
+            var profileDoc = await _profileProvider.GetProfileDocumentAsync(cancellationToken);
+            profile = profileDoc.Content;
+            redFlags = profileDoc.Structured.RedFlags;
+        }
 
         var (parsedJob, analystSnap) = await ParseAsync(request, cancellationToken);
         var (matchResponse, evalSnap) = await _claudeClient.EvaluateMatchAsync(profile, parsedJob, request.CompanyNews, request.GlassdoorData, request.CompanyProfile, cancellationToken);
 
-        var corrected = Correct(matchResponse, _scoring, ReviewCap(request.GlassdoorData?.ReviewCount), parsedJob, request.GlassdoorData) with
+        var corrected = Correct(matchResponse, _scoring, ReviewCap(request.GlassdoorData?.ReviewCount), parsedJob, request.GlassdoorData, redFlags) with
         {
             JobTitle = parsedJob.JobTitle,
             Company = parsedJob.Company,
@@ -62,7 +72,9 @@ public sealed class JobMatchService : IJobMatchService
     {
         _logger.LogInformation("Starting batch job match analysis ({Count} jobs)", request.Jobs.Count);
 
-        var profile = await _profileProvider.GetProfileAsync(cancellationToken);
+        var profileDoc = await _profileProvider.GetProfileDocumentAsync(cancellationToken);
+        var profile = profileDoc.Content;
+        var redFlags = profileDoc.Structured.RedFlags;
 
         // Analyst pass: ONE shared call parses every job in the batch — same
         // shared-system-prompt-cost saving the Evaluator batch call already
@@ -98,7 +110,7 @@ public sealed class JobMatchService : IJobMatchService
         var results = parsed.Select(p =>
         {
             var raw = responseById[p.Item.Id];
-            var corrected = Correct(raw, _scoring, ReviewCap(p.Item.GlassdoorData?.ReviewCount), p.ParsedJob, p.Item.GlassdoorData) with
+            var corrected = Correct(raw, _scoring, ReviewCap(p.Item.GlassdoorData?.ReviewCount), p.ParsedJob, p.Item.GlassdoorData, redFlags) with
             {
                 JobTitle = p.ParsedJob.JobTitle,
                 Company = p.ParsedJob.Company,
@@ -187,13 +199,14 @@ public sealed class JobMatchService : IJobMatchService
 
     // Re-derive verdict from the numeric score (authoritative bands) and recompute
     // shouldApply from the save threshold — the AI's own verdict/flag are advisory.
-    private MatchResponse Correct(MatchResponse r, ScoringConfig cfg, int reviewCap, ParsedJob parsedJob, GlassdoorData? glassdoorData)
+    private MatchResponse Correct(MatchResponse r, ScoringConfig cfg, int reviewCap, ParsedJob parsedJob, GlassdoorData? glassdoorData, string[] redFlags)
     {
         r = EnforceReviewCaps(r, reviewCap);
         r = EnforceStackedGapsCap(r);
         r = EnforceScoreBounds(r);
         r = EnforceEvidenceCaps(r, parsedJob, glassdoorData);
         r = EnforceQuickHighlightsLength(r);
+        r = EnforceHardBlockerScope(r, parsedJob, redFlags);
         var verdict = VerdictFromScore(r.OverallScore, cfg.VerdictBands) ?? r.Verdict;
         // The model reliably identifies a disqualifying condition in its
         // reasoning but doesn't reliably apply the consequence to its own
@@ -516,5 +529,41 @@ public sealed class JobMatchService : IJobMatchService
         }).ToArray();
 
         return changed ? r with { QuickHighlights = corrected } : r;
+    }
+
+    // hardBlockers now carries a filter tag (PromptSeeds.cs), but tagging
+    // correctly doesn't stop the model inventing evidence for the filter it
+    // named — citing coreValues/strengths as if they were the profile's own
+    // <red_flags>, or firing Scope Discipline/Sustainability Signals with no
+    // grounded negative signal behind it (same class of failure as the
+    // culturalSignals fabrication above). Validates the two filters where a
+    // cheap structural check exists; work_arrangement/people_management are
+    // left unvalidated — no evidence either needs it yet.
+    private static readonly HashSet<string> RedFlagFilters = new(StringComparer.OrdinalIgnoreCase) { "candidate_dealbreaker" };
+    private static readonly HashSet<string> CulturalSignalFilters = new(StringComparer.OrdinalIgnoreCase) { "scope_discipline", "sustainability_signals" };
+
+    private MatchResponse EnforceHardBlockerScope(MatchResponse r, ParsedJob parsedJob, string[] redFlags)
+    {
+        if (r.HardBlockers.Length == 0) return r;
+
+        var kept = r.HardBlockers.Where(b =>
+        {
+            var supported = b.Filter switch
+            {
+                var f when RedFlagFilters.Contains(f) => redFlags.Any(flag =>
+                    NormalizeWhitespace(b.Reason).Contains(NormalizeWhitespace(flag), StringComparison.OrdinalIgnoreCase)),
+                var f when CulturalSignalFilters.Contains(f) => parsedJob.CulturalSignals.Negative.Length > 0,
+                _ => true,
+            };
+            if (!supported)
+            {
+                _logger.LogWarning(
+                    "Unsupported hard blocker dropped: filter={Filter} reason={Reason}",
+                    b.Filter, b.Reason);
+            }
+            return supported;
+        }).ToArray();
+
+        return kept.Length == r.HardBlockers.Length ? r : r with { HardBlockers = kept };
     }
 }

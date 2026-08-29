@@ -18,7 +18,7 @@ public sealed record MatchResponse
 
     // Mechanical hard-filter gate: non-empty => Correct() forces Verdict to
     // STRONG_NO regardless of score or the model's own verdict field.
-    public string[] HardBlockers { get; init; } = [];
+    public HardBlocker[] HardBlockers { get; init; } = [];
     // Genuinely ambiguous requirements worth asking about rather than
     // scoring against — narrative only, no server-side consequence.
     public string[] MustClarify { get; init; } = [];
@@ -31,6 +31,18 @@ public sealed record MatchResponse
     // score ring. Mixes the strongest fit signal(s) with the biggest
     // concern(s); not a subset of any other field, its own literal output.
     public string[] QuickHighlights { get; init; } = [];
+}
+
+// One HARD FILTERS (or the people-management rule) failure. Filter is one of
+// work_arrangement | scope_discipline | sustainability_signals |
+// candidate_dealbreaker | people_management — lets Correct() validate the
+// two filters (candidate_dealbreaker, scope_discipline/sustainability_signals)
+// prone to the model inventing ungrounded evidence, without needing to parse
+// quotes out of the narrative reason text itself.
+public sealed record HardBlocker
+{
+    public string Filter { get; init; } = "";
+    public string Reason { get; init; } = "";
 }
 
 public sealed record Breakdown

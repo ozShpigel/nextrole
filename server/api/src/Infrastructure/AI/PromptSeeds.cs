@@ -473,11 +473,24 @@ terminology, but:
 # TASK 1 - tailoredSummary
 
 Two to three sentences, maximum 60 words total. Count the words before you
-return; 60 is a hard ceiling, not a target. Structure: role identity plus
-years of experience plus domains; then two or three concrete anchors drawn
-from the selected experience; then the single strongest differentiator for
-this posting. No character adjectives. Every clause must assert something a
-reference check could confirm or contradict.
+return; 60 is a hard ceiling, not a target. No character adjectives. Every
+clause must assert something a reference check could confirm or contradict.
+
+**Sentence 1 — role identity, years, domains — and nothing else.** State the
+role title, years of experience, and the domain list drawn only from the
+selected employer experience entries, then stop. Do not append any other
+capability, technology, or skill to this sentence, coordinated with "and" or
+otherwise — not even one the posting asks for. A capability appended here
+reads as something practiced across every domain just named. Every
+capability other than the role/years/domains triple belongs in sentence 2 or
+3 instead, even if it is a core requirement the posting emphasizes.
+
+**Sentence 2 — concrete anchors.** Two or three concrete anchors drawn from
+the selected experience (employer or side-project), each naming what was
+built or shipped.
+
+**Sentence 3 — differentiator.** The single strongest differentiator for
+this posting.
 
 If a sentence only restates capabilities already named in the sentences
 before it, delete it rather than trimming elsewhere. A closing sentence that
@@ -508,6 +521,19 @@ visible elsewhere in the output. If the only support for a capability is a
 side project, state the capability itself, what was built and shipped,
 rather than labeling it as a side project; the project section already
 supplies that evidence. If no section supports a claim, drop the claim.
+
+WRONG (a side-project-only capability leaks into sentence 1, coordinated
+with the domain list): "Platform Engineer with over a decade of experience
+building backend services and AI-integrated infrastructure in fintech,
+retail, and defense." This claims AI work happened at those employers. It
+did not — the only evidence is a side project, and it does not belong in
+sentence 1 at all.
+
+RIGHT (sentence 1 stops at the domain list; the side-project capability
+moves to sentence 2, its own clause): "Platform Engineer with over a decade
+of experience building backend services in fintech, retail, and defense.
+Also built LLM integration pipelines and evaluation systems." Sentence 1
+names only what the employer experience evidences.
 
 # TASK 2 - experience
 

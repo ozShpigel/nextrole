@@ -52,6 +52,11 @@ const ED_PRIMARY = `${ED_BTN} border-[var(--ed-accent)] bg-[var(--ed-accent)] te
 const DRAG_MIME = 'application/x-nextrole-app';
 type DragSource = 'added' | 'ready';
 
+// Below md:, the four columns render one at a time behind a tab strip
+// instead of stacking (see MOBILE_TABS / renderColumn in ActivePage) — same
+// order as the desktop grid's columns.
+type MobileTabKey = 'added' | 'ready' | 'applied' | 'interviewing';
+
 function Card(
   { app, index, muted, dragFrom, children }:
   { app: Application; index: number; muted?: boolean; dragFrom?: DragSource; children: ReactNode },
@@ -161,6 +166,9 @@ export default function ActivePage() {
   const updateStatus = useUpdateAppStatus();
   const [showImportModal, setShowImportModal] = useState(false);
   const [statusTarget, setStatusTarget] = useState<{ id: string; status: string; jobUrl: string | null } | null>(null);
+  // null = "follow the live default" (first non-empty column); set once the
+  // user taps a tab.
+  const [mobileTab, setMobileTab] = useState<MobileTabKey | null>(null);
 
   const { added, ready, appliedFresh, appliedStale, inProcess } = useMemo(() => {
     const all = apps as Application[];
@@ -204,12 +212,151 @@ export default function ActivePage() {
         type="button"
         title="Remove from board (marks Withdrawn)"
         aria-label={`Remove application at ${company} from board`}
-        className="ml-auto w-6 h-6 flex items-center justify-center text-[var(--ed-ink-faint)] hover:text-[var(--ed-no)] transition-[color,opacity] opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+        className="ml-auto w-6 h-6 flex items-center justify-center text-[var(--ed-ink-faint)] hover:text-[var(--ed-no)] transition-[color,opacity] opacity-100 md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100"
         onClick={() => updateStatus.mutate({ appId, newStatus: 'Withdrawn', jobUrl })}
       >
         <X size={13} aria-hidden="true" />
       </button>
     );
+  }
+
+  const MOBILE_TABS: { key: MobileTabKey; label: string; count: number }[] = [
+    { key: 'added', label: 'Added', count: added.length },
+    { key: 'ready', label: 'Ready', count: ready.length },
+    { key: 'applied', label: 'Applied', count: appliedFresh.length },
+    { key: 'interviewing', label: 'Interviewing', count: inProcess.length },
+  ];
+  const defaultMobileTab = MOBILE_TABS.find((t) => t.count > 0)?.key ?? 'added';
+  const activeMobileTab = mobileTab ?? defaultMobileTab;
+
+  // Single source of truth for each column's props/content, called once per
+  // column in the desktop grid and once more for whichever column the
+  // mobile tab strip has selected — never forked, never duplicated.
+  function renderColumn(key: MobileTabKey): ReactNode {
+    switch (key) {
+      case 'added':
+        return (
+          <Column key="added" label="Added" subtitle="Roles you're watching" count={added.length} emptyText="Add jobs from matches to track them here.">
+            {added.map((a, i) => (
+              <Card key={a.id} app={a} index={i} dragFrom={demoMode ? undefined : 'added'}>
+                <button
+                  type="button"
+                  disabled={generatePack.isPending && generatePack.variables === a.id}
+                  className={`${ED_PRIMARY} px-3 py-[0.4rem] inline-flex items-center gap-[0.35rem]`}
+                  onClick={() => generatePack.mutate(a.id)}
+                >
+                  {generatePack.isPending && generatePack.variables === a.id
+                    ? <RefreshCw size={12} className="animate-spin" aria-hidden="true" />
+                    : <Sparkles size={12} aria-hidden="true" />}
+                  Generate Pack
+                </button>
+                <RemoveButton appId={a.id} company={a.company} jobUrl={a.jobUrl} />
+              </Card>
+            ))}
+          </Column>
+        );
+      case 'ready':
+        return (
+          <Column
+            key="ready"
+            label="Ready"
+            subtitle="Résumé pack generated"
+            count={ready.length}
+            emptyText="Drag an added job here to build its pack."
+            acceptsFrom="added"
+            onDropApp={(id) => generatePack.mutate(id)}
+          >
+            {ready.map((a, i) => (
+              <Card key={a.id} app={a} index={i} dragFrom={demoMode ? undefined : 'ready'}>
+                <button type="button" className={`${ED_PRIMARY} px-3 py-[0.4rem]`} onClick={() => navigate(`/tracker/${a.id}/pack`)}>
+                  Review
+                </button>
+                <button
+                  type="button"
+                  disabled={generatePack.isPending && generatePack.variables === a.id}
+                  title="Regenerate the résumé pack"
+                  aria-label={`Regenerate résumé pack for ${a.company}`}
+                  className={`${ED_GHOST} px-3 py-[0.4rem] inline-flex items-center gap-[0.35rem]`}
+                  onClick={() => generatePack.mutate(a.id)}
+                >
+                  <RefreshCw size={12} className={generatePack.isPending && generatePack.variables === a.id ? 'animate-spin' : ''} aria-hidden="true" />
+                  Regenerate
+                </button>
+                <IAppliedLink appId={a.id} />
+                <RemoveButton appId={a.id} company={a.company} jobUrl={a.jobUrl} />
+              </Card>
+            ))}
+          </Column>
+        );
+      case 'applied':
+        return (
+          <Column
+            key="applied"
+            label="Applied"
+            subtitle="Roles you've applied to"
+            count={appliedFresh.length}
+            isEmpty={appliedFresh.length === 0 && appliedStale.length === 0}
+            emptyText="Drag a ready job here once you've applied."
+            acceptsFrom="ready"
+            onDropApp={(id) => markApplied(id)}
+          >
+            {appliedFresh.map((a, i) => (
+              <AppliedCard key={a.id} app={a} index={i} />
+            ))}
+            {appliedStale.length > 0 && (
+              <details className="mt-1 group">
+                <summary className="cursor-pointer list-none inline-flex items-baseline gap-[0.5rem] py-[0.4rem] text-[var(--ed-ink-faint)] hover:text-[var(--ed-ink-soft)] transition-colors">
+                  <span aria-hidden="true" className="text-[13px] leading-none transition-transform group-open:rotate-90">▸</span>
+                  <span className="text-[13px] tabular-nums">{appliedStale.length} more</span>
+                </summary>
+                <div className="flex flex-col gap-4 border-t border-[var(--ed-rule)] pt-4 mt-1">
+                  {appliedStale.map((a, i) => (
+                    <AppliedCard key={a.id} app={a} index={i} muted />
+                  ))}
+                </div>
+              </details>
+            )}
+          </Column>
+        );
+      case 'interviewing':
+        return (
+          <Column key="interviewing" label="Interviewing" subtitle="Live interview processes" count={inProcess.length} emptyText="No live interview processes right now.">
+            {inProcess.map((a, i) => (
+              <Card key={a.id} app={a} index={i}>
+                <StatusBadge status={a.status} />
+                {a.nextInterviewAt && (
+                  <span className="text-[13px] text-[var(--ed-ink-soft)] tabular-nums">
+                    {formatDate(a.nextInterviewAt)} · {formatTime(a.nextInterviewAt)}
+                    {a.nextInterviewEndsAt && `–${formatTime(a.nextInterviewEndsAt)}`}
+                    {a.nextInterviewer && ` — ${a.nextInterviewer}`}
+                  </span>
+                )}
+                {hasRealJobUrl(a.jobUrl) && (
+                  <a
+                    href={a.jobUrl!}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={`${ED_GHOST} px-3 py-[0.4rem] inline-flex items-center gap-[0.35rem]`}
+                  >
+                    <ExternalLink size={12} aria-hidden="true" />
+                    View Job
+                  </a>
+                )}
+                <button
+                  type="button"
+                  disabled={demoMode}
+                  title={demoMode ? DEMO_DISABLED_TITLE : 'Close out — mark Rejected or Withdrawn'}
+                  aria-label={`Close out application at ${a.company}`}
+                  className="ml-auto w-6 h-6 flex items-center justify-center text-[var(--ed-ink-faint)] hover:text-[var(--ed-no)] transition-[color,opacity] disabled:opacity-40 disabled:pointer-events-none opacity-100 md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100"
+                  onClick={() => setStatusTarget({ id: a.id, status: a.status, jobUrl: a.jobUrl })}
+                >
+                  <X size={13} aria-hidden="true" />
+                </button>
+              </Card>
+            ))}
+          </Column>
+        );
+    }
   }
 
   if (error) {
@@ -258,119 +405,46 @@ export default function ActivePage() {
         {isLoading ? (
           <p className="text-center text-[var(--ed-ink-faint)] py-12 text-[16px]">Loading&hellip;</p>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-8 items-start">
-            <Column label="Added" subtitle="Roles you're watching" count={added.length} emptyText="Add jobs from matches to track them here.">
-              {added.map((a, i) => (
-                <Card key={a.id} app={a} index={i} dragFrom={demoMode ? undefined : 'added'}>
-                  <button
-                    type="button"
-                    disabled={generatePack.isPending && generatePack.variables === a.id}
-                    className={`${ED_PRIMARY} px-3 py-[0.4rem] inline-flex items-center gap-[0.35rem]`}
-                    onClick={() => generatePack.mutate(a.id)}
-                  >
-                    {generatePack.isPending && generatePack.variables === a.id
-                      ? <RefreshCw size={12} className="animate-spin" aria-hidden="true" />
-                      : <Sparkles size={12} aria-hidden="true" />}
-                    Generate Pack
-                  </button>
-                  <RemoveButton appId={a.id} company={a.company} jobUrl={a.jobUrl} />
-                </Card>
-              ))}
-            </Column>
-
-            <Column
-              label="Ready"
-              subtitle="Résumé pack generated"
-              count={ready.length}
-              emptyText="Drag an added job here to build its pack."
-              acceptsFrom="added"
-              onDropApp={(id) => generatePack.mutate(id)}
-            >
-              {ready.map((a, i) => (
-                <Card key={a.id} app={a} index={i} dragFrom={demoMode ? undefined : 'ready'}>
-                  <button type="button" className={`${ED_PRIMARY} px-3 py-[0.4rem]`} onClick={() => navigate(`/tracker/${a.id}/pack`)}>
-                    Review
-                  </button>
-                  <button
-                    type="button"
-                    disabled={generatePack.isPending && generatePack.variables === a.id}
-                    title="Regenerate the résumé pack"
-                    aria-label={`Regenerate résumé pack for ${a.company}`}
-                    className={`${ED_GHOST} px-3 py-[0.4rem] inline-flex items-center gap-[0.35rem]`}
-                    onClick={() => generatePack.mutate(a.id)}
-                  >
-                    <RefreshCw size={12} className={generatePack.isPending && generatePack.variables === a.id ? 'animate-spin' : ''} aria-hidden="true" />
-                    Regenerate
-                  </button>
-                  <IAppliedLink appId={a.id} />
-                  <RemoveButton appId={a.id} company={a.company} jobUrl={a.jobUrl} />
-                </Card>
-              ))}
-            </Column>
-
-            <Column
-              label="Applied"
-              subtitle="Roles you've applied to"
-              count={appliedFresh.length}
-              isEmpty={appliedFresh.length === 0 && appliedStale.length === 0}
-              emptyText="Drag a ready job here once you've applied."
-              acceptsFrom="ready"
-              onDropApp={(id) => markApplied(id)}
-            >
-              {appliedFresh.map((a, i) => (
-                <AppliedCard key={a.id} app={a} index={i} />
-              ))}
-              {appliedStale.length > 0 && (
-                <details className="mt-1 group">
-                  <summary className="cursor-pointer list-none inline-flex items-baseline gap-[0.5rem] py-[0.4rem] text-[var(--ed-ink-faint)] hover:text-[var(--ed-ink-soft)] transition-colors">
-                    <span aria-hidden="true" className="text-[13px] leading-none transition-transform group-open:rotate-90">▸</span>
-                    <span className="text-[13px] tabular-nums">{appliedStale.length} more</span>
-                  </summary>
-                  <div className="flex flex-col gap-4 border-t border-[var(--ed-rule)] pt-4 mt-1">
-                    {appliedStale.map((a, i) => (
-                      <AppliedCard key={a.id} app={a} index={i} muted />
-                    ))}
-                  </div>
-                </details>
-              )}
-            </Column>
-
-            <Column label="Interviewing" subtitle="Live interview processes" count={inProcess.length} emptyText="No live interview processes right now.">
-              {inProcess.map((a, i) => (
-                <Card key={a.id} app={a} index={i}>
-                  <StatusBadge status={a.status} />
-                  {a.nextInterviewAt && (
-                    <span className="text-[13px] text-[var(--ed-ink-soft)] tabular-nums">
-                      {formatDate(a.nextInterviewAt)} · {formatTime(a.nextInterviewAt)}
-                      {a.nextInterviewEndsAt && `–${formatTime(a.nextInterviewEndsAt)}`}
-                      {a.nextInterviewer && ` — ${a.nextInterviewer}`}
-                    </span>
-                  )}
-                  {hasRealJobUrl(a.jobUrl) && (
-                    <a
-                      href={a.jobUrl!}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className={`${ED_GHOST} px-3 py-[0.4rem] inline-flex items-center gap-[0.35rem]`}
+          <>
+            {/* Below md:, one column at a time behind a tab strip — stacking
+                all four (including empty ones) meant scrolling past three
+                full sections just to reach Interviewing. */}
+            <div className="md:hidden">
+              <div
+                role="tablist"
+                aria-label="Board status"
+                className="grid grid-cols-4 rounded-xl border border-[var(--ed-rule)] divide-x divide-[var(--ed-rule)] overflow-hidden mb-5"
+              >
+                {MOBILE_TABS.map(({ key, label, count }) => {
+                  const active = activeMobileTab === key;
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      role="tab"
+                      aria-selected={active}
+                      onClick={() => setMobileTab(key)}
+                      className={`flex flex-col items-center justify-center gap-[0.15rem] py-[0.55rem] px-1 transition-colors ${
+                        active ? 'text-[var(--ed-accent)] bg-[var(--ed-accent)]/10' : 'text-[var(--ed-ink-faint)]'
+                      }`}
                     >
-                      <ExternalLink size={12} aria-hidden="true" />
-                      View Job
-                    </a>
-                  )}
-                  <button
-                    type="button"
-                    disabled={demoMode}
-                    title={demoMode ? DEMO_DISABLED_TITLE : 'Close out — mark Rejected or Withdrawn'}
-                    aria-label={`Close out application at ${a.company}`}
-                    className="ml-auto w-6 h-6 flex items-center justify-center text-[var(--ed-ink-faint)] hover:text-[var(--ed-no)] transition-[color,opacity] disabled:opacity-40 disabled:pointer-events-none opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
-                    onClick={() => setStatusTarget({ id: a.id, status: a.status, jobUrl: a.jobUrl })}
-                  >
-                    <X size={13} aria-hidden="true" />
-                  </button>
-                </Card>
-              ))}
-            </Column>
-          </div>
+                      <span className="text-[0.68rem] font-medium leading-tight whitespace-nowrap">{label}</span>
+                      <span className="text-[0.6rem] tabular-nums leading-none">{count}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              {renderColumn(activeMobileTab)}
+            </div>
+
+            {/* md: and up: unchanged four-up grid. */}
+            <div className="hidden md:grid md:grid-cols-2 xl:grid-cols-4 gap-8 items-start">
+              {renderColumn('added')}
+              {renderColumn('ready')}
+              {renderColumn('applied')}
+              {renderColumn('interviewing')}
+            </div>
+          </>
         )}
       </div>
 

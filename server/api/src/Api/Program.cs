@@ -101,6 +101,15 @@ builder.Services.AddRateLimiter(options =>
         cfg.Window = TimeSpan.FromMinutes(1);
         cfg.QueueLimit = 0;
     });
+    // Translate-analysis is a per-application, one-shot "translate" click
+    // (result is cached on the application document, never re-called once it
+    // succeeds) — same cost shape as insights/pack.
+    options.AddFixedWindowLimiter("translate", cfg =>
+    {
+        cfg.PermitLimit = 10;
+        cfg.Window = TimeSpan.FromMinutes(1);
+        cfg.QueueLimit = 0;
+    });
     options.RejectionStatusCode = 429;
 });
 
@@ -194,6 +203,12 @@ if (demoMode)
 {
     // Non-persisting analysis endpoints stay writable (exact-path match — a prefix
     // on "/api/match" would wrongly allow PUT /api/match/profile).
+    //
+    // POST /api/applications/{id}/translate-analysis is deliberately NOT
+    // listed here, same as its siblings company-summary and why-work-here
+    // just below: all three are POSTs that persist a new field onto one
+    // seeded Application document, unlike the ephemeral analysis endpoints
+    // in this allowlist, so they 403 in demo like every other write.
     var analysisAllowlist = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
     {
         "/api/match", "/api/match/title-triage", "/api/match/seniority-classify",

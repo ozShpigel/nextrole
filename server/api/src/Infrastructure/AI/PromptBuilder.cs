@@ -8,18 +8,21 @@ namespace ApplicationTracker.Infrastructure.AI;
 public sealed class PromptBuilder
 {
     private readonly ILogger<PromptBuilder> _logger;
-    private readonly PromptOptions _prompts;
 
-    public PromptBuilder(ILogger<PromptBuilder> logger, PromptOptions prompts)
+    public PromptBuilder(ILogger<PromptBuilder> logger)
     {
         _logger = logger;
-        _prompts = prompts;
     }
 
-    // Resolved value for every {{OUTPUT_LANGUAGE}} token in the narrative-
-    // generating prompts. Default English; Hebrew only when explicitly
-    // enabled per-deploy (Prompts__HebrewOutput=true).
-    private string OutputLanguage => _prompts.HebrewOutput ? "Hebrew" : "English";
+    // Every prompt this class builds (Evaluator, single and batched;
+    // NarrativeEnrichment) is scored/measured on English output — the
+    // golden-set eval (docs/scoring-and-search.md) is a stable English
+    // baseline. Unlike CompanySummary/WhyWorkHere (see PromptOptions.
+    // HebrewOutput), there is deliberately no config knob here: hardcoding
+    // this instead of reading a per-agent option makes it structurally
+    // impossible for a stray env var to flip the Evaluator into Hebrew and
+    // invalidate that baseline.
+    private const string OutputLanguage = "English";
 
     public (string System, string User) BuildAnalysisPrompt(string jobDescription, string analystPrompt)
     {

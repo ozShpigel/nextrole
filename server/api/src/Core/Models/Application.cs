@@ -15,6 +15,14 @@ public sealed record Application
     public string? MatchVerdict { get; init; }
     public string? JobDescription { get; init; }
     public string? MatchAnalysis { get; init; }
+    // On-demand Hebrew translation of MatchAnalysis (see
+    // MatchAnalysisTranslation / IClaudeClient.TranslateMatchAnalysisAsync).
+    // Populated once, on request, by POST .../translate-analysis; null means
+    // "not translated yet" (or the translation failed validation). Cleared
+    // whenever MatchAnalysis itself is overwritten (see the match-analysis
+    // PUT handler) since a stale translation of a since-changed analysis is
+    // worse than no translation.
+    public string? MatchAnalysisHebrew { get; init; }
     // Reference into the matchSnapshots collection (see MatchSnapshot) — set by
     // ApplicationEndpoints' POST handler from the four raw fields below, never
     // stored directly on this document. Batch-scored jobs share one snapshot;

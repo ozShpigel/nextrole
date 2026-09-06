@@ -1,5 +1,6 @@
 using ApplicationTracker.Api.DTOs;
 using ApplicationTracker.Core.AI;
+using ApplicationTracker.Core.Matching;
 using ApplicationTracker.Core.Models;
 using ApplicationTracker.Core.Profile;
 using ApplicationTracker.Core.Repositories;
@@ -235,7 +236,10 @@ public static class ApplicationEndpoints
             // already returned with whatever content was available at save
             // time (terse, or a stale enrichment), so this patches it in
             // place without blocking the click that created the application.
-            var updated = existing with { MatchAnalysis = request.MatchAnalysis, UpdatedAt = DateTime.UtcNow };
+            // MatchAnalysisHebrew is cleared here: it was translated from the
+            // MatchAnalysis this call is about to replace, so keeping it
+            // around would silently show a translation of stale content.
+            var updated = existing with { MatchAnalysis = request.MatchAnalysis, MatchAnalysisHebrew = null, UpdatedAt = DateTime.UtcNow };
             await repo.UpdateAsync(updated, ct);
             return Results.Ok(updated);
         })
@@ -282,6 +286,46 @@ public static class ApplicationEndpoints
         })
         .WithName("GenerateWhyWorkHere")
         .WithSummary("Generate a personalized 'why work here' interview answer");
+
+        app.MapPost("/api/applications/{id:guid}/translate-analysis", async (
+            Guid id,
+            IApplicationRepository repo,
+            IClaudeClient claude,
+            ILogger<Program> logger,
+            CancellationToken ct) =>
+        {
+            var existing = await repo.GetByIdAsync(id, ct);
+            if (existing is null) return Results.NotFound();
+
+            // Translate once per application, not per page view — a cached
+            // Hebrew translation is served as-is until MatchAnalysis itself
+            // changes (which clears it — see the match-analysis PUT above).
+            if (!string.IsNullOrWhiteSpace(existing.MatchAnalysisHebrew))
+                return Results.Ok(new { matchAnalysisHebrew = existing.MatchAnalysisHebrew });
+
+            if (string.IsNullOrWhiteSpace(existing.MatchAnalysis))
+                return Results.BadRequest(new { error = "This application has no match analysis to translate" });
+
+            var translated = await claude.TranslateMatchAnalysisAsync(existing.MatchAnalysis, ct);
+
+            // Never store or return a failed translation — repair passes are
+            // out of scope; the caller falls back to the English original.
+            if (!MatchAnalysisTranslation.Validate(existing.MatchAnalysis, translated, out var error))
+            {
+                logger.LogWarning("Match analysis translation failed validation for application {Id}: {Error}", id, error);
+                return Results.Problem(
+                    "Translation did not pass validation; showing the English analysis instead.",
+                    statusCode: StatusCodes.Status502BadGateway);
+            }
+
+            var updated = existing with { MatchAnalysisHebrew = translated, UpdatedAt = DateTime.UtcNow };
+            await repo.UpdateAsync(updated, ct);
+
+            return Results.Ok(new { matchAnalysisHebrew = translated });
+        })
+        .WithName("TranslateMatchAnalysis")
+        .WithSummary("Translate an application's AI match analysis to Hebrew (cached after the first call)")
+        .RequireRateLimiting("translate");
 
         app.MapGet("/api/applications/exists", async (
             [FromQuery] string company,

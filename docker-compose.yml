@@ -22,7 +22,11 @@ services:
       #   - Scoring__VerdictBands__Yes=55
       #   - Prompts__Analyzer=...   # full prompt text
       #   - Prompts__Evaluator=...  # full prompt text
-      - Prompts__HebrewOutput=${PROMPTS_HEBREW_OUTPUT:-false}
+      # Per-agent Hebrew narrative output — only these two agents are
+      # configurable this way (see PromptOptions.HebrewOutput); every other
+      # narrative agent, including the Evaluator, always writes English.
+      - Prompts__HebrewOutput__WhyWorkHere=${PROMPTS_HEBREW_WHY_WORK_HERE:-false}
+      - Prompts__HebrewOutput__CompanySummary=${PROMPTS_HEBREW_COMPANY_SUMMARY:-false}
 
   scraper:
     build:

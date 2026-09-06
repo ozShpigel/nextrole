@@ -401,6 +401,17 @@ export function useGenerateWhyWorkHere() {
   });
 }
 
+export function useTranslateMatchAnalysis() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (appId: string) =>
+      api(`/applications/${appId}/translate-analysis`, { method: 'POST' }),
+    onSuccess: (_data, appId) => {
+      queryClient.invalidateQueries({ queryKey: ['applications', appId] });
+    },
+  });
+}
+
 export function useAddInterview() {
   const queryClient = useQueryClient();
   return useMutation({

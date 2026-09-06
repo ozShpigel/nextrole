@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { VERDICT_LABELS } from '../lib/scoring';
+import { BidiText } from '../lib/bidi';
 
 // Dimension sub-score tint — a plain percentage split, used only where there's
 // no verdict of its own to key off (the three breakdown components below).
@@ -41,6 +42,42 @@ function ScoreNumber({ score, maxScore, hero, color }: { score: number | null | 
     );
   }
   return <span className="text-[16px] font-medium tabular-nums" style={{ color }}>{score ?? '—'}<span className="text-[13px] text-[var(--ed-ink-faint)] font-normal"> / {maxScore}</span></span>;
+}
+
+// Static UI labels this component renders itself — section headers,
+// dimension names, +/- group labels. The narrative content (reasons,
+// summaries, flags…) already arrives pre-translated from the server (see
+// PromptSeeds.TranslateMatchAnalysis); these strings don't, since they're
+// hardcoded JSX text, not model output, so they need their own lookup to
+// follow the EN/HE toggle. English key -> Hebrew value; a key with no entry
+// here (there are none currently) would just render in English via the `t`
+// fallback below. Established technical terms (e.g. "AI") are deliberately
+// kept in Latin script rather than translated.
+const HE_LABELS: Record<string, string> = {
+  'AI Analysis': 'ניתוח AI',
+  'Hard Blockers': 'חסמים קשיחים',
+  'Worth Clarifying': 'כדאי להבהיר',
+  'Technical': 'טכני',
+  'Execution': 'ביצוע',
+  'Sustainability': 'קיימות',
+  'Strengths': 'חוזקות',
+  'Gaps': 'פערים',
+  'Concerns': 'חששות',
+  'Positive Signals': 'אותות חיוביים',
+  'Stacked Gaps': 'פערים מצטברים',
+  'Recommendation': 'המלצה',
+  'Key Reasons': 'סיבות עיקריות',
+  'Questions to Ask': 'שאלות לשאול',
+  'Green & Red Flags': 'דגלים ירוקים ואדומים',
+  'Company News Signals': 'אותות מחדשות החברה',
+  'Employee Review Signals': 'אותות מביקורות עובדים',
+  'Honest Assessment': 'הערכה כנה',
+  'Worth Applying': 'כדאי להגיש מועמדות',
+  'Not Recommended': 'לא מומלץ',
+};
+
+function t(en: string, lang: 'en' | 'he'): string {
+  return lang === 'he' ? (HE_LABELS[en] ?? en) : en;
 }
 
 interface DimensionDef {
@@ -99,6 +136,15 @@ interface AnalysisCardProps {
   // (every section checks its own fields before rendering), so a wider
   // input type here doesn't weaken anything at runtime.
   matchAnalysisJson: string | MatchAnalysis | Record<string, unknown> | null | undefined;
+  // Optional control rendered in the header row (e.g. an EN/HE language
+  // switch) — sits next to the collapse caret, outside the row's own
+  // expand/collapse click handler.
+  headerAction?: React.ReactNode;
+  // Which language matchAnalysisJson's narrative content is currently in —
+  // switches this component's own hardcoded section/dimension labels (see
+  // HE_LABELS) to match. Defaults to 'en' so existing callers that don't
+  // pass it (Matches/Search pages) are unaffected.
+  lang?: 'en' | 'he';
 }
 
 const SUBLABEL = 'block text-[13px] text-[var(--ed-ink-faint)] tracking-[0.02em] font-medium mb-[0.4rem]';
@@ -118,20 +164,20 @@ function SignalRows({ green = [], red = [] }: { green?: string[]; red?: string[]
       {green.map((s, i) => (
         <div key={`g${i}`} className="flex items-start gap-[0.55rem]">
           <span className="text-[16px] font-medium leading-[1.2] text-[var(--ed-ink-faint)] shrink-0" aria-hidden="true">+</span>
-          <span className="text-[16px] text-[var(--ed-ink)] leading-[1.55]" dir="auto">{s}</span>
+          <span className="text-[16px] text-[var(--ed-ink)] leading-[1.55]" dir="auto"><BidiText text={s} /></span>
         </div>
       ))}
       {red.map((s, i) => (
         <div key={`r${i}`} className="flex items-start gap-[0.55rem]">
           <span className="text-[16px] font-medium leading-[1.2] text-[var(--ed-ink-faint)] shrink-0" aria-hidden="true">–</span>
-          <span className="text-[16px] text-[var(--ed-ink)] leading-[1.55]" dir="auto">{s}</span>
+          <span className="text-[16px] text-[var(--ed-ink)] leading-[1.55]" dir="auto"><BidiText text={s} /></span>
         </div>
       ))}
     </div>
   );
 }
 
-export default function AnalysisCard({ matchAnalysisJson }: AnalysisCardProps) {
+export default function AnalysisCard({ matchAnalysisJson, headerAction, lang = 'en' }: AnalysisCardProps) {
   const [open, setOpen] = useState(true);
   const [activeDim, setActiveDim] = useState<string | null>(null);
 
@@ -153,8 +199,15 @@ export default function AnalysisCard({ matchAnalysisJson }: AnalysisCardProps) {
         onKeyDown={(e: React.KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen(!open); } }}
         role="button" tabIndex={0} aria-expanded={open}
       >
-        <h3 className="font-medium text-[16px] tracking-[-0.01em] text-[var(--ed-ink)] m-0">AI Analysis</h3>
-        <span className="text-[var(--ed-ink-faint)] text-[13px]" aria-hidden="true">{open ? '▾' : '▸'}</span>
+        <h3 className="font-medium text-[16px] tracking-[-0.01em] text-[var(--ed-ink)] m-0">{t('AI Analysis', lang)}</h3>
+        <div className="flex items-center gap-3">
+          {headerAction && (
+            // stopPropagation: the header row's own onClick toggles the
+            // collapse state — a click on the action itself must not.
+            <div onClick={(e) => e.stopPropagation()}>{headerAction}</div>
+          )}
+          <span className="text-[var(--ed-ink-faint)] text-[13px]" aria-hidden="true">{open ? '▾' : '▸'}</span>
+        </div>
       </div>
       <div className="border-t border-[var(--ed-rule-strong)]" />
       {open && (
@@ -168,7 +221,7 @@ export default function AnalysisCard({ matchAnalysisJson }: AnalysisCardProps) {
               </div>
               {rec && (
                 <div className="text-[13px] font-medium tracking-[0.02em] py-[0.35rem] px-[0.9rem] w-fit rounded-full border border-[var(--ed-rule)] text-[var(--ed-ink-soft)]">
-                  {rec.shouldApply ? 'Worth Applying' : 'Not Recommended'}
+                  {rec.shouldApply ? t('Worth Applying', lang) : t('Not Recommended', lang)}
                 </div>
               )}
             </div>
@@ -178,9 +231,9 @@ export default function AnalysisCard({ matchAnalysisJson }: AnalysisCardProps) {
               means the verdict was forced to STRONG_NO server-side. */}
           {a.hardBlockers && a.hardBlockers.length > 0 && (
             <div className="mb-6 p-[0.9rem_1.1rem] rounded-xl border border-[var(--ed-ink)]">
-              <span className={SUBLABEL}>Hard Blockers</span>
-              <ul className="list-disc pl-5 m-0">
-                {a.hardBlockers.map((item, i) => <li key={i} className="text-[16px] mb-[0.3rem] text-[var(--ed-ink)] leading-[1.6]">{item.reason}</li>)}
+              <span className={SUBLABEL}>{t('Hard Blockers', lang)}</span>
+              <ul dir="auto" className="list-disc pl-5 m-0">
+                {a.hardBlockers.map((item, i) => <li key={i} className="text-[16px] mb-[0.3rem] text-[var(--ed-ink)] leading-[1.6]"><BidiText text={item.reason} /></li>)}
               </ul>
             </div>
           )}
@@ -188,9 +241,9 @@ export default function AnalysisCard({ matchAnalysisJson }: AnalysisCardProps) {
           {/* Must clarify — genuinely ambiguous requirements, narrative only. */}
           {a.mustClarify && a.mustClarify.length > 0 && (
             <div className="mb-6 p-[0.9rem_1.1rem] rounded-xl border border-[var(--ed-rule)]">
-              <span className={SUBLABEL}>Worth Clarifying</span>
-              <ul className="list-disc pl-5 m-0">
-                {a.mustClarify.map((item, i) => <li key={i} className="text-[16px] mb-[0.3rem] text-[var(--ed-ink)] leading-[1.6]">{item}</li>)}
+              <span className={SUBLABEL}>{t('Worth Clarifying', lang)}</span>
+              <ul dir="auto" className="list-disc pl-5 m-0">
+                {a.mustClarify.map((item, i) => <li key={i} className="text-[16px] mb-[0.3rem] text-[var(--ed-ink)] leading-[1.6]"><BidiText text={item} /></li>)}
               </ul>
             </div>
           )}
@@ -210,7 +263,7 @@ export default function AnalysisCard({ matchAnalysisJson }: AnalysisCardProps) {
                       onClick={() => setActiveDim(isActive ? null : dim.key)}
                     >
                       <ScoreNumber score={d.score} maxScore={d.maxScore} color={edScoreColor(d.score, d.maxScore)} />
-                      <span className="text-[13px] text-[var(--ed-ink-soft)] font-medium tracking-[0.02em]">{dim.label}</span>
+                      <span className="text-[13px] text-[var(--ed-ink-soft)] font-medium tracking-[0.02em]">{t(dim.label, lang)}</span>
                     </button>
                   );
                 })}
@@ -220,29 +273,29 @@ export default function AnalysisCard({ matchAnalysisJson }: AnalysisCardProps) {
                   (mechanically capped server-side once 4+ accumulate). */}
               {a.stackedGaps && a.stackedGaps.length > 0 && (
                 <div className="mt-3 p-[0.9rem_1.1rem] rounded-xl border border-[var(--ed-rule)]">
-                  <span className={SUBLABEL}>Stacked Gaps ({a.stackedGaps.length})</span>
-                  <ul className="list-disc pl-5 m-0">
-                    {a.stackedGaps.map((item, i) => <li key={i} className="text-[16px] mb-[0.3rem] text-[var(--ed-ink)] leading-[1.6]">{item}</li>)}
+                  <span className={SUBLABEL}>{t('Stacked Gaps', lang)} ({a.stackedGaps.length})</span>
+                  <ul dir="auto" className="list-disc pl-5 m-0">
+                    {a.stackedGaps.map((item, i) => <li key={i} className="text-[16px] mb-[0.3rem] text-[var(--ed-ink)] leading-[1.6]"><BidiText text={item} /></li>)}
                   </ul>
                 </div>
               )}
 
               {active && (
                 <div className="mt-3 p-[1.1rem_1.25rem] border border-[var(--ed-rule)] animate-in fade-in duration-200" key={activeDim}>
-                  <h4 className="font-medium text-[16px] text-[var(--ed-ink)] mb-3">{active.label}</h4>
+                  <h4 className="font-medium text-[16px] text-[var(--ed-ink)] mb-3">{t(active.label, lang)}</h4>
                   {(active.data[active.posKey] as string[] | undefined)?.length ? (
                     <div className="mb-3 last:mb-0">
-                      <span className={SUBLABEL}>{active.posLabel}</span>
-                      <ul className="list-disc pl-5 m-0">
-                        {(active.data[active.posKey] as string[]).map((item: string, i: number) => <li key={i} className="text-[16px] mb-[0.3rem] text-[var(--ed-ink)] leading-[1.6]">{item}</li>)}
+                      <span className={SUBLABEL}>{t(active.posLabel, lang)}</span>
+                      <ul dir="auto" className="list-disc pl-5 m-0">
+                        {(active.data[active.posKey] as string[]).map((item: string, i: number) => <li key={i} className="text-[16px] mb-[0.3rem] text-[var(--ed-ink)] leading-[1.6]"><BidiText text={item} /></li>)}
                       </ul>
                     </div>
                   ) : null}
                   {(active.data[active.negKey] as string[] | undefined)?.length ? (
                     <div className="mb-3 last:mb-0">
-                      <span className={SUBLABEL}>{active.negLabel}</span>
-                      <ul className="list-disc pl-5 m-0">
-                        {(active.data[active.negKey] as string[]).map((item: string, i: number) => <li key={i} className="text-[16px] mb-[0.3rem] text-[var(--ed-ink)] leading-[1.6]">{item}</li>)}
+                      <span className={SUBLABEL}>{t(active.negLabel, lang)}</span>
+                      <ul dir="auto" className="list-disc pl-5 m-0">
+                        {(active.data[active.negKey] as string[]).map((item: string, i: number) => <li key={i} className="text-[16px] mb-[0.3rem] text-[var(--ed-ink)] leading-[1.6]"><BidiText text={item} /></li>)}
                       </ul>
                     </div>
                   ) : null}
@@ -254,26 +307,26 @@ export default function AnalysisCard({ matchAnalysisJson }: AnalysisCardProps) {
           {/* Recommendation */}
           {rec && !!(rec.keyReasons?.length || rec.questionsToAsk?.length || rec.greenFlags?.length || rec.redFlags?.length) && (
             <div className="mt-6 pt-4 border-t border-[var(--ed-rule)]">
-              <h4 className="font-medium text-[16px] text-[var(--ed-ink)] mb-3">Recommendation</h4>
+              <h4 className="font-medium text-[16px] text-[var(--ed-ink)] mb-3">{t('Recommendation', lang)}</h4>
               {rec.keyReasons?.length ? (
                 <div className="mb-3">
-                  <span className={SUBLABEL}>Key Reasons</span>
+                  <span className={SUBLABEL}>{t('Key Reasons', lang)}</span>
                   <ul dir="auto" className="list-disc ps-5 m-0">
-                    {rec.keyReasons.map((item, i) => <li key={i} className="text-[16px] mb-[0.3rem] text-[var(--ed-ink)] leading-[1.6]">{item}</li>)}
+                    {rec.keyReasons.map((item, i) => <li key={i} className="text-[16px] mb-[0.3rem] text-[var(--ed-ink)] leading-[1.6]"><BidiText text={item} /></li>)}
                   </ul>
                 </div>
               ) : null}
               {rec.questionsToAsk?.length ? (
                 <div className="mb-3">
-                  <span className={SUBLABEL}>Questions to Ask</span>
+                  <span className={SUBLABEL}>{t('Questions to Ask', lang)}</span>
                   <ul dir="auto" className="list-disc ps-5 m-0">
-                    {rec.questionsToAsk.map((item, i) => <li key={i} className="text-[16px] mb-[0.3rem] text-[var(--ed-ink)] leading-[1.6]">{item}</li>)}
+                    {rec.questionsToAsk.map((item, i) => <li key={i} className="text-[16px] mb-[0.3rem] text-[var(--ed-ink)] leading-[1.6]"><BidiText text={item} /></li>)}
                   </ul>
                 </div>
               ) : null}
               {(rec.greenFlags?.length || rec.redFlags?.length) ? (
                 <div className="mt-2">
-                  <span className={SUBLABEL}>Green &amp; Red Flags</span>
+                  <span className={SUBLABEL}>{t('Green & Red Flags', lang)}</span>
                   <SignalRows green={rec.greenFlags} red={rec.redFlags} />
                 </div>
               ) : null}
@@ -283,10 +336,10 @@ export default function AnalysisCard({ matchAnalysisJson }: AnalysisCardProps) {
           {/* Company news analysis */}
           {a.companyNewsAnalysis && !!(a.companyNewsAnalysis.greenSignals?.length || a.companyNewsAnalysis.redSignals?.length) && (
             <div className="mt-6 pt-4 border-t border-[var(--ed-rule)]">
-              <h4 className="font-medium text-[16px] text-[var(--ed-ink)] mb-3">Company News Signals</h4>
+              <h4 className="font-medium text-[16px] text-[var(--ed-ink)] mb-3">{t('Company News Signals', lang)}</h4>
               <SignalRows green={a.companyNewsAnalysis.greenSignals} red={a.companyNewsAnalysis.redSignals} />
               {a.companyNewsAnalysis.summary && (
-                <p dir="auto" className="text-[16px] text-[var(--ed-ink-soft)] leading-[1.6] mt-2">{a.companyNewsAnalysis.summary}</p>
+                <p dir="auto" className="text-[16px] text-[var(--ed-ink-soft)] leading-[1.6] mt-2"><BidiText text={a.companyNewsAnalysis.summary} /></p>
               )}
             </div>
           )}
@@ -294,10 +347,10 @@ export default function AnalysisCard({ matchAnalysisJson }: AnalysisCardProps) {
           {/* Employee reviews analysis */}
           {a.employeeReviewsAnalysis && !!(a.employeeReviewsAnalysis.greenSignals?.length || a.employeeReviewsAnalysis.redSignals?.length) && (
             <div className="mt-6 pt-4 border-t border-[var(--ed-rule)]">
-              <h4 className="font-medium text-[16px] text-[var(--ed-ink)] mb-3">Employee Review Signals</h4>
+              <h4 className="font-medium text-[16px] text-[var(--ed-ink)] mb-3">{t('Employee Review Signals', lang)}</h4>
               <SignalRows green={a.employeeReviewsAnalysis.greenSignals} red={a.employeeReviewsAnalysis.redSignals} />
               {a.employeeReviewsAnalysis.summary && (
-                <p dir="auto" className="text-[16px] text-[var(--ed-ink-soft)] leading-[1.6] mt-2">{a.employeeReviewsAnalysis.summary}</p>
+                <p dir="auto" className="text-[16px] text-[var(--ed-ink-soft)] leading-[1.6] mt-2"><BidiText text={a.employeeReviewsAnalysis.summary} /></p>
               )}
             </div>
           )}
@@ -305,8 +358,8 @@ export default function AnalysisCard({ matchAnalysisJson }: AnalysisCardProps) {
           {/* Honest assessment */}
           {a.honestAssessment && (
             <div className="mt-6 pt-4 border-t border-[var(--ed-rule)]">
-              <h4 className="font-medium text-[16px] text-[var(--ed-ink)] mb-3">Honest Assessment</h4>
-              <p dir="auto" className="text-[16px] leading-[1.8] text-[var(--ed-ink)] whitespace-pre-wrap ps-4 border-s-2 border-[var(--ed-rule-strong)] m-0">{a.honestAssessment}</p>
+              <h4 className="font-medium text-[16px] text-[var(--ed-ink)] mb-3">{t('Honest Assessment', lang)}</h4>
+              <p dir="auto" className="text-[16px] leading-[1.8] text-[var(--ed-ink)] whitespace-pre-wrap ps-4 border-s-2 border-[var(--ed-rule-strong)] m-0"><BidiText text={a.honestAssessment} /></p>
             </div>
           )}
         </div>

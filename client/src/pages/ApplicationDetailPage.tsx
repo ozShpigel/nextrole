@@ -2,13 +2,14 @@ import { useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useApplicationDetail } from '../lib/queries';
-import { useGenerateCompanySummary, useGenerateWhyWorkHere, useGeneratePack } from '../lib/mutations';
+import { useGenerateCompanySummary, useGenerateWhyWorkHere, useGeneratePack, useTranslateMatchAnalysis } from '../lib/mutations';
 import { StatusBadge } from '../components/Status';
 import CollapsibleSection from '../components/CollapsibleSection';
 import AnalysisCard, { edVerdictColor } from '../components/AnalysisCard';
 import { NoteList, NoteModal } from '../components/Notes';
 import { CompanyAvatar } from '../components/CompanyAvatar';
 import { hasRealJobUrl } from '../lib/format';
+import { BidiText } from '../lib/bidi';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ExternalLink, Sparkles, FileCheck, RefreshCw } from 'lucide-react';
 import type { Interview } from '../lib/types';
@@ -54,6 +55,7 @@ interface Application {
   matchScore: number | null;
   matchVerdict: string | null;
   matchAnalysis: string | null;
+  matchAnalysisHebrew: string | null;
   jobDescription: string | null;
   jobUrl: string | null;
   updatedAt: string;
@@ -180,7 +182,7 @@ export default function ApplicationDetail() {
 
           {/* Right pane — AI insights and analysis, in place of a raw JD */}
           <div className="flex flex-col gap-9 min-w-0">
-            <AnalysisCard matchAnalysisJson={app.matchAnalysis} />
+            <AnalysisSection appId={app.id} matchAnalysis={app.matchAnalysis} initialHebrew={app.matchAnalysisHebrew} />
             <WhyWorkHereBlock appId={app.id} initialAnswer={app.whyWorkHere} />
             <CompanySummaryBlock appId={app.id} initialSummary={app.companySummary} />
             <CompanyEnrichment companyNewsJson={app.companyNews} glassdoorDataJson={app.glassdoorData} />
@@ -207,6 +209,65 @@ function DaysInStage({ updatedAt }: { updatedAt: string }) {
   if (days === null) return null;
   const label = days === 0 ? 'Today' : days === 1 ? '1 day' : `${days} days`;
   return <span className="text-[13px] font-medium text-[var(--ed-ink-faint)] tabular-nums">{label} in stage</span>;
+}
+
+// EN/HE segmented toggle for AnalysisCard's header — mirrors the active-tab
+// styling used by the Active board's mobile status tabs (--ed-accent fill on
+// the selected option, quiet ink-faint text otherwise).
+const LANG_TAB = 'px-[0.65rem] py-[0.2rem] rounded-full text-[13px] font-medium transition-colors disabled:opacity-50 disabled:pointer-events-none';
+const LANG_TAB_ACTIVE = `${LANG_TAB} bg-[var(--ed-accent)] text-[var(--ed-paper)]`;
+const LANG_TAB_INACTIVE = `${LANG_TAB} text-[var(--ed-ink-faint)] hover:text-[var(--ed-ink)]`;
+
+function AnalysisSection({ appId, matchAnalysis, initialHebrew }: { appId: string; matchAnalysis: string | null; initialHebrew: string | null }) {
+  const [hebrew, setHebrew] = useState<string | null>(initialHebrew);
+  const [lang, setLang] = useState<'en' | 'he'>('en');
+  const translateMutation = useTranslateMatchAnalysis();
+  const loading = translateMutation.isPending;
+
+  function selectHebrew(): void {
+    // Translate once per application — a cached translation just switches
+    // the display language, no network call.
+    if (hebrew) { setLang('he'); return; }
+    translateMutation.mutate(appId, {
+      onSuccess: (res: { matchAnalysisHebrew: string }) => {
+        setHebrew(res.matchAnalysisHebrew);
+        setLang('he');
+      },
+      onError: (e) => {
+        alert('Failed to translate analysis: ' + (e as Error).message);
+      },
+    });
+  }
+
+  // Hebrew only actually applies once a translation exists — 'he' selected
+  // with no cached translation yet (mid-request) still shows/labels English.
+  const activeLang: 'en' | 'he' = lang === 'he' && hebrew ? 'he' : 'en';
+
+  return (
+    <AnalysisCard
+      matchAnalysisJson={activeLang === 'he' ? hebrew : matchAnalysis}
+      lang={activeLang}
+      headerAction={
+        <div role="tablist" aria-label="Analysis language" className="flex items-center rounded-full border border-[var(--ed-rule)] p-[0.15rem]">
+          <button
+            type="button" role="tab" aria-selected={lang === 'en'}
+            onClick={() => setLang('en')}
+            className={lang === 'en' ? LANG_TAB_ACTIVE : LANG_TAB_INACTIVE}
+          >
+            EN
+          </button>
+          <button
+            type="button" role="tab" aria-selected={lang === 'he'}
+            disabled={loading}
+            onClick={selectHebrew}
+            className={lang === 'he' ? LANG_TAB_ACTIVE : LANG_TAB_INACTIVE}
+          >
+            {loading ? 'Translating…' : hebrew ? 'HE' : 'Translate to Hebrew'}
+          </button>
+        </div>
+      }
+    />
+  );
 }
 
 function CompanySummaryBlock({ appId, initialSummary }: { appId: string; initialSummary: string | null }) {
@@ -237,7 +298,7 @@ function CompanySummaryBlock({ appId, initialSummary }: { appId: string; initial
       />
       {summary ? (
         <p dir="auto" className="text-[16px] leading-[1.8] text-[var(--ed-ink)] whitespace-pre-wrap m-0">
-          {summary}
+          <BidiText text={summary} />
         </p>
       ) : (
         <p className="ed-display text-[16px] text-[var(--ed-ink-faint)] italic m-0">Click Generate to create an AI summary of this company.</p>
@@ -284,7 +345,7 @@ function WhyWorkHereBlock({ appId, initialAnswer }: { appId: string; initialAnsw
       {answer ? (
         <div className="relative">
           <p dir="auto" className="text-[16px] leading-[1.8] text-[var(--ed-ink)] whitespace-pre-wrap m-0 pl-16">
-            {answer}
+            <BidiText text={answer} />
           </p>
           <button
             type="button"

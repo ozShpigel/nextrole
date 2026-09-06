@@ -175,10 +175,14 @@ public sealed class ClaudeClient : IClaudeClient
         string.IsNullOrWhiteSpace(_prompts.Evaluator) ? PromptSeeds.Evaluator : _prompts.Evaluator;
 
     // {{OUTPUT_LANGUAGE}} substitution for the prompts that don't go through
-    // PromptBuilder (which does its own copy of this same resolution). Default
-    // English; Hebrew only when Prompts__HebrewOutput=true.
-    private string ResolveOutputLanguage(string prompt) =>
-        prompt.Replace("{{OUTPUT_LANGUAGE}}", _prompts.HebrewOutput ? "Hebrew" : "English");
+    // PromptBuilder (which hardcodes English for its own — see
+    // PromptBuilder.OutputLanguage). `hebrew` is resolved per call site: the
+    // two agents allowed to vary (CompanySummary, WhyWorkHere) pass
+    // _prompts.HebrewOutput.<Agent>; every other call site below passes a
+    // hardcoded `false` — not a config lookup — so a stray env var can never
+    // change their output language. See PromptOptions.HebrewOutput.
+    private static string ResolveOutputLanguage(string prompt, bool hebrew) =>
+        prompt.Replace("{{OUTPUT_LANGUAGE}}", hebrew ? "Hebrew" : "English");
 
     public Task<(ParsedJob Parsed, ClaudeCallSnapshot Snapshot)> ParseJobDescriptionAsync(string jobDescription, CancellationToken cancellationToken = default)
         => ParseJobDescriptionAsync(jobDescription, AnalystPrompt, _scoring.Analyst, cancellationToken);
@@ -376,7 +380,7 @@ public sealed class ClaudeClient : IClaudeClient
 
         var parameters = new MessageParameters
         {
-            System = new List<SystemMessage> { new(ResolveOutputLanguage(PromptSeeds.CompanySummary)) },
+            System = new List<SystemMessage> { new(ResolveOutputLanguage(PromptSeeds.CompanySummary, _prompts.HebrewOutput.CompanySummary)) },
             Messages = new List<Message> { new(RoleType.User, companyName) },
             MaxTokens = 512,
             Model = "claude-haiku-4-5-20251001",
@@ -392,6 +396,22 @@ public sealed class ClaudeClient : IClaudeClient
         return content;
     }
 
+    public async Task<string> TranslateMatchAnalysisAsync(string matchAnalysisJson, CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Translating match analysis to Hebrew ({Length} chars)", matchAnalysisJson.Length);
+
+        // matchAnalysisJson is our own stored MatchResponse JSON, not scraped
+        // external data — still XML-wrapped per house convention, since the
+        // model must be told to treat it as data (its string values, sourced
+        // originally from a job posting, could contain injection attempts).
+        var userMessage = $"<match_analysis>\n{matchAnalysisJson}\n</match_analysis>";
+
+        var (result, _) = await CallClaudeAsync<JsonObject>(
+            PromptSeeds.TranslateMatchAnalysis, userMessage, _scoring.TranslateAnalysis, "translate-analysis", cancellationToken);
+
+        return result.ToJsonString();
+    }
+
     public async Task<string> GenerateWhyWorkHereAsync(Application app, string profile, InterviewPrepDocument prep, CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Generating 'why work here' answer for: {Company} / {Title}", app.Company, app.JobTitle);
@@ -399,7 +419,7 @@ public sealed class ClaudeClient : IClaudeClient
         // System prompt: trusted instructions + the user's own (trusted) profile
         // and self-presentation. External company/job data goes in the user
         // message wrapped in XML tags (treated as untrusted data).
-        var systemBuilder = new System.Text.StringBuilder(ResolveOutputLanguage(PromptSeeds.WhyWorkHere));
+        var systemBuilder = new System.Text.StringBuilder(ResolveOutputLanguage(PromptSeeds.WhyWorkHere, _prompts.HebrewOutput.WhyWorkHere));
         if (!string.IsNullOrWhiteSpace(profile))
             systemBuilder.Append("\n\n# Candidate Profile\n").Append(profile.Trim());
         if (!string.IsNullOrWhiteSpace(prep.SelfPresentationHr))
@@ -447,7 +467,9 @@ public sealed class ClaudeClient : IClaudeClient
 
         var parameters = new MessageParameters
         {
-            System = new List<SystemMessage> { new(ResolveOutputLanguage(PromptSeeds.PresentationCues)) },
+            // Hardcoded false, not a config lookup — PresentationCues isn't
+            // one of the two agents PromptOptions.HebrewOutput can vary.
+            System = new List<SystemMessage> { new(ResolveOutputLanguage(PromptSeeds.PresentationCues, false)) },
             Messages = new List<Message> { new(RoleType.User, userMessage) },
             MaxTokens = 1024,
             Model = "claude-haiku-4-5-20251001",
@@ -492,7 +514,9 @@ public sealed class ClaudeClient : IClaudeClient
 
         var parameters = new MessageParameters
         {
-            System = new List<SystemMessage> { new(ResolveOutputLanguage(PromptSeeds.TitleTriage)) },
+            // Hardcoded false, not a config lookup — TitleTriage isn't one of
+            // the two agents PromptOptions.HebrewOutput can vary.
+            System = new List<SystemMessage> { new(ResolveOutputLanguage(PromptSeeds.TitleTriage, false)) },
             Messages = new List<Message> { new(RoleType.User, userMessage) },
             MaxTokens = 2000,
             Model = _scoring.Analyst.Model,
@@ -692,8 +716,10 @@ public sealed class ClaudeClient : IClaudeClient
         _logger.LogInformation("Generating interview insight over {Count} retros", retros.Count);
 
         var userMessage = BuildInterviewInsightsUserMessage(retros);
+        // Hardcoded false, not a config lookup — InterviewInsights isn't one
+        // of the two agents PromptOptions.HebrewOutput can vary.
         var (result, _) = await CallClaudeAsync<InterviewInsightsSynthesis>(
-            ResolveOutputLanguage(PromptSeeds.InterviewInsights), userMessage, _scoring.InterviewInsights, "interview-insights", cancellationToken);
+            ResolveOutputLanguage(PromptSeeds.InterviewInsights, false), userMessage, _scoring.InterviewInsights, "interview-insights", cancellationToken);
 
         return result;
     }

@@ -122,6 +122,14 @@ public sealed record ScoringConfig
     // exists for this prompt's grounding/anti-fabrication rules under Haiku.
     public RoleScoringConfig ResumePack { get; init; } = new() { Model = "claude-haiku-4-5-20251001", MaxTokens = 4096, Temperature = 0.3m };
 
+    // On-demand Hebrew translation of an already-stored MatchAnalysis JSON
+    // blob (see MatchAnalysisTranslation). Same MaxTokens as the single-job
+    // Evaluator (8192) since the input being translated is that same
+    // Evaluator/NarrativeEnrichment output and the model must echo back an
+    // equally large structure, just with Hebrew prose. Temperature = 0 — this
+    // is translation, not composition; no reason to sample.
+    public RoleScoringConfig TranslateAnalysis { get; init; } = new() { Model = "claude-haiku-4-5-20251001", MaxTokens = 8192, Temperature = 0m };
+
     public int MinScoreToSave { get; init; } = 70;
 
     public VerdictBands VerdictBands { get; init; } = new();

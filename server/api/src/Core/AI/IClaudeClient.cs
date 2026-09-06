@@ -55,6 +55,14 @@ public interface IClaudeClient
     Task<EmailParseResult?> ParseEmailAsync(string subject, string from, string body, List<string> knownCompanies, DateTime? referenceDate = null, CancellationToken cancellationToken = default);
     Task<string> SummarizeCompanyAsync(string companyName, CancellationToken cancellationToken = default);
 
+    // On-demand Hebrew translation of an already-stored MatchAnalysis JSON
+    // blob — a pure translation pass over existing text, never a re-scoring
+    // (the Evaluator itself always writes English; see PromptSeeds.Evaluator
+    // and ScoringConfig). Returns the translated JSON as a string, unvalidated
+    // — the caller must run it through MatchAnalysisTranslation.Validate
+    // against the original before storing or serving it.
+    Task<string> TranslateMatchAnalysisAsync(string matchAnalysisJson, CancellationToken cancellationToken = default);
+
     // Normalization layer: convert a candidate's pasted free-text experience/skills
     // into the structured NormalizedProfile (extraction only, no scoring).
     Task<ApplicationTracker.Core.Profile.NormalizedProfile> NormalizeProfileAsync(string text, CancellationToken cancellationToken = default);

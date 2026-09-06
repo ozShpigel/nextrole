@@ -1,5 +1,5 @@
-import { useRef, useState } from 'react';
-import { Pencil, Check, Trash2, ArrowUp, ArrowDown, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Pencil, Check, Trash2, ArrowUp, ArrowDown, ChevronDown, Plus, Search, X } from 'lucide-react';
 import type { QaEntry } from '../lib/types';
 import { AutoGrowTextarea } from './AutoGrowTextarea';
 
@@ -89,26 +89,33 @@ function TopicChips({ topics, value, onChange }: { topics: string[]; value: stri
 
 type Row = { entry: QaEntry; id: string; index: number };
 
-/* The single visible card: a static question+answer face, or — while editing —
- * a form (question, answer, topic chips, reorder/delete). */
-function QaCard({
-  row, editing, pos, siblingsCount, topics,
-  onEdit, onDone, onUpdate, onMove, onRemove,
+/* One row in the list: a collapsed question (+ topic label), or — while
+ * editing — a form (question, answer, topic chips, reorder/delete). Expanded
+ * state shows the answer inline, with a row-level Edit action, no hover
+ * required. */
+function QaListRow({
+  row, editing, expanded, pos, siblingsCount, topics, refCallback,
+  onToggleExpand, onEdit, onDone, onUpdate, onMove, onRemove,
 }: {
   row: Row;
   editing: boolean;
+  expanded: boolean;
   pos: number;
   siblingsCount: number;
   topics: string[];
+  refCallback: (el: HTMLDivElement | null) => void;
+  onToggleExpand: () => void;
   onEdit: () => void;
   onDone: () => void;
   onUpdate: (patch: Partial<QaEntry>) => void;
   onMove: (dir: -1 | 1) => void;
   onRemove: () => void;
 }) {
+  const topic = (row.entry.topic ?? '').trim();
+
   if (editing) {
     return (
-      <div className="border border-[var(--ed-accent)] bg-[var(--ed-panel)] p-[1rem] flex flex-col gap-2">
+      <div ref={refCallback} className="border border-[var(--ed-accent)] bg-[var(--ed-panel)] p-[1rem] flex flex-col gap-2">
         <input
           className={INPUT_CLASS}
           placeholder="Question (e.g. Where do you see yourself in 5 years?)"
@@ -168,81 +175,82 @@ function QaCard({
   }
 
   return (
-    <div className="border border-[var(--ed-rule)] bg-[var(--ed-panel)] p-[1.25rem] h-[340px] flex flex-col gap-[0.7rem]">
-      {(row.entry.topic ?? '').trim() && (
-        <span dir="auto" className="shrink-0 text-[0.62rem] font-semibold uppercase tracking-[0.12em] text-[var(--ed-ink-faint)]">
-          {row.entry.topic}
+    <div ref={refCallback} className="border border-[var(--ed-rule)] bg-[var(--ed-panel)]">
+      <button
+        type="button"
+        onClick={onToggleExpand}
+        aria-expanded={expanded}
+        className="w-full flex items-center gap-2.5 px-[0.9rem] py-[0.8rem] text-start transition-colors hover:bg-[var(--ed-paper)]/60"
+      >
+        <ChevronDown
+          size={14}
+          aria-hidden
+          className={`shrink-0 text-[var(--ed-ink-faint)] transition-transform ${expanded ? '' : '-rotate-90'}`}
+        />
+        <span className="flex-1 min-w-0 flex flex-col gap-[0.15rem]">
+          {topic && (
+            <span dir="auto" className="text-[0.6rem] font-semibold uppercase tracking-[0.1em] text-[var(--ed-ink-faint)]">
+              {topic}
+            </span>
+          )}
+          <span dir="auto" className="text-[0.88rem] font-medium leading-snug text-[var(--ed-ink)] truncate">
+            {row.entry.question.trim() || <span className="italic font-normal text-[var(--ed-ink-faint)]">(Untitled question)</span>}
+          </span>
         </span>
+      </button>
+      {expanded && (
+        <div className="px-[0.9rem] pb-[0.9rem] pt-[0.7rem] pl-[2.65rem] border-t border-dashed border-[var(--ed-rule)] flex flex-col gap-[0.65rem]">
+          {row.entry.answer.trim() ? (
+            <p dir="auto" className="text-[0.85rem] leading-[1.7] text-[var(--ed-ink-soft)] whitespace-pre-wrap text-start">
+              {row.entry.answer}
+            </p>
+          ) : (
+            <p className="text-[0.8rem] text-[var(--ed-ink-faint)] italic">No answer yet — hit Edit to write one.</p>
+          )}
+          <div className="flex justify-end">
+            <button type="button" onClick={onEdit} className={`${ED_GHOST} inline-flex items-center gap-[0.35rem]`}>
+              <Pencil size={12} /> Edit
+            </button>
+          </div>
+        </div>
       )}
-      <p dir="auto" className="shrink-0 text-[1rem] font-semibold leading-snug text-[var(--ed-ink)] text-start">
-        {row.entry.question.trim() || <span className="italic font-normal text-[var(--ed-ink-faint)]">(Untitled question)</span>}
-      </p>
-      <div className="flex-1 min-h-0 overflow-y-auto pr-3">
-        {row.entry.answer.trim() ? (
-          <p dir="auto" className="text-[0.88rem] leading-[1.7] text-[var(--ed-ink-soft)] whitespace-pre-wrap text-start">
-            {row.entry.answer}
-          </p>
-        ) : (
-          <p className="text-[0.8rem] text-[var(--ed-ink-faint)] italic">No answer yet — hit Edit to write one.</p>
-        )}
-      </div>
-      <div className="shrink-0 pt-1 flex justify-end">
-        <button type="button" onClick={onEdit} className={`${ED_GHOST} inline-flex items-center gap-[0.35rem]`}>
-          <Pencil size={12} /> Edit
-        </button>
-      </div>
     </div>
   );
 }
 
-/* Floating circular nav button, overlaid on the card itself — vertically
- * centered on its left/right edge, revealed on hover (or keyboard focus),
- * matching the résumé preview's page-nav affordance. */
-function CardHoverNavButton({ direction, label, onClick }: { direction: 'prev' | 'next'; label: string; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      aria-label={label}
-      onClick={onClick}
-      className={`absolute top-1/2 -translate-y-1/2 ${direction === 'next' ? 'right-3' : 'left-3'} w-9 h-9 rounded-full bg-[var(--ed-paper)]/90 text-[var(--ed-ink)] flex items-center justify-center shadow-lg opacity-0 group-hover:opacity-100 focus-visible:opacity-100 hover:bg-[var(--ed-accent)] hover:text-[var(--ed-paper)] transition-all`}
-    >
-      {direction === 'next' ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
-    </button>
-  );
-}
-
 /**
- * Rehearsal-first Q&A rubric: one question/answer card at a time — the
- * question is the card's title, the answer its body, both always visible.
- * Previous/Next steps through the current (possibly topic-filtered) set;
- * free-form topics (e.g. a project, or "Self presentation") double as the
- * only categorization — click "+ Topic" on any question to tag it, and a
- * filter chip for that topic appears automatically.
+ * Rehearsal-first Q&A rubric: a scannable list of every question in the
+ * (topic- and search-filtered) set, collapsed to one line by default —
+ * tap/click a row to reveal its answer inline. Free-form topics (e.g. a
+ * project, or "Self presentation") double as the only categorization —
+ * click "+ Topic" on any question to tag it, and a filter chip for that
+ * topic appears automatically.
  *
  * Controlled: edits flow through onChange into the page's `qa` state on every
- * keystroke — filtering only hides cards, never discards data. Persistence
+ * keystroke — filtering only hides rows, never discards data. Persistence
  * stays with the section-level Save row.
  */
 export function QaCardGrid({ entries, onChange }: { entries: QaEntry[]; onChange: (next: QaEntry[]) => void }) {
   const [ids, setIds] = useState<string[]>(() => entries.map(nextRowId));
   const [prevEntries, setPrevEntries] = useState(entries);
   const [editingId, setEditingId] = useState<string | null>(null);
-  // The card currently shown. Falls back to the first row of the active
-  // filter whenever this id isn't present there (initial load, filter
-  // change, or the card it pointed to was deleted).
-  const [currentId, setCurrentId] = useState<string | null>(null);
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set());
   // 'all' = no filter, '' = the General (topic-less) group, otherwise a
   // lowercased topic key.
   const [topicFilter, setTopicFilter] = useState<'all' | string>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [scrollToId, setScrollToId] = useState<string | null>(null);
   // The array we last emitted through onChange; anything else arriving via
   // props is an external replacement (initial load, history restore, discard).
   const lastEmitted = useRef<QaEntry[] | null>(null);
+  const rowRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   if (entries !== prevEntries) {
     setPrevEntries(entries);
     if (entries !== lastEmitted.current) {
       setIds(entries.map(nextRowId));
       setEditingId(null);
+      setExpandedIds(new Set());
     }
   }
 
@@ -260,22 +268,39 @@ export function QaCardGrid({ entries, onChange }: { entries: QaEntry[]; onChange
     if (t && !topics.some((x) => x.toLowerCase() === t.toLowerCase())) topics.push(t);
   }
   const topicKeyOf = (e: QaEntry) => (e.topic ?? '').trim().toLowerCase();
-  const filteredRows = rows.filter((r) => topicFilter === 'all' || topicKeyOf(r.entry) === topicFilter);
+  const query = searchQuery.trim().toLowerCase();
+  const matchesQuery = (e: QaEntry) =>
+    !query || e.question.toLowerCase().includes(query) || e.answer.toLowerCase().includes(query);
+  const filteredRows = rows.filter(
+    (r) => (topicFilter === 'all' || topicKeyOf(r.entry) === topicFilter) && matchesQuery(r.entry),
+  );
 
-  const currentPos = filteredRows.findIndex((r) => r.id === currentId);
-  const position = currentPos >= 0 ? currentPos : 0;
-  const current = filteredRows[position] ?? null;
+  // A filter change (topic or search) can hide the row currently being
+  // edited — close the form rather than keep it open off-screen.
+  if (editingId !== null && !filteredRows.some((r) => r.id === editingId)) {
+    setEditingId(null);
+  }
+
+  useEffect(() => {
+    if (!scrollToId) return;
+    const el = rowRefs.current.get(scrollToId);
+    el?.scrollIntoView?.({ block: 'nearest' });
+    setScrollToId(null);
+  }, [scrollToId]);
 
   function update(index: number, patch: Partial<QaEntry>): void {
     emit(entries.map((e, i) => (i === index ? { ...e, ...patch } : e)), ids);
   }
 
   function remove(row: Row): void {
-    const pos = filteredRows.findIndex((r) => r.id === row.id);
-    const fallback = filteredRows[pos + 1] ?? filteredRows[pos - 1] ?? null;
     emit(entries.filter((_, i) => i !== row.index), ids.filter((_, i) => i !== row.index));
-    setCurrentId(fallback ? fallback.id : null);
     if (editingId === row.id) setEditingId(null);
+    setExpandedIds((prev) => {
+      if (!prev.has(row.id)) return prev;
+      const next = new Set(prev);
+      next.delete(row.id);
+      return next;
+    });
   }
 
   /* Swap with the adjacent sibling in the same topic group (flat-array swap).
@@ -296,14 +321,31 @@ export function QaCardGrid({ entries, onChange }: { entries: QaEntry[]; onChange
 
   function add(): void {
     const id = nextRowId();
-    // Pre-tag with the active topic filter so the new row stays visible.
+    // Pre-tag with the active topic filter so the new row stays visible;
+    // clear any active search so it isn't immediately hidden while empty.
     const topic = topicFilter !== 'all' ? (topics.find((t) => t.toLowerCase() === topicFilter) ?? '') : '';
     emit(
       [...entries, { question: '', answer: '', categories: [], topic }],
       [...ids, id],
     );
     setEditingId(id);
-    setCurrentId(id);
+    setExpandedIds((prev) => new Set(prev).add(id));
+    setSearchQuery('');
+    setScrollToId(id);
+  }
+
+  function startEdit(id: string): void {
+    setEditingId(id);
+    setExpandedIds((prev) => (prev.has(id) ? prev : new Set(prev).add(id)));
+  }
+
+  function toggleExpand(id: string): void {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   }
 
   /* Toggle semantics: clicking the active topic chip clears the topic filter
@@ -311,19 +353,11 @@ export function QaCardGrid({ entries, onChange }: { entries: QaEntry[]; onChange
   function selectTopicFilter(key: 'all' | string): void {
     const next = key === 'all' ? 'all' : topicFilter === key ? 'all' : key;
     setTopicFilter(next);
-    setEditingId(null);
   }
 
-  function goPrev(): void {
-    setEditingId(null);
-    const target = filteredRows[position - 1];
-    if (target) setCurrentId(target.id);
-  }
-
-  function goNext(): void {
-    setEditingId(null);
-    const target = filteredRows[position + 1];
-    if (target) setCurrentId(target.id);
+  function clearFilters(): void {
+    setTopicFilter('all');
+    setSearchQuery('');
   }
 
   const countForTopic = (key: string) => entries.filter((e) => topicKeyOf(e) === key).length;
@@ -336,83 +370,109 @@ export function QaCardGrid({ entries, onChange }: { entries: QaEntry[]; onChange
           No questions yet. Add prepared answers to common interview questions like "Where do you see yourself in 5 years?".
         </p>
       ) : (
-        <div className="flex items-center gap-[0.4rem] flex-wrap" role="group" aria-label="Filter questions by topic">
-          {[
-            { key: 'all', label: ALL_LABEL, count: entries.length },
-            ...topics.map((t) => ({ key: t.toLowerCase(), label: t, count: countForTopic(t.toLowerCase()) })),
-            ...(generalCount > 0 ? [{ key: '', label: GENERAL_LABEL, count: generalCount }] : []),
-          ].map(({ key, label, count }) => {
-            const selected = key === 'all' ? topicFilter === 'all' : topicFilter === key;
-            return (
+        <>
+          <div
+            className="flex items-center gap-[0.3rem] md:gap-[0.4rem] flex-wrap"
+            role="group"
+            aria-label="Filter questions by topic"
+          >
+            {[
+              { key: 'all', label: ALL_LABEL, count: entries.length },
+              ...topics.map((t) => ({ key: t.toLowerCase(), label: t, count: countForTopic(t.toLowerCase()) })),
+              ...(generalCount > 0 ? [{ key: '', label: GENERAL_LABEL, count: generalCount }] : []),
+            ].map(({ key, label, count }) => {
+              const selected = key === 'all' ? topicFilter === 'all' : topicFilter === key;
+              return (
+                <button
+                  key={key || GENERAL_LABEL}
+                  type="button"
+                  aria-pressed={selected}
+                  onClick={() => selectTopicFilter(key)}
+                  dir="auto"
+                  className={`rounded-full border px-2 py-[0.2rem] text-[0.6rem] tracking-[0.06em] md:px-2.5 md:py-[0.28rem] md:text-[0.66rem] md:tracking-[0.1em] font-semibold uppercase tabular-nums transition-all ${
+                    selected
+                      ? 'border-[var(--ed-accent)] bg-[var(--ed-accent)]/10 text-[var(--ed-accent)]'
+                      : 'border-[var(--ed-rule)] text-[var(--ed-ink-faint)] hover:border-[var(--ed-ink)] hover:text-[var(--ed-ink)]'
+                  }`}
+                >
+                  {label} ({count})
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="relative">
+            <Search
+              size={14}
+              aria-hidden
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--ed-ink-faint)]"
+            />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(ev) => setSearchQuery(ev.target.value)}
+              placeholder="Search questions and answers…"
+              aria-label="Search questions"
+              dir="auto"
+              className={`${INPUT_CLASS} pl-9 pr-9`}
+            />
+            {searchQuery && (
               <button
-                key={key || GENERAL_LABEL}
                 type="button"
-                aria-pressed={selected}
-                onClick={() => selectTopicFilter(key)}
-                dir="auto"
-                className={`rounded-full border px-2.5 py-[0.28rem] text-[0.66rem] font-semibold uppercase tracking-[0.1em] tabular-nums transition-all ${
-                  selected
-                    ? 'border-[var(--ed-accent)] bg-[var(--ed-accent)]/10 text-[var(--ed-accent)]'
-                    : 'border-[var(--ed-rule)] text-[var(--ed-ink-faint)] hover:border-[var(--ed-ink)] hover:text-[var(--ed-ink)]'
-                }`}
+                onClick={() => setSearchQuery('')}
+                aria-label="Clear search"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--ed-ink-faint)] hover:text-[var(--ed-ink)] transition-colors"
               >
-                {label} ({count})
+                <X size={14} />
               </button>
-            );
-          })}
-        </div>
+            )}
+          </div>
+        </>
       )}
 
       {entries.length > 0 && filteredRows.length === 0 && (
         <p className="text-[0.82rem] text-[var(--ed-ink-faint)] italic">
-          No questions match the current filter.{' '}
+          No questions match {query ? 'your search' : 'the current filter'}.{' '}
           <button
             type="button"
-            onClick={() => setTopicFilter('all')}
+            onClick={clearFilters}
             className="not-italic underline underline-offset-2 hover:text-[var(--ed-ink)] transition-colors"
           >
-            Clear filter
+            Clear filters
           </button>
         </p>
       )}
 
-      {current && (
-        <>
-          {(() => {
-            const editing = editingId === current.id;
-            const siblings = rows.filter(
-              (r) => (r.entry.topic ?? '').trim().toLowerCase() === (current.entry.topic ?? '').trim().toLowerCase(),
-            );
-            const pos = siblings.findIndex((r) => r.id === current.id);
+      {filteredRows.length > 0 && (
+        <div className="flex flex-col gap-2">
+          {filteredRows.map((row) => {
+            const editing = editingId === row.id;
+            const key = topicKeyOf(row.entry);
+            const siblings = rows.filter((r) => topicKeyOf(r.entry) === key);
+            const pos = siblings.findIndex((r) => r.id === row.id);
             return (
-              <div className="relative group">
-                <QaCard
-                  row={current}
-                  editing={editing}
-                  pos={pos}
-                  siblingsCount={siblings.length}
-                  topics={topics}
-                  onEdit={() => setEditingId(current.id)}
-                  onDone={() => setEditingId(null)}
-                  onUpdate={(patch) => update(current.index, patch)}
-                  onMove={(dir) => move(current, dir)}
-                  onRemove={() => remove(current)}
-                />
-                {!editing && position > 0 && (
-                  <CardHoverNavButton direction="prev" label="Previous question" onClick={goPrev} />
-                )}
-                {!editing && position < filteredRows.length - 1 && (
-                  <CardHoverNavButton direction="next" label="Next question" onClick={goNext} />
-                )}
-                {!editing && filteredRows.length > 1 && (
-                  <span className="absolute -top-2 -right-2 px-2.5 py-[0.3rem] rounded-full border border-[var(--ed-rule)] bg-[var(--ed-paper)] text-[var(--ed-ink-faint)] text-[0.66rem] font-semibold tabular-nums shadow-lg">
-                    {position + 1} / {filteredRows.length}
-                  </span>
-                )}
-              </div>
+              <QaListRow
+                key={row.id}
+                row={row}
+                editing={editing}
+                expanded={expandedIds.has(row.id)}
+                pos={pos}
+                siblingsCount={siblings.length}
+                topics={topics}
+                refCallback={(el) => {
+                  if (el) rowRefs.current.set(row.id, el);
+                  else rowRefs.current.delete(row.id);
+                }}
+                onToggleExpand={() => toggleExpand(row.id)}
+                onEdit={() => startEdit(row.id)}
+                onDone={() => setEditingId(null)}
+                onUpdate={(patch) => update(row.index, patch)}
+                onMove={(dir) => move(row, dir)}
+                onRemove={() => remove(row)}
+              />
             );
-          })()}
-        </>
+          })}
+        </div>
       )}
 
       <div>

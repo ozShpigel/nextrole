@@ -25,58 +25,59 @@ function Harness({ initial, onChange }: { initial: QaEntry[]; onChange?: (next: 
   );
 }
 
-/* Prev/Next are hover-reveal chevrons overlaid on the card, only rendered
- * when a neighboring card actually exists at that end of the filtered set
- * (absent, not disabled, at a boundary). The position badge is likewise
- * only rendered once there's more than one card to step through. */
-function next(): Promise<void> {
-  return userEvent.click(screen.getByRole('button', { name: 'Next question' }));
+/* Rows are collapsed by default: clicking the row toggles the inline answer. */
+function toggleRow(name: string | RegExp): Promise<void> {
+  return userEvent.click(screen.getByRole('button', { name }));
 }
-function prev(): Promise<void> {
-  return userEvent.click(screen.getByRole('button', { name: 'Previous question' }));
+
+function searchInput(): HTMLElement {
+  return screen.getByRole('textbox', { name: /search questions/i });
 }
-function position(): HTMLElement {
-  return screen.getByText(/^\d+ \/ \d+$/);
-}
+
+beforeEach(() => {
+  // jsdom doesn't implement scrollIntoView; stub it so the add() scroll
+  // effect doesn't throw, and so we can assert it fires.
+  Element.prototype.scrollIntoView = vi.fn();
+});
 
 describe('QaCardGrid', () => {
-  it('shows one card at a time, with Previous/Next stepping through and a position indicator', async () => {
+  it('renders every question as a collapsed row, with topic labels shown, answers hidden until expanded', () => {
     render(<Harness initial={ENTRIES} />);
 
-    // First entry shown by default; the rest are not in the document yet.
     expect(screen.getByText('Tell me about yourself')).toBeInTheDocument();
-    expect(screen.getByText('Intro answer')).toBeInTheDocument();
-    expect(screen.queryByText('Explain the Payoneer project')).not.toBeInTheDocument();
-    expect(position()).toHaveTextContent('1 / 4');
-    expect(screen.queryByRole('button', { name: 'Previous question' })).not.toBeInTheDocument();
-
-    await next();
     expect(screen.getByText('Explain the Payoneer project')).toBeInTheDocument();
-    expect(screen.queryByText('Tell me about yourself')).not.toBeInTheDocument();
-    expect(position()).toHaveTextContent('2 / 4');
+    expect(screen.getByText('Biggest challenge there?')).toBeInTheDocument();
+    expect(screen.getByText('Untagged question')).toBeInTheDocument();
 
-    await prev();
-    expect(screen.getByText('Tell me about yourself')).toBeInTheDocument();
-    expect(position()).toHaveTextContent('1 / 4');
+    expect(screen.queryByText('Intro answer')).not.toBeInTheDocument();
+    expect(screen.queryByText('Payoneer answer')).not.toBeInTheDocument();
+
+    // One topic label per tagged row (distinct from the "Payoneer project (2)" filter chip).
+    expect(screen.getAllByText('Payoneer project').length).toBe(2);
   });
 
-  it('hides the Next button on the last card', async () => {
+  it('expands a row to reveal its answer inline, and collapsing one row leaves others expanded', async () => {
     render(<Harness initial={ENTRIES} />);
 
-    for (let i = 0; i < ENTRIES.length - 1; i++) {
-      await next();
-    }
-    expect(position()).toHaveTextContent('4 / 4');
-    expect(screen.queryByRole('button', { name: 'Next question' })).not.toBeInTheDocument();
+    await toggleRow(/tell me about yourself/i);
+    expect(screen.getByText('Intro answer')).toBeInTheDocument();
+
+    await toggleRow(/explain the payoneer project/i);
+    expect(screen.getByText('Payoneer answer')).toBeInTheDocument();
+    expect(screen.getByText('Intro answer')).toBeInTheDocument();
+
+    await toggleRow(/tell me about yourself/i);
+    expect(screen.queryByText('Intro answer')).not.toBeInTheDocument();
+    expect(screen.getByText('Payoneer answer')).toBeInTheDocument();
   });
 
-  it('shows an Edit button on the visible card, revealing inputs, and Done returns to the card face', async () => {
+  it('shows Edit only once a row is expanded; Done returns to the row with the update visible', async () => {
     const onChange = vi.fn();
     render(<Harness initial={ENTRIES} onChange={onChange} />);
 
-    expect(screen.getByRole('button', { name: /edit/i })).toBeInTheDocument();
-    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^edit$/i })).not.toBeInTheDocument();
 
+    await toggleRow(/tell me about yourself/i);
     await userEvent.click(screen.getByRole('button', { name: /edit/i }));
     expect(screen.getByRole('textbox', { name: 'Question' })).toHaveValue('Tell me about yourself');
     expect(screen.getByRole('textbox', { name: 'Answer' })).toHaveValue('Intro answer');
@@ -88,7 +89,7 @@ describe('QaCardGrid', () => {
     );
 
     await userEvent.click(screen.getByRole('button', { name: /done/i }));
-    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: 'Question' })).not.toBeInTheDocument();
     expect(screen.getByText('Intro answer updated')).toBeInTheDocument();
   });
 
@@ -96,12 +97,7 @@ describe('QaCardGrid', () => {
     const onChange = vi.fn();
     render(<Harness initial={ENTRIES} onChange={onChange} />);
 
-    // Step to the untagged question (last one).
-    for (let i = 0; i < 3; i++) {
-      await next();
-    }
-    expect(screen.getByText('Untagged question')).toBeInTheDocument();
-
+    await toggleRow(/untagged question/i);
     await userEvent.click(screen.getByRole('button', { name: /edit/i }));
 
     // One click on an existing topic's chip assigns it.
@@ -119,35 +115,87 @@ describe('QaCardGrid', () => {
     );
   });
 
-  it('filtering by topic narrows Previous/Next to just that set, starting from the first match', async () => {
+  it('filtering by topic narrows the list to just that set', async () => {
     render(<Harness initial={ENTRIES} />);
 
     await userEvent.click(screen.getByRole('button', { name: 'Payoneer project (2)' }));
     expect(screen.getByText('Explain the Payoneer project')).toBeInTheDocument();
-    expect(position()).toHaveTextContent('1 / 2');
-
-    await next();
     expect(screen.getByText('Biggest challenge there?')).toBeInTheDocument();
-    expect(position()).toHaveTextContent('2 / 2');
-    expect(screen.queryByRole('button', { name: 'Next question' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Tell me about yourself')).not.toBeInTheDocument();
+    expect(screen.queryByText('Untagged question')).not.toBeInTheDocument();
 
     // Clicking the active topic chip clears the filter and returns to the full set.
     await userEvent.click(screen.getByRole('button', { name: 'Payoneer project (2)', pressed: true }));
-    expect(position()).not.toHaveTextContent('4 / 4'); // position resets, doesn't jump to old length
+    expect(screen.getByText('Tell me about yourself')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'All (4)' })).toHaveAttribute('aria-pressed', 'true');
   });
 
-  it('exits edit mode when a topic filter hides the card being edited', async () => {
+  it('exits edit mode when a topic filter hides the row being edited', async () => {
     render(<Harness initial={ENTRIES} />);
 
+    await toggleRow(/tell me about yourself/i);
     await userEvent.click(screen.getByRole('button', { name: /edit/i }));
     expect(screen.getByRole('textbox', { name: 'Question' })).toHaveValue('Tell me about yourself');
 
     await userEvent.click(screen.getByRole('button', { name: 'Payoneer project (2)' }));
-    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: 'Question' })).not.toBeInTheDocument();
   });
 
-  it('Add question opens a new entry in edit mode, pre-tagged with the active topic filter', async () => {
+  it('search filters by question and answer text, case-insensitively', async () => {
+    render(<Harness initial={ENTRIES} />);
+
+    await userEvent.type(searchInput(), 'CHALLENGE');
+    expect(screen.getByText('Biggest challenge there?')).toBeInTheDocument();
+    expect(screen.queryByText('Tell me about yourself')).not.toBeInTheDocument();
+    expect(screen.queryByText('Explain the Payoneer project')).not.toBeInTheDocument();
+
+    await userEvent.clear(searchInput());
+    await userEvent.type(searchInput(), 'intro'); // matches the answer text, not the question
+    expect(screen.getByText('Tell me about yourself')).toBeInTheDocument();
+    expect(screen.queryByText('Biggest challenge there?')).not.toBeInTheDocument();
+  });
+
+  it('the search input can be cleared with its own clear button', async () => {
+    render(<Harness initial={ENTRIES} />);
+
+    await userEvent.type(searchInput(), 'intro');
+    expect(screen.getByRole('button', { name: /clear search/i })).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: /clear search/i }));
+    expect(searchInput()).toHaveValue('');
+    expect(screen.getByText('Explain the Payoneer project')).toBeInTheDocument();
+  });
+
+  it('combines search with an active topic filter, and shows a no-matches state with a way to reset', async () => {
+    render(<Harness initial={ENTRIES} />);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Payoneer project (2)' }));
+    await userEvent.type(searchInput(), 'challenge');
+    expect(screen.getByText('Biggest challenge there?')).toBeInTheDocument();
+    expect(screen.queryByText('Explain the Payoneer project')).not.toBeInTheDocument();
+
+    await userEvent.clear(searchInput());
+    await userEvent.type(searchInput(), 'nonexistent');
+    expect(screen.getByText(/no questions match/i)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: /clear filters/i }));
+    expect(searchInput()).toHaveValue('');
+    expect(screen.getByRole('button', { name: 'All (4)' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByText('Tell me about yourself')).toBeInTheDocument();
+  });
+
+  it('closes edit mode when a search query hides the row being edited', async () => {
+    render(<Harness initial={ENTRIES} />);
+
+    await toggleRow(/tell me about yourself/i);
+    await userEvent.click(screen.getByRole('button', { name: /edit/i }));
+    expect(screen.getByRole('textbox', { name: 'Question' })).toHaveValue('Tell me about yourself');
+
+    await userEvent.type(searchInput(), 'payoneer');
+    expect(screen.queryByRole('textbox', { name: 'Question' })).not.toBeInTheDocument();
+  });
+
+  it('Add question opens a new entry in edit mode, pre-tagged with the active topic filter, and scrolls it into view', async () => {
     render(<Harness initial={ENTRIES} />);
 
     await userEvent.click(screen.getByRole('button', { name: 'Payoneer project (2)' }));
@@ -156,17 +204,14 @@ describe('QaCardGrid', () => {
     expect(screen.getByRole('textbox', { name: 'Question' })).toHaveValue('');
     expect(screen.getByRole('button', { name: 'Payoneer project', pressed: true })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Payoneer project (3)' })).toBeInTheDocument();
+    expect(Element.prototype.scrollIntoView).toHaveBeenCalled();
   });
 
   it('reordering swaps an entry with its same-topic sibling', async () => {
     const onChange = vi.fn();
     render(<Harness initial={ENTRIES} onChange={onChange} />);
 
-    await userEvent.click(screen.getByRole('button', { name: 'Payoneer project (2)' }));
-    // "Biggest challenge there?" is the second Payoneer-project-tagged entry.
-    await next();
-    expect(screen.getByText('Biggest challenge there?')).toBeInTheDocument();
-
+    await toggleRow(/biggest challenge there/i);
     await userEvent.click(screen.getByRole('button', { name: /edit/i }));
     await userEvent.click(screen.getByRole('button', { name: 'Move up' }));
 
@@ -179,15 +224,15 @@ describe('QaCardGrid', () => {
     ]);
   });
 
-  it('deleting the visible card removes it, closes the form, and steps to a neighbor', async () => {
+  it('deleting a row removes it and closes its edit form', async () => {
     render(<Harness initial={ENTRIES} />);
 
+    await toggleRow(/tell me about yourself/i);
     await userEvent.click(screen.getByRole('button', { name: /edit/i }));
     await userEvent.click(screen.getByRole('button', { name: 'Remove question' }));
 
     expect(screen.queryByText('Tell me about yourself')).not.toBeInTheDocument();
-    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
-    // Falls forward onto what was the second entry.
+    expect(screen.queryByRole('textbox', { name: 'Question' })).not.toBeInTheDocument();
     expect(screen.getByText('Explain the Payoneer project')).toBeInTheDocument();
   });
 
@@ -203,6 +248,7 @@ describe('QaCardGrid', () => {
 
     expect(screen.getByRole('button', { name: 'Payoneer project (1)' })).toBeInTheDocument();
 
+    await toggleRow(/only topical question/i);
     await userEvent.click(screen.getByRole('button', { name: /edit/i }));
     await userEvent.click(screen.getByRole('button', { name: 'Remove question' }));
 
@@ -216,7 +262,7 @@ describe('QaCardGrid', () => {
     expect(screen.queryByRole('button', { name: /all \(/i })).not.toBeInTheDocument();
   });
 
-  it('dedupes topic chips case-insensitively, keeping the first-seen casing', async () => {
+  it('dedupes topic chips case-insensitively, keeping the first-seen casing', () => {
     render(
       <Harness
         initial={[
@@ -225,13 +271,14 @@ describe('QaCardGrid', () => {
         ]}
       />,
     );
-    // Only one chip for the topic, using the first-seen casing.
-    expect(screen.getAllByRole('button', { name: /payoneer project/i }).length).toBe(1);
-    expect(screen.getByRole('button', { name: 'Payoneer Project (2)' })).toBeInTheDocument();
+    // Only one filter chip for the topic, using the first-seen casing (row
+    // toggle buttons also contain the topic text, so scope to the filter group).
+    const filterGroup = screen.getByRole('group', { name: /filter questions by topic/i });
+    expect(within(filterGroup).getAllByRole('button', { name: /payoneer project/i }).length).toBe(1);
+    expect(within(filterGroup).getByRole('button', { name: 'Payoneer Project (2)' })).toBeInTheDocument();
 
+    // Both rows render at once now — no stepping required to see the second.
     expect(screen.getByText('Q1')).toBeInTheDocument();
-    expect(screen.queryByText('Q2')).not.toBeInTheDocument();
-    await next();
     expect(screen.getByText('Q2')).toBeInTheDocument();
   });
 });

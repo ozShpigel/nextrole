@@ -30,6 +30,19 @@ export function formatTime(dateStr: string | null | undefined): string {
   return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
 }
 
+// ISO/UTC timestamp → the "YYYY-MM-DDTHH:mm" shape DateTimePicker (and the
+// native datetime-local input it replaces) consume. That shape has no offset
+// and is read as LOCAL wall-clock, so it has to be built from local getters —
+// `toISOString().slice(0, 16)` yields the UTC wall-clock instead, which showed
+// every edited interview 3 hours early (Israel) and re-saved it shifted.
+export function toDateTimeLocalValue(dateStr: string | null | undefined): string {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return '';
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 export function scoreColor(score: number | null | undefined, max?: number | null): string {
   if (score == null) return 'var(--muted-foreground)';
   const pct = max != null && max > 0 ? score / max : score / 100;

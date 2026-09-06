@@ -1,5 +1,5 @@
 ﻿import { useState } from 'react';
-import { formatDateTime, formatTime } from '../lib/format';
+import { formatDateTime, formatTime, toDateTimeLocalValue } from '../lib/format';
 import { useDeleteInterview, useAddInterview, useUpdateInterview } from '../lib/mutations';
 import { INTERVIEW_TYPES } from '../lib/tracker';
 import type { Interview } from '../lib/types';
@@ -84,7 +84,7 @@ export function InterviewModal({ appId, interview, onClose, onSaved }: Interview
   const isEdit = !!interview;
   const [form, setForm] = useState<InterviewFormState>({
     type: interview?.type || 'Phone',
-    scheduledAt: interview?.scheduledAt ? new Date(interview.scheduledAt).toISOString().slice(0, 16) : '',
+    scheduledAt: toDateTimeLocalValue(interview?.scheduledAt),
     interviewer: interview?.interviewer || '',
     topics: interview?.topics || '',
     notes: interview?.notes || '',

@@ -33,15 +33,25 @@ public sealed class MailbotOrchestrator
 
         // Timezone the emails' wall-clock times are written in (the candidate's
         // locale, not the server's — the prod cron runs in UTC).
+        //
+        // Fail hard if it can't be resolved. This used to fall back to
+        // TimeZoneInfo.Local with a warning, which in the UTC container turned
+        // the wall-clock→UTC conversion into a no-op and silently stored every
+        // interview 3 hours off (14:00 Israel time → 14:00 UTC → shown as 17:00).
+        // The usual cause is a container image without IANA zone data
+        // (server/mailbot/Dockerfile installs tzdata for exactly this reason).
         var tzId = config["Mailbot:TimeZone"] ?? "Asia/Jerusalem";
         try
         {
             _emailTimeZone = TimeZoneInfo.FindSystemTimeZoneById(tzId);
         }
-        catch (TimeZoneNotFoundException)
+        catch (TimeZoneNotFoundException ex)
         {
-            _logger.LogWarning("Timezone '{TzId}' not found — falling back to server-local time", tzId);
-            _emailTimeZone = TimeZoneInfo.Local;
+            throw new InvalidOperationException(
+                $"Timezone '{tzId}' (Mailbot:TimeZone) is not available on this system. " +
+                "Interview times cannot be converted to UTC correctly, so the sync is aborted " +
+                "rather than storing shifted times. Install tzdata in the container image " +
+                "or set Mailbot__TimeZone to an available IANA id.", ex);
         }
     }
 

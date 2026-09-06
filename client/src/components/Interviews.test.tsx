@@ -20,6 +20,24 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
+describe('InterviewModal — edit prefill', () => {
+  it('round-trips scheduledAt unchanged when saved without edits', async () => {
+    // Regression: the prefill used toISOString().slice(0, 16) — the UTC
+    // wall-clock — in a field DateTimePicker reads as local wall-clock, so
+    // in any non-UTC zone (Israel: +3h) an untouched Save re-persisted the
+    // interview shifted by the zone offset.
+    vi.mocked(api).mockResolvedValue({ ...baseInterview });
+    renderWithRouter(<InterviewModal appId="app-1" interview={baseInterview} onClose={vi.fn()} onSaved={vi.fn()} />);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => expect(api).toHaveBeenCalledTimes(1));
+    const [, options] = vi.mocked(api).mock.calls[0];
+    const body = JSON.parse((options as RequestInit).body as string);
+    expect(body.scheduledAt).toBe(baseInterview.scheduledAt);
+  });
+});
+
 describe('InterviewModal — completed-flip retro trigger', () => {
   it('saves immediately, without a retro modal, when Completed is not flipped', async () => {
     vi.mocked(api).mockResolvedValue({ ...baseInterview });

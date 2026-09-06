@@ -49,7 +49,7 @@ function MessageRow({ message, selected, onSelect }: { message: MessageItem; sel
       type="button"
       onClick={onSelect}
       className={`w-full flex items-center gap-3 text-left border rounded-xl px-3.5 py-3 transition-colors ${
-        selected ? 'border-[var(--ed-accent)] bg-[var(--ed-panel)]' : 'border-[var(--ed-rule)] hover:border-[var(--ed-ink-faint)]'
+        selected ? 'border-[var(--ed-rule)] bg-[var(--ed-accent)]/10' : 'border-[var(--ed-rule)] hover:border-[var(--ed-ink-faint)]'
       }`}
     >
       <div className="relative shrink-0">
@@ -63,7 +63,7 @@ function MessageRow({ message, selected, onSelect }: { message: MessageItem; sel
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex items-start justify-between gap-2">
-          <p className={`min-w-0 text-[14px] truncate ${message.isRead ? 'font-normal text-[var(--ed-ink-soft)]' : 'font-medium text-[var(--ed-ink)]'}`}>
+          <p className={`min-w-0 text-[14px] truncate ${selected ? 'font-medium text-[var(--ed-accent)]' : message.isRead ? 'font-normal text-[var(--ed-ink-soft)]' : 'font-medium text-[var(--ed-ink)]'}`}>
             {message.company}
             {message.jobTitle && <span className="text-[var(--ed-ink-faint)] font-normal"> · {message.jobTitle}</span>}
           </p>
@@ -176,7 +176,7 @@ export default function MessagesPage() {
           </h1>
           {!isLoading && !error && messages && messages.length > 0 && (
             unreadCount > 0 ? (
-              <span className="inline-flex items-center text-[12px] font-medium uppercase tracking-[0.08em] px-3 py-1.5 rounded-full text-[var(--ed-paper)] bg-[var(--ed-accent)] tabular-nums">
+              <span className="inline-flex items-center text-[12px] font-medium uppercase tracking-[0.08em] px-3 py-1.5 rounded-full border border-[var(--ed-rule)] bg-[var(--ed-panel)] text-[var(--ed-ink-faint)] tabular-nums">
                 {unreadCount} unread
               </span>
             ) : (

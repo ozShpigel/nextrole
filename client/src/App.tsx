@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { Navigate, NavLink, Outlet, useLocation, useNavigationType } from 'react-router-dom';
+import { Search, Kanban, Mail, GraduationCap, User } from 'lucide-react';
 import { useConfig, useProfile, useResumeFile } from './lib/queries';
 import { BrandMark } from './components/BrandMark';
 
@@ -32,8 +33,50 @@ function OnboardingGate() {
   return <Outlet />;
 }
 
+// "Apps" nav link removed 2026-08-11 — Active now covers the day-to-day
+// pipeline view. The /tracker route and ApplicationList page are
+// intentionally left in place: closed (Rejected/Withdrawn) applications and
+// the application detail page (notes, interviews, salary, delete) have no
+// equivalent on Active yet, so they stay reachable by URL.
+const NAV_LINKS = [
+  { to: '/search', label: 'Matches', Icon: Search },
+  { to: '/active', label: 'Active', Icon: Kanban },
+  { to: '/messages', label: 'Messages', Icon: Mail },
+  { to: '/interview-prep', label: 'Prep', Icon: GraduationCap },
+  { to: '/settings', label: 'Profile', Icon: User },
+];
+
 const navLinkClass = ({ isActive }: { isActive: boolean }): string =>
   `shrink-0 relative py-[0.4rem] px-[0.7rem] rounded-full text-[0.8rem] font-medium transition-all ${isActive ? 'text-[var(--ed-accent)] bg-[var(--ed-accent)]/10' : 'text-muted-foreground bg-transparent hover:text-foreground'}`;
+
+const mobileNavLinkClass = ({ isActive }: { isActive: boolean }): string =>
+  `flex-1 flex flex-col items-center justify-center gap-1 py-[0.4rem] text-[0.62rem] font-medium transition-all ${isActive ? 'text-[var(--ed-accent)] bg-[var(--ed-accent)]/10' : 'text-[var(--ed-ink-faint)]'}`;
+
+// Bottom tab bar shown below the md breakpoint in place of the top link
+// row, which would otherwise overflow five items on a phone-width screen.
+// Fixed to the viewport, so App's caller pads the content column to match
+// its height (including the iOS home-indicator safe area) — see MOBILE_NAV_
+// SPACER below.
+function MobileNav() {
+  return (
+    <nav
+      aria-label="Primary"
+      className="md:hidden fixed inset-x-0 bottom-0 z-50 flex items-stretch bg-background/80 backdrop-blur-[20px] border-t border-border pb-[env(safe-area-inset-bottom)]"
+    >
+      {NAV_LINKS.map(({ to, label, Icon }) => (
+        <NavLink key={to} to={to} className={mobileNavLinkClass}>
+          <Icon size={20} aria-hidden="true" />
+          {label}
+        </NavLink>
+      ))}
+    </nav>
+  );
+}
+
+// Matches MobileNav's own height (py-[0.4rem] + ~20px icon + label line +
+// gap ≈ 4rem) plus the safe-area inset it also pads for, so page content
+// never sits underneath the fixed bar.
+const MOBILE_NAV_SPACER = 'pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0';
 
 /* BrowserRouter keeps the window scroll offset across navigations, so opening
  * a page from deep in a long list (e.g. tracker → application detail) landed
@@ -65,24 +108,22 @@ export default function App() {
           </NavLink>
           {/* min-w-0 lets this shrink below its content width inside the flex
               row instead of forcing the whole page to scroll horizontally;
-              overflow-x-auto then scrolls just this strip on narrow screens. */}
-          <div className="ed-scroll flex items-center gap-0 min-w-0 overflow-x-auto">
-            <NavLink to="/search" className={navLinkClass}>Matches</NavLink>
-            <NavLink to="/active" className={navLinkClass}>Active</NavLink>
-            {/* "Apps" nav link removed 2026-08-11 — Active now covers the
-                day-to-day pipeline view. The /tracker route and
-                ApplicationList page are intentionally left in place: closed
-                (Rejected/Withdrawn) applications and the application detail
-                page (notes, interviews, salary, delete) have no equivalent
-                on Active yet, so they stay reachable by URL. */}
-            <NavLink to="/messages" className={navLinkClass}>Messages</NavLink>
-            <NavLink to="/interview-prep" className={navLinkClass}>Prep</NavLink>
-            <NavLink to="/settings" className={navLinkClass}>Profile</NavLink>
+              overflow-x-auto then scrolls just this strip if it ever runs
+              tight on a narrow desktop window. Hidden below md: — that width
+              can't fit all five links, so MobileNav (a fixed bottom bar)
+              takes over navigation there instead. */}
+          <div className="ed-scroll hidden md:flex items-center gap-0 min-w-0 overflow-x-auto">
+            {NAV_LINKS.map(({ to, label }) => (
+              <NavLink key={to} to={to} className={navLinkClass}>{label}</NavLink>
+            ))}
           </div>
         </div>
       </nav>
       <ScrollToTop />
-      <OnboardingGate />
+      <div className={MOBILE_NAV_SPACER}>
+        <OnboardingGate />
+      </div>
+      <MobileNav />
     </div>
   );
 }

@@ -577,7 +577,7 @@ export default function SearchPage() {
             <SlidersHorizontal size={13} aria-hidden="true" />
             Filters
             {activeFilterCount > 0 && (
-              <span className="inline-flex items-center justify-center min-w-[1.1rem] h-[1.1rem] px-1 rounded-full text-[11px] font-medium text-[var(--ed-paper)] bg-[var(--ed-accent)] tabular-nums">
+              <span className="inline-flex items-center justify-center min-w-[1.1rem] h-[1.1rem] px-1 rounded-full border border-[var(--ed-rule)] bg-[var(--ed-panel)] text-[11px] font-medium text-[var(--ed-ink-faint)] tabular-nums">
                 {activeFilterCount}
               </span>
             )}

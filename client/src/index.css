@@ -86,11 +86,13 @@
   --sidebar-ring: oklch(0.708 0 0);
 
   /* Hoisted out of .editorial so shared chrome outside that subtree (the
-     global nav) can reference the same accent — see docs/design-system.md
-     scope caveat. Only these two --ed-* tokens are hoisted; every other
-     --ed-* token stays scoped to .editorial. */
+     global nav, including its mobile bottom-bar variant) can reference the
+     same accent/neutral — see docs/design-system.md scope caveat. Only
+     these three --ed-* tokens are hoisted; every other --ed-* token stays
+     scoped to .editorial. */
   --ed-accent: #7B93D4;
   --ed-accent-deep: #6379B8;
+  --ed-ink-faint: #7e8b83;
 }
 
 .dark {
@@ -129,6 +131,7 @@
 
   --ed-accent: #9DB8F5;
   --ed-accent-deep: #7F9BE0;
+  --ed-ink-faint: #6b6b70;
 }
 
 @layer base {

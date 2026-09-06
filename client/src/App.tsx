@@ -73,10 +73,16 @@ function MobileNav() {
   );
 }
 
-// Matches MobileNav's own height (py-[0.4rem] + ~20px icon + label line +
-// gap ≈ 4rem) plus the safe-area inset it also pads for, so page content
-// never sits underneath the fixed bar.
-const MOBILE_NAV_SPACER = 'pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0';
+// Matches MobileNav's own rendered height — py-[0.4rem]×2 (0.8rem) + the
+// 20px icon (1.25rem) + gap-1 (0.25rem) + the label's line box at the
+// inherited 1.5 line-height (0.93rem) + its border-t (~0.0625rem) ≈ 3.29rem,
+// rounded up to 3.5rem for cross-browser font-metric slack — plus the
+// safe-area inset it also pads for, so page content never sits underneath
+// the fixed bar. NOTE: calc() requires whitespace around +/- operators
+// (Tailwind arbitrary values use "_" for that space) — omitting it silently
+// invalidates the whole declaration and browsers drop it, which is why an
+// earlier version of this line had no effect at all.
+const MOBILE_NAV_SPACER = 'pb-[calc(3.5rem_+_env(safe-area-inset-bottom))] md:pb-0';
 
 /* BrowserRouter keeps the window scroll offset across navigations, so opening
  * a page from deep in a long list (e.g. tracker → application detail) landed

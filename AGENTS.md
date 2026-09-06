@@ -50,7 +50,8 @@ carries the visual weight; typography stays quiet.
 - Dark is the only theme. Don't add a light mode or a theme toggle.
 - Flat surfaces only. Exception: `.editorial-grain`/`.home-atmosphere` are intentional ambient layers on Landing/Home. Everywhere else: no gradients, no shadows, no glow.
 - Use tokens from `client/src/index.css` only. Never hardcode hex.
-- `--ed-accent` marks the primary action or the active state of a control. One per view.
+- `--ed-accent` marks the primary action, or active/selected state, wherever that state appears. Never decorative.
+- The score ramp is never used for accent, status, or category.
 - The score ramp is for any 0-100 or rated score (match score, interview score, per-dimension sub-scores). Never for status or category.
 - Error and destructive states keep their color (`--ed-no`). Everything else that isn't a primary action or a score stays neutral.
 - Two font weights: 400, 500.

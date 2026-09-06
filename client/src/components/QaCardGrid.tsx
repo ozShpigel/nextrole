@@ -362,6 +362,11 @@ export function QaCardGrid({ entries, onChange }: { entries: QaEntry[]; onChange
 
   const countForTopic = (key: string) => entries.filter((e) => topicKeyOf(e) === key).length;
   const generalCount = countForTopic('');
+  const topicOptions = [
+    { key: 'all', label: ALL_LABEL, count: entries.length },
+    ...topics.map((t) => ({ key: t.toLowerCase(), label: t, count: countForTopic(t.toLowerCase()) })),
+    ...(generalCount > 0 ? [{ key: '', label: GENERAL_LABEL, count: generalCount }] : []),
+  ];
 
   return (
     <div className="flex flex-col gap-4">
@@ -371,16 +376,29 @@ export function QaCardGrid({ entries, onChange }: { entries: QaEntry[]; onChange
         </p>
       ) : (
         <>
+          {/* Below md, a chip row can wrap arbitrarily long topic names to
+           * three or more lines, pushing the list below the fold — so a
+           * compact select stands in for it there instead. */}
+          <select
+            value={topicFilter}
+            onChange={(ev) => setTopicFilter(ev.target.value)}
+            aria-label="Filter questions by topic"
+            dir="auto"
+            className={`md:hidden ${INPUT_CLASS} text-[0.78rem] font-semibold uppercase tracking-[0.04em]`}
+          >
+            {topicOptions.map(({ key, label, count }) => (
+              <option key={key || GENERAL_LABEL} value={key}>
+                {label} ({count})
+              </option>
+            ))}
+          </select>
+
           <div
-            className="flex items-center gap-[0.3rem] md:gap-[0.4rem] flex-wrap"
+            className="hidden md:flex items-center gap-[0.4rem] flex-wrap"
             role="group"
             aria-label="Filter questions by topic"
           >
-            {[
-              { key: 'all', label: ALL_LABEL, count: entries.length },
-              ...topics.map((t) => ({ key: t.toLowerCase(), label: t, count: countForTopic(t.toLowerCase()) })),
-              ...(generalCount > 0 ? [{ key: '', label: GENERAL_LABEL, count: generalCount }] : []),
-            ].map(({ key, label, count }) => {
+            {topicOptions.map(({ key, label, count }) => {
               const selected = key === 'all' ? topicFilter === 'all' : topicFilter === key;
               return (
                 <button
@@ -389,7 +407,7 @@ export function QaCardGrid({ entries, onChange }: { entries: QaEntry[]; onChange
                   aria-pressed={selected}
                   onClick={() => selectTopicFilter(key)}
                   dir="auto"
-                  className={`rounded-full border px-2 py-[0.2rem] text-[0.6rem] tracking-[0.06em] md:px-2.5 md:py-[0.28rem] md:text-[0.66rem] md:tracking-[0.1em] font-semibold uppercase tabular-nums transition-all ${
+                  className={`rounded-full border px-2.5 py-[0.28rem] text-[0.66rem] font-semibold uppercase tracking-[0.1em] tabular-nums transition-all ${
                     selected
                       ? 'border-[var(--ed-accent)] bg-[var(--ed-accent)]/10 text-[var(--ed-accent)]'
                       : 'border-[var(--ed-rule)] text-[var(--ed-ink-faint)] hover:border-[var(--ed-ink)] hover:text-[var(--ed-ink)]'

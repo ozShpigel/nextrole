@@ -1,5 +1,5 @@
-import { useMemo, useState, type ReactNode } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Sparkles, RefreshCw, ExternalLink, X, Link as LinkIcon } from 'lucide-react';
 import { useApplications, useDemoMode, DEMO_DISABLED_TITLE } from '../lib/queries';
 import { useGeneratePack, useUpdateAppStatus } from '../lib/mutations';
@@ -36,10 +36,6 @@ const IN_PROCESS_STATUSES = new Set(['PhoneScreen', 'TechnicalInterview', 'Final
 // for its own ghosted rows (just a shorter window: this board is about
 // what's still worth acting on, not a full ghosting archive).
 const APPLIED_STALE_DAYS = 14;
-
-const TODAY = new Date().toLocaleDateString('en-US', {
-  weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
-});
 
 const ED_BTN = 'rounded-full border px-4 py-[0.5rem] text-[13px] font-medium uppercase tracking-[0.08em] transition-all disabled:opacity-50 disabled:pointer-events-none';
 const ED_GHOST = `${ED_BTN} border-[var(--ed-rule)] text-[var(--ed-ink-soft)] hover:border-[var(--ed-ink)] hover:text-[var(--ed-ink)]`;
@@ -122,10 +118,13 @@ function Column(
     >
       <div className="flex items-start justify-between gap-3 border-b border-[var(--ed-rule)] pb-3 mb-5">
         <div>
-          <span className="text-[13px] font-medium text-[var(--ed-ink-faint)]">{label}</span>
+          {/* Hidden below md: there the mobile tab strip already shows this
+              column's label and count ("Ready 5") — repeating both here
+              would just echo the tab immediately above it. */}
+          <span className="hidden md:inline text-[13px] font-medium text-[var(--ed-ink-faint)]">{label}</span>
           <p className="text-[12px] text-[var(--ed-ink-faint)]/70 mt-[0.15rem]">{subtitle}</p>
         </div>
-        <span className="shrink-0 inline-flex items-center justify-center min-w-[1.3rem] h-[1.3rem] px-1 rounded-full bg-[var(--ed-panel)] border border-[var(--ed-rule)] text-[11px] text-[var(--ed-ink-faint)] tabular-nums">
+        <span className="hidden md:inline-flex shrink-0 items-center justify-center min-w-[1.3rem] h-[1.3rem] px-1 rounded-full bg-[var(--ed-panel)] border border-[var(--ed-rule)] text-[11px] text-[var(--ed-ink-faint)] tabular-nums">
           {count}
         </span>
       </div>
@@ -166,8 +165,8 @@ export default function ActivePage() {
   const updateStatus = useUpdateAppStatus();
   const [showImportModal, setShowImportModal] = useState(false);
   const [statusTarget, setStatusTarget] = useState<{ id: string; status: string; jobUrl: string | null } | null>(null);
-  // null = "follow the live default" (first non-empty column); set once the
-  // user taps a tab.
+  // null until the initial default is applied (see the layout effect below)
+  // or the user taps a tab — whichever comes first.
   const [mobileTab, setMobileTab] = useState<MobileTabKey | null>(null);
 
   const { added, ready, appliedFresh, appliedStale, inProcess } = useMemo(() => {
@@ -187,6 +186,26 @@ export default function ActivePage() {
       inProcess: all.filter((a) => IN_PROCESS_STATUSES.has(a.status)).sort(byFreshest),
     };
   }, [apps]);
+
+  // Picks the initial mobile tab exactly once, the moment real data first
+  // lands (isLoading flips false) — not at mount, when every count is still
+  // 0. The initialized ref makes this a one-shot: once mobileTab is set,
+  // neither a later refetch's changed counts nor this effect re-running can
+  // swap the tab out from under the user, whether they're looking at the
+  // auto-pick or a tab they chose themselves. useLayoutEffect (not
+  // useEffect) so the pick lands before paint — no visible flash of "Added".
+  const mobileTabInitialized = useRef(false);
+  useLayoutEffect(() => {
+    if (isLoading || mobileTabInitialized.current) return;
+    mobileTabInitialized.current = true;
+    setMobileTab(
+      added.length > 0 ? 'added'
+      : ready.length > 0 ? 'ready'
+      : appliedFresh.length > 0 ? 'applied'
+      : inProcess.length > 0 ? 'interviewing'
+      : 'added',
+    );
+  }, [isLoading, added.length, ready.length, appliedFresh.length, inProcess.length]);
 
   function markApplied(appId: string): void {
     updateStatus.mutate({ appId, newStatus: 'Applied' });
@@ -226,8 +245,7 @@ export default function ActivePage() {
     { key: 'applied', label: 'Applied', count: appliedFresh.length },
     { key: 'interviewing', label: 'Interviewing', count: inProcess.length },
   ];
-  const defaultMobileTab = MOBILE_TABS.find((t) => t.count > 0)?.key ?? 'added';
-  const activeMobileTab = mobileTab ?? defaultMobileTab;
+  const activeMobileTab = mobileTab ?? 'added';
 
   // Single source of truth for each column's props/content, called once per
   // column in the desktop grid and once more for whichever column the
@@ -371,15 +389,8 @@ export default function ActivePage() {
     <div className="editorial editorial-grain min-h-[calc(100vh-56px)] animate-in fade-in slide-in-from-bottom-1 duration-300">
       <div className="relative z-[1] max-w-[1800px] mx-auto px-8 pt-12 pb-16 max-[640px]:px-5 max-[640px]:pt-8">
         <header className="mb-9">
-          <Link
-            to="/search"
-            className="text-[var(--ed-ink-soft)] cursor-pointer text-[13px] font-medium uppercase tracking-[0.08em] mb-4 inline-flex items-center gap-[0.4rem] transition-all hover:-translate-x-[3px] hover:text-[var(--ed-ink)]"
-          >
-            &larr; Back to Matches
-          </Link>
           <div className="flex items-baseline justify-between gap-4 pb-[10px] border-b border-[var(--ed-rule)] text-[13px] font-medium uppercase tracking-[0.18em] text-[var(--ed-ink-faint)]">
             <span>Active</span>
-            <span className="tabular-nums">{TODAY}</span>
           </div>
           <div className="flex items-end justify-between gap-4 pt-4 flex-wrap">
             <h1 className="font-medium text-[40px] leading-[1.1] tracking-[-0.01em] text-[var(--ed-ink)]">
@@ -396,9 +407,6 @@ export default function ActivePage() {
               Import Job
             </button>
           </div>
-          <p className="mt-1 text-[14px] text-[var(--ed-ink-faint)]">
-            Generate résumé packs, apply, and track live interviews.
-          </p>
           <div className="mt-5 border-t-[3px] border-double border-[var(--ed-rule-strong)]" />
         </header>
 

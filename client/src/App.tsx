@@ -33,7 +33,7 @@ function OnboardingGate() {
 }
 
 const navLinkClass = ({ isActive }: { isActive: boolean }): string =>
-  `shrink-0 relative py-[0.4rem] px-[0.7rem] rounded-full text-[0.8rem] font-medium transition-all ${isActive ? 'text-foreground bg-accent' : 'text-muted-foreground hover:text-foreground hover:bg-accent'}`;
+  `shrink-0 relative py-[0.4rem] px-[0.7rem] rounded-full text-[0.8rem] font-medium transition-all ${isActive ? 'text-[var(--ed-accent)] bg-[var(--ed-accent)]/10' : 'text-muted-foreground bg-transparent hover:text-foreground'}`;
 
 /* BrowserRouter keeps the window scroll offset across navigations, so opening
  * a page from deep in a long list (e.g. tracker → application detail) landed

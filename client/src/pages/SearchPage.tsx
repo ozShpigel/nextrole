@@ -540,8 +540,8 @@ export default function SearchPage() {
   const pill = (active: boolean) =>
     `capitalize rounded-full border px-[9px] py-[3px] text-[12px] font-medium transition-all cursor-pointer ${
       active
-        ? 'border-[var(--ed-accent)] text-[var(--ed-accent)]'
-        : 'border-[var(--ed-rule)] text-[var(--ed-ink-soft)] hover:border-[var(--ed-ink)] hover:text-[var(--ed-ink)]'
+        ? 'border-[var(--ed-accent)] bg-[var(--ed-accent)]/10 text-[var(--ed-accent)]'
+        : 'border-[var(--ed-rule)] text-[var(--ed-ink-faint)] hover:border-[var(--ed-ink)] hover:text-[var(--ed-ink)]'
     }`;
 
   return (

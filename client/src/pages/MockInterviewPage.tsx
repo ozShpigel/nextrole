@@ -461,7 +461,7 @@ function SetupView({
                 key={n}
                 type="button"
                 onClick={() => setQuestionTarget(n)}
-                className={`px-4 py-[0.4rem] text-[0.82rem] font-medium transition-colors tabular-nums ${questionTarget === n ? 'bg-[var(--ed-accent)] text-[var(--ed-paper)]' : 'bg-transparent text-[var(--ed-ink-soft)] hover:text-[var(--ed-ink)]'}`}
+                className={`px-4 py-[0.4rem] text-[0.82rem] font-medium transition-colors tabular-nums ${questionTarget === n ? 'bg-[var(--ed-accent)]/10 text-[var(--ed-accent)]' : 'bg-transparent text-[var(--ed-ink-faint)] hover:text-[var(--ed-ink)]'}`}
               >
                 {n}
               </button>
@@ -502,7 +502,7 @@ function Choice({ label, options, value, onChange }: { label: string; options: {
             key={o.v}
             type="button"
             onClick={() => onChange(o.v)}
-            className={`px-4 py-[0.4rem] text-[0.82rem] font-medium transition-colors ${value === o.v ? 'bg-[var(--ed-accent)] text-[var(--ed-paper)]' : 'bg-transparent text-[var(--ed-ink-soft)] hover:text-[var(--ed-ink)]'}`}
+            className={`px-4 py-[0.4rem] text-[0.82rem] font-medium transition-colors ${value === o.v ? 'bg-[var(--ed-accent)]/10 text-[var(--ed-accent)]' : 'bg-transparent text-[var(--ed-ink-faint)] hover:text-[var(--ed-ink)]'}`}
           >
             {o.l}
           </button>

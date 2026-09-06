@@ -179,7 +179,7 @@ export default function SettingsPage() {
                 <PersonaAvatar size={56} />
               </div>
             ) : (
-              <div className="w-14 h-14 rounded-full bg-[var(--ed-accent)]/15 border border-[var(--ed-accent)]/40 flex items-center justify-center ed-display text-[1.1rem] font-bold text-[var(--ed-accent)] mb-3">
+              <div className="w-14 h-14 rounded-full bg-[var(--ed-panel)] border border-[var(--ed-rule)] flex items-center justify-center ed-display text-[1.1rem] font-bold text-[var(--ed-ink-soft)] mb-3">
                 {initials(profile.fullName || '?')}
               </div>
             )}
@@ -403,8 +403,8 @@ function SidebarTab({ active, onClick, icon, label }: { active: boolean; onClick
       onClick={onClick}
       className={`flex items-center gap-[0.65rem] py-[0.65rem] px-[0.9rem] rounded-lg text-[0.84rem] font-medium transition-colors text-left ${
         active
-          ? 'bg-[var(--ed-accent)]/12 text-[var(--ed-accent)]'
-          : 'text-[var(--ed-ink-soft)] hover:bg-[var(--ed-panel)]/50 hover:text-[var(--ed-ink)]'
+          ? 'text-[var(--ed-accent)] bg-[var(--ed-accent)]/10'
+          : 'text-[var(--ed-ink-faint)] bg-transparent hover:text-[var(--ed-ink)]'
       }`}
     >
       {icon}

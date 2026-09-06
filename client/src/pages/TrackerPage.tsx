@@ -46,7 +46,7 @@ export default function TrackerPage() {
           {TABS.map((t) => (
             <button
               key={t.key}
-              className={`relative -mb-px pb-3 pt-1 bg-transparent border-none cursor-pointer text-[13px] font-medium uppercase tracking-[0.08em] transition-colors ${activeTab === t.key ? 'text-[var(--ed-ink)] border-b-2 border-[var(--ed-accent)]' : 'text-[var(--ed-ink-faint)] border-b-2 border-transparent hover:text-[var(--ed-ink)]'}`}
+              className={`relative -mb-px pb-3 pt-1 bg-transparent border-none cursor-pointer text-[13px] font-medium uppercase tracking-[0.08em] transition-colors ${activeTab === t.key ? 'text-[var(--ed-accent)] border-b-2 border-[var(--ed-accent)]' : 'text-[var(--ed-ink-faint)] border-b-2 border-transparent hover:text-[var(--ed-ink)]'}`}
               onClick={() => switchTab(t.key)}
             >
               {t.label}

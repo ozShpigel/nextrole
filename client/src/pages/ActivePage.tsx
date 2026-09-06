@@ -226,7 +226,7 @@ export default function ActivePage() {
         <header className="mb-9">
           <Link
             to="/search"
-            className="text-[var(--ed-accent)] cursor-pointer text-[13px] font-medium uppercase tracking-[0.08em] mb-4 inline-flex items-center gap-[0.4rem] transition-all hover:-translate-x-[3px]"
+            className="text-[var(--ed-ink-soft)] cursor-pointer text-[13px] font-medium uppercase tracking-[0.08em] mb-4 inline-flex items-center gap-[0.4rem] transition-all hover:-translate-x-[3px] hover:text-[var(--ed-ink)]"
           >
             &larr; Back to Matches
           </Link>

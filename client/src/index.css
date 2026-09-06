@@ -84,6 +84,13 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+
+  /* Hoisted out of .editorial so shared chrome outside that subtree (the
+     global nav) can reference the same accent — see docs/design-system.md
+     scope caveat. Only these two --ed-* tokens are hoisted; every other
+     --ed-* token stays scoped to .editorial. */
+  --ed-accent: #7B93D4;
+  --ed-accent-deep: #6379B8;
 }
 
 .dark {
@@ -119,6 +126,9 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
+
+  --ed-accent: #9DB8F5;
+  --ed-accent-deep: #7F9BE0;
 }
 
 @layer base {
@@ -148,8 +158,8 @@
   --ed-ink-faint:    #7e8b83;   /* captions, metadata       */
   --ed-rule:         #e2e4dd;   /* hairline rule            */
   --ed-rule-strong:  #14382a;   /* heavy masthead rule      */
-  --ed-accent:       #6b6152;   /* bone accent, darkened for contrast on porcelain */
-  --ed-accent-deep:  #514a3d;
+  --ed-accent:       #7B93D4;   /* periwinkle accent, darkened for contrast on porcelain */
+  --ed-accent-deep:  #6379B8;
   --ed-yes:          #35935e;   /* success green            */
   --ed-no:           #c94a3d;   /* warm signal red          */
   --ed-gold:         #a1780f;   /* amber caution            */
@@ -165,8 +175,8 @@
   --ed-ink-faint:    #6b6b70;
   --ed-rule:         rgba(255, 255, 255, 0.1);
   --ed-rule-strong:  rgba(255, 255, 255, 0.22);
-  --ed-accent:       #e8e3d9;   /* bone accent               */
-  --ed-accent-deep:  #d8d0c0;
+  --ed-accent:       #9DB8F5;   /* periwinkle accent          */
+  --ed-accent-deep:  #7F9BE0;
   --ed-yes:          #6fbe8d;   /* unchanged — semantic, not part of the noir shift */
   --ed-no:           #ec8878;
   --ed-gold:         #d5ab4d;   /* kept distinct from accent — still means "caution" */

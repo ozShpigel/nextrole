@@ -1,6 +1,6 @@
 import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Sparkles, RefreshCw, ExternalLink, X, Link as LinkIcon } from 'lucide-react';
+import { Sparkles, RefreshCw, ExternalLink, X, Link as LinkIcon, Archive, ChevronDown } from 'lucide-react';
 import { useApplications, useDemoMode, DEMO_DISABLED_TITLE } from '../lib/queries';
 import { useGeneratePack, useUpdateAppStatus } from '../lib/mutations';
 import { formatDate, formatTime, daysSince, hasRealJobUrl } from '../lib/format';
@@ -322,12 +322,20 @@ export default function ActivePage() {
               <AppliedCard key={a.id} app={a} index={i} />
             ))}
             {appliedStale.length > 0 && (
-              <details className="mt-1 group">
-                <summary className="cursor-pointer list-none inline-flex items-baseline gap-[0.5rem] py-[0.4rem] text-[var(--ed-ink-faint)] hover:text-[var(--ed-ink-soft)] transition-colors">
-                  <span aria-hidden="true" className="text-[13px] leading-none transition-transform group-open:rotate-90">▸</span>
-                  <span className="text-[13px] tabular-nums">{appliedStale.length} more</span>
+              <details className="mt-1 group rounded-lg border border-[var(--ed-rule)] bg-[var(--ed-panel)]/30 transition-colors hover:border-[var(--ed-ink-faint)]">
+                <summary className="cursor-pointer list-none flex items-center justify-between gap-3 px-4 py-3">
+                  <span className="inline-flex items-center gap-[0.6rem]">
+                    <span className="inline-flex items-center justify-center w-7 h-7 rounded-md bg-[var(--ed-panel)] border border-[var(--ed-rule)] text-[var(--ed-ink-faint)]">
+                      <Archive size={14} aria-hidden="true" />
+                    </span>
+                    <span className="text-[13px] font-medium text-[var(--ed-ink)]">Archived</span>
+                  </span>
+                  <span className="inline-flex items-center gap-2 text-[13px] text-[var(--ed-ink-faint)] tabular-nums">
+                    {appliedStale.length} archived
+                    <ChevronDown size={14} className="transition-transform group-open:rotate-180" aria-hidden="true" />
+                  </span>
                 </summary>
-                <div className="flex flex-col gap-4 border-t border-[var(--ed-rule)] pt-4 mt-1">
+                <div className="flex flex-col gap-4 border-t border-[var(--ed-rule)] px-4 pt-4 pb-4">
                   {appliedStale.map((a, i) => (
                     <AppliedCard key={a.id} app={a} index={i} muted />
                   ))}

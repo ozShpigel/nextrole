@@ -90,6 +90,11 @@ export default function ApplicationDetail() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [modal, setModal] = useState<ModalState>(null);
+  // Shared with CompanyEnrichment below — its underlying data (news
+  // headlines, Glassdoor numbers) is never machine-translated, but its own
+  // static labels ("Company Info", "Recent News", …) should still switch
+  // with the rest of the page instead of silently staying English forever.
+  const [lang, setLang] = useState<'en' | 'he'>('en');
 
   const detailQuery = useApplicationDetail(id!);
   const generatePackMutation = useGeneratePack();
@@ -203,10 +208,10 @@ export default function ApplicationDetail() {
 
             {showFullAnalysis ? (
               <>
-                <AnalysisSection appId={app.id} matchAnalysis={app.matchAnalysis} initialHebrew={app.matchAnalysisHebrew} />
-                <WhyWorkHereBlock appId={app.id} initialAnswer={app.whyWorkHere} />
-                <CompanySummaryBlock appId={app.id} initialSummary={app.companySummary} />
-                <CompanyEnrichment companyNewsJson={app.companyNews} glassdoorDataJson={app.glassdoorData} />
+                <AnalysisSection appId={app.id} matchAnalysis={app.matchAnalysis} initialHebrew={app.matchAnalysisHebrew} lang={lang} setLang={setLang} />
+                <WhyWorkHereBlock appId={app.id} initialAnswer={app.whyWorkHere} lang={lang} />
+                <CompanySummaryBlock appId={app.id} initialSummary={app.companySummary} lang={lang} />
+                <CompanyEnrichment companyNewsJson={app.companyNews} glassdoorDataJson={app.glassdoorData} lang={lang} />
               </>
             ) : (
               <div className="border border-dashed border-[var(--ed-rule)] p-6">
@@ -247,9 +252,11 @@ const LANG_TAB = 'px-[0.65rem] py-[0.2rem] rounded-full text-[13px] font-medium 
 const LANG_TAB_ACTIVE = `${LANG_TAB} bg-[var(--ed-accent)] text-[var(--ed-paper)]`;
 const LANG_TAB_INACTIVE = `${LANG_TAB} text-[var(--ed-ink-faint)] hover:text-[var(--ed-ink)]`;
 
-function AnalysisSection({ appId, matchAnalysis, initialHebrew }: { appId: string; matchAnalysis: string | null; initialHebrew: string | null }) {
+function AnalysisSection(
+  { appId, matchAnalysis, initialHebrew, lang, setLang }:
+  { appId: string; matchAnalysis: string | null; initialHebrew: string | null; lang: 'en' | 'he'; setLang: (lang: 'en' | 'he') => void },
+) {
   const [hebrew, setHebrew] = useState<string | null>(initialHebrew);
-  const [lang, setLang] = useState<'en' | 'he'>('en');
   const translateMutation = useTranslateMatchAnalysis();
   const loading = translateMutation.isPending;
 
@@ -299,7 +306,7 @@ function AnalysisSection({ appId, matchAnalysis, initialHebrew }: { appId: strin
   );
 }
 
-function CompanySummaryBlock({ appId, initialSummary }: { appId: string; initialSummary: string | null }) {
+function CompanySummaryBlock({ appId, initialSummary, lang }: { appId: string; initialSummary: string | null; lang: 'en' | 'he' }) {
   const [summary, setSummary] = useState<string>(initialSummary || '');
   const generateMutation = useGenerateCompanySummary();
   const loading = generateMutation.isPending;
@@ -318,10 +325,10 @@ function CompanySummaryBlock({ appId, initialSummary }: { appId: string; initial
   return (
     <section className="mb-9">
       <SectionHead
-        title="Company Summary"
+        title={tPage('Company Summary', lang)}
         action={
           <button type="button" className={ED_GHOST} onClick={generate} disabled={loading}>
-            {loading ? 'Generating...' : summary ? 'Regenerate' : 'Generate'}
+            {loading ? tPage('Generating...', lang) : summary ? tPage('Regenerate', lang) : tPage('Generate', lang)}
           </button>
         }
       />
@@ -330,13 +337,13 @@ function CompanySummaryBlock({ appId, initialSummary }: { appId: string; initial
           <BidiText text={summary} />
         </p>
       ) : (
-        <p className="ed-display text-[16px] text-[var(--ed-ink-faint)] italic m-0">Click Generate to create an AI summary of this company.</p>
+        <p className="ed-display text-[16px] text-[var(--ed-ink-faint)] italic m-0">{tPage('Click Generate to create an AI summary of this company.', lang)}</p>
       )}
     </section>
   );
 }
 
-function WhyWorkHereBlock({ appId, initialAnswer }: { appId: string; initialAnswer: string | null }) {
+function WhyWorkHereBlock({ appId, initialAnswer, lang }: { appId: string; initialAnswer: string | null; lang: 'en' | 'he' }) {
   const [answer, setAnswer] = useState<string>(initialAnswer || '');
   const [copied, setCopied] = useState(false);
   const generateMutation = useGenerateWhyWorkHere();
@@ -364,10 +371,10 @@ function WhyWorkHereBlock({ appId, initialAnswer }: { appId: string; initialAnsw
   return (
     <section className="mb-9">
       <SectionHead
-        title="Why Work Here?"
+        title={tPage('Why Work Here?', lang)}
         action={
           <button type="button" className={ED_GHOST} onClick={generate} disabled={loading}>
-            {loading ? 'Generating...' : answer ? 'Regenerate' : 'Generate'}
+            {loading ? tPage('Generating...', lang) : answer ? tPage('Regenerate', lang) : tPage('Generate', lang)}
           </button>
         }
       />
@@ -381,12 +388,12 @@ function WhyWorkHereBlock({ appId, initialAnswer }: { appId: string; initialAnsw
             onClick={copyToClipboard}
             className="absolute top-0 left-0 py-[0.3rem] px-[0.6rem] rounded-full text-[13px] font-medium uppercase tracking-[0.04em] border border-[var(--ed-rule)] bg-transparent text-[var(--ed-ink-faint)] cursor-pointer transition-all hover:border-[var(--ed-ink)] hover:text-[var(--ed-ink)]"
           >
-            {copied ? 'Copied' : 'Copy'}
+            {copied ? tPage('Copied', lang) : tPage('Copy', lang)}
           </button>
         </div>
       ) : (
         <p className="ed-display text-[16px] text-[var(--ed-ink-faint)] italic m-0">
-          Generate a personalized answer to "Why do you want to work here?" based on this role and your profile.
+          {tPage('Generate a personalized answer to "Why do you want to work here?" based on this role and your profile.', lang)}
         </p>
       )}
     </section>
@@ -418,12 +425,48 @@ const SUB_RATING_LABELS: [keyof GlassdoorSubRatings, string][] = [
   ['compensationAndBenefits', 'Compensation'],
 ];
 
+// Static chrome for CompanyEnrichment / CompanySummaryBlock / WhyWorkHereBlock
+// — the underlying AI content already follows the server-side
+// Prompts__HebrewOutput__* flags, and CompanyEnrichment's own data (scraped
+// news headlines, Glassdoor's numeric ratings) is never machine-translated (a
+// headline is a literal external article title; translating it would
+// misrepresent the source) — but these three sections' own labels/buttons/
+// empty-state copy should still follow the page's language toggle instead of
+// staying English regardless. Same pattern as AnalysisCard's own
+// HE_LABELS/t(), just scoped to this page's remaining hardcoded strings.
+const PAGE_HE_LABELS: Record<string, string> = {
+  'Company Info': 'מידע על החברה',
+  'Recent News': 'חדשות אחרונות',
+  'reviews': 'ביקורות',
+  'recommend': 'ממליצים',
+  'View': 'צפייה',
+  'Work-life': 'איזון חיים-עבודה',
+  'Culture': 'תרבות',
+  'Career': 'קריירה',
+  'Management': 'ניהול',
+  'Compensation': 'תגמול',
+  'Company Summary': 'תקציר החברה',
+  'Generate': 'צור',
+  'Regenerate': 'צור מחדש',
+  'Generating...': 'יוצר...',
+  'Click Generate to create an AI summary of this company.': "לחץ על 'צור' כדי ליצור תקציר AI על החברה.",
+  'Why Work Here?': 'למה לעבוד כאן?',
+  'Generate a personalized answer to "Why do you want to work here?" based on this role and your profile.':
+    "צור תשובה אישית לשאלה 'למה אתה רוצה לעבוד כאן?' בהתבסס על התפקיד והפרופיל שלך.",
+  'Copy': 'העתק',
+  'Copied': 'הועתק',
+};
+
+function tPage(en: string, lang: 'en' | 'he'): string {
+  return lang === 'he' ? (PAGE_HE_LABELS[en] ?? en) : en;
+}
+
 interface NewsItem {
   title: string;
   source?: string;
 }
 
-function CompanyEnrichment({ companyNewsJson, glassdoorDataJson }: { companyNewsJson: string | null; glassdoorDataJson: string | null }) {
+function CompanyEnrichment({ companyNewsJson, glassdoorDataJson, lang }: { companyNewsJson: string | null; glassdoorDataJson: string | null; lang: 'en' | 'he' }) {
   let news: NewsItem[] | null = null;
   let glassdoor: GlassdoorData | null = null;
   try { if (companyNewsJson) news = JSON.parse(companyNewsJson); } catch { /* malformed */ }
@@ -433,7 +476,7 @@ function CompanyEnrichment({ companyNewsJson, glassdoorDataJson }: { companyNews
 
   return (
     <section className="mb-9">
-      <SectionHead title="Company Info" />
+      <SectionHead title={tPage('Company Info', lang)} />
 
       {glassdoor && (
         <div className="mb-3">
@@ -443,16 +486,16 @@ function CompanyEnrichment({ companyNewsJson, glassdoorDataJson }: { companyNews
                 Glassdoor {glassdoor.rating.toFixed(1)} / 5
               </span>
             )}
-            {glassdoor.reviewCount && <span className="text-[13px] text-[var(--ed-ink-faint)] tabular-nums">({glassdoor.reviewCount.toLocaleString()} reviews)</span>}
-            {glassdoor.recommendPercent != null && <span className="text-[13px] text-[var(--ed-ink-soft)] tabular-nums">· {glassdoor.recommendPercent}% recommend</span>}
-            {glassdoor.url && <a href={glassdoor.url} target="_blank" rel="noopener noreferrer" className="text-[13px] text-[var(--ed-accent)] hover:opacity-75">View</a>}
+            {glassdoor.reviewCount && <span className="text-[13px] text-[var(--ed-ink-faint)] tabular-nums">({glassdoor.reviewCount.toLocaleString()} {tPage('reviews', lang)})</span>}
+            {glassdoor.recommendPercent != null && <span className="text-[13px] text-[var(--ed-ink-soft)] tabular-nums">· {glassdoor.recommendPercent}% {tPage('recommend', lang)}</span>}
+            {glassdoor.url && <a href={glassdoor.url} target="_blank" rel="noopener noreferrer" className="text-[13px] text-[var(--ed-accent)] hover:opacity-75">{tPage('View', lang)}</a>}
           </div>
           {glassdoor.subRatings && (
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-[var(--ed-ink-faint)] mt-1">
               {SUB_RATING_LABELS.map(([key, label]) => {
                 const v = glassdoor?.subRatings?.[key];
                 return v != null ? (
-                  <span key={key}>{label} <span className="font-medium tabular-nums text-[var(--ed-ink-soft)]">{v.toFixed(1)}</span></span>
+                  <span key={key}>{tPage(label, lang)} <span className="font-medium tabular-nums text-[var(--ed-ink-soft)]">{v.toFixed(1)}</span></span>
                 ) : null;
               })}
             </div>
@@ -462,7 +505,7 @@ function CompanyEnrichment({ companyNewsJson, glassdoorDataJson }: { companyNews
 
       {news && news.length > 0 && (
         <div>
-          <h4 className="text-[13px] font-medium uppercase tracking-[0.1em] text-[var(--ed-ink-faint)] mb-2 tabular-nums">Recent News ({news.length})</h4>
+          <h4 className="text-[13px] font-medium uppercase tracking-[0.1em] text-[var(--ed-ink-faint)] mb-2 tabular-nums">{tPage('Recent News', lang)} ({news.length})</h4>
           <ul className="pl-4 list-disc marker:text-[var(--ed-rule)]">
             {news.slice(0, 3).map((n, i) => (
               <li key={i} className="text-[16px] text-[var(--ed-ink-soft)] leading-[1.65] mb-[0.2rem]">

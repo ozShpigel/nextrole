@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Plus, Minus } from 'lucide-react';
 import { VERDICT_LABELS } from '../lib/scoring';
 import { BidiText } from '../lib/bidi';
 
@@ -158,19 +159,32 @@ const SUBLABEL = 'block text-[13px] text-[var(--ed-ink-faint)] tracking-[0.02em]
 // rewrite) and companyNewsAnalysis/employeeReviewsAnalysis (always Hebrew,
 // only ever present after Add) — the per-item language isn't fixed, so let
 // the browser detect each line's actual direction instead of assuming RTL.
+//
+// dir="auto" lives on each ROW div, not the inner text span: an ancestor's
+// auto-direction scan skips over any descendant that already carries its own
+// dir attribute, so putting it on the innermost span made the row's own
+// flex order (the +/- glyph vs. the text) permanently unable to see the
+// Hebrew text and default to LTR — the glyph stayed pinned on the left even
+// for all-Hebrew lines. Resolving direction at the row level lets it flip
+// the flex order too, matching how the plain <ul dir="auto"> lists elsewhere
+// in this file correctly move their bullet to the other side.
 function SignalRows({ green = [], red = [] }: { green?: string[]; red?: string[] }) {
   return (
-    <div className="flex flex-col gap-[0.45rem]" dir="auto">
+    <div className="flex flex-col gap-[0.45rem]">
       {green.map((s, i) => (
-        <div key={`g${i}`} className="flex items-start gap-[0.55rem]">
-          <span className="text-[16px] font-medium leading-[1.2] text-[var(--ed-ink-faint)] shrink-0" aria-hidden="true">+</span>
-          <span className="text-[16px] text-[var(--ed-ink)] leading-[1.55]" dir="auto"><BidiText text={s} /></span>
+        <div key={`g${i}`} className="flex items-start gap-[0.55rem]" dir="auto">
+          <span className="inline-flex items-center justify-center w-[18px] h-[18px] rounded-full border border-[var(--ed-rule)] text-[var(--ed-ink-faint)] shrink-0 mt-[0.15rem]" aria-hidden="true">
+            <Plus size={11} strokeWidth={2.5} />
+          </span>
+          <span className="text-[16px] text-[var(--ed-ink)] leading-[1.55]"><BidiText text={s} /></span>
         </div>
       ))}
       {red.map((s, i) => (
-        <div key={`r${i}`} className="flex items-start gap-[0.55rem]">
-          <span className="text-[16px] font-medium leading-[1.2] text-[var(--ed-ink-faint)] shrink-0" aria-hidden="true">–</span>
-          <span className="text-[16px] text-[var(--ed-ink)] leading-[1.55]" dir="auto"><BidiText text={s} /></span>
+        <div key={`r${i}`} className="flex items-start gap-[0.55rem]" dir="auto">
+          <span className="inline-flex items-center justify-center w-[18px] h-[18px] rounded-full border border-[var(--ed-rule)] text-[var(--ed-ink-faint)] shrink-0 mt-[0.15rem]" aria-hidden="true">
+            <Minus size={11} strokeWidth={2.5} />
+          </span>
+          <span className="text-[16px] text-[var(--ed-ink)] leading-[1.55]"><BidiText text={s} /></span>
         </div>
       ))}
     </div>
@@ -218,7 +232,7 @@ export default function AnalysisCard({ matchAnalysisJson, headerAction, lang = '
           {a.hardBlockers && a.hardBlockers.length > 0 && (
             <div className="mb-6 p-[0.9rem_1.1rem] rounded-xl border border-[var(--ed-ink)]">
               <span className={SUBLABEL}>{t('Hard Blockers', lang)}</span>
-              <ul dir="auto" className="list-disc pl-5 m-0">
+              <ul dir="auto" className="list-disc pl-5 m-0 marker:text-[var(--ed-accent)]">
                 {a.hardBlockers.map((item, i) => <li key={i} className="text-[16px] mb-[0.3rem] text-[var(--ed-ink)] leading-[1.6]"><BidiText text={item.reason} /></li>)}
               </ul>
             </div>
@@ -228,7 +242,7 @@ export default function AnalysisCard({ matchAnalysisJson, headerAction, lang = '
           {a.mustClarify && a.mustClarify.length > 0 && (
             <div className="mb-6 p-[0.9rem_1.1rem] rounded-xl border border-[var(--ed-rule)]">
               <span className={SUBLABEL}>{t('Worth Clarifying', lang)}</span>
-              <ul dir="auto" className="list-disc pl-5 m-0">
+              <ul dir="auto" className="list-disc pl-5 m-0 marker:text-[var(--ed-accent)]">
                 {a.mustClarify.map((item, i) => <li key={i} className="text-[16px] mb-[0.3rem] text-[var(--ed-ink)] leading-[1.6]"><BidiText text={item} /></li>)}
               </ul>
             </div>
@@ -260,7 +274,7 @@ export default function AnalysisCard({ matchAnalysisJson, headerAction, lang = '
               {a.stackedGaps && a.stackedGaps.length > 0 && (
                 <div className="mt-3 p-[0.9rem_1.1rem] rounded-xl border border-[var(--ed-rule)]">
                   <span className={SUBLABEL}>{t('Stacked Gaps', lang)} ({a.stackedGaps.length})</span>
-                  <ul dir="auto" className="list-disc pl-5 m-0">
+                  <ul dir="auto" className="list-disc pl-5 m-0 marker:text-[var(--ed-accent)]">
                     {a.stackedGaps.map((item, i) => <li key={i} className="text-[16px] mb-[0.3rem] text-[var(--ed-ink)] leading-[1.6]"><BidiText text={item} /></li>)}
                   </ul>
                 </div>
@@ -272,7 +286,7 @@ export default function AnalysisCard({ matchAnalysisJson, headerAction, lang = '
                   {(active.data[active.posKey] as string[] | undefined)?.length ? (
                     <div className="mb-3 last:mb-0">
                       <span className={SUBLABEL}>{t(active.posLabel, lang)}</span>
-                      <ul dir="auto" className="list-disc pl-5 m-0">
+                      <ul dir="auto" className="list-disc pl-5 m-0 marker:text-[var(--ed-accent)]">
                         {(active.data[active.posKey] as string[]).map((item: string, i: number) => <li key={i} className="text-[16px] mb-[0.3rem] text-[var(--ed-ink)] leading-[1.6]"><BidiText text={item} /></li>)}
                       </ul>
                     </div>
@@ -280,7 +294,7 @@ export default function AnalysisCard({ matchAnalysisJson, headerAction, lang = '
                   {(active.data[active.negKey] as string[] | undefined)?.length ? (
                     <div className="mb-3 last:mb-0">
                       <span className={SUBLABEL}>{t(active.negLabel, lang)}</span>
-                      <ul dir="auto" className="list-disc pl-5 m-0">
+                      <ul dir="auto" className="list-disc pl-5 m-0 marker:text-[var(--ed-accent)]">
                         {(active.data[active.negKey] as string[]).map((item: string, i: number) => <li key={i} className="text-[16px] mb-[0.3rem] text-[var(--ed-ink)] leading-[1.6]"><BidiText text={item} /></li>)}
                       </ul>
                     </div>
@@ -297,7 +311,7 @@ export default function AnalysisCard({ matchAnalysisJson, headerAction, lang = '
               {rec.keyReasons?.length ? (
                 <div className="mb-3">
                   <span className={SUBLABEL}>{t('Key Reasons', lang)}</span>
-                  <ul dir="auto" className="list-disc ps-5 m-0">
+                  <ul dir="auto" className="list-disc ps-5 m-0 marker:text-[var(--ed-accent)]">
                     {rec.keyReasons.map((item, i) => <li key={i} className="text-[16px] mb-[0.3rem] text-[var(--ed-ink)] leading-[1.6]"><BidiText text={item} /></li>)}
                   </ul>
                 </div>
@@ -305,7 +319,7 @@ export default function AnalysisCard({ matchAnalysisJson, headerAction, lang = '
               {rec.questionsToAsk?.length ? (
                 <div className="mb-3">
                   <span className={SUBLABEL}>{t('Questions to Ask', lang)}</span>
-                  <ul dir="auto" className="list-disc ps-5 m-0">
+                  <ul dir="auto" className="list-disc ps-5 m-0 marker:text-[var(--ed-accent)]">
                     {rec.questionsToAsk.map((item, i) => <li key={i} className="text-[16px] mb-[0.3rem] text-[var(--ed-ink)] leading-[1.6]"><BidiText text={item} /></li>)}
                   </ul>
                 </div>

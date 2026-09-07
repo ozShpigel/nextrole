@@ -435,7 +435,7 @@ function CompanyEnrichment({ companyNewsJson, glassdoorDataJson }: { companyNews
         <div>
           <h4 className="text-[13px] font-medium uppercase tracking-[0.1em] text-[var(--ed-ink-faint)] mb-2 tabular-nums">Recent News ({news.length})</h4>
           <ul className="pl-4 list-disc marker:text-[var(--ed-rule)]">
-            {news.map((n, i) => (
+            {news.slice(0, 3).map((n, i) => (
               <li key={i} className="text-[16px] text-[var(--ed-ink-soft)] leading-[1.65] mb-[0.2rem]">
                 {n.title}{n.source && <span className="text-[var(--ed-ink-faint)]"> — {n.source}</span>}
               </li>

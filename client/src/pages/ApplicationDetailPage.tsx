@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useApplicationDetail } from '../lib/queries';
-import { useGenerateCompanySummary, useGenerateWhyWorkHere, useGeneratePack, useTranslateMatchAnalysis, useTranslateCompanySummary, useTranslateWhyWorkHere } from '../lib/mutations';
+import { useGeneratePack, useTranslateMatchAnalysis, useTranslateCompanySummary, useTranslateWhyWorkHere } from '../lib/mutations';
 import { StatusBadge } from '../components/Status';
 import CollapsibleSection from '../components/CollapsibleSection';
 import AnalysisCard, { edVerdictColor } from '../components/AnalysisCard';
@@ -333,44 +333,20 @@ function CompanySummaryBlock(
   { appId, initialSummary, initialHebrew, lang }:
   { appId: string; initialSummary: string | null; initialHebrew: string | null; lang: 'en' | 'he' },
 ) {
-  const [summary, setSummary] = useState<string>(initialSummary || '');
-  const generateMutation = useGenerateCompanySummary();
+  const [summary] = useState<string>(initialSummary || '');
   const translateMutation = useTranslateCompanySummary();
-  const loading = generateMutation.isPending;
 
-  const { display, translating, resetHebrew } = useHebrewDisplay(
+  const { display } = useHebrewDisplay(
     summary || null, initialHebrew, lang,
     () => translateMutation.mutateAsync(appId).then((res: { company_summary_hebrew: string }) => res.company_summary_hebrew),
   );
 
-  function generate(): void {
-    generateMutation.mutate(appId, {
-      onSuccess: (res: { company_summary: string }) => {
-        setSummary(res.company_summary);
-        resetHebrew(); // stale Hebrew would otherwise still show for the old summary
-      },
-      onError: (e) => {
-        alert('Failed to generate summary: ' + (e as Error).message);
-      },
-    });
-  }
-
-  // No manual "Generate" CTA for the empty state — this is no longer an
-  // on-demand field, it's populated automatically on entering Interviewing
-  // (see ApplicationEndpoints.EnrichOnInterviewingAsync). Regenerate stays
-  // available once content exists, for a manual refresh.
+  // No manual Generate/Regenerate controls — this is populated automatically
+  // on entering Interviewing (ApplicationEndpoints.EnrichOnInterviewingAsync),
+  // not an on-demand field to fine-tune from here.
   return (
     <section className="mb-9">
-      <SectionHead
-        title={tPage('Company Summary', lang)}
-        action={
-          summary ? (
-            <button type="button" className={ED_GHOST} onClick={generate} disabled={loading}>
-              {loading ? tPage('Generating...', lang) : translating ? tPage('Translating...', lang) : tPage('Regenerate', lang)}
-            </button>
-          ) : undefined
-        }
-      />
+      <SectionHead title={tPage('Company Summary', lang)} />
       {summary ? (
         <p dir="auto" className="text-[16px] leading-[1.8] text-[var(--ed-ink)] whitespace-pre-wrap m-0">
           <BidiText text={display || summary} />
@@ -386,65 +362,23 @@ function WhyWorkHereBlock(
   { appId, initialAnswer, initialHebrew, lang }:
   { appId: string; initialAnswer: string | null; initialHebrew: string | null; lang: 'en' | 'he' },
 ) {
-  const [answer, setAnswer] = useState<string>(initialAnswer || '');
-  const [copied, setCopied] = useState(false);
-  const generateMutation = useGenerateWhyWorkHere();
+  const [answer] = useState<string>(initialAnswer || '');
   const translateMutation = useTranslateWhyWorkHere();
-  const loading = generateMutation.isPending;
 
-  const { display, translating, resetHebrew } = useHebrewDisplay(
+  const { display } = useHebrewDisplay(
     answer || null, initialHebrew, lang,
     () => translateMutation.mutateAsync(appId).then((res: { why_work_here_hebrew: string }) => res.why_work_here_hebrew),
   );
 
-  function generate(): void {
-    generateMutation.mutate(appId, {
-      onSuccess: (res: { why_work_here: string }) => {
-        setAnswer(res.why_work_here);
-        resetHebrew(); // stale Hebrew would otherwise still show for the old answer
-      },
-      onError: (e) => {
-        alert('Failed to generate answer: ' + (e as Error).message);
-      },
-    });
-  }
-
-  async function copyToClipboard(): Promise<void> {
-    try {
-      await navigator.clipboard.writeText(display || answer);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch { /* ignore */ }
-  }
-
-  // Same as CompanySummaryBlock — no manual "Generate" CTA for the empty
-  // state, this is populated automatically on entering Interviewing.
-  // Regenerate stays available once content exists.
+  // No manual Copy/Regenerate controls — this is populated automatically on
+  // entering Interviewing, not an on-demand field to fine-tune from here.
   return (
     <section className="mb-9">
-      <SectionHead
-        title={tPage('Why Work Here?', lang)}
-        action={
-          answer ? (
-            <button type="button" className={ED_GHOST} onClick={generate} disabled={loading}>
-              {loading ? tPage('Generating...', lang) : translating ? tPage('Translating...', lang) : tPage('Regenerate', lang)}
-            </button>
-          ) : undefined
-        }
-      />
+      <SectionHead title={tPage('Why Work Here?', lang)} />
       {answer ? (
-        <div className="relative">
-          <p dir="auto" className="text-[16px] leading-[1.8] text-[var(--ed-ink)] whitespace-pre-wrap m-0 pl-16">
-            <BidiText text={display || answer} />
-          </p>
-          <button
-            type="button"
-            onClick={copyToClipboard}
-            className="absolute top-0 left-0 py-[0.3rem] px-[0.6rem] rounded-full text-[13px] font-medium uppercase tracking-[0.04em] border border-[var(--ed-rule)] bg-transparent text-[var(--ed-ink-faint)] cursor-pointer transition-all hover:border-[var(--ed-ink)] hover:text-[var(--ed-ink)]"
-          >
-            {copied ? tPage('Copied', lang) : tPage('Copy', lang)}
-          </button>
-        </div>
+        <p dir="auto" className="text-[16px] leading-[1.8] text-[var(--ed-ink)] whitespace-pre-wrap m-0">
+          <BidiText text={display || answer} />
+        </p>
       ) : (
         <p className="ed-display text-[16px] text-[var(--ed-ink-faint)] italic m-0">
           {tPage('Generated automatically once this reaches Interviewing.', lang)}

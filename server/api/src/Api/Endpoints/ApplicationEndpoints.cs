@@ -14,9 +14,10 @@ public static class ApplicationEndpoints
 {
     // Statuses where an active interview process is underway — mirrors the
     // client's INTERVIEWING_STATUSES (lib/tracker.ts). Crossing into this set
-    // for the first time is what triggers the deferred narrative enrichment
-    // below, instead of firing it on every Add like NarrativeEnrichment used
-    // to (most added jobs never reach an interview — see EnrichNarrativeOnInterviewingAsync).
+    // for the first time is what triggers the deferred auto-enrichment below,
+    // instead of firing narrative enrichment on every Add like it used to
+    // (most added jobs never reach an interview) or requiring a manual
+    // Generate click for Why Work Here / Company Summary — see EnrichOnInterviewingAsync.
     private static readonly HashSet<ApplicationStatus> InterviewingStatuses =
     [
         ApplicationStatus.PhoneScreen,
@@ -31,88 +32,129 @@ public static class ApplicationEndpoints
 
     // Fired once, the first time an application crosses into an interviewing
     // status (see InterviewingStatuses) — replaces the old "enrich on Add"
-    // behavior, which ran this same expensive full-narrative Claude call on
-    // every added job regardless of whether it ever reached an interview.
-    // Runs after the status-change response has already returned (fire-and-
-    // forget from the endpoint below), so a slow/failed Claude call never
-    // blocks the status update itself — best-effort, same as the old Add-time
-    // version: a failure here just leaves the existing (terser) content in
-    // place, which AnalysisCard renders fine either way. Resolves its own
-    // services from a fresh DI scope since the request's scope (and anything
-    // scoped resolved from it, like IApplicationRepository) is already
-    // disposed by the time this runs.
-    private static async Task EnrichNarrativeOnInterviewingAsync(Guid appId, IServiceScopeFactory scopeFactory)
+    // behavior for narrative enrichment, and the old "click Generate on the
+    // detail page" behavior for Why Work Here / Company Summary: once an
+    // interview is actually happening, all three are worth having ready
+    // automatically instead of on demand. Runs after the status-change
+    // response has already returned (fire-and-forget from the endpoint
+    // below), so a slow/failed Claude call never blocks the status update
+    // itself. Each of the three steps is independently best-effort (its own
+    // try/catch) — one failing must not skip the other two, and a failure
+    // just leaves that field as it was, which the UI already renders fine
+    // either way (every section guards on its own field's presence, and the
+    // detail page still offers its own manual Generate button as a fallback).
+    // Resolves its own services from a fresh DI scope since the request's
+    // scope (and anything scoped resolved from it, like IApplicationRepository)
+    // is already disposed by the time this runs.
+    private static async Task EnrichOnInterviewingAsync(Guid appId, IServiceScopeFactory scopeFactory)
     {
         using var scope = scopeFactory.CreateScope();
         var repo = scope.ServiceProvider.GetRequiredService<IApplicationRepository>();
         var claude = scope.ServiceProvider.GetRequiredService<IClaudeClient>();
+        var profile = scope.ServiceProvider.GetRequiredService<IProfileProvider>();
         var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
 
-        try
+        var app = await repo.GetByIdAsync(appId, CancellationToken.None);
+        if (app is null) return;
+
+        if (!string.IsNullOrWhiteSpace(app.MatchAnalysis) && !string.IsNullOrWhiteSpace(app.JobDescription))
         {
-            var app = await repo.GetByIdAsync(appId, CancellationToken.None);
-            if (app is null || string.IsNullOrWhiteSpace(app.MatchAnalysis) || string.IsNullOrWhiteSpace(app.JobDescription))
-                return;
-
-            var existingNode = JsonNode.Parse(app.MatchAnalysis)?.AsObject();
-            var overallScore = existingNode?["overallScore"]?.GetValue<int?>();
-            var verdict = existingNode?["verdict"]?.GetValue<string>();
-            if (existingNode is null || overallScore is null || verdict is null)
-                return;
-
-            var request = new NarrativeEnrichRequest
+            try
             {
-                JobDescription = app.JobDescription,
-                Title = app.JobTitle,
-                Company = app.Company,
-                CompanyNews = string.IsNullOrWhiteSpace(app.CompanyNews)
-                    ? null
-                    : JsonSerializer.Deserialize<List<CompanyNewsItem>>(app.CompanyNews, CaseInsensitive),
-                GlassdoorData = string.IsNullOrWhiteSpace(app.GlassdoorData)
-                    ? null
-                    : JsonSerializer.Deserialize<GlassdoorData>(app.GlassdoorData, CaseInsensitive),
-                OverallScore = overallScore.Value,
-                Verdict = verdict,
-                Breakdown = existingNode["breakdown"]?.Deserialize<Breakdown>(CaseInsensitive) ?? new Breakdown(),
-                HardBlockers = existingNode["hardBlockers"]?.Deserialize<HardBlocker[]>(CaseInsensitive) ?? [],
-                MustClarify = existingNode["mustClarify"]?.Deserialize<string[]>(CaseInsensitive) ?? [],
-                StackedGaps = existingNode["stackedGaps"]?.Deserialize<string[]>(CaseInsensitive) ?? [],
-            };
-
-            var enriched = await claude.EnrichNarrativeAsync(request, CancellationToken.None);
-
-            // Same merge shape as the old Python _enrich_saved_job: overwrite
-            // only the narrative fields NarrativeEnrichment owns, leave every
-            // other key in the stored blob (score, breakdown, hardBlockers, …)
-            // untouched — hence JsonNode surgery rather than a typed
-            // deserialize/re-serialize round-trip, which would silently drop
-            // any field not modeled on MatchResponse.
-            existingNode["honestAssessment"] = enriched.HonestAssessment;
-            if (enriched.Recommendation is not null)
-            {
-                var shouldApply = existingNode["recommendation"]?["shouldApply"]?.GetValue<bool?>() ?? false;
-                existingNode["recommendation"] = new JsonObject
+                var existingNode = JsonNode.Parse(app.MatchAnalysis)?.AsObject();
+                var overallScore = existingNode?["overallScore"]?.GetValue<int?>();
+                var verdict = existingNode?["verdict"]?.GetValue<string>();
+                if (existingNode is not null && overallScore is not null && verdict is not null)
                 {
-                    ["shouldApply"] = shouldApply,
-                    ["keyReasons"] = JsonSerializer.SerializeToNode(enriched.Recommendation.KeyReasons, CamelCase),
-                    ["questionsToAsk"] = JsonSerializer.SerializeToNode(enriched.Recommendation.QuestionsToAsk, CamelCase),
-                    ["redFlags"] = JsonSerializer.SerializeToNode(enriched.Recommendation.RedFlags, CamelCase),
-                    ["greenFlags"] = JsonSerializer.SerializeToNode(enriched.Recommendation.GreenFlags, CamelCase),
-                };
-            }
-            if (enriched.CompanyNewsAnalysis is not null)
-                existingNode["companyNewsAnalysis"] = JsonSerializer.SerializeToNode(enriched.CompanyNewsAnalysis, CamelCase);
-            if (enriched.EmployeeReviewsAnalysis is not null)
-                existingNode["employeeReviewsAnalysis"] = JsonSerializer.SerializeToNode(enriched.EmployeeReviewsAnalysis, CamelCase);
+                    var request = new NarrativeEnrichRequest
+                    {
+                        JobDescription = app.JobDescription,
+                        Title = app.JobTitle,
+                        Company = app.Company,
+                        CompanyNews = string.IsNullOrWhiteSpace(app.CompanyNews)
+                            ? null
+                            : JsonSerializer.Deserialize<List<CompanyNewsItem>>(app.CompanyNews, CaseInsensitive),
+                        GlassdoorData = string.IsNullOrWhiteSpace(app.GlassdoorData)
+                            ? null
+                            : JsonSerializer.Deserialize<GlassdoorData>(app.GlassdoorData, CaseInsensitive),
+                        OverallScore = overallScore.Value,
+                        Verdict = verdict,
+                        Breakdown = existingNode["breakdown"]?.Deserialize<Breakdown>(CaseInsensitive) ?? new Breakdown(),
+                        HardBlockers = existingNode["hardBlockers"]?.Deserialize<HardBlocker[]>(CaseInsensitive) ?? [],
+                        MustClarify = existingNode["mustClarify"]?.Deserialize<string[]>(CaseInsensitive) ?? [],
+                        StackedGaps = existingNode["stackedGaps"]?.Deserialize<string[]>(CaseInsensitive) ?? [],
+                    };
 
-            var updated = app with { MatchAnalysis = existingNode.ToJsonString(), MatchAnalysisHebrew = null, UpdatedAt = DateTime.UtcNow };
-            await repo.UpdateAsync(updated, CancellationToken.None);
-            logger.LogInformation("Narrative enrichment completed for application {Id} on entering Interviewing", appId);
+                    var enriched = await claude.EnrichNarrativeAsync(request, CancellationToken.None);
+
+                    // Same merge shape as the old Python _enrich_saved_job: overwrite
+                    // only the narrative fields NarrativeEnrichment owns, leave every
+                    // other key in the stored blob (score, breakdown, hardBlockers, …)
+                    // untouched — hence JsonNode surgery rather than a typed
+                    // deserialize/re-serialize round-trip, which would silently drop
+                    // any field not modeled on MatchResponse.
+                    existingNode["honestAssessment"] = enriched.HonestAssessment;
+                    if (enriched.Recommendation is not null)
+                    {
+                        var shouldApply = existingNode["recommendation"]?["shouldApply"]?.GetValue<bool?>() ?? false;
+                        existingNode["recommendation"] = new JsonObject
+                        {
+                            ["shouldApply"] = shouldApply,
+                            ["keyReasons"] = JsonSerializer.SerializeToNode(enriched.Recommendation.KeyReasons, CamelCase),
+                            ["questionsToAsk"] = JsonSerializer.SerializeToNode(enriched.Recommendation.QuestionsToAsk, CamelCase),
+                            ["redFlags"] = JsonSerializer.SerializeToNode(enriched.Recommendation.RedFlags, CamelCase),
+                            ["greenFlags"] = JsonSerializer.SerializeToNode(enriched.Recommendation.GreenFlags, CamelCase),
+                        };
+                    }
+                    if (enriched.CompanyNewsAnalysis is not null)
+                        existingNode["companyNewsAnalysis"] = JsonSerializer.SerializeToNode(enriched.CompanyNewsAnalysis, CamelCase);
+                    if (enriched.EmployeeReviewsAnalysis is not null)
+                        existingNode["employeeReviewsAnalysis"] = JsonSerializer.SerializeToNode(enriched.EmployeeReviewsAnalysis, CamelCase);
+
+                    app = app with { MatchAnalysis = existingNode.ToJsonString(), MatchAnalysisHebrew = null, UpdatedAt = DateTime.UtcNow };
+                    await repo.UpdateAsync(app, CancellationToken.None);
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Narrative enrichment failed for application {Id} on entering Interviewing", appId);
+            }
         }
-        catch (Exception ex)
+
+        // Skip if already generated — e.g. the user clicked Generate manually
+        // before this transition; don't overwrite something they may have
+        // already read/relied on with a fresh (possibly different) answer.
+        if (string.IsNullOrWhiteSpace(app.CompanySummary))
         {
-            logger.LogError(ex, "Narrative enrichment failed for application {Id} on entering Interviewing", appId);
+            try
+            {
+                var summary = await claude.SummarizeCompanyAsync(app.Company, CancellationToken.None);
+                app = app with { CompanySummary = summary, UpdatedAt = DateTime.UtcNow };
+                await repo.UpdateAsync(app, CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Company summary generation failed for application {Id} on entering Interviewing", appId);
+            }
         }
+
+        if (string.IsNullOrWhiteSpace(app.WhyWorkHere))
+        {
+            try
+            {
+                var profileText = await profile.GetProfileAsync(CancellationToken.None);
+                var prep = await profile.GetInterviewPrepAsync(CancellationToken.None);
+                var answer = await claude.GenerateWhyWorkHereAsync(app, profileText, prep, CancellationToken.None);
+                app = app with { WhyWorkHere = answer, UpdatedAt = DateTime.UtcNow };
+                await repo.UpdateAsync(app, CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Why-work-here generation failed for application {Id} on entering Interviewing", appId);
+            }
+        }
+
+        logger.LogInformation("Interviewing auto-enrichment completed for application {Id}", appId);
     }
 
     public static WebApplication MapApplicationEndpoints(this WebApplication app)
@@ -260,13 +302,13 @@ public static class ApplicationEndpoints
 
                 logger.LogInformation("Application {Id} status changed: {From} -> {To}", id, oldStatus, request.NewStatus);
 
-                // Fire the deferred full-narrative enrichment the first time this
-                // application crosses into an interviewing status — fire-and-forget
-                // (not awaited) so a slow Claude call never holds up this response,
-                // same as the old Add-time version's background-task behavior.
+                // Fire the deferred auto-enrichment (full narrative + Why Work
+                // Here + Company Summary) the first time this application
+                // crosses into an interviewing status — fire-and-forget (not
+                // awaited) so a slow Claude call never holds up this response.
                 if (!InterviewingStatuses.Contains(oldStatus) && InterviewingStatuses.Contains(request.NewStatus))
                 {
-                    _ = EnrichNarrativeOnInterviewingAsync(id, scopeFactory);
+                    _ = EnrichOnInterviewingAsync(id, scopeFactory);
                 }
 
                 return Results.Ok(updated);

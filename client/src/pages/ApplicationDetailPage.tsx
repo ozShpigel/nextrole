@@ -8,11 +8,13 @@ import CollapsibleSection from '../components/CollapsibleSection';
 import AnalysisCard, { edVerdictColor } from '../components/AnalysisCard';
 import { NoteList, NoteModal } from '../components/Notes';
 import { CompanyAvatar } from '../components/CompanyAvatar';
+import { JobDescriptionText } from '../components/JobDescriptionText';
 import { hasRealJobUrl } from '../lib/format';
 import { BidiText } from '../lib/bidi';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ExternalLink, Sparkles, FileCheck, RefreshCw } from 'lucide-react';
 import type { Interview } from '../lib/types';
+import { INTERVIEWING_STATUSES } from '../lib/tracker';
 
 // Shared editorial button styles
 const ED_BTN = 'rounded-full border px-3.5 py-[0.45rem] text-[13px] font-medium transition-all disabled:opacity-50 disabled:pointer-events-none';
@@ -124,6 +126,12 @@ export default function ApplicationDetail() {
   // that got it there is assumed to exist — the pack page itself still offers
   // a Generate CTA for the rare case a pack was never made (e.g. mailbot-applied).
   const showReviewPack = hasPack || app.status !== 'DecidedToApply';
+  // The decision to apply already happened at Matches (the hover/expand
+  // AnalysisCard there) — re-showing the same rationale/flags/company-info
+  // on the Tracker before an interview is scheduled just repeats something
+  // already seen once. The score/verdict in the left rail above is enough
+  // through Added/Ready/Applied; the full breakdown unlocks at Interviewing.
+  const showFullAnalysis = INTERVIEWING_STATUSES.has(app.status);
 
   return (
     <div className="editorial editorial-grain min-h-[calc(100vh-56px)] animate-in fade-in slide-in-from-bottom-1 duration-300">
@@ -180,12 +188,33 @@ export default function ApplicationDetail() {
             </CollapsibleSection>
           </div>
 
-          {/* Right pane — AI insights and analysis, in place of a raw JD */}
+          {/* Right pane — job description first (left-card/right-description
+              split), then AI insights below it. Two panes total, same as
+              the left rail above — not the Matches page's three-way
+              list/card/description split, since there's no list here (this
+              page is already one specific application). */}
           <div className="flex flex-col gap-9 min-w-0">
-            <AnalysisSection appId={app.id} matchAnalysis={app.matchAnalysis} initialHebrew={app.matchAnalysisHebrew} />
-            <WhyWorkHereBlock appId={app.id} initialAnswer={app.whyWorkHere} />
-            <CompanySummaryBlock appId={app.id} initialSummary={app.companySummary} />
-            <CompanyEnrichment companyNewsJson={app.companyNews} glassdoorDataJson={app.glassdoorData} />
+            {app.jobDescription && (
+              <div>
+                <span className="block text-[13px] text-[var(--ed-ink-faint)] uppercase tracking-[0.1em] font-medium mb-3">Job Description</span>
+                <JobDescriptionText text={app.jobDescription} />
+              </div>
+            )}
+
+            {showFullAnalysis ? (
+              <>
+                <AnalysisSection appId={app.id} matchAnalysis={app.matchAnalysis} initialHebrew={app.matchAnalysisHebrew} />
+                <WhyWorkHereBlock appId={app.id} initialAnswer={app.whyWorkHere} />
+                <CompanySummaryBlock appId={app.id} initialSummary={app.companySummary} />
+                <CompanyEnrichment companyNewsJson={app.companyNews} glassdoorDataJson={app.glassdoorData} />
+              </>
+            ) : (
+              <div className="border border-dashed border-[var(--ed-rule)] p-6">
+                <p className="ed-display italic text-center text-[16px] text-[var(--ed-ink-faint)]">
+                  The full analysis, interview questions, and company info unlock once this reaches Interviewing.
+                </p>
+              </div>
+            )}
           </div>
         </div>
 

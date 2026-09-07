@@ -322,14 +322,20 @@ function CompanySummaryBlock({ appId, initialSummary, lang }: { appId: string; i
     });
   }
 
+  // No manual "Generate" CTA for the empty state — this is no longer an
+  // on-demand field, it's populated automatically on entering Interviewing
+  // (see ApplicationEndpoints.EnrichOnInterviewingAsync). Regenerate stays
+  // available once content exists, for a manual refresh.
   return (
     <section className="mb-9">
       <SectionHead
         title={tPage('Company Summary', lang)}
         action={
-          <button type="button" className={ED_GHOST} onClick={generate} disabled={loading}>
-            {loading ? tPage('Generating...', lang) : summary ? tPage('Regenerate', lang) : tPage('Generate', lang)}
-          </button>
+          summary ? (
+            <button type="button" className={ED_GHOST} onClick={generate} disabled={loading}>
+              {loading ? tPage('Generating...', lang) : tPage('Regenerate', lang)}
+            </button>
+          ) : undefined
         }
       />
       {summary ? (
@@ -337,7 +343,7 @@ function CompanySummaryBlock({ appId, initialSummary, lang }: { appId: string; i
           <BidiText text={summary} />
         </p>
       ) : (
-        <p className="ed-display text-[16px] text-[var(--ed-ink-faint)] italic m-0">{tPage('Click Generate to create an AI summary of this company.', lang)}</p>
+        <p className="ed-display text-[16px] text-[var(--ed-ink-faint)] italic m-0">{tPage('Generated automatically once this reaches Interviewing.', lang)}</p>
       )}
     </section>
   );
@@ -368,14 +374,19 @@ function WhyWorkHereBlock({ appId, initialAnswer, lang }: { appId: string; initi
     } catch { /* ignore */ }
   }
 
+  // Same as CompanySummaryBlock — no manual "Generate" CTA for the empty
+  // state, this is populated automatically on entering Interviewing.
+  // Regenerate stays available once content exists.
   return (
     <section className="mb-9">
       <SectionHead
         title={tPage('Why Work Here?', lang)}
         action={
-          <button type="button" className={ED_GHOST} onClick={generate} disabled={loading}>
-            {loading ? tPage('Generating...', lang) : answer ? tPage('Regenerate', lang) : tPage('Generate', lang)}
-          </button>
+          answer ? (
+            <button type="button" className={ED_GHOST} onClick={generate} disabled={loading}>
+              {loading ? tPage('Generating...', lang) : tPage('Regenerate', lang)}
+            </button>
+          ) : undefined
         }
       />
       {answer ? (
@@ -393,7 +404,7 @@ function WhyWorkHereBlock({ appId, initialAnswer, lang }: { appId: string; initi
         </div>
       ) : (
         <p className="ed-display text-[16px] text-[var(--ed-ink-faint)] italic m-0">
-          {tPage('Generate a personalized answer to "Why do you want to work here?" based on this role and your profile.', lang)}
+          {tPage('Generated automatically once this reaches Interviewing.', lang)}
         </p>
       )}
     </section>
@@ -446,13 +457,10 @@ const PAGE_HE_LABELS: Record<string, string> = {
   'Management': 'ניהול',
   'Compensation': 'תגמול',
   'Company Summary': 'תקציר החברה',
-  'Generate': 'צור',
   'Regenerate': 'צור מחדש',
   'Generating...': 'יוצר...',
-  'Click Generate to create an AI summary of this company.': "לחץ על 'צור' כדי ליצור תקציר AI על החברה.",
+  'Generated automatically once this reaches Interviewing.': 'נוצר אוטומטית ברגע שהתהליך מגיע לשלב הראיונות.',
   'Why Work Here?': 'למה לעבוד כאן?',
-  'Generate a personalized answer to "Why do you want to work here?" based on this role and your profile.':
-    "צור תשובה אישית לשאלה 'למה אתה רוצה לעבוד כאן?' בהתבסס על התפקיד והפרופיל שלך.",
   'Copy': 'העתק',
   'Copied': 'הועתק',
 };

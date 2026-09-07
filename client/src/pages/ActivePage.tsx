@@ -1,12 +1,13 @@
 import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Sparkles, RefreshCw, ExternalLink, X, Link as LinkIcon, Archive, ChevronDown } from 'lucide-react';
+import { Sparkles, RefreshCw, ExternalLink, X, Link as LinkIcon, Archive, ChevronDown, Pencil } from 'lucide-react';
 import { useApplications, useDemoMode, DEMO_DISABLED_TITLE } from '../lib/queries';
 import { useGeneratePack, useUpdateAppStatus } from '../lib/mutations';
 import { formatDate, formatTime, daysSince, hasRealJobUrl } from '../lib/format';
 import { CompanyAvatar } from '../components/CompanyAvatar';
 import { StatusBadge, StatusModal } from '../components/Status';
 import { ImportJobModal } from '../components/ImportJobModal';
+import { INTERVIEWING_STATUSES } from '../lib/tracker';
 
 interface Application {
   id: string;
@@ -28,8 +29,9 @@ interface Application {
 
 // Live interview stages — same grouping ApplicationList.tsx's feature cards
 // use ("IN_MOTION"), just under a different name here since this column
-// isn't about motion/stillness, it's "still going, not resolved yet".
-const IN_PROCESS_STATUSES = new Set(['PhoneScreen', 'TechnicalInterview', 'FinalRound', 'OfferReceived', 'Accepted']);
+// isn't about motion/stillness, it's "still going, not resolved yet". Shared
+// with ApplicationDetailPage (gates the full AI Analysis) as INTERVIEWING_STATUSES.
+const IN_PROCESS_STATUSES = INTERVIEWING_STATUSES;
 
 // An Applied card silent this long reads as gone-cold — muted rather than
 // hidden, same "still there but fading" treatment ApplicationList.tsx uses
@@ -139,12 +141,15 @@ function Column(
   );
 }
 
-// Moving to Interviewing happens automatically once mailbot parses an
-// interview-scheduling email — no manual button here.
+// Moving to Interviewing normally happens automatically once mailbot parses
+// an interview-scheduling email — onOpenStatus is a manual fallback for when
+// mailbot misses or misparses that email, opening the same StatusModal the
+// Interviewing column's close-out button uses.
 function AppliedCard(
-  { app, index, muted }:
-  { app: Application; index: number; muted?: boolean },
+  { app, index, muted, onOpenStatus }:
+  { app: Application; index: number; muted?: boolean; onOpenStatus: (app: Application) => void },
 ) {
+  const demoMode = useDemoMode();
   const days = daysSince(app.appliedAt ?? app.updatedAt ?? app.createdAt);
   return (
     <Card app={app} index={index} muted={muted}>
@@ -153,6 +158,16 @@ function AppliedCard(
           Applied {days === 0 ? 'today' : `${days}d ago`}
         </span>
       )}
+      <button
+        type="button"
+        disabled={demoMode}
+        title={demoMode ? DEMO_DISABLED_TITLE : "Update status — use if mailbot missed the interview email"}
+        aria-label={`Update status for ${app.company}`}
+        className="ml-auto w-6 h-6 flex items-center justify-center text-[var(--ed-ink-faint)] hover:text-[var(--ed-ink)] transition-[color,opacity] disabled:opacity-40 disabled:pointer-events-none opacity-100 md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100"
+        onClick={() => onOpenStatus(app)}
+      >
+        <Pencil size={13} aria-hidden="true" />
+      </button>
     </Card>
   );
 }
@@ -319,7 +334,12 @@ export default function ActivePage() {
             onDropApp={(id) => markApplied(id)}
           >
             {appliedFresh.map((a, i) => (
-              <AppliedCard key={a.id} app={a} index={i} />
+              <AppliedCard
+                key={a.id}
+                app={a}
+                index={i}
+                onOpenStatus={(app) => setStatusTarget({ id: app.id, status: app.status, jobUrl: app.jobUrl })}
+              />
             ))}
             {appliedStale.length > 0 && (
               <details className="mt-1 group rounded-lg border border-[var(--ed-rule)] bg-[var(--ed-panel)]/30 transition-colors hover:border-[var(--ed-ink-faint)]">
@@ -337,7 +357,13 @@ export default function ActivePage() {
                 </summary>
                 <div className="flex flex-col gap-4 border-t border-[var(--ed-rule)] px-4 pt-4 pb-4">
                   {appliedStale.map((a, i) => (
-                    <AppliedCard key={a.id} app={a} index={i} muted />
+                    <AppliedCard
+                      key={a.id}
+                      app={a}
+                      index={i}
+                      muted
+                      onOpenStatus={(app) => setStatusTarget({ id: app.id, status: app.status, jobUrl: app.jobUrl })}
+                    />
                   ))}
                 </div>
               </details>

@@ -215,7 +215,17 @@ public sealed class JobMatchService : IJobMatchService
         if (r.HardBlockers.Length > 0)
             verdict = "STRONG_NO";
         var shouldApply = r.OverallScore >= cfg.MinScoreToSave && verdict != "STRONG_NO";
-        var rec = r.Recommendation is null ? null : r.Recommendation with { ShouldApply = shouldApply };
+        // Prompt asks for at most 1 questionsToAsk item on MAYBE/NO/STRONG_NO
+        // (terse) and at most 3 on STRONG_YES/YES (full detail) — but per the
+        // same lesson as the caps above, this doesn't reliably hold; clamp here.
+        var maxQuestions = verdict is "STRONG_YES" or "YES" ? 3 : 1;
+        var rec = r.Recommendation is null ? null : r.Recommendation with
+        {
+            ShouldApply = shouldApply,
+            QuestionsToAsk = r.Recommendation.QuestionsToAsk.Length > maxQuestions
+                ? r.Recommendation.QuestionsToAsk[..maxQuestions]
+                : r.Recommendation.QuestionsToAsk
+        };
         return r with { Verdict = verdict, Recommendation = rec! };
     }
 

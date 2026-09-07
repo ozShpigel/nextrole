@@ -297,6 +297,14 @@ public sealed class ClaudeClient : IClaudeClient
 
         var (result, _) = await CallClaudeAsync<NarrativeEnrichResponse>(
             systemPrompt, userMessage, _scoring.NarrativeEnrichment, "enrich-narrative", cancellationToken);
+
+        // Prompt asks for at most 3 questions, but LLMs don't reliably
+        // self-enforce numeric caps — clamp here too.
+        if (result.Recommendation is { QuestionsToAsk.Length: > 3 } rec)
+        {
+            result = result with { Recommendation = rec with { QuestionsToAsk = rec.QuestionsToAsk[..3] } };
+        }
+
         return result;
     }
 
@@ -894,6 +902,13 @@ public sealed class ClaudeClient : IClaudeClient
         {
             p.Thinking = new ThinkingParameters { BudgetTokens = cfg.ThinkingBudget };
             p.Temperature = 1m;
+        }
+        // The newest claude-*-5 models reject an explicit temperature param outright
+        // (400 "temperature is deprecated for this model") — omit it for those, let
+        // the API use its own default.
+        if (cfg.Model is "claude-opus-5" or "claude-sonnet-5")
+        {
+            p.Temperature = null;
         }
         return p;
     }

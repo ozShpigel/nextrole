@@ -169,9 +169,9 @@ export default function SettingsPage() {
 
       <div className="grid grid-cols-[220px_1fr] gap-14 max-sm:grid-cols-1 max-sm:gap-8 items-start">
 
-        {/* Left rail — profile card + tab nav, mirrors the dreamworkhq layout
-            this was modeled on. Only About You / Resume are real tabs here —
-            NextRole has no Job preferences/Work vault/Subscription etc. */}
+        {/* Left rail — profile card + tab nav. Only About You / Resume are
+            real tabs here — NextRole has no Job preferences/Work
+            vault/Subscription etc. */}
         <aside className="max-sm:order-first">
           <div className="flex flex-col items-start gap-[0.35rem] mb-8">
             {profile.fullName === DEMO_PERSONA_NAME ? (
@@ -466,7 +466,7 @@ function TabHeader({ icon, name, right }: { icon: React.ReactNode; name: string;
 }
 
 // Row with an inline "Edit" toggle — click Edit, type, Enter/blur to confirm
-// and auto-save; Escape reverts. Matches the dreamworkhq "About you" pattern.
+// and auto-save; Escape reverts.
 function ContactRow(
   { label, value, onSave, type = 'text' }:
   { label: string; value?: string | null; onSave: (v: string) => void; type?: string },

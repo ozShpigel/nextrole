@@ -323,8 +323,8 @@ function MatchDetail({ job, saved, dismissed, onClose, onSave, onDismiss }: Matc
             content (not stretched to the panel's full height, which just
             left a bordered column running down to empty space), sitting
             above the independently-scrolling description so "Add"/"Dismiss"
-            stay reachable behind a long posting (dreamworkhq's
-            left-card/right-description split). */}
+            stay reachable behind a long posting (a left-card/
+            right-description split). */}
         <div className="w-[38%] min-w-[320px] max-w-[440px] shrink-0 p-6">
           <div className="border border-[var(--ed-rule)] rounded-xl p-6">
             <CompanyAvatar name={job.company} logo={job.company_logo} size={52} />

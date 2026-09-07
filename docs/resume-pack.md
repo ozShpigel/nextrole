@@ -1,6 +1,6 @@
 # Generate Pack — AI-tailored résumé
 
-- Lives on the Tracker's Applications tab, **To Apply section only** (`Analyzing`/`DecidedToApply`) — not a new kanban lane. A row shows "Generate Pack" until one exists, then "Review Pack". Deliberately scoped down from the dreamworkhq-style 3-column Added/Ready/Applied drag-and-drop board that inspired this — no new DnD dependency, no new columns. Revisit that if the simple version proves the concept.
+- Lives on the Tracker's Applications tab, **To Apply section only** (`Analyzing`/`DecidedToApply`) — not a new kanban lane. A row shows "Generate Pack" until one exists, then "Review Pack". Deliberately scoped down from a 3-column Added/Ready/Applied drag-and-drop board — no new DnD dependency, no new columns. Revisit that if the simple version proves the concept.
 - **Grounding rule**: the tailored résumé may only select, reorder, and lightly rephrase what's already in the candidate's `StructuredProfile` — never invent an employer, date, title, or metric. Same rule the rest of the app's AI features already follow (`docs/scoring-and-search.md`); enforced via the `PromptSeeds.ResumePack` system prompt, not a runtime check.
 - **v1 is résumé-only**, no cover letter — kept the generation and review surface to one document. A natural fast-follow once this pipeline is proven.
 - `ResumePack` (`Core/Models/ResumePack.cs`) is keyed 1:1 by `ApplicationId` (not a singleton like `InterviewInsight`), stored in its own `resumePacks` collection, cascade-deleted with the application (`ApplicationRepository.DeleteAsync`).

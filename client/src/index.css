@@ -171,7 +171,7 @@
   color: var(--ed-ink);
 }
 .dark .editorial {
-  --ed-paper:        #000000;   /* true black — dreamworkhq-style noir */
+  --ed-paper:        #000000;   /* true black noir */
   --ed-panel:        #0a0a0a;
   --ed-ink:          #ffffff;
   --ed-ink-soft:     #a3a3a8;   /* neutral gray, no green cast */

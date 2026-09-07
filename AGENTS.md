@@ -48,7 +48,7 @@ NextRole is a scanning tool, not a reading surface. The match score
 carries the visual weight; typography stays quiet.
 
 - Dark is the only theme. Don't add a light mode or a theme toggle.
-- Flat surfaces only. Exception: `.editorial-grain`/`.home-atmosphere` are intentional ambient layers on Landing/Home. Everywhere else: no gradients, no shadows, no glow.
+- Mostly flat. Real bordered/panel cards get the soft elevation shadow the `.editorial` "modern-skin layer" already applies automatically (`client/src/index.css`) — don't hand-roll a heavier one. Exception: `.editorial-grain`/`.home-atmosphere` are intentional ambient layers on Landing/Home. Everywhere else: no gradients, no glow.
 - Use tokens from `client/src/index.css` only. Never hardcode hex.
 - `--ed-accent` marks the primary action, or active/selected state, wherever that state appears. Never decorative.
 - The score ramp is never used for accent, status, or category.

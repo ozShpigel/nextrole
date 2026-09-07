@@ -1,5 +1,5 @@
 import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { Sparkles, RefreshCw, ExternalLink, X, Link as LinkIcon, Archive, ChevronDown, Pencil } from 'lucide-react';
 import { useApplications, useDemoMode, DEMO_DISABLED_TITLE } from '../lib/queries';
 import { useGeneratePack, useUpdateAppStatus } from '../lib/mutations';
@@ -430,18 +430,13 @@ export default function ActivePage() {
     <div className="editorial editorial-grain min-h-[calc(100vh-56px)] animate-in fade-in slide-in-from-bottom-1 duration-300">
       <div className="relative z-[1] max-w-[1800px] mx-auto px-8 pt-12 pb-16 max-[640px]:px-5 max-[640px]:pt-8">
         <header className="mb-9">
-          <div className="flex items-baseline justify-between gap-4 pb-[10px] border-b border-[var(--ed-rule)] text-[13px] font-medium uppercase tracking-[0.18em] text-[var(--ed-ink-faint)]">
-            <span>Active</span>
-          </div>
-          <div className="flex items-end justify-between gap-4 pt-4 flex-wrap">
-            <h1 className="font-medium text-[40px] leading-[1.1] tracking-[-0.01em] text-[var(--ed-ink)]">
-              Active
-            </h1>
+          <div className="flex items-center justify-between gap-4 flex-wrap">
+            <Link to="/search" className="text-[var(--ed-accent)] cursor-pointer text-[13px] font-medium tracking-[0.02em] inline-flex items-center gap-[0.4rem] transition-all hover:-translate-x-[3px]">&larr; Back to Matches</Link>
             <button
               type="button"
               disabled={demoMode}
               title={demoMode ? DEMO_DISABLED_TITLE : undefined}
-              className={`${ED_GHOST} px-3 py-[0.4rem] mb-1 inline-flex items-center gap-[0.35rem]`}
+              className={`${ED_GHOST} px-3 py-[0.4rem] inline-flex items-center gap-[0.35rem]`}
               onClick={() => setShowImportModal(true)}
             >
               <LinkIcon size={12} aria-hidden="true" />

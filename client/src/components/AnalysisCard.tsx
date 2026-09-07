@@ -178,7 +178,6 @@ function SignalRows({ green = [], red = [] }: { green?: string[]; red?: string[]
 }
 
 export default function AnalysisCard({ matchAnalysisJson, headerAction, lang = 'en' }: AnalysisCardProps) {
-  const [open, setOpen] = useState(true);
   const [activeDim, setActiveDim] = useState<string | null>(null);
 
   if (!matchAnalysisJson) return null;
@@ -193,25 +192,12 @@ export default function AnalysisCard({ matchAnalysisJson, headerAction, lang = '
 
   return (
     <section className="mb-9">
-      <div
-        className="cursor-pointer flex justify-between items-baseline select-none mb-1"
-        onClick={() => setOpen(!open)}
-        onKeyDown={(e: React.KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen(!open); } }}
-        role="button" tabIndex={0} aria-expanded={open}
-      >
+      <div className="flex justify-between items-baseline mb-1">
         <h3 className="font-medium text-[16px] tracking-[-0.01em] text-[var(--ed-ink)] m-0">{t('AI Analysis', lang)}</h3>
-        <div className="flex items-center gap-3">
-          {headerAction && (
-            // stopPropagation: the header row's own onClick toggles the
-            // collapse state — a click on the action itself must not.
-            <div onClick={(e) => e.stopPropagation()}>{headerAction}</div>
-          )}
-          <span className="text-[var(--ed-ink-faint)] text-[13px]" aria-hidden="true">{open ? '▾' : '▸'}</span>
-        </div>
+        {headerAction}
       </div>
       <div className="border-t border-[var(--ed-rule-strong)]" />
-      {open && (
-        <div className="mt-5">
+      <div className="mt-5">
           {/* Hero */}
           <div className="flex items-center gap-5 pb-6 max-[480px]:flex-col max-[480px]:items-start">
             <ScoreNumber score={a.overallScore} maxScore={100} hero color={edVerdictColor(a.verdict)} />
@@ -363,7 +349,6 @@ export default function AnalysisCard({ matchAnalysisJson, headerAction, lang = '
             </div>
           )}
         </div>
-      )}
     </section>
   );
 }

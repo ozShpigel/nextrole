@@ -71,7 +71,10 @@ function Card(
       role="link"
       tabIndex={0}
       onKeyDown={(e) => { if (e.key === 'Enter') navigate(`/tracker/${app.id}`); }}
-      className={`ed-rise group flex flex-col gap-2 border border-[var(--ed-rule)] bg-[var(--ed-panel)] p-4 shadow-[0_6px_16px_-4px_rgba(0,0,0,0.45)] transition-all cursor-pointer hover:border-[var(--ed-ink-faint)] hover:shadow-[0_10px_22px_-4px_rgba(0,0,0,0.55)] hover:-translate-y-[1px] ${muted ? 'opacity-55 hover:opacity-90 transition-opacity' : ''}`}
+      // Elevation comes from the shared .editorial modern-skin layer (any
+      // real border-[var(--ed-rule)] + bg-[var(--ed-panel)] card gets it for
+      // free, see index.css) — no hand-rolled shadow here, just the hover lift.
+      className={`ed-rise group flex flex-col gap-2 border border-[var(--ed-rule)] bg-[var(--ed-panel)] p-4 transition-all cursor-pointer hover:border-[var(--ed-ink-faint)] hover:-translate-y-[1px] ${muted ? 'opacity-55 hover:opacity-90 transition-opacity' : ''}`}
       style={{ animationDelay: `${Math.min(index, 10) * 60}ms` }}
     >
       <div className="flex items-start gap-3">
@@ -100,7 +103,11 @@ function Column(
 
   return (
     <div
-      className={`border p-5 shadow-[inset_0_2px_10px_rgba(0,0,0,0.35)] transition-colors ${
+      // The trailing "!" forces this recessed-tray inset to win over the shared
+      // auto-elevation rule (index.css) that would otherwise match this same
+      // border-[var(--ed-rule)] + bg-[var(--ed-panel)] combo and silently
+      // replace it with an outward "raised card" shadow instead.
+      className={`border p-5 shadow-[inset_0_2px_10px_rgba(0,0,0,0.35)]! transition-colors ${
         dragOver ? 'border-[var(--ed-accent)] bg-[var(--ed-accent)]/[0.06]' : 'border-[var(--ed-rule)] bg-[var(--ed-panel)]/30'
       }`}
       onDragOver={acceptsFrom ? (e) => {

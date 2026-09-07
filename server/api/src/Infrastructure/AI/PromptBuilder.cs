@@ -17,11 +17,11 @@ public sealed class PromptBuilder
     // Every prompt this class builds (Evaluator, single and batched;
     // NarrativeEnrichment) is scored/measured on English output — the
     // golden-set eval (docs/scoring-and-search.md) is a stable English
-    // baseline. Unlike CompanySummary/WhyWorkHere (see PromptOptions.
-    // HebrewOutput), there is deliberately no config knob here: hardcoding
-    // this instead of reading a per-agent option makes it structurally
-    // impossible for a stray env var to flip the Evaluator into Hebrew and
-    // invalidate that baseline.
+    // baseline. Hardcoded rather than a config option, same as
+    // CompanySummary/WhyWorkHere's generation (ClaudeClient.
+    // ResolveOutputLanguage) — Hebrew is requested per-application via a
+    // translate step afterward, never at generation time, so no env var can
+    // flip this into Hebrew and invalidate that baseline.
     private const string OutputLanguage = "English";
 
     public (string System, string User) BuildAnalysisPrompt(string jobDescription, string analystPrompt)

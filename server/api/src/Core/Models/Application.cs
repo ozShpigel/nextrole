@@ -44,7 +44,14 @@ public sealed record Application
     public string? CompanyNews { get; init; }
     public string? GlassdoorData { get; init; }
     public string? CompanySummary { get; init; }
+    // On-demand Hebrew translation of CompanySummary/WhyWorkHere — same
+    // pattern as MatchAnalysisHebrew: both fields generate in English only
+    // (ClaudeClient.SummarizeCompanyAsync/GenerateWhyWorkHereAsync), Hebrew
+    // is a separate cached translation, cleared whenever the English source
+    // is regenerated since a stale translation is worse than none.
+    public string? CompanySummaryHebrew { get; init; }
     public string? WhyWorkHere { get; init; }
+    public string? WhyWorkHereHebrew { get; init; }
     public string? JobUrl { get; init; }
     public string? CompanyLogo { get; init; }
     public string? Salary { get; init; }

@@ -415,7 +415,10 @@ public static class ApplicationEndpoints
             if (existing is null) return Results.NotFound();
 
             var summary = await claude.SummarizeCompanyAsync(existing.Company, ct);
-            var updated = existing with { CompanySummary = summary, UpdatedAt = DateTime.UtcNow };
+            // CompanySummaryHebrew cleared: it was translated from the summary
+            // this call just replaced, so keeping it would silently show a
+            // translation of stale content (same reasoning as MatchAnalysisHebrew).
+            var updated = existing with { CompanySummary = summary, CompanySummaryHebrew = null, UpdatedAt = DateTime.UtcNow };
             await repo.UpdateAsync(updated, ct);
 
             return Results.Ok(new { company_summary = summary });
@@ -437,7 +440,8 @@ public static class ApplicationEndpoints
             var profileText = await profile.GetProfileAsync(ct);
             var prep = await profile.GetInterviewPrepAsync(ct);
             var answer = await claude.GenerateWhyWorkHereAsync(existing, profileText, prep, ct);
-            var updated = existing with { WhyWorkHere = answer, UpdatedAt = DateTime.UtcNow };
+            // WhyWorkHereHebrew cleared for the same reason CompanySummaryHebrew is above.
+            var updated = existing with { WhyWorkHere = answer, WhyWorkHereHebrew = null, UpdatedAt = DateTime.UtcNow };
             await repo.UpdateAsync(updated, ct);
 
             return Results.Ok(new { why_work_here = answer });
@@ -483,6 +487,56 @@ public static class ApplicationEndpoints
         })
         .WithName("TranslateMatchAnalysis")
         .WithSummary("Translate an application's AI match analysis to Hebrew (cached after the first call)")
+        .RequireRateLimiting("translate");
+
+        app.MapPost("/api/applications/{id:guid}/company-summary/translate", async (
+            Guid id,
+            IApplicationRepository repo,
+            IClaudeClient claude,
+            CancellationToken ct) =>
+        {
+            var existing = await repo.GetByIdAsync(id, ct);
+            if (existing is null) return Results.NotFound();
+
+            if (!string.IsNullOrWhiteSpace(existing.CompanySummaryHebrew))
+                return Results.Ok(new { company_summary_hebrew = existing.CompanySummaryHebrew });
+
+            if (string.IsNullOrWhiteSpace(existing.CompanySummary))
+                return Results.BadRequest(new { error = "This application has no company summary to translate" });
+
+            var translated = await claude.TranslateTextAsync(existing.CompanySummary, ct);
+            var updated = existing with { CompanySummaryHebrew = translated, UpdatedAt = DateTime.UtcNow };
+            await repo.UpdateAsync(updated, ct);
+
+            return Results.Ok(new { company_summary_hebrew = translated });
+        })
+        .WithName("TranslateCompanySummary")
+        .WithSummary("Translate an application's company summary to Hebrew (cached after the first call)")
+        .RequireRateLimiting("translate");
+
+        app.MapPost("/api/applications/{id:guid}/why-work-here/translate", async (
+            Guid id,
+            IApplicationRepository repo,
+            IClaudeClient claude,
+            CancellationToken ct) =>
+        {
+            var existing = await repo.GetByIdAsync(id, ct);
+            if (existing is null) return Results.NotFound();
+
+            if (!string.IsNullOrWhiteSpace(existing.WhyWorkHereHebrew))
+                return Results.Ok(new { why_work_here_hebrew = existing.WhyWorkHereHebrew });
+
+            if (string.IsNullOrWhiteSpace(existing.WhyWorkHere))
+                return Results.BadRequest(new { error = "This application has no why-work-here answer to translate" });
+
+            var translated = await claude.TranslateTextAsync(existing.WhyWorkHere, ct);
+            var updated = existing with { WhyWorkHereHebrew = translated, UpdatedAt = DateTime.UtcNow };
+            await repo.UpdateAsync(updated, ct);
+
+            return Results.Ok(new { why_work_here_hebrew = translated });
+        })
+        .WithName("TranslateWhyWorkHere")
+        .WithSummary("Translate an application's why-work-here answer to Hebrew (cached after the first call)")
         .RequireRateLimiting("translate");
 
         app.MapGet("/api/applications/exists", async (

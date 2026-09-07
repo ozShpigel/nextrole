@@ -176,11 +176,14 @@ public sealed class ClaudeClient : IClaudeClient
 
     // {{OUTPUT_LANGUAGE}} substitution for the prompts that don't go through
     // PromptBuilder (which hardcodes English for its own — see
-    // PromptBuilder.OutputLanguage). `hebrew` is resolved per call site: the
-    // two agents allowed to vary (CompanySummary, WhyWorkHere) pass
-    // _prompts.HebrewOutput.<Agent>; every other call site below passes a
-    // hardcoded `false` — not a config lookup — so a stray env var can never
-    // change their output language. See PromptOptions.HebrewOutput.
+    // PromptBuilder.OutputLanguage). Every call site below passes a
+    // hardcoded `false` — not a config lookup — so generation is always
+    // English; Hebrew is requested per-application afterward via
+    // TranslateTextAsync/TranslateMatchAnalysisAsync instead (CompanySummary
+    // and WhyWorkHere used to vary this via the now-removed
+    // Prompts__HebrewOutput flags, generating Hebrew directly and giving the
+    // user no English version at all — replaced by the same on-demand
+    // translate-per-application pattern the match analysis already used).
     private static string ResolveOutputLanguage(string prompt, bool hebrew) =>
         prompt.Replace("{{OUTPUT_LANGUAGE}}", hebrew ? "Hebrew" : "English");
 
@@ -388,7 +391,7 @@ public sealed class ClaudeClient : IClaudeClient
 
         var parameters = new MessageParameters
         {
-            System = new List<SystemMessage> { new(ResolveOutputLanguage(PromptSeeds.CompanySummary, _prompts.HebrewOutput.CompanySummary)) },
+            System = new List<SystemMessage> { new(ResolveOutputLanguage(PromptSeeds.CompanySummary, false)) },
             Messages = new List<Message> { new(RoleType.User, companyName) },
             MaxTokens = 512,
             Model = "claude-haiku-4-5-20251001",
@@ -420,6 +423,37 @@ public sealed class ClaudeClient : IClaudeClient
         return result.ToJsonString();
     }
 
+    // Plain-text counterpart to TranslateMatchAnalysisAsync — Company Summary
+    // and the "Why work here?" answer are single paragraphs, not JSON, so
+    // this calls Claude directly (like SummarizeCompanyAsync) instead of
+    // going through CallClaudeAsync<T>'s JSON deserialization.
+    public async Task<string> TranslateTextAsync(string text, CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Translating text to Hebrew ({Length} chars)", text.Length);
+
+        // Not scraped external data, but still XML-wrapped per house
+        // convention — the model must be told to treat it as data, since its
+        // content was ultimately shaped by a job posting/company name.
+        var userMessage = $"<text>\n{text}\n</text>";
+
+        var parameters = new MessageParameters
+        {
+            System = new List<SystemMessage> { new(PromptSeeds.TranslateFreeText) },
+            Messages = new List<Message> { new(RoleType.User, userMessage) },
+            MaxTokens = _scoring.TranslateAnalysis.MaxTokens,
+            Model = _scoring.TranslateAnalysis.Model,
+            Temperature = _scoring.TranslateAnalysis.Temperature,
+            Stream = false
+        };
+
+        var response = await ResolveClient().Messages.GetClaudeMessageAsync(parameters, cancellationToken);
+        var content = response.Message?.ToString()?.Trim()
+            ?? throw new InvalidOperationException("Empty response from Claude API");
+
+        _logger.LogInformation("Text translated to Hebrew ({Length} chars)", content.Length);
+        return content;
+    }
+
     public async Task<string> GenerateWhyWorkHereAsync(Application app, string profile, InterviewPrepDocument prep, CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Generating 'why work here' answer for: {Company} / {Title}", app.Company, app.JobTitle);
@@ -427,7 +461,7 @@ public sealed class ClaudeClient : IClaudeClient
         // System prompt: trusted instructions + the user's own (trusted) profile
         // and self-presentation. External company/job data goes in the user
         // message wrapped in XML tags (treated as untrusted data).
-        var systemBuilder = new System.Text.StringBuilder(ResolveOutputLanguage(PromptSeeds.WhyWorkHere, _prompts.HebrewOutput.WhyWorkHere));
+        var systemBuilder = new System.Text.StringBuilder(ResolveOutputLanguage(PromptSeeds.WhyWorkHere, false));
         if (!string.IsNullOrWhiteSpace(profile))
             systemBuilder.Append("\n\n# Candidate Profile\n").Append(profile.Trim());
         if (!string.IsNullOrWhiteSpace(prep.SelfPresentationHr))

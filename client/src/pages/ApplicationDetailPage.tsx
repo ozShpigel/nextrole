@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useApplicationDetail } from '../lib/queries';
-import { useGenerateCompanySummary, useGenerateWhyWorkHere, useGeneratePack, useTranslateMatchAnalysis } from '../lib/mutations';
+import { useGenerateCompanySummary, useGenerateWhyWorkHere, useGeneratePack, useTranslateMatchAnalysis, useTranslateCompanySummary, useTranslateWhyWorkHere } from '../lib/mutations';
 import { StatusBadge } from '../components/Status';
 import CollapsibleSection from '../components/CollapsibleSection';
 import AnalysisCard, { edVerdictColor } from '../components/AnalysisCard';
@@ -63,7 +63,9 @@ interface Application {
   updatedAt: string;
   salary: string | null;
   companySummary: string | null;
+  companySummaryHebrew: string | null;
   whyWorkHere: string | null;
+  whyWorkHereHebrew: string | null;
   companyNews: string | null;
   glassdoorData: string | null;
   analystSnapshotInput: string | null;
@@ -209,8 +211,8 @@ export default function ApplicationDetail() {
             {showFullAnalysis ? (
               <>
                 <AnalysisSection appId={app.id} matchAnalysis={app.matchAnalysis} initialHebrew={app.matchAnalysisHebrew} lang={lang} setLang={setLang} />
-                <WhyWorkHereBlock appId={app.id} initialAnswer={app.whyWorkHere} lang={lang} />
-                <CompanySummaryBlock appId={app.id} initialSummary={app.companySummary} lang={lang} />
+                <WhyWorkHereBlock appId={app.id} initialAnswer={app.whyWorkHere} initialHebrew={app.whyWorkHereHebrew} lang={lang} />
+                <CompanySummaryBlock appId={app.id} initialSummary={app.companySummary} initialHebrew={app.companySummaryHebrew} lang={lang} />
                 <CompanyEnrichment companyNewsJson={app.companyNews} glassdoorDataJson={app.glassdoorData} lang={lang} />
               </>
             ) : (
@@ -252,36 +254,57 @@ const LANG_TAB = 'px-[0.65rem] py-[0.2rem] rounded-full text-[13px] font-medium 
 const LANG_TAB_ACTIVE = `${LANG_TAB} bg-[var(--ed-accent)] text-[var(--ed-paper)]`;
 const LANG_TAB_INACTIVE = `${LANG_TAB} text-[var(--ed-ink-faint)] hover:text-[var(--ed-ink)]`;
 
+// Shared "translate this field to Hebrew on demand" behavior for
+// AnalysisSection / WhyWorkHereBlock / CompanySummaryBlock. English is
+// always the generated source (see docs/scoring-and-search.md's "Hebrew
+// translation, on demand"); each field lazily fetches + caches its own
+// Hebrew version the first time `lang` flips to 'he', independently of the
+// other two — one being empty or slow never blocks the rest, and the single
+// shared toggle (in AnalysisSection's header) just flips `lang` for all three
+// at once rather than orchestrating three calls itself.
+function useHebrewDisplay(
+  english: string | null,
+  initialHebrew: string | null,
+  lang: 'en' | 'he',
+  translate: () => Promise<string>,
+) {
+  const [hebrew, setHebrew] = useState<string | null>(initialHebrew);
+  const [translating, setTranslating] = useState(false);
+
+  useEffect(() => {
+    if (lang !== 'he' || !english || hebrew || translating) return;
+    setTranslating(true);
+    translate()
+      .then(setHebrew)
+      .catch((e: Error) => alert('Failed to translate: ' + e.message))
+      .finally(() => setTranslating(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lang, english, hebrew, translating]);
+
+  return {
+    display: lang === 'he' && hebrew ? hebrew : english,
+    hasHebrew: !!hebrew,
+    translating,
+    resetHebrew: () => setHebrew(null),
+  };
+}
+
 function AnalysisSection(
   { appId, matchAnalysis, initialHebrew, lang, setLang }:
   { appId: string; matchAnalysis: string | null; initialHebrew: string | null; lang: 'en' | 'he'; setLang: (lang: 'en' | 'he') => void },
 ) {
-  const [hebrew, setHebrew] = useState<string | null>(initialHebrew);
   const translateMutation = useTranslateMatchAnalysis();
-  const loading = translateMutation.isPending;
-
-  function selectHebrew(): void {
-    // Translate once per application — a cached translation just switches
-    // the display language, no network call.
-    if (hebrew) { setLang('he'); return; }
-    translateMutation.mutate(appId, {
-      onSuccess: (res: { matchAnalysisHebrew: string }) => {
-        setHebrew(res.matchAnalysisHebrew);
-        setLang('he');
-      },
-      onError: (e) => {
-        alert('Failed to translate analysis: ' + (e as Error).message);
-      },
-    });
-  }
-
+  const { display, hasHebrew, translating } = useHebrewDisplay(
+    matchAnalysis, initialHebrew, lang,
+    () => translateMutation.mutateAsync(appId).then((res: { matchAnalysisHebrew: string }) => res.matchAnalysisHebrew),
+  );
   // Hebrew only actually applies once a translation exists — 'he' selected
   // with no cached translation yet (mid-request) still shows/labels English.
-  const activeLang: 'en' | 'he' = lang === 'he' && hebrew ? 'he' : 'en';
+  const activeLang: 'en' | 'he' = lang === 'he' && hasHebrew ? 'he' : 'en';
 
   return (
     <AnalysisCard
-      matchAnalysisJson={activeLang === 'he' ? hebrew : matchAnalysis}
+      matchAnalysisJson={display}
       lang={activeLang}
       headerAction={
         <div role="tablist" aria-label="Analysis language" className="flex items-center rounded-full border border-[var(--ed-rule)] p-[0.15rem]">
@@ -294,11 +317,11 @@ function AnalysisSection(
           </button>
           <button
             type="button" role="tab" aria-selected={lang === 'he'}
-            disabled={loading}
-            onClick={selectHebrew}
+            disabled={translating}
+            onClick={() => setLang('he')}
             className={lang === 'he' ? LANG_TAB_ACTIVE : LANG_TAB_INACTIVE}
           >
-            {loading ? 'Translating…' : hebrew ? 'HE' : 'Translate to Hebrew'}
+            {translating ? 'Translating…' : hasHebrew ? 'HE' : 'Translate to Hebrew'}
           </button>
         </div>
       }
@@ -306,15 +329,25 @@ function AnalysisSection(
   );
 }
 
-function CompanySummaryBlock({ appId, initialSummary, lang }: { appId: string; initialSummary: string | null; lang: 'en' | 'he' }) {
+function CompanySummaryBlock(
+  { appId, initialSummary, initialHebrew, lang }:
+  { appId: string; initialSummary: string | null; initialHebrew: string | null; lang: 'en' | 'he' },
+) {
   const [summary, setSummary] = useState<string>(initialSummary || '');
   const generateMutation = useGenerateCompanySummary();
+  const translateMutation = useTranslateCompanySummary();
   const loading = generateMutation.isPending;
+
+  const { display, translating, resetHebrew } = useHebrewDisplay(
+    summary || null, initialHebrew, lang,
+    () => translateMutation.mutateAsync(appId).then((res: { company_summary_hebrew: string }) => res.company_summary_hebrew),
+  );
 
   function generate(): void {
     generateMutation.mutate(appId, {
       onSuccess: (res: { company_summary: string }) => {
         setSummary(res.company_summary);
+        resetHebrew(); // stale Hebrew would otherwise still show for the old summary
       },
       onError: (e) => {
         alert('Failed to generate summary: ' + (e as Error).message);
@@ -333,14 +366,14 @@ function CompanySummaryBlock({ appId, initialSummary, lang }: { appId: string; i
         action={
           summary ? (
             <button type="button" className={ED_GHOST} onClick={generate} disabled={loading}>
-              {loading ? tPage('Generating...', lang) : tPage('Regenerate', lang)}
+              {loading ? tPage('Generating...', lang) : translating ? tPage('Translating...', lang) : tPage('Regenerate', lang)}
             </button>
           ) : undefined
         }
       />
       {summary ? (
         <p dir="auto" className="text-[16px] leading-[1.8] text-[var(--ed-ink)] whitespace-pre-wrap m-0">
-          <BidiText text={summary} />
+          <BidiText text={display || summary} />
         </p>
       ) : (
         <p className="ed-display text-[16px] text-[var(--ed-ink-faint)] italic m-0">{tPage('Generated automatically once this reaches Interviewing.', lang)}</p>
@@ -349,16 +382,26 @@ function CompanySummaryBlock({ appId, initialSummary, lang }: { appId: string; i
   );
 }
 
-function WhyWorkHereBlock({ appId, initialAnswer, lang }: { appId: string; initialAnswer: string | null; lang: 'en' | 'he' }) {
+function WhyWorkHereBlock(
+  { appId, initialAnswer, initialHebrew, lang }:
+  { appId: string; initialAnswer: string | null; initialHebrew: string | null; lang: 'en' | 'he' },
+) {
   const [answer, setAnswer] = useState<string>(initialAnswer || '');
   const [copied, setCopied] = useState(false);
   const generateMutation = useGenerateWhyWorkHere();
+  const translateMutation = useTranslateWhyWorkHere();
   const loading = generateMutation.isPending;
+
+  const { display, translating, resetHebrew } = useHebrewDisplay(
+    answer || null, initialHebrew, lang,
+    () => translateMutation.mutateAsync(appId).then((res: { why_work_here_hebrew: string }) => res.why_work_here_hebrew),
+  );
 
   function generate(): void {
     generateMutation.mutate(appId, {
       onSuccess: (res: { why_work_here: string }) => {
         setAnswer(res.why_work_here);
+        resetHebrew(); // stale Hebrew would otherwise still show for the old answer
       },
       onError: (e) => {
         alert('Failed to generate answer: ' + (e as Error).message);
@@ -368,7 +411,7 @@ function WhyWorkHereBlock({ appId, initialAnswer, lang }: { appId: string; initi
 
   async function copyToClipboard(): Promise<void> {
     try {
-      await navigator.clipboard.writeText(answer);
+      await navigator.clipboard.writeText(display || answer);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch { /* ignore */ }
@@ -384,7 +427,7 @@ function WhyWorkHereBlock({ appId, initialAnswer, lang }: { appId: string; initi
         action={
           answer ? (
             <button type="button" className={ED_GHOST} onClick={generate} disabled={loading}>
-              {loading ? tPage('Generating...', lang) : tPage('Regenerate', lang)}
+              {loading ? tPage('Generating...', lang) : translating ? tPage('Translating...', lang) : tPage('Regenerate', lang)}
             </button>
           ) : undefined
         }
@@ -392,7 +435,7 @@ function WhyWorkHereBlock({ appId, initialAnswer, lang }: { appId: string; initi
       {answer ? (
         <div className="relative">
           <p dir="auto" className="text-[16px] leading-[1.8] text-[var(--ed-ink)] whitespace-pre-wrap m-0 pl-16">
-            <BidiText text={answer} />
+            <BidiText text={display || answer} />
           </p>
           <button
             type="button"
@@ -459,6 +502,7 @@ const PAGE_HE_LABELS: Record<string, string> = {
   'Company Summary': 'תקציר החברה',
   'Regenerate': 'צור מחדש',
   'Generating...': 'יוצר...',
+  'Translating...': 'מתרגם...',
   'Generated automatically once this reaches Interviewing.': 'נוצר אוטומטית ברגע שהתהליך מגיע לשלב הראיונות.',
   'Why Work Here?': 'למה לעבוד כאן?',
   'Copy': 'העתק',

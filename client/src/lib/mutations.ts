@@ -412,6 +412,28 @@ export function useTranslateMatchAnalysis() {
   });
 }
 
+export function useTranslateCompanySummary() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (appId: string) =>
+      api(`/applications/${appId}/company-summary/translate`, { method: 'POST' }),
+    onSuccess: (_data, appId) => {
+      queryClient.invalidateQueries({ queryKey: ['applications', appId] });
+    },
+  });
+}
+
+export function useTranslateWhyWorkHere() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (appId: string) =>
+      api(`/applications/${appId}/why-work-here/translate`, { method: 'POST' }),
+    onSuccess: (_data, appId) => {
+      queryClient.invalidateQueries({ queryKey: ['applications', appId] });
+    },
+  });
+}
+
 export function useAddInterview() {
   const queryClient = useQueryClient();
   return useMutation({

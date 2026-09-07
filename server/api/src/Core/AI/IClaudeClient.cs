@@ -63,6 +63,10 @@ public interface IClaudeClient
     // against the original before storing or serving it.
     Task<string> TranslateMatchAnalysisAsync(string matchAnalysisJson, CancellationToken cancellationToken = default);
 
+    // Plain-text counterpart for Company Summary / "Why work here?" — see
+    // ClaudeClient.TranslateTextAsync.
+    Task<string> TranslateTextAsync(string text, CancellationToken cancellationToken = default);
+
     // Normalization layer: convert a candidate's pasted free-text experience/skills
     // into the structured NormalizedProfile (extraction only, no scoring).
     Task<ApplicationTracker.Core.Profile.NormalizedProfile> NormalizeProfileAsync(string text, CancellationToken cancellationToken = default);

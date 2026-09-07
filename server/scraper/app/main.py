@@ -365,35 +365,8 @@ async def _resolve_company_logo(company: str | None, own_logo: str | None) -> st
     return doc.get("company_logo") if doc else None
 
 
-async def _enrich_saved_job(job_id: str, app_id: str, doc: dict) -> None:
-    """Background follow-up to save_job(): upgrades the 4 terse narrative
-    fields to full detail after the Add click has already returned, instead
-    of blocking it on a Claude call chain that can take 40-60s+ with retries
-    and no client-side loading feedback. Best-effort — a failure here just
-    leaves the terse content saved, which AnalysisCard renders fine either
-    way (every section guards on its own field's presence)."""
-    match_analysis = doc.get("match_analysis")
-    if not match_analysis or match_analysis.get("overallScore") is None:
-        return
-    enriched = await match_client.enrich_narrative(settings, doc)
-    if not enriched:
-        return
-    updated = {
-        **match_analysis,
-        "honestAssessment": enriched.get("honestAssessment", match_analysis.get("honestAssessment")),
-        "recommendation": {
-            **(match_analysis.get("recommendation") or {}),
-            **(enriched.get("recommendation") or {}),
-        },
-        **({"companyNewsAnalysis": enriched["companyNewsAnalysis"]} if enriched.get("companyNewsAnalysis") else {}),
-        **({"employeeReviewsAnalysis": enriched["employeeReviewsAnalysis"]} if enriched.get("employeeReviewsAnalysis") else {}),
-    }
-    await db.discovered_jobs.update_one({"id": job_id}, {"$set": {"match_analysis": updated}})
-    await tracker_client.update_match_analysis(settings, app_id, json.dumps(updated, ensure_ascii=False))
-
-
 @app.post("/api/discovery/jobs/{job_id}/save")
-async def save_job(job_id: str, background_tasks: BackgroundTasks):
+async def save_job(job_id: str):
     doc = await db.discovered_jobs.find_one({"id": job_id})
     if not doc:
         raise HTTPException(404, "Job not found")
@@ -424,9 +397,10 @@ async def save_job(job_id: str, background_tasks: BackgroundTasks):
         raise HTTPException(500, "Failed to save to tracker")
 
     await db.discovered_jobs.update_one({"id": job_id}, {"$set": {"saved_to_tracker": True}})
-    # Fired now that the job is actually being added (~4% of scored jobs
-    # reach this path), but AFTER responding — see _enrich_saved_job.
-    background_tasks.add_task(_enrich_saved_job, job_id, app_id, doc)
+    # Full-narrative enrichment no longer fires here — the API now defers it
+    # to the first time this application's status crosses into an
+    # interviewing stage (ApplicationEndpoints.EnrichNarrativeOnInterviewingAsync),
+    # since most added jobs never reach one.
     return {"status": "saved"}
 
 

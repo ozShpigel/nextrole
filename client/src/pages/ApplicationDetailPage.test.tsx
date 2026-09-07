@@ -114,8 +114,28 @@ describe('ApplicationDetailPage', () => {
     expect(backLink.closest('a')).toHaveAttribute('href', '/active');
   });
 
-  it('renders the AI analysis card', async () => {
+  it('hides the AI analysis and company info before Interviewing', async () => {
     vi.mocked(api).mockResolvedValue(mockDetailData);
+    vi.mocked(matchApi).mockResolvedValue({});
+
+    renderWithRouter(<ApplicationDetail />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Senior React Developer')).toBeInTheDocument();
+    });
+
+    // mockApplication's status ('Applied') is pre-Interviewing — the decision
+    // to apply already happened at Matches, so this content is gated until
+    // an interview is actually scheduled (see showFullAnalysis).
+    expect(screen.queryByTestId('analysis-card')).not.toBeInTheDocument();
+    expect(screen.getByText(/unlock once this reaches Interviewing/)).toBeInTheDocument();
+  });
+
+  it('renders the AI analysis card once Interviewing', async () => {
+    vi.mocked(api).mockResolvedValue({
+      ...mockDetailData,
+      application: { ...mockApplication, status: 'PhoneScreen' },
+    });
     vi.mocked(matchApi).mockResolvedValue({});
 
     renderWithRouter(<ApplicationDetail />);
@@ -148,6 +168,7 @@ describe('ApplicationDetailPage', () => {
       ...mockDetailData,
       application: {
         ...mockApplication,
+        status: 'PhoneScreen',
         glassdoorData: JSON.stringify({ rating: 4.2, reviewCount: 1500, url: null }),
       },
     });
@@ -166,6 +187,7 @@ describe('ApplicationDetailPage', () => {
       ...mockDetailData,
       application: {
         ...mockApplication,
+        status: 'PhoneScreen',
         glassdoorData: JSON.stringify({
           rating: 4.2,
           reviewCount: 1500,
@@ -197,6 +219,7 @@ describe('ApplicationDetailPage', () => {
       ...mockDetailData,
       application: {
         ...mockApplication,
+        status: 'PhoneScreen',
         glassdoorData: JSON.stringify({
           subRatings: { workLifeBalance: 2.8 },
           recommendPercent: 45,
@@ -220,6 +243,7 @@ describe('ApplicationDetailPage', () => {
       ...mockDetailData,
       application: {
         ...mockApplication,
+        status: 'PhoneScreen',
         companyNews: JSON.stringify([
           { title: 'Company raises $50M Series B', source: 'TechCrunch' },
         ]),

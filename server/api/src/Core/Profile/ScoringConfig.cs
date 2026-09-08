@@ -120,6 +120,11 @@ public sealed record ScoringConfig
     // Model = Haiku (was the Sonnet base default) — same 2026-08-11 move and
     // same caveat as InterviewInsights above: no automated regression check
     // exists for this prompt's grounding/anti-fabrication rules under Haiku.
+    // appsettings "Scoring:ResumePack" puts this back on Sonnet 5: the pack runs
+    // once per application rather than per discovered job, so the volume that
+    // justified Haiku elsewhere doesn't apply, and its output is the résumé text
+    // itself. Temperature stays bound here but is dropped at request time — the
+    // -5 models reject an explicit temperature (see ClaudeClient).
     public RoleScoringConfig ResumePack { get; init; } = new() { Model = "claude-haiku-4-5-20251001", MaxTokens = 4096, Temperature = 0.3m };
 
     // On-demand Hebrew translation of an already-stored MatchAnalysis JSON

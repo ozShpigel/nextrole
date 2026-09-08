@@ -15,7 +15,16 @@ public sealed class QuestPdfResumeRenderer : IResumePdfRenderer
     private static readonly Color BodyColor = Color.FromHex("#2A2A2A");
 
     // The name is the one element allowed to sit darker than body text.
-    private static readonly Color NameColor = Color.FromHex("#111111");
+    private static readonly Color NameColor = Color.FromHex("#000000");
+
+    // Contact stack: a step darker than the mid grey it used to be, but still
+    // short of body text so it stays secondary to the name beside it.
+    private static readonly Color ContactColor = Color.FromHex("#4A4A4A");
+
+    // The title under the name sits between the two: darker than body text, a
+    // shade off the name itself, so the pair reads as one unit without the
+    // caption competing with the name above it.
+    private static readonly Color TitleColor = Color.FromHex("#111111");
 
     // Fraction of font size (QuestPDF's LetterSpacing is a multiplier, not points).
     // Ceiling here is set by text extraction, not by taste: past roughly 0.08 in
@@ -29,13 +38,13 @@ public sealed class QuestPdfResumeRenderer : IResumePdfRenderer
     // The title under the name is set smaller and tracked wider than a section
     // header — it reads as a caption to the name rather than as a heading. Same
     // extraction ceiling applies, so this value is tested against pdftotext too.
-    private const float TitleFontSize = 8f;
+    private const float TitleFontSize = 9f;
     private const float TitleLetterSpacing = 0.18f;
 
     // Type scale. Body is the inherited default; everything that must not follow it
     // when it moves carries its size explicitly.
     private const float BodyFontSize = 10f;
-    private const float NameFontSize = 24f;
+    private const float NameFontSize = 26f;
     private const float SectionHeaderFontSize = 10.5f;
     // Company and entry dates — held a half point under body so an entry's
     // metadata sits below its prose.
@@ -57,6 +66,12 @@ public sealed class QuestPdfResumeRenderer : IResumePdfRenderer
     // onto a second line rather than squeezing the values into a thin strip.
     private const float SkillLabelColumnWidth = 125f;
 
+    // Air above and below every two-column grid row (skills, education, military
+    // service, languages). Kept tight: these are one-line reference rows, and space
+    // between them just pushes the sections apart without making them clearer.
+    private const float GridRowPaddingTop = 2f;
+    private const float GridRowPaddingBottom = 0f;
+
     // Left gutter holding each experience entry's dates, start year over end year,
     // so every entry's dates land on one vertical scan line.
     private const float DateColumnWidth = 52f;
@@ -77,7 +92,7 @@ public sealed class QuestPdfResumeRenderer : IResumePdfRenderer
 
                 page.Content().Column(column =>
                 {
-                    column.Spacing(10);
+                    column.Spacing(7);
 
                     column.Item().Column(header =>
                     {
@@ -107,8 +122,8 @@ public sealed class QuestPdfResumeRenderer : IResumePdfRenderer
                                     : pack.TargetTitle;
                                 if (!string.IsNullOrWhiteSpace(titleLine))
                                 {
-                                    identity.Item().PaddingTop(1).Text(titleLine.Trim().ToUpperInvariant())
-                                        .FontSize(TitleFontSize).LetterSpacing(TitleLetterSpacing).FontColor(Colors.Grey.Darken1);
+                                    identity.Item().PaddingTop(5).Text(titleLine.Trim().ToUpperInvariant())
+                                        .FontSize(TitleFontSize).LetterSpacing(TitleLetterSpacing).FontColor(TitleColor);
                                 }
                             });
 
@@ -117,22 +132,22 @@ public sealed class QuestPdfResumeRenderer : IResumePdfRenderer
                                 foreach (var part in new[] { profile.Location, profile.Phone, profile.Email }
                                              .Where(p => !string.IsNullOrWhiteSpace(p)))
                                 {
-                                    contact.Item().AlignRight().Text(part!).FontSize(ContactFontSize).LineHeight(ContactLineHeight).FontColor(Colors.Grey.Darken1);
+                                    contact.Item().AlignRight().Text(part!).FontSize(ContactFontSize).LineHeight(ContactLineHeight).FontColor(ContactColor);
                                 }
 
                                 if (!string.IsNullOrWhiteSpace(profile.LinkedIn))
                                 {
                                     contact.Item().AlignRight().Text(text =>
                                         text.Hyperlink(DisplayUrl(profile.LinkedIn!), NormalizeUrl(profile.LinkedIn!))
-                                            .FontSize(ContactFontSize).LineHeight(ContactLineHeight).FontColor(Colors.Grey.Darken1));
+                                            .FontSize(ContactFontSize).LineHeight(ContactLineHeight).FontColor(ContactColor));
                                 }
                             });
                         });
 
-                        // Hairline, not a bar: at 1pt in grey the rule read as the heaviest
-                        // mark on the page. Thinner and darker keeps it crisp while letting
-                        // the name stay the strongest element.
-                        header.Item().PaddingTop(6).LineHorizontal(0.75f).LineColor(BodyColor);
+                        // Weighted to close the band: darker than body text and thicker than
+                        // the light rules under section headers, so it reads as the edge of
+                        // the masthead rather than as one more divider.
+                        header.Item().PaddingTop(14).LineHorizontal(1.25f).LineColor(NameColor);
                     });
 
                     // No "SUMMARY" heading: the opening paragraph sits immediately under
@@ -219,7 +234,7 @@ public sealed class QuestPdfResumeRenderer : IResumePdfRenderer
                             // under which category. Layout-aware extraction reads it correctly.
                             foreach (var group in skillGroups)
                             {
-                                section.Item().PaddingTop(3).Row(row =>
+                                section.Item().PaddingTop(GridRowPaddingTop).PaddingBottom(GridRowPaddingBottom).Row(row =>
                                 {
                                     row.ConstantItem(SkillLabelColumnWidth).PaddingRight(10)
                                         .Text(group.Category).Bold();
@@ -243,11 +258,11 @@ public sealed class QuestPdfResumeRenderer : IResumePdfRenderer
                                 // than as one long bulleted sentence.
                                 section.Item().PaddingTop(4).PreventPageBreak().Column(entry =>
                                 {
-                                    // A notch under body size: bold at full body size made the
-                                    // project name the heaviest line on the page, ahead of the
-                                    // role titles it sits below.
+                                    // Same size as an experience role title: a project name heads
+                                    // its entry the way a role title heads a job, so the two read
+                                    // at the same level.
                                     if (!string.IsNullOrWhiteSpace(project.Name))
-                                        entry.Item().Text(project.Name).FontSize(EntryFontSize).Bold();
+                                        entry.Item().Text(project.Name).FontSize(RoleTitleFontSize).Bold();
 
                                     if (project.Links.Count > 0)
                                     {
@@ -284,13 +299,13 @@ public sealed class QuestPdfResumeRenderer : IResumePdfRenderer
                         });
                     }
 
-                    var education = Clean(profile.Education);
+                    var education = CleanCredentials(profile.Education);
                     if (education.Count > 0)
-                        RenderInlineSection(column, "EDUCATION", education);
+                        RenderCredentialSection(column, "EDUCATION", education);
 
-                    var militaryService = Clean(profile.MilitaryService);
+                    var militaryService = CleanCredentials(profile.MilitaryService);
                     if (militaryService.Count > 0)
-                        RenderInlineSection(column, "MILITARY SERVICE", militaryService);
+                        RenderCredentialSection(column, "MILITARY SERVICE", militaryService);
 
                     var spokenLanguages = Clean(profile.SpokenLanguages);
                     if (spokenLanguages.Count > 0)
@@ -298,16 +313,40 @@ public sealed class QuestPdfResumeRenderer : IResumePdfRenderer
                         column.Item().Column(section =>
                         {
                             SectionHeader(section, "LANGUAGES");
-                            section.Item().Text(string.Join("  ·  ", spokenLanguages));
+                            // Same two-column row as education and military service, with
+                            // the label column left empty — the languages line then starts
+                            // on the detail column instead of at the margin, so the bottom
+                            // of the page holds one alignment.
+                            section.Item().PaddingTop(GridRowPaddingTop).PaddingBottom(GridRowPaddingBottom).Row(row =>
+                            {
+                                row.ConstantItem(SkillLabelColumnWidth).PaddingRight(10);
+                                row.RelativeItem().Text(string.Join("  ·  ", spokenLanguages));
+                            });
                         });
                     }
-                });
 
-                page.Footer().AlignCenter().Text(text =>
-                {
-                    text.CurrentPageNumber();
-                    text.Span(" / ");
-                    text.TotalPages();
+                    // Sign-off: part of the content flow, not page.Footer(). As a page
+                    // footer it repeated on every page and sat pinned to the bottom
+                    // margin; here it appears once, directly under the last line of the
+                    // document, on whichever page that happens to be.
+                    var signOff = new[]
+                    {
+                        string.IsNullOrWhiteSpace(profile.FullName) ? null : profile.FullName.Trim(),
+                        string.IsNullOrWhiteSpace(pack.TargetTitle)
+                            ? pack.Experience.FirstOrDefault()?.Title?.Trim()
+                            : pack.TargetTitle.Trim(),
+                        string.IsNullOrWhiteSpace(profile.Email) ? null : profile.Email.Trim(),
+                    }.Where(p => !string.IsNullOrWhiteSpace(p)).ToList();
+
+                    if (signOff.Count > 0)
+                    {
+                        column.Item().PreventPageBreak().Column(footer =>
+                        {
+                            footer.Item().PaddingBottom(5).LineHorizontal(0.5f).LineColor(Colors.Grey.Lighten2);
+                            footer.Item().AlignCenter().Text(string.Join("  ·  ", signOff))
+                                .FontSize(LinkFontSize).FontColor(Colors.Grey.Darken1);
+                        });
+                    }
                 });
             });
         });
@@ -349,6 +388,33 @@ public sealed class QuestPdfResumeRenderer : IResumePdfRenderer
         var end = trimmed[(separator + 1)..].Trim();
         return start.Length == 0 ? (end, null) : (start, end.Length == 0 ? null : end);
     }
+
+    // Institution on the left, what was earned there on the right — the same
+    // two-column shape the skills grid uses, so the bottom of the page keeps one
+    // alignment. Carries the same extraction cost as that grid: pdftotext's
+    // reading-order mode walks each column as its own run.
+    private static void RenderCredentialSection(ColumnDescriptor column, string title, List<CredentialItem> items)
+    {
+        column.Item().PreventPageBreak().Column(section =>
+        {
+            SectionHeader(section, title);
+            foreach (var item in items)
+            {
+                section.Item().PaddingTop(GridRowPaddingTop).PaddingBottom(GridRowPaddingBottom).Row(row =>
+                {
+                    row.ConstantItem(SkillLabelColumnWidth).PaddingRight(10)
+                        .Text(item.Institution).Bold();
+                    row.RelativeItem().Text(item.Detail);
+                });
+            }
+        });
+    }
+
+    private static List<CredentialItem> CleanCredentials(CredentialItem[]? items) =>
+        (items ?? [])
+            .Select(i => i with { Institution = i.Institution?.Trim() ?? "", Detail = i.Detail?.Trim() ?? "" })
+            .Where(i => i.Institution.Length > 0 || i.Detail.Length > 0)
+            .ToList();
 
     // Education and military service are stored as one free-text line per entry
     // ("B.Sc. Computer Science, HIT Holon, 2012"), with no structured split. The

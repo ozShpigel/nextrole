@@ -10,6 +10,12 @@ export interface ExperienceItem {
   highlights: string[];
 }
 
+// A degree or a service record: where, and what was earned or done there.
+export interface CredentialItem {
+  institution: string;
+  detail: string;
+}
+
 // One named skill group, e.g. { category: "Infrastructure", items: ["Kubernetes", "Docker"] }.
 // Category names are real, not a fixed set — same shape ResumePack's highlightedSkills uses.
 export interface SkillGroup {
@@ -41,10 +47,11 @@ export interface StructuredProfile {
   domains: string[];
   experience: ExperienceItem[];
   skills: SkillGroup[];
-  // One entry per degree/certification, e.g. "B.Sc. Computer Science, Open University, 2015".
-  education: string[];
-  // One entry per stated military/national service role, e.g. "Team Lead, 8200, 2010-2013".
-  militaryService: string[];
+  // One entry per degree/certification. Institution is kept apart from the detail
+  // so the résumé PDF can set it as a label beside what was earned there.
+  education: CredentialItem[];
+  // One entry per stated military/national service role, same shape.
+  militaryService: CredentialItem[];
   // One entry per personal/side project. Links are never auto-extracted from an
   // uploaded résumé (a PDF hyperlink's target isn't visible text) — always empty
   // until added manually in Settings.
@@ -74,8 +81,8 @@ export interface NormalizedProfile {
   domains: string[];
   experience: ExperienceItem[];
   skills: SkillGroup[];
-  education: string[];
-  militaryService: string[];
+  education: CredentialItem[];
+  militaryService: CredentialItem[];
   sideProjects: SideProjectItem[];
   spokenLanguages: string[];
 }

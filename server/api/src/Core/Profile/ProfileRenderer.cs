@@ -66,8 +66,8 @@ public static class ProfileRenderer
             sb.AppendLine("</experience>");
         }
 
-        AppendList(sb, "education", p.Education);
-        AppendList(sb, "military_service", p.MilitaryService);
+        AppendCredentials(sb, "education", p.Education);
+        AppendCredentials(sb, "military_service", p.MilitaryService);
         AppendSideProjects(sb, p.SideProjects);
         AppendList(sb, "spoken_languages", p.SpokenLanguages);
 
@@ -97,6 +97,22 @@ public static class ProfileRenderer
             sb.AppendLine($"- {line}");
         }
         sb.AppendLine("</side_projects>");
+    }
+
+    // Rendered as "institution — detail" so the prompt text still reads as one
+    // line per credential, whichever half the profile actually filled in.
+    private static void AppendCredentials(StringBuilder sb, string tag, CredentialItem[]? items)
+    {
+        var clean = (items ?? [])
+            .Select(i => string.Join(" — ", new[] { i.Institution?.Trim(), i.Detail?.Trim() }
+                .Where(s => !string.IsNullOrWhiteSpace(s))))
+            .Where(s => s.Length > 0)
+            .ToList();
+        if (clean.Count == 0) return;
+        sb.AppendLine();
+        sb.AppendLine($"<{tag}>");
+        foreach (var i in clean) sb.AppendLine($"- {i}");
+        sb.AppendLine($"</{tag}>");
     }
 
     private static void AppendList(StringBuilder sb, string tag, string[]? items)

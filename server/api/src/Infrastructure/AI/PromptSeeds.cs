@@ -149,8 +149,8 @@ The candidate's free text is provided in the user message inside <candidate_text
   "skills": [
     { "category": "string", "items": ["string"] }
   ],
-  "education": ["string"],
-  "militaryService": ["string"],
+  "education": [{ "institution": "string", "detail": "string" }],
+  "militaryService": [{ "institution": "string", "detail": "string" }],
   "sideProjects": [
     { "name": "string", "description": "string", "links": ["string"] }
   ],
@@ -166,12 +166,14 @@ The candidate's free text is provided in the user message inside <candidate_text
   versa. `linkedIn` is the profile URL only (e.g. "linkedin.com/in/name"), not any other social link.
 - `seniority`: as stated or clearly implied by years (e.g. "Senior", "10+ years"), else null.
 - `domains`: industries / problem areas the candidate has worked in (e.g. "fintech", "defense"), if stated.
-- `education`: one entry per stated degree/diploma/certification, in the form
-  "<degree>, <institution>, <years>" with whichever parts the text provides
-  (e.g. "B.Sc. Computer Science, Open University, 2015"). Empty array if none stated.
-- `militaryService`: one entry per stated military/national service role, in the form
-  "<role/rank>, <unit/branch>, <years>" with whichever parts the text provides. Empty array if
-  none stated — do not infer service from location or age.
+- `education`: one entry per stated degree/diploma/certification. `institution` is the school or
+  awarding body as written (e.g. "Open University"); `detail` is the qualification and any years
+  (e.g. "B.Sc. Computer Science · 2015"). Put each half where it belongs — never repeat the
+  institution inside `detail`. Leave a half empty when the text does not state it. Empty array if
+  none stated.
+- `militaryService`: one entry per stated military/national service role. `institution` is the
+  unit/branch (e.g. "IDF, 8200"); `detail` is the role/rank and any years. Empty array if none
+  stated — do not infer service from location or age.
 - `sideProjects`: one entry per personal/side project mentioned outside of paid roles (not already
   captured in `experience`). `name` and `description` from the stated text. `links` is always an empty
   array — a PDF hyperlink's target isn't visible text, so never fabricate one here; the user adds links

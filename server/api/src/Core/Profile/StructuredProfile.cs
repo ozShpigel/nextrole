@@ -26,10 +26,10 @@ public sealed record StructuredProfile
     public string[] Domains { get; init; } = [];
     public ExperienceItem[] Experience { get; init; } = [];
     public SkillGroup[] Skills { get; init; } = [];
-    // One entry per degree/certification, e.g. "B.Sc. Computer Science, Open University, 2015".
-    public string[] Education { get; init; } = [];
-    // One entry per stated military/national service role, e.g. "Team Lead, 8200, 2010-2013".
-    public string[] MilitaryService { get; init; } = [];
+    // One entry per degree/certification.
+    public CredentialItem[] Education { get; init; } = [];
+    // One entry per stated military/national service role.
+    public CredentialItem[] MilitaryService { get; init; } = [];
     // One entry per personal/side project. Links are never auto-extracted from an
     // uploaded résumé (a PDF's clickable "Live demo"/"Code" labels carry a hyperlink
     // annotation, not visible URL text — nothing for text/vision-based extraction to
@@ -44,6 +44,17 @@ public sealed record StructuredProfile
     // enforced via hardBlockers, same as the other hard filters. Never auto-generated.
     public string[] RedFlags { get; init; } = [];
     public string RawExperienceText { get; init; } = "";
+}
+
+// A degree or a service record: where it was earned and what it was. Kept as two
+// fields rather than one sentence so the résumé PDF can set the institution as a
+// label beside its detail instead of parsing it back out of free text — the
+// institution sits mid-string in prose ("B.Sc. Computer Science, HIT Holon, 2012")
+// and often contains its own comma, so it can't be recovered by splitting.
+public sealed record CredentialItem
+{
+    public string Institution { get; init; } = "";
+    public string Detail { get; init; } = "";
 }
 
 public sealed record ExperienceItem
@@ -83,8 +94,8 @@ public sealed record NormalizedProfile
     public string[] Domains { get; init; } = [];
     public ExperienceItem[] Experience { get; init; } = [];
     public SkillGroup[] Skills { get; init; } = [];
-    public string[] Education { get; init; } = [];
-    public string[] MilitaryService { get; init; } = [];
+    public CredentialItem[] Education { get; init; } = [];
+    public CredentialItem[] MilitaryService { get; init; } = [];
     public SideProjectItem[] SideProjects { get; init; } = [];
     public string[] SpokenLanguages { get; init; } = [];
 }

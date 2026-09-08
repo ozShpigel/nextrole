@@ -12,6 +12,7 @@ using MongoDB.Driver;
 using QuestPDF.Infrastructure;
 
 QuestPDF.Settings.License = LicenseType.Community;
+ResumeFonts.Register();
 
 // Seeds a database with fictional demo data: the sample persona profile + a
 // handful of fictional tracked applications across varied statuses. Idempotent

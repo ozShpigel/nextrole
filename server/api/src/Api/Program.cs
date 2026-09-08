@@ -4,12 +4,14 @@ using System.Text.Json.Serialization;
 using ApplicationTracker.Api.Endpoints;
 using ApplicationTracker.Api.Extensions;
 using ApplicationTracker.Core.Models;
+using ApplicationTracker.Infrastructure.Pdf;
 using ApplicationTracker.Infrastructure.Repositories;
 using MongoDB.Driver;
 using Scalar.AspNetCore;
 using QuestPDF.Infrastructure;
 
 QuestPDF.Settings.License = LicenseType.Community;
+ResumeFonts.Register();
 
 var builder = WebApplication.CreateBuilder(args);
 

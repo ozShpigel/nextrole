@@ -603,6 +603,14 @@ Light rephrasing allowed under the rephrasing rule above. Pass through every
 link exactly as it appears in the profile; never drop one. Order links so a
 working product comes before source code.
 
+Write each project's content as `highlights`: two to four separate points,
+one per element, each naming something the project does or is built with.
+Split on what the profile already states as distinct facts — never invent a
+point to reach a count, and never split one fact into two to pad the list. A
+project the profile describes in a single clause returns a single highlight.
+The hard rule applies unchanged: nothing may appear that is not in the
+profile.
+
 Education, military or national service, and spoken languages are NOT part
 of your output. They render verbatim from the profile elsewhere.
 
@@ -614,6 +622,21 @@ from, quoted exactly, character for character. Do not paraphrase the
 source; if you cannot quote it, the content is not allowed in the output.
 
 Highlights passed through unchanged do not need a row.
+
+# TASK 6 - targetTitle
+
+The role title this resume positions the candidate for. It renders directly
+under the candidate's name, so it must be the same title that opens the
+summary's first sentence — a header that disagrees with the summary reads as
+a document assembled from two different resumes.
+
+The decision is already made in TASK 1: the two tests under **Role identity**
+govern this field exactly as they govern the summary. Borrow the posting's
+title only when both the family test and the level test pass; otherwise use
+the profile's own title, unchanged.
+
+A title only. No years, no company name, no seniority the summary does not
+itself use, no parenthetical, no sentence.
 
 # OUTPUT
 
@@ -628,6 +651,7 @@ Return JSON only, no markdown, in this exact shape:
 ```
 {
   "tailoredSummary": "...",
+  "targetTitle": "...",
   "experience": [
     { "company": "...", "title": "...", "dates": "...", "highlights": ["..."] }
   ],
@@ -635,7 +659,7 @@ Return JSON only, no markdown, in this exact shape:
     { "category": "...", "items": ["..."] }
   ],
   "sideProjects": [
-    { "name": "...", "description": "...", "links": ["..."] }
+    { "name": "...", "highlights": ["..."], "links": ["..."] }
   ],
   "provenance": [
     { "output": "...", "source": "..." }
@@ -648,6 +672,7 @@ Return JSON only, no markdown, in this exact shape:
 - Is the summary at or under 60 words?
 - Does the summary's opening title pass both the family test and the level
   test? If not, revert to the profile's own title.
+- Is targetTitle the same title that opens the summary?
 - Does any claim in the summary lack support elsewhere in the output?
 - Is any figure computed rather than quoted from the profile?
 - Does every responsibility verb match the profile's own verb?

@@ -8,9 +8,62 @@ namespace ApplicationTracker.Infrastructure.Pdf;
 
 public sealed class QuestPdfResumeRenderer : IResumePdfRenderer
 {
-    // Deeper, more muted navy than QuestPDF's Colors.Blue.Darken4 (#0D47A1) — matched
-    // from the reference template's section headers.
-    private static readonly Color HeaderColor = Color.FromHex("#1F3D7A");
+    // Near-black rather than #000: pure black on white is what made the page read
+    // heavy. Everything that isn't a muted grey, a date, or the name inherits this
+    // — including the bold company names, role titles, and category labels, which
+    // carry their emphasis through weight rather than through extra darkness.
+    private static readonly Color BodyColor = Color.FromHex("#2A2A2A");
+
+    // The name is the one element allowed to sit darker than body text.
+    private static readonly Color NameColor = Color.FromHex("#111111");
+
+    // Fraction of font size (QuestPDF's LetterSpacing is a multiplier, not points).
+    // Ceiling here is set by text extraction, not by taste: past roughly 0.08 in
+    // Source Sans 3 the inter-glyph gap grows wider than the extractor's
+    // space-insertion threshold and headers come out of the text layer as
+    // "E D U C AT I O N" — which costs an ATS the very anchors it segments a
+    // résumé by. Retuned from 0.12 when the family changed from Lato; a font with
+    // different advance widths needs this re-checked against the extracted text.
+    private const float HeaderLetterSpacing = 0.06f;
+
+    // The title under the name is set smaller and tracked wider than a section
+    // header — it reads as a caption to the name rather than as a heading. Same
+    // extraction ceiling applies, so this value is tested against pdftotext too.
+    private const float TitleFontSize = 8f;
+    private const float TitleLetterSpacing = 0.18f;
+
+    // Type scale. Body is the inherited default; everything that must not follow it
+    // when it moves carries its size explicitly.
+    private const float BodyFontSize = 10f;
+    private const float NameFontSize = 24f;
+    private const float SectionHeaderFontSize = 10.5f;
+    // Company and entry dates — held a half point under body so an entry's
+    // metadata sits below its prose.
+    private const float EntryFontSize = 9.5f;
+    // The role title is the line a reader scans an entry for, so it sits above body
+    // size rather than below it — the only thing in an entry that does.
+    private const float RoleTitleFontSize = 10.5f;
+    private const float ContactFontSize = 9.5f;
+    // Looser than body leading: four short right-aligned lines stacked tight read
+    // as a block of noise, and the extra air is what makes them legible.
+    private const float ContactLineHeight = 1.55f;
+    private const float LinkFontSize = 8f;
+
+    // Bullet dot, drawn rather than typed. As a "•" glyph it landed in the text
+    // layer and every extracted highlight began with a stray bullet character.
+    private const float BulletDiameter = 3.75f;
+
+    // Left column of the skills grid. Narrow enough that a long category wraps
+    // onto a second line rather than squeezing the values into a thin strip.
+    private const float SkillLabelColumnWidth = 125f;
+
+    // Left gutter holding each experience entry's dates, start year over end year,
+    // so every entry's dates land on one vertical scan line.
+    private const float DateColumnWidth = 52f;
+
+    // Right column of the header band. Fits the longest contact line (an email)
+    // at ContactFontSize without wrapping; the name column takes whatever is left.
+    private const float ContactColumnWidth = 170f;
 
     public byte[] Render(ResumePack pack, StructuredProfile profile)
     {
@@ -20,7 +73,7 @@ public sealed class QuestPdfResumeRenderer : IResumePdfRenderer
             {
                 page.Size(PageSizes.A4);
                 page.Margin(2, Unit.Centimetre);
-                page.DefaultTextStyle(x => x.FontSize(10).FontFamily(Fonts.Arial));
+                page.DefaultTextStyle(x => x.FontSize(BodyFontSize).FontFamily(ResumeFonts.SansFamilyName).LineHeight(1.4f).FontColor(BodyColor));
 
                 page.Content().Column(column =>
                 {
@@ -28,144 +81,119 @@ public sealed class QuestPdfResumeRenderer : IResumePdfRenderer
 
                     column.Item().Column(header =>
                     {
-                        var name = string.IsNullOrWhiteSpace(profile.FullName) ? "Candidate" : profile.FullName.ToUpperInvariant();
-                        header.Item().AlignCenter().Text(name).FontSize(20).Bold();
-
-                        var contactParts = new[] { profile.Location, profile.Email, profile.Phone }
-                            .Where(p => !string.IsNullOrWhiteSpace(p))
-                            .ToList();
-                        var hasLinkedIn = !string.IsNullOrWhiteSpace(profile.LinkedIn);
-                        if (contactParts.Count > 0 || hasLinkedIn)
+                        // Two-column band: identity on the left, contact stack on the
+                        // right, rule underneath. Left column is Relative so a long name
+                        // takes the slack rather than colliding with the contact block.
+                        header.Item().Row(band =>
                         {
-                            header.Item().AlignCenter().Text(text =>
+                            band.RelativeItem().Column(identity =>
                             {
-                                var isFirst = true;
-                                foreach (var part in contactParts)
+                                // Set in the serif at its natural case and regular weight — the
+                                // display face carries the name on its own; uppercasing and
+                                // bolding it on top made the header the heaviest thing on the
+                                // page. Size compensates for the smaller apparent scale of
+                                // mixed case against the letterspaced title beneath it.
+                                var name = string.IsNullOrWhiteSpace(profile.FullName) ? "Candidate" : profile.FullName.Trim();
+                                identity.Item().Text(name)
+                                    .FontFamily(ResumeFonts.SerifFamilyName).FontSize(NameFontSize).FontColor(NameColor);
+
+                                // Professional title: the role this pack was tailored toward, so
+                                // the header agrees with the summary's opening title. Packs stored
+                                // before TargetTitle existed fall back to the most recent employer
+                                // title (Experience is reverse-chronological, so index 0 is most
+                                // recent). Small caps, letterspaced, lighter weight than the name.
+                                var titleLine = string.IsNullOrWhiteSpace(pack.TargetTitle)
+                                    ? pack.Experience.FirstOrDefault()?.Title
+                                    : pack.TargetTitle;
+                                if (!string.IsNullOrWhiteSpace(titleLine))
                                 {
-                                    if (!isFirst)
-                                        text.Span(" | ").FontSize(9).FontColor(Colors.Grey.Darken1);
-                                    text.Span(part!).FontSize(9).FontColor(Colors.Grey.Darken1);
-                                    isFirst = false;
-                                }
-                                if (hasLinkedIn)
-                                {
-                                    if (!isFirst)
-                                        text.Span(" | ").FontSize(9).FontColor(Colors.Grey.Darken1);
-                                    text.Hyperlink("LinkedIn", NormalizeUrl(profile.LinkedIn!)).FontSize(9).FontColor(HeaderColor).Underline();
+                                    identity.Item().PaddingTop(1).Text(titleLine.Trim().ToUpperInvariant())
+                                        .FontSize(TitleFontSize).LetterSpacing(TitleLetterSpacing).FontColor(Colors.Grey.Darken1);
                                 }
                             });
-                        }
+
+                            band.ConstantItem(ContactColumnWidth).Column(contact =>
+                            {
+                                foreach (var part in new[] { profile.Location, profile.Phone, profile.Email }
+                                             .Where(p => !string.IsNullOrWhiteSpace(p)))
+                                {
+                                    contact.Item().AlignRight().Text(part!).FontSize(ContactFontSize).LineHeight(ContactLineHeight).FontColor(Colors.Grey.Darken1);
+                                }
+
+                                if (!string.IsNullOrWhiteSpace(profile.LinkedIn))
+                                {
+                                    contact.Item().AlignRight().Text(text =>
+                                        text.Hyperlink(DisplayUrl(profile.LinkedIn!), NormalizeUrl(profile.LinkedIn!))
+                                            .FontSize(ContactFontSize).LineHeight(ContactLineHeight).FontColor(Colors.Grey.Darken1));
+                                }
+                            });
+                        });
+
+                        // Hairline, not a bar: at 1pt in grey the rule read as the heaviest
+                        // mark on the page. Thinner and darker keeps it crisp while letting
+                        // the name stay the strongest element.
+                        header.Item().PaddingTop(6).LineHorizontal(0.75f).LineColor(BodyColor);
                     });
 
+                    // No "SUMMARY" heading: the opening paragraph sits immediately under
+                    // the header band, where it reads as the summary without being
+                    // labelled one.
                     if (!string.IsNullOrWhiteSpace(pack.TailoredSummary))
-                    {
-                        column.Item().Column(section =>
-                        {
-                            section.Item().Text("SUMMARY").FontSize(11).Bold().FontColor(HeaderColor);
-                            section.Item().PaddingBottom(2).LineHorizontal(0.5f).LineColor(Colors.Grey.Lighten2);
-                            section.Item().Text(pack.TailoredSummary);
-                        });
-                    }
+                        column.Item().Text(pack.TailoredSummary);
 
                     if (pack.Experience.Count > 0)
                     {
                         column.Item().Column(section =>
                         {
-                            section.Item().Text("EXPERIENCE").FontSize(11).Bold().FontColor(HeaderColor);
-                            section.Item().PaddingBottom(2).LineHorizontal(0.5f).LineColor(Colors.Grey.Lighten2);
+                            SectionHeader(section, "EXPERIENCE");
 
                             foreach (var role in pack.Experience)
                             {
                                 // PreventPageBreak: an entry split across a page boundary (company/dates
                                 // on one page, its highlights orphaned onto the next) reads as broken —
                                 // keep each entry atomic even at the cost of an earlier page break.
-                                section.Item().PaddingTop(6).PreventPageBreak().Column(entry =>
+                                //
+                                // Dates sit in a left gutter, start year over end year. Known
+                                // cost, accepted deliberately: pdftotext's reading-order mode
+                                // walks the two columns separately, so a raw extract reads
+                                // "2023 / Payoneer / 2026 / Platform Developer" — the end year
+                                // lands between the company and the title. QuestPDF writes no
+                                // tagged reading order, so an extractor has only glyph
+                                // positions, and a 2-line gutter beside a taller block shares
+                                // no line positions with it. Layout-aware extraction is fine.
+                                section.Item().PaddingTop(6).PreventPageBreak().Row(entry =>
                                 {
-                                    entry.Item().Row(row =>
+                                    entry.ConstantItem(DateColumnWidth).Column(dates =>
                                     {
-                                        row.RelativeItem().Text(role.Company).Bold();
-                                        if (!string.IsNullOrWhiteSpace(role.Dates))
-                                            row.ConstantItem(100).AlignRight().Text(role.Dates).FontColor(Colors.Grey.Darken1);
+                                        var (start, end) = SplitDateRange(role.Dates);
+                                        if (!string.IsNullOrWhiteSpace(start))
+                                            dates.Item().Text(start).FontSize(EntryFontSize).FontColor(Colors.Grey.Darken1);
+                                        if (!string.IsNullOrWhiteSpace(end))
+                                            dates.Item().Text(end).FontSize(EntryFontSize).FontColor(Colors.Grey.Darken1);
                                     });
-                                    if (!string.IsNullOrWhiteSpace(role.Title))
-                                        entry.Item().Text(role.Title).Italic();
 
-                                    foreach (var highlight in role.Highlights)
+                                    entry.RelativeItem().Column(content =>
                                     {
-                                        entry.Item().PaddingLeft(10).Row(row =>
+                                        // Role first, company beneath it: the title is what a
+                                        // reader scans for, so it takes the bold line and the
+                                        // employer sits under it in muted grey. Emphasis follows
+                                        // the position, not the field.
+                                        if (!string.IsNullOrWhiteSpace(role.Title))
+                                            content.Item().Text(role.Title).FontSize(RoleTitleFontSize).Bold();
+                                        content.Item().Text(role.Company).FontSize(EntryFontSize).FontColor(Colors.Grey.Darken1);
+
+                                        // Bullet glyph, not bare indentation: without a marker the
+                                        // highlights read as flush paragraphs hanging off the company
+                                        // line and the entry loses its hierarchy.
+                                        // No left inset: the dot starts at the content column's
+                                        // edge, so it lines up with the first letter of the role
+                                        // title and company above it.
+                                        foreach (var highlight in role.Highlights)
                                         {
-                                            row.ConstantItem(10).Text("•");
-                                            row.RelativeItem().Text(highlight);
-                                        });
-                                    }
-                                });
-                            }
-                        });
-                    }
-
-                    var skillGroups = CleanSkillGroups(pack.HighlightedSkills);
-                    if (skillGroups.Count > 0)
-                    {
-                        column.Item().Column(section =>
-                        {
-                            section.Item().Text("SKILLS").FontSize(11).Bold().FontColor(HeaderColor);
-                            section.Item().PaddingBottom(2).LineHorizontal(0.5f).LineColor(Colors.Grey.Lighten2);
-                            foreach (var group in skillGroups)
-                            {
-                                // One line per category ("Category: item, item, item") — the 2-line
-                                // stacked layout (label above, items below) was still twice as tall as
-                                // it needed to be, and with 5-6 categories that's enough extra height to
-                                // push a bottom-of-page split mid-section, reading as a big blank gap in
-                                // a continuous-scroll PDF viewer. A single line per category is both
-                                // more compact and matches the density of the candidate's own résumé.
-                                // PreventPageBreak: keeps a wrapped category's continuation line with it.
-                                section.Item().PaddingTop(2).PreventPageBreak().Text(text =>
-                                {
-                                    text.Span($"{group.Category}: ").Bold().FontColor(Colors.Grey.Darken2);
-                                    text.Span(string.Join(", ", group.Items));
-                                });
-                            }
-                        });
-                    }
-
-                    var education = Clean(profile.Education);
-                    if (education.Count > 0)
-                        RenderBulletSection(column, "EDUCATION", education);
-
-                    var militaryService = Clean(profile.MilitaryService);
-                    if (militaryService.Count > 0)
-                        RenderBulletSection(column, "MILITARY SERVICE", militaryService);
-
-                    var sideProjects = CleanProjects(pack.SideProjects);
-                    if (sideProjects.Count > 0)
-                    {
-                        column.Item().Column(section =>
-                        {
-                            section.Item().Text("SIDE PROJECTS").FontSize(11).Bold().FontColor(HeaderColor);
-                            section.Item().PaddingBottom(2).LineHorizontal(0.5f).LineColor(Colors.Grey.Lighten2);
-                            foreach (var project in sideProjects)
-                            {
-                                section.Item().PaddingTop(4).Row(row =>
-                                {
-                                    row.ConstantItem(10).Text("•");
-                                    row.RelativeItem().Column(col =>
-                                    {
-                                        var line = string.IsNullOrWhiteSpace(project.Description)
-                                            ? project.Name
-                                            : $"{project.Name} — {project.Description}";
-                                        col.Item().Text(line);
-                                        if (project.Links.Count > 0)
-                                        {
-                                            col.Item().Text(text =>
+                                            content.Item().Row(row =>
                                             {
-                                                var usedDemoLabel = false;
-                                                for (var i = 0; i < project.Links.Count; i++)
-                                                {
-                                                    if (i > 0)
-                                                        text.Span("  ·  ").FontSize(8.5f).FontColor(Colors.Grey.Darken1);
-                                                    text.Hyperlink(LinkLabel(project.Links[i], ref usedDemoLabel), NormalizeUrl(project.Links[i]))
-                                                        .FontSize(8.5f).FontColor(HeaderColor).Underline();
-                                                }
+                                                Dot(row.ConstantItem(10));
+                                                row.RelativeItem().Text(highlight);
                                             });
                                         }
                                     });
@@ -174,13 +202,102 @@ public sealed class QuestPdfResumeRenderer : IResumePdfRenderer
                         });
                     }
 
+                    var skillGroups = CleanSkillGroups(pack.HighlightedSkills);
+                    if (skillGroups.Count > 0)
+                    {
+                        // PreventPageBreak on the whole section: the categories are a
+                        // single short list, and splitting it left the header plus two
+                        // categories stranded at the foot of one page.
+                        column.Item().PreventPageBreak().Column(section =>
+                        {
+                            SectionHeader(section, "SKILLS");
+                            // Two-column grid: bold category on the left, values wrapping in
+                            // the rest of the line, no colon. Known extraction cost, chosen
+                            // deliberately — pdftotext's reading-order mode walks each column
+                            // as its own run, so a raw extract emits all six category names
+                            // together and then all six value lists, losing which skills sit
+                            // under which category. Layout-aware extraction reads it correctly.
+                            foreach (var group in skillGroups)
+                            {
+                                section.Item().PaddingTop(3).Row(row =>
+                                {
+                                    row.ConstantItem(SkillLabelColumnWidth).PaddingRight(10)
+                                        .Text(group.Category).Bold();
+                                    row.RelativeItem().Text(string.Join(", ", group.Items));
+                                });
+                            }
+                        });
+                    }
+
+                    var sideProjects = CleanProjects(pack.SideProjects);
+                    if (sideProjects.Count > 0)
+                    {
+                        column.Item().Column(section =>
+                        {
+                            SectionHeader(section, "PROJECTS");
+                            foreach (var project in sideProjects)
+                            {
+                                // Name on its own line, links directly beneath it, then the
+                                // description as a bullet — the same shape as an experience
+                                // entry, so a project reads as a thing with a title rather
+                                // than as one long bulleted sentence.
+                                section.Item().PaddingTop(4).PreventPageBreak().Column(entry =>
+                                {
+                                    // A notch under body size: bold at full body size made the
+                                    // project name the heaviest line on the page, ahead of the
+                                    // role titles it sits below.
+                                    if (!string.IsNullOrWhiteSpace(project.Name))
+                                        entry.Item().Text(project.Name).FontSize(EntryFontSize).Bold();
+
+                                    if (project.Links.Count > 0)
+                                    {
+                                        entry.Item().Text(text =>
+                                        {
+                                            var usedDemoLabel = false;
+                                            for (var i = 0; i < project.Links.Count; i++)
+                                            {
+                                                if (i > 0)
+                                                    text.Span("  ·  ").FontSize(LinkFontSize).FontColor(Colors.Grey.Darken1);
+                                                text.Hyperlink(LinkLabel(project.Links[i], ref usedDemoLabel), NormalizeUrl(project.Links[i]))
+                                                    .FontSize(LinkFontSize).FontColor(BodyColor).Underline();
+                                            }
+                                        });
+                                    }
+
+                                    // Highlights render one bullet each. Packs stored before
+                                    // the field existed carry a single Description string
+                                    // instead — shown as one bullet so they still render.
+                                    var points = project.Highlights.Count > 0
+                                        ? project.Highlights
+                                        : string.IsNullOrWhiteSpace(project.Description) ? [] : [project.Description];
+
+                                    foreach (var point in points)
+                                    {
+                                        entry.Item().PaddingTop(2).PaddingLeft(14).Row(row =>
+                                        {
+                                            Dot(row.ConstantItem(10));
+                                            row.RelativeItem().Text(point);
+                                        });
+                                    }
+                                });
+                            }
+                        });
+                    }
+
+                    var education = Clean(profile.Education);
+                    if (education.Count > 0)
+                        RenderInlineSection(column, "EDUCATION", education);
+
+                    var militaryService = Clean(profile.MilitaryService);
+                    if (militaryService.Count > 0)
+                        RenderInlineSection(column, "MILITARY SERVICE", militaryService);
+
                     var spokenLanguages = Clean(profile.SpokenLanguages);
                     if (spokenLanguages.Count > 0)
                     {
                         column.Item().Column(section =>
                         {
-                            section.Item().Text("LANGUAGES").FontSize(11).Bold().FontColor(HeaderColor);
-                            section.Item().PaddingBottom(2).LineHorizontal(0.5f).LineColor(Colors.Grey.Lighten2);
+                            SectionHeader(section, "LANGUAGES");
                             section.Item().Text(string.Join("  ·  ", spokenLanguages));
                         });
                     }
@@ -198,18 +315,65 @@ public sealed class QuestPdfResumeRenderer : IResumePdfRenderer
         return document.GeneratePdf();
     }
 
-    private static void RenderBulletSection(ColumnDescriptor column, string title, List<string> items)
+    // Drawn as vector art rather than set as a "•" character, so the marker never
+    // reaches the text layer — an extractor sees the highlight's own words and
+    // nothing else. PaddingTop is measured, not guessed: it puts the dot's centre on
+    // the first line's x-height midpoint (baseline minus half the x-height), which
+    // is where a typeset bullet sits. Retune it against the real baseline if body
+    // size or leading changes — the glyph bounding box is not the baseline.
+    private static void Dot(IContainer container) => container
+        .PaddingTop(5.7f).Width(BulletDiameter).Height(BulletDiameter)
+        .Svg("<svg viewBox='0 0 4 4' xmlns='http://www.w3.org/2000/svg'>"
+           + "<circle cx='2' cy='2' r='2' fill='#2A2A2A'/></svg>");
+
+    private static void SectionHeader(ColumnDescriptor section, string title)
+    {
+        section.Item().Text(title).FontSize(SectionHeaderFontSize).Bold().LetterSpacing(HeaderLetterSpacing).FontColor(BodyColor);
+        // PaddingBottom is load-bearing for extraction, not just for looks: at 2pt
+        // the first row below sat close enough to the header that pdftotext merged
+        // the two into one line ("EDUCATION B.Sc. Computer Science"), costing the
+        // header its own line in the text layer.
+        section.Item().PaddingBottom(6).LineHorizontal(0.5f).LineColor(Colors.Grey.Lighten2);
+    }
+
+    // Splits "2023–2026" into its two ends so the gutter can stack them. Only
+    // splits on the range separator — the text either side is passed through as
+    // written ("Present", "Jan 2019", a single undashed value), never reformatted.
+    private static (string Start, string? End) SplitDateRange(string? dates)
+    {
+        var trimmed = (dates ?? "").Trim();
+        var separator = trimmed.IndexOfAny(['–', '—', '-']);
+        if (separator < 0) return (trimmed, null);
+
+        var start = trimmed[..separator].Trim();
+        var end = trimmed[(separator + 1)..].Trim();
+        return start.Length == 0 ? (end, null) : (start, end.Length == 0 ? null : end);
+    }
+
+    // Education and military service are stored as one free-text line per entry
+    // ("B.Sc. Computer Science, HIT Holon, 2012"), with no structured split. The
+    // entry renders as a single text flow with its opening segment bolded, so the
+    // degree or role still carries emphasis while the line stays one unit to a
+    // text extractor. Splitting these across two columns broke that: the labels
+    // extracted as one run and the details as another. The string itself is
+    // untouched — the bold simply stops at the first comma, which is kept.
+    private static void RenderInlineSection(ColumnDescriptor column, string title, List<string> items)
     {
         column.Item().Column(section =>
         {
-            section.Item().Text(title).FontSize(11).Bold().FontColor(HeaderColor);
-            section.Item().PaddingBottom(2).LineHorizontal(0.5f).LineColor(Colors.Grey.Lighten2);
+            SectionHeader(section, title);
             foreach (var item in items)
             {
-                section.Item().Row(row =>
+                section.Item().PaddingTop(2).PreventPageBreak().Text(text =>
                 {
-                    row.ConstantItem(10).Text("•");
-                    row.RelativeItem().Text(item);
+                    var comma = item.IndexOf(',');
+                    if (comma <= 0)
+                    {
+                        text.Span(item);
+                        return;
+                    }
+                    text.Span(item[..comma]).Bold();
+                    text.Span(item[comma..]);
                 });
             }
         });
@@ -230,6 +394,22 @@ public sealed class QuestPdfResumeRenderer : IResumePdfRenderer
             return "Live demo";
         }
         return "Link";
+    }
+
+    // The contact block shows the address itself rather than a "LinkedIn" label, so
+    // it reads as one more line of the stack. Scheme and "www." are stripped for
+    // display only — the href still gets the full URL from NormalizeUrl.
+    private static string DisplayUrl(string url)
+    {
+        var text = url.Trim();
+        foreach (var scheme in (string[])["https://", "http://"])
+        {
+            if (text.StartsWith(scheme, StringComparison.OrdinalIgnoreCase))
+                text = text[scheme.Length..];
+        }
+        if (text.StartsWith("www.", StringComparison.OrdinalIgnoreCase))
+            text = text[4..];
+        return text.TrimEnd('/');
     }
 
     // Profile/project links are stored scheme-less (e.g. "linkedin.com/in/name") since
@@ -266,9 +446,10 @@ public sealed class QuestPdfResumeRenderer : IResumePdfRenderer
             .Select(p => p with
             {
                 Name = p.Name?.Trim() ?? "",
+                Highlights = Clean(p.Highlights),
                 Description = p.Description?.Trim() ?? "",
                 Links = Clean(p.Links),
             })
-            .Where(p => p.Name.Length > 0 || p.Description.Length > 0)
+            .Where(p => p.Name.Length > 0 || p.Highlights.Count > 0 || p.Description.Length > 0)
             .ToList();
 }

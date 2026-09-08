@@ -13,6 +13,12 @@ public sealed record ResumePack
     [BsonRepresentation(MongoDB.Bson.BsonType.String)]
     public Guid ApplicationId { get; init; }
     public string TailoredSummary { get; init; } = "";
+    // The role title this pack positions the candidate for — decided by the same
+    // family/level tests that govern the summary's opening title (PromptSeeds.
+    // ResumePack). Rendered under the name so the header doesn't contradict the
+    // summary. Null on packs generated before this field existed; the renderer
+    // falls back to the most recent employer title for those.
+    public string? TargetTitle { get; init; }
     public List<TailoredExperienceItem> Experience { get; init; } = new();
     public List<SkillCategory> HighlightedSkills { get; init; } = new();
     // AI-selected subset of the candidate's StructuredProfile.SideProjects, tailored
@@ -45,6 +51,10 @@ public sealed record SkillCategory
 public sealed record SideProjectItem
 {
     public string Name { get; init; } = "";
+    // What the project did, as separate points — rendered one bullet each, the same
+    // shape as an experience entry. Empty on packs generated before this field
+    // existed; the renderer falls back to Description for those.
+    public List<string> Highlights { get; init; } = new();
     public string Description { get; init; } = "";
     // StructuredProfile.SideProjects is free text, not a structured {name,
     // description, links} record — so this is usually empty; it's only
@@ -78,6 +88,7 @@ public sealed record ValidationViolation
 public sealed record ResumePackSynthesis
 {
     public string TailoredSummary { get; init; } = "";
+    public string? TargetTitle { get; init; }
     public List<TailoredExperienceItem> Experience { get; init; } = new();
     public List<SkillCategory> HighlightedSkills { get; init; } = new();
     public List<SideProjectItem> SideProjects { get; init; } = new();

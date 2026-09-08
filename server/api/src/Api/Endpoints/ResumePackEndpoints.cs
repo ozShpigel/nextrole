@@ -84,6 +84,7 @@ public static class ResumePackEndpoints
                 {
                     ApplicationId = id,
                     TailoredSummary = synthesis.TailoredSummary,
+                    TargetTitle = synthesis.TargetTitle,
                     Experience = synthesis.Experience,
                     HighlightedSkills = synthesis.HighlightedSkills,
                     SideProjects = synthesis.SideProjects,

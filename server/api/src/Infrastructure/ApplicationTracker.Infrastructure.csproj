@@ -5,6 +5,15 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Source Sans 3 + Source Serif 4 (SIL OFL 1.1, licenses alongside the
+         files). Bundled so the résumé PDF renders with the same fonts on
+         Windows dev machines and the Linux Docker image, which has neither.
+         Embedded (not CopyToOutputDirectory) so the bytes travel with the
+         compiled assembly regardless of publish/Docker layout. -->
+    <EmbeddedResource Include="Pdf\Fonts\*.ttf" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- For IHttpContextAccessor (per-caller Anthropic key selection in ClaudeClient) -->
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>

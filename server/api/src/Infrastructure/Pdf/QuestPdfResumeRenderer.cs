@@ -21,6 +21,23 @@ public sealed class QuestPdfResumeRenderer : IResumePdfRenderer
     // short of body text so it stays secondary to the name beside it.
     private static readonly Color ContactColor = Color.FromHex("#4A4A4A");
 
+    // Sign-off at the foot of the document: the lightest text on the page. It
+    // repeats what the header already says, so it only needs to be findable.
+    private static readonly Color SignOffColor = Color.FromHex("#8C8C8C");
+
+    // Project links. Lighter than body text — the underline already marks them as
+    // links, so they don't need weight as well.
+    private static readonly Color LinkColor = Color.FromHex("#4A4A4A");
+
+    // Section rules: mid-grey, and exactly one device pixel wide at 96dpi. Thinner
+    // than 0.75pt the line falls under a pixel and viewers anti-alias it across two
+    // pixel rows or one depending on where its y lands — so identical rules render
+    // visibly different, some crisp and dark, some fat and washed out.
+    private static readonly Color SectionRuleColor = Color.FromHex("#999999");
+    private const float SectionRuleThickness = 0.45f;
+    // Space between the header text and its rule.
+    private const float SectionRuleOffset = 2.25f;
+
     // The title under the name sits between the two: darker than body text, a
     // shade off the name itself, so the pair reads as one unit without the
     // caption competing with the name above it.
@@ -38,13 +55,13 @@ public sealed class QuestPdfResumeRenderer : IResumePdfRenderer
     // The title under the name is set smaller and tracked wider than a section
     // header — it reads as a caption to the name rather than as a heading. Same
     // extraction ceiling applies, so this value is tested against pdftotext too.
-    private const float TitleFontSize = 9f;
+    private const float TitleFontSize = 10f;
     private const float TitleLetterSpacing = 0.18f;
 
     // Type scale. Body is the inherited default; everything that must not follow it
     // when it moves carries its size explicitly.
     private const float BodyFontSize = 10f;
-    private const float NameFontSize = 26f;
+    private const float NameFontSize = 28f;
     private const float SectionHeaderFontSize = 10.5f;
     // Company and entry dates — held a half point under body so an entry's
     // metadata sits below its prose.
@@ -56,7 +73,17 @@ public sealed class QuestPdfResumeRenderer : IResumePdfRenderer
     // Looser than body leading: four short right-aligned lines stacked tight read
     // as a block of noise, and the extra air is what makes them legible.
     private const float ContactLineHeight = 1.55f;
-    private const float LinkFontSize = 8f;
+    private const float LinkFontSize = 8.75f;
+    // Split from LinkFontSize: the sign-off is the quietest line on the page and
+    // wants to shrink while project links want to grow.
+    private const float SignOffFontSize = 8f;
+    // Project names head their entry like a role title heads a job, but sit a
+    // notch above it — a project is the only thing in its section.
+    private const float ProjectNameFontSize = 11f;
+
+    // Bullet column. Sized so the dot.s CENTRE sits 3.9mm from the start of the
+    // text: the column edge to the text, less half the dot .s width.
+    private const float BulletColumnWidth = 11.06f;
 
     // Bullet dot, drawn rather than typed. As a "•" glyph it landed in the text
     // layer and every extracted highlight began with a stray bullet character.
@@ -87,7 +114,17 @@ public sealed class QuestPdfResumeRenderer : IResumePdfRenderer
             container.Page(page =>
             {
                 page.Size(PageSizes.A4);
-                page.Margin(2, Unit.Centimetre);
+                page.MarginLeft(19, Unit.Millimetre);
+                // 1mm tighter than the left, deliberately. The body is ragged-right, so
+                // its lines stop short of the margin and the right reads wider than it
+                // measures; this trims the optical difference. The rule and the
+                // right-aligned contact block do sit 1mm closer to the edge as a result.
+                page.MarginRight(18, Unit.Millimetre);
+                page.MarginBottom(19, Unit.Millimetre);
+                // Trimmed by the contact block's line leading (1.6mm at its size and
+                // line height) so the first line of ink lands at 17mm from the page
+                // edge, not the text box. Re-derive if the contact type changes.
+                page.MarginTop(15.38f, Unit.Millimetre);
                 page.DefaultTextStyle(x => x.FontSize(BodyFontSize).FontFamily(ResumeFonts.SansFamilyName).LineHeight(1.4f).FontColor(BodyColor));
 
                 page.Content().Column(column =>
@@ -122,7 +159,7 @@ public sealed class QuestPdfResumeRenderer : IResumePdfRenderer
                                     : pack.TargetTitle;
                                 if (!string.IsNullOrWhiteSpace(titleLine))
                                 {
-                                    identity.Item().PaddingTop(5).Text(titleLine.Trim().ToUpperInvariant())
+                                    identity.Item().PaddingTop(3.58f).Text(titleLine.Trim().ToUpperInvariant())
                                         .FontSize(TitleFontSize).LetterSpacing(TitleLetterSpacing).FontColor(TitleColor);
                                 }
                             });
@@ -144,10 +181,10 @@ public sealed class QuestPdfResumeRenderer : IResumePdfRenderer
                             });
                         });
 
-                        // Weighted to close the band: darker than body text and thicker than
-                        // the light rules under section headers, so it reads as the edge of
-                        // the masthead rather than as one more divider.
-                        header.Item().PaddingTop(14).LineHorizontal(1.25f).LineColor(NameColor);
+                        // Weighted to close the band: already pure black, so weight is the
+                        // only lever left — thick enough to read as the edge of the masthead
+                        // rather than as one more divider like the section rules below it.
+                        header.Item().PaddingTop(5).LineHorizontal(1f).LineColor(NameColor);
                     });
 
                     // No "SUMMARY" heading: the opening paragraph sits immediately under
@@ -160,7 +197,7 @@ public sealed class QuestPdfResumeRenderer : IResumePdfRenderer
                     {
                         column.Item().Column(section =>
                         {
-                            SectionHeader(section, "EXPERIENCE");
+                            SectionHeader(section, "EXPERIENCE", ruleGap: 0.06f);
 
                             foreach (var role in pack.Experience)
                             {
@@ -207,7 +244,7 @@ public sealed class QuestPdfResumeRenderer : IResumePdfRenderer
                                         {
                                             content.Item().Row(row =>
                                             {
-                                                Dot(row.ConstantItem(10));
+                                                Dot(row.ConstantItem(BulletColumnWidth));
                                                 row.RelativeItem().Text(highlight);
                                             });
                                         }
@@ -249,7 +286,7 @@ public sealed class QuestPdfResumeRenderer : IResumePdfRenderer
                     {
                         column.Item().Column(section =>
                         {
-                            SectionHeader(section, "PROJECTS");
+                            SectionHeader(section, "PROJECTS", ruleGap: 3.64f);
                             foreach (var project in sideProjects)
                             {
                                 // Name on its own line, links directly beneath it, then the
@@ -262,11 +299,11 @@ public sealed class QuestPdfResumeRenderer : IResumePdfRenderer
                                     // its entry the way a role title heads a job, so the two read
                                     // at the same level.
                                     if (!string.IsNullOrWhiteSpace(project.Name))
-                                        entry.Item().Text(project.Name).FontSize(RoleTitleFontSize).Bold();
+                                        entry.Item().Text(project.Name).FontSize(ProjectNameFontSize).Bold();
 
                                     if (project.Links.Count > 0)
                                     {
-                                        entry.Item().Text(text =>
+                                        entry.Item().PaddingBottom(8.48f).Text(text =>
                                         {
                                             var usedDemoLabel = false;
                                             for (var i = 0; i < project.Links.Count; i++)
@@ -274,7 +311,7 @@ public sealed class QuestPdfResumeRenderer : IResumePdfRenderer
                                                 if (i > 0)
                                                     text.Span("  ·  ").FontSize(LinkFontSize).FontColor(Colors.Grey.Darken1);
                                                 text.Hyperlink(LinkLabel(project.Links[i], ref usedDemoLabel), NormalizeUrl(project.Links[i]))
-                                                    .FontSize(LinkFontSize).FontColor(BodyColor).Underline();
+                                                    .FontSize(LinkFontSize).FontColor(LinkColor).Underline();
                                             }
                                         });
                                     }
@@ -290,7 +327,7 @@ public sealed class QuestPdfResumeRenderer : IResumePdfRenderer
                                     {
                                         entry.Item().PaddingTop(2).PaddingLeft(14).Row(row =>
                                         {
-                                            Dot(row.ConstantItem(10));
+                                            Dot(row.ConstantItem(BulletColumnWidth));
                                             row.RelativeItem().Text(point);
                                         });
                                     }
@@ -344,7 +381,7 @@ public sealed class QuestPdfResumeRenderer : IResumePdfRenderer
                         {
                             footer.Item().PaddingBottom(5).LineHorizontal(0.5f).LineColor(Colors.Grey.Lighten2);
                             footer.Item().AlignCenter().Text(string.Join("  ·  ", signOff))
-                                .FontSize(LinkFontSize).FontColor(Colors.Grey.Darken1);
+                                .FontSize(SignOffFontSize).FontColor(SignOffColor);
                         });
                     }
                 });
@@ -357,22 +394,29 @@ public sealed class QuestPdfResumeRenderer : IResumePdfRenderer
     // Drawn as vector art rather than set as a "•" character, so the marker never
     // reaches the text layer — an extractor sees the highlight's own words and
     // nothing else. PaddingTop is measured, not guessed: it puts the dot's centre on
-    // the first line's x-height midpoint (baseline minus half the x-height), which
-    // is where a typeset bullet sits. Retune it against the real baseline if body
+    // the centre of the first line.s capital letter (baseline minus half the cap
+    // height). Highlights open with a capital, so centring on the x-height left the
+    // dot sitting 0.87pt low against the letter beside it. Retune it against the real baseline if body
     // size or leading changes — the glyph bounding box is not the baseline.
     private static void Dot(IContainer container) => container
-        .PaddingTop(5.7f).Width(BulletDiameter).Height(BulletDiameter)
+        .PaddingTop(4.83f).Width(BulletDiameter).Height(BulletDiameter)
         .Svg("<svg viewBox='0 0 4 4' xmlns='http://www.w3.org/2000/svg'>"
            + "<circle cx='2' cy='2' r='2' fill='#2A2A2A'/></svg>");
 
-    private static void SectionHeader(ColumnDescriptor section, string title)
+    // ruleGap is the space under the section rule. It defaults to 6, which is what
+    // keeps a header off its first row in the text layer — below that pdftotext
+    // starts merging the two onto one extracted line. PROJECTS overrides it because
+    // its first row is a bold project name rather than a grid row, and that name
+    // carries its own leading above the glyph.
+    private static void SectionHeader(ColumnDescriptor section, string title, float ruleGap = 6f)
     {
         section.Item().Text(title).FontSize(SectionHeaderFontSize).Bold().LetterSpacing(HeaderLetterSpacing).FontColor(BodyColor);
         // PaddingBottom is load-bearing for extraction, not just for looks: at 2pt
         // the first row below sat close enough to the header that pdftotext merged
         // the two into one line ("EDUCATION B.Sc. Computer Science"), costing the
         // header its own line in the text layer.
-        section.Item().PaddingBottom(6).LineHorizontal(0.5f).LineColor(Colors.Grey.Lighten2);
+        section.Item().PaddingTop(SectionRuleOffset).PaddingBottom(ruleGap)
+            .LineHorizontal(SectionRuleThickness).LineColor(SectionRuleColor);
     }
 
     // Splits "2023–2026" into its two ends so the gutter can stack them. Only

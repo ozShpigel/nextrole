@@ -75,7 +75,12 @@ public static class ServiceExtensions
         services.AddMemoryCache();
         services.AddSingleton<PromptBuilder>();
         services.AddSingleton<IProfileProvider, MongoProfileProvider>();
-        services.AddHttpClient("anthropic", c => c.Timeout = TimeSpan.FromSeconds(300));
+        services.AddTransient<AnthropicThinkingHandler>();
+        // The handler caps adaptive thinking on the claude-*-5 models, which the
+        // SDK cannot express and which otherwise burn the whole max_tokens budget
+        // on thinking and return no text at all — see AnthropicThinkingHandler.
+        services.AddHttpClient("anthropic", c => c.Timeout = TimeSpan.FromSeconds(300))
+            .AddHttpMessageHandler<AnthropicThinkingHandler>();
         // ClaudeClient is a singleton but needs the current request's X-Source
         // header (per-caller API key selection, see ClaudeClient.ResolveClient) —
         // IHttpContextAccessor is the standard way to reach that from a singleton.

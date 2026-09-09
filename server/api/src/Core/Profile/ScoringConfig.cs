@@ -125,6 +125,12 @@ public sealed record ScoringConfig
     // justified Haiku elsewhere doesn't apply, and its output is the résumé text
     // itself. Temperature stays bound here but is dropped at request time — the
     // -5 models reject an explicit temperature (see ClaudeClient).
+    //
+    // appsettings also raises MaxTokens to 16000 for that Sonnet 5 run. On the -5
+    // models the budget is shared with adaptive thinking, so 4096 no longer leaves
+    // room for the pack itself: a capped (effort=low) run of this prompt spends
+    // ~2.2K tokens thinking before ~3.9K of output. AnthropicThinkingHandler keeps
+    // the thinking half bounded; this keeps the total from clipping the JSON.
     public RoleScoringConfig ResumePack { get; init; } = new() { Model = "claude-haiku-4-5-20251001", MaxTokens = 4096, Temperature = 0.3m };
 
     // On-demand Hebrew translation of an already-stored MatchAnalysis JSON

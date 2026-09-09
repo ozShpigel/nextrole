@@ -932,15 +932,22 @@ public sealed class ClaudeClient : IClaudeClient
             // identical across a run — cache it so reads cost ~0.1x of input.
             PromptCaching = PromptCacheType.FineGrained,
         };
-        if (cfg.ThinkingEnabled && cfg.ThinkingBudget > 0 && cfg.MaxTokens > cfg.ThinkingBudget)
+        // The claude-*-5 models take neither of the knobs below. Thinking is
+        // controlled for them by AnthropicThinkingHandler, which stamps
+        // adaptive/effort onto the outgoing request — the SDK's ThinkingParameters
+        // can only emit {"type":"enabled"}, which these models reject with 400
+        // "thinking.type.enabled is not supported for this model". So
+        // ThinkingEnabled/ThinkingBudget are inert here rather than a 400.
+        var isNext5 = cfg.Model is "claude-opus-5" or "claude-sonnet-5";
+        if (!isNext5 && cfg.ThinkingEnabled && cfg.ThinkingBudget > 0 && cfg.MaxTokens > cfg.ThinkingBudget)
         {
             p.Thinking = new ThinkingParameters { BudgetTokens = cfg.ThinkingBudget };
             p.Temperature = 1m;
         }
-        // The newest claude-*-5 models reject an explicit temperature param outright
+        // Those models also reject an explicit temperature param outright
         // (400 "temperature is deprecated for this model") — omit it for those, let
         // the API use its own default.
-        if (cfg.Model is "claude-opus-5" or "claude-sonnet-5")
+        if (isNext5)
         {
             p.Temperature = null;
         }

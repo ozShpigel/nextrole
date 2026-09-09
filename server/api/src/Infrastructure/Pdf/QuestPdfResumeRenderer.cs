@@ -55,7 +55,7 @@ public sealed class QuestPdfResumeRenderer : IResumePdfRenderer
     // The title under the name is set smaller and tracked wider than a section
     // header — it reads as a caption to the name rather than as a heading. Same
     // extraction ceiling applies, so this value is tested against pdftotext too.
-    private const float TitleFontSize = 10f;
+    private const float TitleFontSize = 9f;
     private const float TitleLetterSpacing = 0.18f;
 
     // Type scale. Body is the inherited default; everything that must not follow it

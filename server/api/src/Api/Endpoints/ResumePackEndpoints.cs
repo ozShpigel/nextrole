@@ -69,26 +69,49 @@ public static class ResumePackEndpoints
             try
             {
                 var profileDoc = await profileProvider.GetProfileDocumentAsync(ct);
-                var synthesis = await claude.GenerateResumePackAsync(application, profileDoc.Content, ct);
+                var synthesis = await claude.GenerateResumePackAsync(application, profileDoc.Content, profileDoc.Structured, ct);
 
-                // Fabrication check, while the raw synthesis (Provenance
-                // included) is still around — see ResumePackValidator. Never
-                // blocks; just recorded on the pack and logged for review.
-                var violations = ResumePackValidator.Validate(synthesis, profileDoc.Structured, profileDoc.Content);
-                foreach (var v in violations)
+                // Validate while the raw synthesis (Provenance included) is
+                // still around — see ResumePackValidator. The result carries the
+                // synthesis with repairs already applied (skill items with no
+                // profile counterpart dropped), so persist THAT, not the raw one.
+                var facts = ProfileFacts.From(profileDoc.Structured, DateOnly.FromDateTime(DateTime.UtcNow));
+                var validation = ResumePackValidator.Validate(synthesis, profileDoc.Structured, profileDoc.Content, facts);
+                foreach (var v in validation.Violations)
                     logger.LogWarning(
-                        "Resume pack validation violation for {Company} / {Title}: {Kind} — {Detail}",
-                        application.Company, application.JobTitle, v.Kind, v.Detail);
+                        "Resume pack validation {Severity} for {Company} / {Title}: {Kind} — {Detail}",
+                        v.Blocking ? "BLOCK" : "flag", application.Company, application.JobTitle, v.Kind, v.Detail);
 
+                // A blocking violation is a fabricated fact no server-side edit can
+                // repair (a figure the profile never stated). Refuse the pack rather
+                // than persist it: shipping it flagged is how the earlier defects
+                // reached a PDF. 422 carries the reasons back to the caller.
+                if (validation.HasBlocking)
+                {
+                    var blocking = validation.Violations.Where(v => v.Blocking).ToList();
+                    logger.LogError(
+                        "Resume pack REFUSED for {Company} / {Title}: {Count} blocking violation(s)",
+                        application.Company, application.JobTitle, blocking.Count);
+                    return Results.Problem(
+                        title: "Résumé pack rejected",
+                        detail: "The generated pack contained "
+                            + $"{blocking.Count} unverifiable figure(s) not present in your profile: "
+                            + string.Join("; ", blocking.Select(v => v.Detail)),
+                        statusCode: StatusCodes.Status422UnprocessableEntity);
+                }
+
+                var repaired = validation.Synthesis;
                 var saved = await packRepo.UpsertAsync(new ResumePack
                 {
                     ApplicationId = id,
-                    TailoredSummary = synthesis.TailoredSummary,
-                    TargetTitle = synthesis.TargetTitle,
-                    Experience = synthesis.Experience,
-                    HighlightedSkills = synthesis.HighlightedSkills,
-                    SideProjects = synthesis.SideProjects,
-                    Violations = violations,
+                    RequirementCoverage = repaired.RequirementCoverage,
+                    ConfirmationItems = repaired.ConfirmationItems,
+                    TailoredSummary = repaired.TailoredSummary,
+                    TargetTitle = repaired.TargetTitle,
+                    Experience = repaired.Experience,
+                    HighlightedSkills = repaired.HighlightedSkills,
+                    SideProjects = repaired.SideProjects,
+                    Violations = validation.Violations,
                     GeneratedAt = DateTime.UtcNow,
                 }, ct);
                 return Results.Ok(saved);

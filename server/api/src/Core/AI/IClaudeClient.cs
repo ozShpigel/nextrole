@@ -104,5 +104,5 @@ public interface IClaudeClient
     // Generate Pack: reorders/re-emphasizes the candidate's real profile
     // toward one specific application's job description. Never invents facts
     // — only selects, reorders, and lightly rephrases what's already in profile.
-    Task<ResumePackSynthesis> GenerateResumePackAsync(Application app, string profile, CancellationToken cancellationToken = default);
+    Task<ResumePackSynthesis> GenerateResumePackAsync(Application app, string profile, StructuredProfile structuredProfile, CancellationToken cancellationToken = default);
 }

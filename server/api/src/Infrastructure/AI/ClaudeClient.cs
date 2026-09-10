@@ -786,7 +786,8 @@ public sealed class ClaudeClient : IClaudeClient
     }
 
     public async Task<ResumePackSynthesis> GenerateResumePackAsync(
-        Application app, string profile, CancellationToken cancellationToken = default)
+        Application app, string profile, StructuredProfile structuredProfile,
+        CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Generating resume pack for: {Company} / {Title}", app.Company, app.JobTitle);
 
@@ -797,11 +798,29 @@ public sealed class ClaudeClient : IClaudeClient
         if (!string.IsNullOrWhiteSpace(profile))
             systemBuilder.Append("\n\n# CANDIDATE PROFILE\n").Append(profile.Trim());
 
+        // Figures the résumé may state that aren't written down anywhere in the
+        // profile text — currently only years of experience, computed from the
+        // earliest employment start. The validator accepts these as a legal
+        // source alongside the profile text, so the model has to be told them or
+        // it has no grounded way to say "N years" at all. See ProfileFacts.
+        var facts = ProfileFacts.From(structuredProfile, DateOnly.FromDateTime(DateTime.UtcNow));
+        var factsBlock = facts.ToPromptBlock();
+        if (factsBlock.Length > 0)
+            systemBuilder.Append("\n\n# DERIVED FACTS\n").Append(factsBlock);
+
         var userBuilder = new System.Text.StringBuilder();
         userBuilder.Append("<company>").Append(app.Company).Append("</company>\n");
         userBuilder.Append("<job_title>").Append(app.JobTitle).Append("</job_title>\n");
         if (!string.IsNullOrWhiteSpace(app.JobDescription))
             userBuilder.Append("<job_description>").Append(app.JobDescription).Append("</job_description>\n");
+        // The Evaluator already scored this posting against this profile at ingest,
+        // and its verdict sits on the application — strengths, gaps, per-dimension
+        // breakdown. Without it the pack re-derives the same reading from the raw
+        // posting and can contradict the match score shown beside it. It is our own
+        // model's opinion, not a source of facts: the prompt treats it as a steer
+        // for emphasis only.
+        if (!string.IsNullOrWhiteSpace(app.MatchAnalysis))
+            userBuilder.Append("<match_analysis>").Append(app.MatchAnalysis).Append("</match_analysis>\n");
 
         var (result, _) = await CallClaudeAsync<ResumePackSynthesis>(
             systemBuilder.ToString(), userBuilder.ToString(), _scoring.ResumePack, "resume-pack", cancellationToken);

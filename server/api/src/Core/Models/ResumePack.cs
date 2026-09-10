@@ -12,6 +12,11 @@ public sealed record ResumePack
     [BsonId]
     [BsonRepresentation(MongoDB.Bson.BsonType.String)]
     public Guid ApplicationId { get; init; }
+    // How this posting's stated requirements fared against the profile, and the
+    // focused questions worth answering to close the evidence gaps. Advisory
+    // output for the candidate — deliberately NOT rendered into the PDF.
+    public List<RequirementCoverage> RequirementCoverage { get; init; } = new();
+    public List<string> ConfirmationItems { get; init; } = new();
     public string TailoredSummary { get; init; } = "";
     // The role title this pack positions the candidate for — decided by the same
     // family/level tests that govern the summary's opening title (PromptSeeds.
@@ -73,20 +78,64 @@ public sealed record ProvenanceRow
     public string Source { get; init; } = "";
 }
 
-// One flagged fabrication signal from ResumePackValidator — e.g. a provenance
-// Source that doesn't appear verbatim in the profile, or a skill/experience
-// entry not found in the candidate's actual profile data. Kind is a short
-// machine-readable code (see ResumePackValidator); Detail is human-readable.
+// One flagged signal from ResumePackValidator. Kind is a short machine-readable
+// code (see ResumePackValidator); Detail is human-readable.
+//
+// Blocking separates the two things the validator now does. A blocking violation
+// cannot be repaired and must not ship — a figure the profile never stated is a
+// fabricated fact, and no server-side edit can make it true, so the pack is
+// refused rather than persisted. Everything else is advisory: recorded on the
+// pack and logged, generation proceeds. Repairs (a skill item dropped for having
+// no profile counterpart) are recorded here too, as non-blocking, so an edit the
+// server made to the model's output is visible rather than silent.
 public sealed record ValidationViolation
 {
     public string Kind { get; init; } = "";
     public string Detail { get; init; } = "";
+    public bool Blocking { get; init; }
+}
+
+// One requirement stated by the posting, and how the candidate's real profile
+// answers it. Two independent axes, because they drive different responses:
+//
+//   coverage  how well it is met  - confirmed | partial | transferable |
+//                                   requires confirmation | gap
+//   gapType   what to DO about it - none | wording | evidence | capability
+//
+//     wording     the evidence is in the profile and the resume simply failed to
+//                 surface it. Fix it in the resume; generate NO confirmation item.
+//                 This is the dropped-Node.js case: the profile lists Node.js, the
+//                 posting named it, and it vanished from the output anyway.
+//     evidence    the candidate may have it but nothing in the profile proves it.
+//                 Generate one focused confirmation item; keep it out of the resume.
+//     capability  genuinely absent. Say so in the advisory output; never conceal
+//                 it and never write around it.
+public sealed record RequirementCoverage
+{
+    public string Requirement { get; init; } = "";
+    public string Coverage { get; init; } = "";
+    public string GapType { get; init; } = "";
+    // Where in the résumé this requirement is actually met, quoted verbatim from
+    // the pack's own output — checked exactly, the same way Provenance is.
+    //
+    // It exists because the coverage rule BLOCKS, and the two vocabularies do not
+    // agree: TASK 6 has the model reframe the candidate's experience into the
+    // target role's language, while a requirement is quoted in the POSTING's
+    // language. Matching one against the other can only ever be fuzzy, and a
+    // fuzzy rule that refuses packs will eventually refuse a correct one. Having
+    // the model name its own evidence turns the check into string equality.
+    public string Evidence { get; init; } = "";
 }
 
 // Raw Claude output, kept distinct from the persisted document (same split
 // InterviewInsight/InterviewInsightsSynthesis uses).
 public sealed record ResumePackSynthesis
 {
+    // Emitted BEFORE the résumé fields — see PromptSeeds.ResumePack TASK 0. The
+    // model classifies every requirement before it writes any prose, so the
+    // writing is conditioned on the analysis rather than rationalized after it.
+    public List<RequirementCoverage> RequirementCoverage { get; init; } = new();
+    public List<string> ConfirmationItems { get; init; } = new();
     public string TailoredSummary { get; init; } = "";
     public string? TargetTitle { get; init; }
     public List<TailoredExperienceItem> Experience { get; init; } = new();

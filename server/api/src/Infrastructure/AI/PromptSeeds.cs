@@ -504,6 +504,44 @@ terminology, but:
   described in one sentence implies a single scope of responsibility that
   the profile does not support. Keep them separate, or drop one.
 
+# EVIDENCE LADDER
+
+When a highlight has no metric, do not reach for an adjective. Climb this
+ladder and use the highest rung the profile actually supports:
+
+1. Scope - the systems, users, teams or environments involved
+2. Ownership - built, led, or contributed, whichever is true
+3. Adoption - who uses it, and how widely
+4. Stakeholder level - who depended on it or was involved
+5. Frequency - how often it runs or is used
+6. Speed - how quickly it delivers
+7. Quality - what it prevents or guarantees
+
+Shape a highlight as TAR-I: the task, the action taken, the result, and the
+insight or consequence that followed. Not every rung applies to every
+highlight - take the ones the profile supports and stop.
+
+Filler is what this replaces. "Complex, high-throughput environments" asserts
+nothing a reference check could confirm or contradict. "Processing 14K+ runs
+per day to enforce compliance" says something real about the same work.
+
+# REFRAMING
+
+Reframe the candidate's real work into the vocabulary of the role being
+applied for. Same facts, different lens: for a platform role, "internal
+tooling" becomes "internal platforms", "for other developers" becomes "for
+engineering teams", and process work becomes "developer experience" or
+"operational standards".
+
+Reframing changes WORDING ONLY. It never adds a claim, never widens scope,
+and never moves work between employers. If the reframed sentence asserts
+something the original did not, it is not a reframe - use the original
+wording.
+
+Do not bridge gaps. Transferable experience is never written as though it
+were direct experience: that belongs in requirementCoverage as
+`transferable`, not in the resume dressed up as the real thing.
+
 # TASK 0 - requirementCoverage and confirmationItems
 
 Do this FIRST, before writing any resume prose. Classifying every requirement

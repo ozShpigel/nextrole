@@ -25,6 +25,27 @@ namespace ApplicationTracker.Core.Models;
 // TASK 3 forbade them while TASK 6 asked for reframing; TASK 3 was relaxed to
 // match. A future re-measure showing these at zero records a RULE CHANGE, not a
 // quality improvement.
+//
+// KNOWINGLY UNCHECKED — the prompt's EVIDENCE LADDER and REFRAMING sections.
+// Neither has a code check here, and both are therefore prose the model may
+// quietly ignore, exactly as the praise ban was for 53 generations. The only
+// difference is that this is written down instead of discovered later.
+//
+//   EVIDENCE LADDER  whether a highlight climbed to scope rather than settling
+//                    for filler is a semantic judgement. Every mechanical proxy
+//                    is fake: "contains a number or an ownership verb" passes
+//                    "Owned various things" and fails a good scope bullet that
+//                    has neither. Its prohibition half IS checked — reaching for
+//                    an adjective is what UnfalsifiablePraise catches.
+//   REFRAMING        the obvious proxy, keyword overlap between the posting and
+//                    the résumé, was rejected on purpose: it rewards keyword
+//                    stuffing, which is the ATS-gaming the truth policy exists to
+//                    prevent. A check that makes the output worse when it passes
+//                    is worse than no check. Both failure modes are bounded from
+//                    the sides anyway — reframing that DROPS a requirement is
+//                    blocked by ConfirmedRequirementMissingFromResume, and
+//                    reframing that ADDS a claim runs into the figure rule, skill
+//                    traceability and the experience triples.
 public static class ResumePackValidator
 {
     // All comparisons run on normalized text. The output is expected to differ
@@ -161,6 +182,39 @@ public static class ResumePackValidator
         "world-class", "best-in-class", "keeps them reliable",
     ];
 
+    // TASK 2's lowest tier: "Worked in", "Worked with", "Was part of" describe an
+    // environment rather than anything the candidate did, and the prompt says such
+    // a highlight "goes last, always".
+    private static readonly string[] TierFourOpeners = ["worked in", "worked with", "was part of"];
+
+    private static bool IsTierFour(string? highlight)
+    {
+        var normalized = Normalize(highlight);
+        return Array.Exists(TierFourOpeners, o => normalized.StartsWith(o, StringComparison.Ordinal));
+    }
+
+    // Responsibility verbs by rank. The rephrasing rule says a verb of
+    // responsibility is a fact, not style: "contributed" must not become "led",
+    // and downgrading is equally wrong. Rank change in either direction is the
+    // violation; synonyms within a rank ("built" for "developed") are fine, which
+    // is what makes this checkable without judging prose.
+    private static readonly Dictionary<string, int> VerbRank = new(StringComparer.Ordinal)
+    {
+        ["helped"] = 1, ["assisted"] = 1, ["supported"] = 1, ["participated"] = 1,
+        ["contributed"] = 1, ["worked"] = 1, ["involved"] = 1, ["collaborated"] = 1,
+        ["developed"] = 2, ["built"] = 2, ["created"] = 2, ["implemented"] = 2,
+        ["designed"] = 2, ["architected"] = 2, ["delivered"] = 2, ["maintained"] = 2,
+        ["wrote"] = 2, ["automated"] = 2, ["integrated"] = 2, ["migrated"] = 2,
+        ["owned"] = 3, ["led"] = 3, ["drove"] = 3, ["headed"] = 3, ["managed"] = 3,
+        ["spearheaded"] = 3, ["established"] = 3, ["founded"] = 3,
+    };
+
+    private static int? LeadingVerbRank(string text)
+    {
+        var first = Tokenize(Normalize(text)).FirstOrDefault();
+        return first is not null && VerbRank.TryGetValue(first, out var rank) ? rank : null;
+    }
+
     public static ResumePackValidation Validate(
         ResumePackSynthesis synthesis, StructuredProfile profile, string profileText, ProfileFacts? facts = null)
     {
@@ -228,6 +282,38 @@ public static class ResumePackValidator
                 }
             }
             if (kept.Count > 0) repairedSkills.Add(group with { Items = kept });
+        }
+
+        // 2b. REPAIR: a tier-4 highlight must not open an entry. TASK 2 states it
+        // "goes last, always", which makes this a pure reordering — no text
+        // changes, nothing is dropped — so repairing beats flagging. The model's
+        // ordering of everything else is preserved (stable partition).
+        var repairedExperience = new List<TailoredExperienceItem>();
+        foreach (var entry in synthesis.Experience)
+        {
+            var highlights = entry.Highlights ?? [];
+            if (highlights.Count < 2 || !IsTierFour(highlights[0]))
+            {
+                repairedExperience.Add(entry);
+                continue;
+            }
+
+            var reordered = highlights.Where(h => !IsTierFour(h))
+                .Concat(highlights.Where(IsTierFour))
+                .ToList();
+            // All tier-4 means there is nothing better to lead with.
+            if (reordered.SequenceEqual(highlights, StringComparer.Ordinal))
+            {
+                repairedExperience.Add(entry);
+                continue;
+            }
+
+            violations.Add(new ValidationViolation
+            {
+                Kind = "TierFourHighlightMovedLast",
+                Detail = $"company=\"{entry.Company}\" opened with \"{Truncate(highlights[0])}\"",
+            });
+            repairedExperience.Add(entry with { Highlights = reordered });
         }
 
         // 3. Every (company, title, dates) triple must exist in the profile —
@@ -417,6 +503,30 @@ public static class ResumePackValidator
             });
         }
 
+        // 6b. Verb fidelity. "Contributed" becoming "led" is a claim upgrade, the
+        // same defect class as a computed figure — it changes what the candidate
+        // did. Provenance already pairs each rephrased clause with the profile
+        // text it came from, so the two leading verbs can be compared directly.
+        //
+        // Flag, not blocking, for two reasons: provenance is not always present
+        // (unchanged highlights need no row, and the model sometimes merges
+        // sources), so a blocking version would be silent exactly where it matters
+        // and loud where it doesn't; and ranking verbs is a judgement encoded as a
+        // table, which is not the kind of thing that should refuse a résumé.
+        foreach (var row in synthesis.Provenance)
+        {
+            var outputRank = LeadingVerbRank(row.Output ?? "");
+            var sourceRank = LeadingVerbRank(row.Source ?? "");
+            if (outputRank is null || sourceRank is null || outputRank == sourceRank) continue;
+
+            violations.Add(new ValidationViolation
+            {
+                Kind = outputRank > sourceRank ? "ResponsibilityVerbUpgraded" : "ResponsibilityVerbDowngraded",
+                Detail = $"output=\"{Truncate(row.Output ?? "")}\" (rank {outputRank}) from "
+                       + $"source=\"{Truncate(row.Source ?? "")}\" (rank {sourceRank})",
+            });
+        }
+
         // 7. Unfalsifiable praise. Flag only — see PraisePhrases.
         foreach (var (field, text) in OutputText(synthesis))
         {
@@ -435,7 +545,7 @@ public static class ResumePackValidator
 
         return new ResumePackValidation
         {
-            Synthesis = synthesis with { HighlightedSkills = repairedSkills },
+            Synthesis = synthesis with { HighlightedSkills = repairedSkills, Experience = repairedExperience },
             Violations = violations,
         };
     }

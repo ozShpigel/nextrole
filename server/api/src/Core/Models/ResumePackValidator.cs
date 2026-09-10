@@ -366,7 +366,22 @@ public static class ResumePackValidator
             }
         }
 
-        // 5. BLOCKING: a requirement the model itself called "confirmed" must
+        // 5. TEMPORARILY FLAG-ONLY (was BLOCKING). This rule refused correct packs
+        // in production from 2026-09-10 14:19 and is demoted until the two defects
+        // below are fixed and re-verified against the stored-pack corpus:
+        //
+        //   TASK 4 collision. Education, military service and spoken languages are
+        //   explicitly NOT part of the model's output — the renderer prints them
+        //   straight from the profile. So "Degree in Computer Science" is genuinely
+        //   met by the PDF, the model is right to call it confirmed, and it has no
+        //   field it could quote. Every posting asking for a degree hit this.
+        //
+        //   Skill-line citations. The pack reorders and subsets skills toward the
+        //   posting (TASK 3), so a citation of "Kubernetes, Helm, Terraform, ..."
+        //   in the PROFILE's order never matches the model's own line. Quoting a
+        //   multi-item list exactly is brittle by construction.
+        //
+        // BLOCKING: a requirement the model itself called "confirmed" must
         // actually appear in the résumé, and the model must say where. This is the
         // regression test for the dropped-Node.js case — the posting named
         // Node.js, the profile lists it, and the pack shipped without it. Claiming
@@ -400,7 +415,8 @@ public static class ResumePackValidator
                     {
                         Kind = "ConfirmedRequirementMissingFromResume",
                         Detail = $"requirement=\"{row.Requirement}\" marked confirmed but cites no evidence",
-                        Blocking = true,
+                        // TEMPORARILY DEMOTED — see the note at the top of this check.
+                        Blocking = false,
                     });
                 }
                 continue;
@@ -413,7 +429,8 @@ public static class ResumePackValidator
                 Kind = isConfirmed ? "ConfirmedRequirementMissingFromResume" : "CoverageEvidenceNotFound",
                 Detail = $"requirement=\"{row.Requirement}\" cites evidence not present in the résumé: "
                        + $"\"{Truncate(row.Evidence)}\"",
-                Blocking = isConfirmed,
+                // TEMPORARILY DEMOTED — see the note above this check.
+                Blocking = false,
             });
         }
 

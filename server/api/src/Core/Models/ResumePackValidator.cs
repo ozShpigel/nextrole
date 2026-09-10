@@ -331,19 +331,41 @@ public static class ResumePackValidator
             });
         }
 
-        // 5b. A posting that bundles several technologies into one requirement
+        // 5b. A posting that bundles several TECHNOLOGIES into one requirement
         // ("Experience with Kafka, Redis, AWS, Docker, Kubernetes") gets one label
         // for the whole bundle, and that label lands pessimistic: it reads as a
-        // capability gap even when the candidate has most of the list. TASK 0 asks
-        // for one row per technology; this flags the bundles that slip through.
+        // capability gap even when the candidate solidly has most of the list.
+        // TASK 0 asks for one row per technology; this flags what slips through.
+        //
+        // Restricted to technology bundles on purpose. A domain list — "fintech /
+        // payments / SaaS" — looks identical structurally, but splitting it just
+        // produces three rows carrying the same evidence, so flagging it was a bug
+        // in this check rather than a failure by the model.
+        //
+        // The candidate's own skills are the only technology vocabulary available
+        // here, so a bundle qualifies when at least one item is a skill the profile
+        // names. That misses bundles made entirely of technologies the candidate
+        // lacks — but those are uniformly gaps, and splitting them yields identical
+        // rows, which is the same reason domain lists are excluded.
+        var profileSkillNames = profile.Skills
+            .SelectMany(g => g.Items ?? [])
+            .Select(Normalize)
+            .Where(i => i.Length > 0)
+            .ToHashSet(StringComparer.Ordinal);
+
         foreach (var row in synthesis.RequirementCoverage)
         {
-            var segments = Normalize(row.Requirement)
+            var normalizedRequirement = Normalize(row.Requirement);
+            var segments = normalizedRequirement
                 .Split([",", " / "], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
             if (segments.Length < 2) continue;
-            // Two or more single-word segments is what a technology list looks like;
-            // one stray short clause ("Git, CI/CD, and production environments") is not.
+            // Two or more single-word segments is what a list looks like; one stray
+            // short clause ("Git, CI/CD, and production environments") is not.
             if (segments.Count(seg => !seg.Contains(' ')) < 2) continue;
+
+            var namesTechnology = Tokenize(normalizedRequirement).Any(profileSkillNames.Contains)
+                                  || segments.Any(profileSkillNames.Contains);
+            if (!namesTechnology) continue;
 
             violations.Add(new ValidationViolation
             {
@@ -351,6 +373,34 @@ public static class ResumePackValidator
                 Detail = $"requirement=\"{row.Requirement}\" bundles {segments.Length} items under one "
                        + $"{row.Coverage}/{row.GapType} label; split it per technology",
             });
+        }
+
+        // 5c. BLOCKING: the header title and the summary's opening title must be
+        // the same title. TargetTitle renders directly under the candidate's name
+        // while the summary opens with the role identity, and TASK 6 requires them
+        // to agree — a document that says "PLATFORM DEVELOPER" above a summary
+        // opening "Senior Backend Developer" reads as two résumés spliced together.
+        // That exact mismatch shipped to a PDF.
+        //
+        // A plain prefix comparison, because TASK 1 requires the summary to open
+        // with the role title and nothing before it.
+        if (!string.IsNullOrWhiteSpace(synthesis.TargetTitle))
+        {
+            var headerTitle = Normalize(synthesis.TargetTitle);
+            var summaryOpening = Normalize(synthesis.TailoredSummary);
+            if (headerTitle.Length > 0 && summaryOpening.Length > 0
+                && !summaryOpening.StartsWith(headerTitle, StringComparison.Ordinal))
+            {
+                var opening = synthesis.TailoredSummary.Length <= 60
+                    ? synthesis.TailoredSummary
+                    : synthesis.TailoredSummary[..60] + "...";
+                violations.Add(new ValidationViolation
+                {
+                    Kind = "TitleDisagreesWithSummary",
+                    Detail = $"targetTitle=\"{synthesis.TargetTitle}\" but the summary opens \"{opening}\"",
+                    Blocking = true,
+                });
+            }
         }
 
         // 6. Confirmation items exist to close EVIDENCE gaps and nothing else.

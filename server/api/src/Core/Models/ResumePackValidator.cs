@@ -41,11 +41,15 @@ namespace ApplicationTracker.Core.Models;
 //                    the résumé, was rejected on purpose: it rewards keyword
 //                    stuffing, which is the ATS-gaming the truth policy exists to
 //                    prevent. A check that makes the output worse when it passes
-//                    is worse than no check. Both failure modes are bounded from
-//                    the sides anyway — reframing that DROPS a requirement is
-//                    blocked by ConfirmedRequirementMissingFromResume, and
-//                    reframing that ADDS a claim runs into the figure rule, skill
-//                    traceability and the experience triples.
+//                    is worse than no check. Reframing that ADDS a claim still
+//                    runs into the figure rule, skill traceability and the
+//                    experience triples; reframing that DROPS a requirement is
+//                    only FLAGGED, not blocked — see check 5.
+//
+// Only two rules block: a fabricated figure and a header/summary title that
+// disagree. Both are exact comparisons over unambiguous data, and both have
+// caught real defects ("13+ years", and "PLATFORM DEVELOPER" above a summary
+// opening "Senior Backend Developer").
 public static class ResumePackValidator
 {
     // All comparisons run on normalized text. The output is expected to differ
@@ -215,6 +219,113 @@ public static class ResumePackValidator
         return first is not null && VerbRank.TryGetValue(first, out var rank) ? rank : null;
     }
 
+    // The PDF prints more than the model authors. Education, military service,
+    // spoken languages and location render straight from the profile — TASK 4
+    // tells the model explicitly that they are NOT part of its output. They are
+    // still ON the résumé, so a requirement met by them ("Degree in Computer
+    // Science", "Fluent English", "Based in Israel") is genuinely covered while
+    // the model has no field it could possibly quote.
+    //
+    // Defining the résumé body as model output alone made every degree
+    // requirement unsatisfiable, and refused those packs in production.
+    //
+    // Name, email, phone and LinkedIn are excluded: they identify the candidate
+    // rather than evidencing anything a posting asks for.
+    // Each credential is emitted both split and joined. A citation of a degree
+    // arrives as "HIT, Holon - Bachelor of Science (B.Sc.) in Computer Science,
+    // 2012" — the two fields read as one line on the page, so that is how the
+    // model quotes them, and yielding only the parts refused those packs.
+    private static IEnumerable<string> ProfileRenderedSections(StructuredProfile profile)
+    {
+        foreach (var item in profile.Education.Concat(profile.MilitaryService))
+        {
+            yield return item.Institution;
+            yield return item.Detail;
+            yield return $"{item.Institution} - {item.Detail}";
+            yield return $"{item.Institution}, {item.Detail}";
+        }
+        foreach (var language in profile.SpokenLanguages) yield return language;
+        if (!string.IsNullOrWhiteSpace(profile.Location)) yield return profile.Location!;
+    }
+
+    // The skills block as it reads on the page. OutputText yields each item on
+    // its own (so the figure and praise checks see items, not headings), but the
+    // PDF prints "Platform & DevOps: Kubernetes, Helm, Terraform, ..." and the
+    // model cites that whole line, heading included. The category name is the
+    // model's own wording — TASK 3 lets it rename — so this is still its output.
+    private static IEnumerable<string> RenderedSkillLines(ResumePackSynthesis synthesis)
+    {
+        foreach (var group in synthesis.HighlightedSkills)
+        {
+            var items = string.Join(", ", group.Items ?? []);
+            yield return group.Category;
+            yield return $"{group.Category}: {items}";
+        }
+    }
+
+    // Is this citation actually on the résumé?
+    //
+    // Exact containment first. The fallback exists because TASK 3 has the model
+    // reorder and subset skills toward the posting, so a citation of a skills
+    // line — "Kubernetes, Helm, Terraform, Ansible, ..." — is a list whose order
+    // is not stable, and quoting one character for character is brittle by
+    // construction. That refused correct packs in production.
+    //
+    // So a LIST-shaped citation is satisfied when every item in it appears, in
+    // any order. Still exact per item, never fuzzy. Restricted to citations whose
+    // segments are all short: a prose clause that happens to contain a comma
+    // stays an exact match, otherwise "Owned X, built Y" would pass against two
+    // unrelated highlights in different entries.
+    private static bool EvidenceIsOnResume(string resumeBody, string normalizedEvidence)
+    {
+        if (resumeBody.Contains(normalizedEvidence, StringComparison.Ordinal)) return true;
+
+        var items = normalizedEvidence.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (items.Length < 2) return false;
+        if (Array.Exists(items, i => i.Split(' ').Length > 4)) return false;
+
+        return Array.TrueForAll(items, item =>
+            Regex.IsMatch(resumeBody, $@"(?<![a-z0-9]){Regex.Escape(item)}(?![a-z0-9])",
+                RegexOptions.CultureInvariant));
+    }
+
+    // Words a posting uses in nearly every requirement. Excluded when asking
+    // whether a requirement left any trace on the résumé, so that "experience"
+    // matching "experience" cannot satisfy a row trivially.
+    private static readonly HashSet<string> GenericRequirementWords = new(StringComparer.Ordinal)
+    {
+        "the", "and", "or", "of", "in", "with", "for", "to", "on", "at", "as", "by",
+        "from", "our", "you", "your", "their", "who", "that", "this", "are", "is",
+        "be", "have", "has", "will", "can", "must", "should", "able", "ability",
+        "experience", "experienced", "years", "year", "strong", "solid", "proven",
+        "deep", "hands-on", "hands", "knowledge", "understanding", "familiarity",
+        "familiar", "skills", "skill", "working", "work", "build", "building",
+        "develop", "development", "design", "designing", "team", "teams", "role",
+        "plus", "advantage", "required", "requirements", "preferred", "excellent",
+        "good", "great", "high", "quality", "using", "use", "well", "such", "equivalent",
+        "practical", "least", "including", "related", "similar", "etc", "a", "an",
+    };
+
+    // Did this requirement leave ANY trace on the résumé?
+    //
+    // Used ONLY to VETO a refusal, never to cause one — which is what makes a
+    // weak signal safe here. Matching the posting's vocabulary against a résumé
+    // deliberately reframed into the target role's (TASK 6) is approximate, so a
+    // false positive means "don't block", never "block".
+    //
+    // Returns true when it cannot tell (a requirement of nothing but generic
+    // words), because unverifiable must not mean refused.
+    private static bool RequirementLeavesTrace(string requirement, string resumeBody)
+    {
+        var distinctive = Tokenize(Normalize(requirement))
+            .Where(t => t.Length > 2 && !GenericRequirementWords.Contains(t))
+            .ToList();
+        if (distinctive.Count == 0) return true;
+
+        return distinctive.Exists(t =>
+            Regex.IsMatch(resumeBody, $@"(?<![a-z0-9]){Regex.Escape(t)}", RegexOptions.CultureInvariant));
+    }
+
     public static ResumePackValidation Validate(
         ResumePackSynthesis synthesis, StructuredProfile profile, string profileText, ProfileFacts? facts = null)
     {
@@ -366,22 +477,7 @@ public static class ResumePackValidator
             }
         }
 
-        // 5. TEMPORARILY FLAG-ONLY (was BLOCKING). This rule refused correct packs
-        // in production from 2026-09-10 14:19 and is demoted until the two defects
-        // below are fixed and re-verified against the stored-pack corpus:
-        //
-        //   TASK 4 collision. Education, military service and spoken languages are
-        //   explicitly NOT part of the model's output — the renderer prints them
-        //   straight from the profile. So "Degree in Computer Science" is genuinely
-        //   met by the PDF, the model is right to call it confirmed, and it has no
-        //   field it could quote. Every posting asking for a degree hit this.
-        //
-        //   Skill-line citations. The pack reorders and subsets skills toward the
-        //   posting (TASK 3), so a citation of "Kubernetes, Helm, Terraform, ..."
-        //   in the PROFILE's order never matches the model's own line. Quoting a
-        //   multi-item list exactly is brittle by construction.
-        //
-        // BLOCKING: a requirement the model itself called "confirmed" must
+        // 5. BLOCKING: a requirement the model itself called "confirmed" must
         // actually appear in the résumé, and the model must say where. This is the
         // regression test for the dropped-Node.js case — the posting named
         // Node.js, the profile lists it, and the pack shipped without it. Claiming
@@ -395,41 +491,81 @@ public static class ResumePackValidator
         // the target role's (TASK 6), so any match between them is approximate —
         // and an approximate rule that refuses packs will refuse a correct one
         // sooner or later.
+        //
+        // It refused correct packs anyway, and kept doing so after each fix. The
+        // shapes found, in order: the résumé body is more than the model's own
+        // output (education renders from the profile — see ProfileRenderedSections);
+        // a skills line is a list whose order is not stable (EvidenceIsOnResume);
+        // the model cites the profile's skills line rather than its own; it
+        // paraphrases its own summary; it leaves evidence empty.
+        //
+        // Measured over 53 live generations with the veto below in place: 4 packs
+        // refused, ALL FOUR wrong, ZERO genuine omissions caught. The causes were
+        // a 2-character technology name filtered out as too short ("AI"), a
+        // punctuation variant ("NodeJS" against a résumé's "Node.js"), and two
+        // Hebrew-language requirements against an English résumé.
+        //
+        // So this no longer blocks. The premise — that the model reliably quotes
+        // its own output character for character — does not hold, and a rule
+        // resting on it costs correct packs while catching nothing. It stays as a
+        // flag: a dropped requirement is still surfaced for review, which is what
+        // the Node.js case needed in the first place.
         // Joined with ", " rather than " " because that is how the résumé reads:
         // skill items are yielded one per entry, so a model quoting the skills
         // line it wrote cites "Kafka, RabbitMQ, MongoDB, SQL Server". A space
         // join produced "kafka rabbitmq mongodb sql server" and refused four
         // correct rows on the first live run.
-        var resumeBody = Normalize(string.Join(", ", OutputText(synthesis).Select(t => t.Text)));
+        var resumeBody = Normalize(string.Join(", ", OutputText(synthesis).Select(t => t.Text)
+            .Concat(RenderedSkillLines(synthesis))
+            .Concat(ProfileRenderedSections(profile))));
         foreach (var row in synthesis.RequirementCoverage)
         {
             var isConfirmed = string.Equals(Normalize(row.Coverage), "confirmed", StringComparison.Ordinal);
             var evidence = Normalize(row.Evidence);
 
-            if (evidence.Length == 0)
+            if (evidence.Length > 0 && EvidenceIsOnResume(resumeBody, evidence)) continue;
+            if (!isConfirmed)
             {
-                // Only a "confirmed" row owes evidence. A gap has nothing to point at.
-                if (isConfirmed)
+                if (evidence.Length > 0)
                 {
                     violations.Add(new ValidationViolation
                     {
-                        Kind = "ConfirmedRequirementMissingFromResume",
-                        Detail = $"requirement=\"{row.Requirement}\" marked confirmed but cites no evidence",
-                        // TEMPORARILY DEMOTED — see the note at the top of this check.
-                        Blocking = false,
+                        Kind = "CoverageEvidenceNotFound",
+                        Detail = $"requirement=\"{row.Requirement}\" cites evidence not present in the "
+                               + $"résumé: \"{Truncate(row.Evidence)}\"",
                     });
                 }
                 continue;
             }
 
-            if (resumeBody.Contains(evidence, StringComparison.Ordinal)) continue;
+            // The citation did not check out. Refuse ONLY if the requirement also
+            // left no trace of its own on the résumé — that is the thing actually
+            // worth blocking (the posting named Node.js, the profile has it, the
+            // résumé dropped it). A citation that is merely sloppy — quoting the
+            // profile's skills line instead of the pack's, paraphrasing its own
+            // summary, or omitted entirely — is a flag, because the requirement
+            // demonstrably IS on the page. Measured over live generations, every
+            // refusal from the strict version was of this second kind: SQL Server,
+            // the B.Sc. and the .NET experience were all present and cited badly.
+            if (RequirementLeavesTrace(row.Requirement, resumeBody))
+            {
+                violations.Add(new ValidationViolation
+                {
+                    Kind = "ConfirmedRequirementEvidenceUnverified",
+                    Detail = $"requirement=\"{row.Requirement}\" is on the résumé but its citation does "
+                           + $"not match: \"{Truncate(row.Evidence)}\"",
+                });
+                continue;
+            }
 
             violations.Add(new ValidationViolation
             {
-                Kind = isConfirmed ? "ConfirmedRequirementMissingFromResume" : "CoverageEvidenceNotFound",
-                Detail = $"requirement=\"{row.Requirement}\" cites evidence not present in the résumé: "
-                       + $"\"{Truncate(row.Evidence)}\"",
-                // TEMPORARILY DEMOTED — see the note above this check.
+                Kind = "ConfirmedRequirementMissingFromResume",
+                Detail = $"requirement=\"{row.Requirement}\" marked confirmed but neither its citation "
+                       + $"(\"{Truncate(row.Evidence)}\") nor the requirement itself appears in the résumé",
+                // NOT blocking. Measured over 53 live generations: it refused 4
+                // correct packs and caught 0 genuine omissions. See the note above
+                // this check for the three causes.
                 Blocking = false,
             });
         }

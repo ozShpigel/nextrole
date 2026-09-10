@@ -50,6 +50,42 @@ namespace ApplicationTracker.Core.Models;
 // disagree. Both are exact comparisons over unambiguous data, and both have
 // caught real defects ("13+ years", and "PLATFORM DEVELOPER" above a summary
 // opening "Senior Backend Developer").
+//
+// FLAG-TIER BY MEASUREMENT — the requirement-coverage rule (check 5).
+//
+// It looks like it should block. A requirement the model itself marked
+// `confirmed`, missing from the résumé it just wrote, is a self-contradiction,
+// and blocking it was the regression test for the dropped-Node.js bug. It was
+// specified as blocking, shipped as blocking, and refused correct packs in
+// production the same day.
+//
+// Do not re-promote it from that reasoning. It was measured, and the numbers
+// say the premise is wrong. Across 53 real generations (real client, real
+// validator, nothing persisted — the stored packs cannot verify this rule,
+// none of them carry requirementCoverage rows):
+//
+//   339  rows marked `confirmed`
+//    18  cited evidence that did not verify against the pack's own text
+//    13  cited no evidence at all
+//     4  packs refused — every one of them wrongly
+//     0  genuine omissions caught
+//
+// The rule rests on the model quoting its own output character for character,
+// and it does not do that reliably. It cites the profile's skills line instead
+// of the pack's, paraphrases its own summary, or leaves the field empty. Three
+// rounds of fixes each removed one failure shape and uncovered another: the
+// résumé body being more than the model's output, list ordering, a
+// two-character technology name ("AI") filtered as too short, a punctuation
+// variant ("NodeJS" vs "Node.js"), and Hebrew requirements against an English
+// résumé. That last one is structural — a posting's language and a résumé's
+// language need not match, and no matcher fix reaches it.
+//
+// The errors ran one way only: four false refusals, zero true positives. A
+// check that produces only false positives on real data does not need tuning.
+//
+// What the Node.js bug actually needed was VISIBILITY, not refusal — a dropped
+// requirement was invisible, and a flag fixes that. Anyone re-promoting this
+// should first re-run the corpus harness and show true positives.
 public static class ResumePackValidator
 {
     // All comparisons run on normalized text. The output is expected to differ

@@ -147,12 +147,28 @@ async def run_discovery(db: AsyncIOMotorDatabase, settings: Settings, criteria_i
         if not await tracker_client.check_api_reachable(settings):
             raise RuntimeError("API unreachable — aborting run")
 
-        # Title triage: one Haiku call flags clearly off-target titles
-        # (job-board search padding) so they skip embedding. Fails open —
-        # on any error every job is kept.
-        triage = await match_client.triage_titles(
-            settings, ", ".join(criteria.job_titles), jobs
-        ) or {}
+        # Title triage: batched Haiku calls flag clearly off-target titles
+        # (job-board search padding) so they skip scoring. Fails open — on any
+        # error every job is kept. That is the right default for relevance but
+        # the expensive one for cost, so the outcome is recorded on the run:
+        # a silent triage failure is a ~2x ingest bill that looks like a normal
+        # run in jobs_triaged_out alone.
+        search_intent = ", ".join(criteria.job_titles)
+        triage = await match_client.triage_titles(settings, search_intent, jobs) or {}
+        if not jobs or not search_intent:
+            run.triage_status = "skipped"
+        elif not triage:
+            run.triage_status = "failed"
+            run.triage_unresolved = len(jobs)
+        else:
+            run.triage_unresolved = sum(1 for j in jobs if j["id"] not in triage)
+            run.triage_status = "partial" if run.triage_unresolved else "ok"
+        if run.triage_status in ("failed", "partial"):
+            logger.error(
+                "Run %s: title triage %s — %d/%d jobs have no verdict and will be "
+                "scored unfiltered",
+                run.id, run.triage_status, run.triage_unresolved, len(jobs),
+            )
 
         def _is_relevant(idx: int) -> bool:
             t = triage.get(jobs[idx]["id"])
@@ -211,6 +227,22 @@ async def run_discovery(db: AsyncIOMotorDatabase, settings: Settings, criteria_i
         # Keyed by jobId directly (assigned at scrape time) — no index remap
         # needed even though classify_seniority only saw relevant_jobs.
         seniority = await match_client.classify_seniority(settings, relevant_jobs) or {}
+        if not relevant_jobs:
+            run.seniority_status = "skipped"
+        elif not seniority:
+            run.seniority_status = "failed"
+            run.seniority_unresolved = len(relevant_jobs)
+        else:
+            run.seniority_unresolved = sum(
+                1 for j in relevant_jobs if j["id"] not in seniority
+            )
+            run.seniority_status = "partial" if run.seniority_unresolved else "ok"
+        if run.seniority_status in ("failed", "partial"):
+            logger.error(
+                "Run %s: seniority classification %s — %d/%d jobs unlabelled, the "
+                "seniority filter will not exclude them",
+                run.id, run.seniority_status, run.seniority_unresolved, len(relevant_jobs),
+            )
         for i in relevant_indices:
             logger.info("Job classified: runId=%s jobId=%s seniority=%s",
                         run.id, jobs[i]["id"], seniority.get(jobs[i]["id"]))
@@ -353,13 +385,18 @@ async def run_discovery(db: AsyncIOMotorDatabase, settings: Settings, criteria_i
                 "jobs_triaged_out": run.jobs_triaged_out,
                 "jobs_already_known": run.jobs_already_known,
                 "jobs_date_backfilled": run.jobs_date_backfilled,
+                "triage_status": run.triage_status,
+                "triage_unresolved": run.triage_unresolved,
+                "seniority_status": run.seniority_status,
+                "seniority_unresolved": run.seniority_unresolved,
             }},
         )
         logger.info(
             "Run %s completed: %d scraped, %d already known (%d date-backfilled), %d scored, "
-            "%d score-failed, %d duplicates, %d triaged out",
+            "%d score-failed, %d duplicates, %d triaged out (triage=%s, seniority=%s)",
             run.id, run.jobs_scraped, run.jobs_already_known, run.jobs_date_backfilled, run.jobs_scored,
             run.jobs_score_failed, run.jobs_skipped_duplicate, run.jobs_triaged_out,
+            run.triage_status, run.seniority_status,
         )
 
     except Exception as e:

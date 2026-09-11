@@ -27,6 +27,17 @@ class DiscoveryRun(BaseModel):
     searches_empty: int = 0
     jobs_scored: int = 0  # scored via the batched Evaluator path
     jobs_score_failed: int = 0  # batch call failed — job stored unscored
+    # Outcome of the two batched Haiku classification calls — ok | partial |
+    # failed | skipped. Both fail open (a job with no verdict is kept and
+    # scored), which is the safe direction for relevance and the expensive one
+    # for cost. Without these, "nothing was off-target" and "triage never
+    # answered" both read as jobs_triaged_out=0: a truncated triage response
+    # doubled the number of jobs reaching the Evaluator for twelve days and
+    # every run still reported "completed".
+    triage_status: str = "skipped"
+    triage_unresolved: int = 0  # titles sent that came back without a verdict
+    seniority_status: str = "skipped"
+    seniority_unresolved: int = 0
     # Historic — auto-save from the pre-RAG batch-scoring era was retired;
     # kept so pre-migration run rows still render. Not written by the current
     # flow (saving to the Tracker is always an explicit user action).

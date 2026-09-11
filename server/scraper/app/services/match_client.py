@@ -38,14 +38,16 @@ async def triage_titles(
         retry_on_timeout=False,
         json={"searchIntent": search_intent, "titles": titles},
     )
+    # error, not warning: keeping all jobs roughly doubles how many reach the
+    # paid Evaluator, so this is a cost event, not a degraded-quality event.
     if resp is None or resp.status_code != 200:
-        logger.warning("Title triage failed (%s) — keeping all jobs",
-                       resp.status_code if resp is not None else "no response")
+        logger.error("Title triage failed (%s) — keeping all jobs, every one will be scored",
+                     resp.status_code if resp is not None else "no response")
         return None
     try:
         results = (resp.json() or {}).get("results") or []
     except Exception as e:
-        logger.warning("Title triage response unparseable (%s) — keeping all jobs", e)
+        logger.error("Title triage response unparseable (%s) — keeping all jobs, every one will be scored", e)
         return None
     if results and not all(isinstance(r, dict) and r.get("jobId") for r in results):
         raise RuntimeError(

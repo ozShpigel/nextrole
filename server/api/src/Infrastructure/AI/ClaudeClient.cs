@@ -540,77 +540,159 @@ public sealed class ClaudeClient : IClaudeClient
         public string[]? Cues { get; init; }
     }
 
+    // Both batched classification calls below send every item in one request and
+    // correlate the results by jobId, so the response size scales with the batch
+    // — and the endpoints accept up to 200 items. A single MaxTokens is therefore
+    // a guess that a large enough run invalidates, which is exactly what happened:
+    // correlating by jobId grew each result row from {"index":12} to a 36-char
+    // UUID, output blew past MaxTokens=2000 on any run over ~40 titles, and the
+    // callers' fail-open path quietly scored every job for twelve days.
+    // Chunking makes the per-call output budget one number for every run size.
+    //
+    // Measured on Haiku 4.5 against a real 90-title run: 30 titles produced 1512
+    // output tokens (~50/row, dominated by the UUID) and 48 titles truncated at
+    // 2000. Seniority rows are cheaper (no reason string) but share the shape.
+    private const int ClassifyChunkSize = 25;
+    private const int ClassifyChunkMaxTokens = 4000;
+    // Keeps a full 200-item run (8 chunks) inside the scraper's 120s timeout.
+    private const int ClassifyChunkParallelism = 4;
+
+    // A truncated response is not a malformed response, and the two must stop
+    // looking alike. Past MaxTokens the JSON is cut off mid-array, ExtractJson
+    // throws the same JsonException a genuinely bad answer would, and the caller
+    // treats it as "the model had nothing useful to say" — which is how a 2x
+    // ingest bill read as a normal run. Name the cause while it is still knowable.
+    private static void ThrowIfTruncated(MessageResponse response, string label, int itemCount)
+    {
+        if (string.Equals(response.StopReason, "max_tokens", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(
+                $"{label}: hit max_tokens on a {itemCount}-item chunk — the response was truncated mid-JSON, "
+                + "not a model failure. Lower ClassifyChunkSize or raise ClassifyChunkMaxTokens.");
+        }
+    }
+
+    // Runs one batched classification prompt over fixed-size chunks and merges
+    // the results. A chunk that fails is logged and dropped rather than failing
+    // the whole call: every caller reads a missing jobId as "no verdict" and
+    // keeps the job, so one bad chunk costs one chunk's filtering instead of the
+    // run's. The caller records how many verdicts went missing — see the
+    // scraper's triage_status.
+    private async Task<List<TResult>> ClassifyInChunksAsync<TItem, TResponse, TResult>(
+        IReadOnlyList<TItem> items,
+        string systemPrompt,
+        string label,
+        Func<IReadOnlyList<TItem>, string> buildUserMessage,
+        Func<TResponse, List<TResult>> selectResults,
+        CancellationToken cancellationToken) where TResponse : class
+    {
+        var chunks = items.Chunk(ClassifyChunkSize).ToList();
+        var perChunk = new List<TResult>[chunks.Count];
+        using var gate = new SemaphoreSlim(ClassifyChunkParallelism);
+
+        await Task.WhenAll(chunks.Select(async (chunk, index) =>
+        {
+            await gate.WaitAsync(cancellationToken);
+            try
+            {
+                var parameters = new MessageParameters
+                {
+                    System = new List<SystemMessage> { new(systemPrompt) },
+                    Messages = new List<Message> { new(RoleType.User, buildUserMessage(chunk)) },
+                    MaxTokens = ClassifyChunkMaxTokens,
+                    Model = _scoring.Analyst.Model,
+                    Temperature = 0.2m,
+                    Stream = false
+                };
+
+                var response = await ResolveClient().Messages.GetClaudeMessageAsync(parameters, cancellationToken);
+                ThrowIfTruncated(response, label, chunk.Length);
+
+                var content = response.Message?.ToString()?.Trim()
+                    ?? throw new InvalidOperationException($"{label}: empty response from Claude API");
+                var parsed = JsonSerializer.Deserialize<TResponse>(ExtractJson(content, label), CaseInsensitive)
+                    ?? throw new InvalidOperationException($"{label}: could not parse response");
+
+                perChunk[index] = selectResults(parsed);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _logger.LogError(ex,
+                    "{Label}: chunk {Index}/{Total} ({Count} items) failed — those items get no verdict",
+                    label, index + 1, chunks.Count, chunk.Length);
+                perChunk[index] = [];
+            }
+            finally
+            {
+                gate.Release();
+            }
+        }));
+
+        var merged = new List<TResult>(items.Count);
+        foreach (var part in perChunk)
+        {
+            merged.AddRange(part);
+        }
+        return merged;
+    }
+
     public async Task<TitleTriageResponse> TriageTitlesAsync(TitleTriageRequest request, CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Triaging {Count} scraped titles against intent '{Intent}'",
             request.Titles.Count, request.SearchIntent);
 
-        var titlesJson = JsonSerializer.Serialize(
-            request.Titles.Select(t => new { t.JobId, t.Title, t.Company }),
-            new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+        var intent = request.SearchIntent.Trim();
+        var camelCase = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
-        // Titles come from external job boards — untrusted, XML-wrapped as data.
-        var userMessage =
-            $"<search_intent>\n{request.SearchIntent.Trim()}\n</search_intent>\n\n" +
-            $"<scraped_titles>\n{titlesJson}\n</scraped_titles>";
-
-        var parameters = new MessageParameters
-        {
+        var results = await ClassifyInChunksAsync<TitleTriageItem, TitleTriageResponse, TitleTriageResult>(
+            request.Titles,
             // Hardcoded false, not a config lookup — TitleTriage isn't one of
             // the two agents PromptOptions.HebrewOutput can vary.
-            System = new List<SystemMessage> { new(ResolveOutputLanguage(PromptSeeds.TitleTriage, false)) },
-            Messages = new List<Message> { new(RoleType.User, userMessage) },
-            MaxTokens = 2000,
-            Model = _scoring.Analyst.Model,
-            Temperature = 0.2m,
-            Stream = false
-        };
+            ResolveOutputLanguage(PromptSeeds.TitleTriage, false),
+            "title-triage",
+            chunk =>
+            {
+                var titlesJson = JsonSerializer.Serialize(
+                    chunk.Select(t => new { t.JobId, t.Title, t.Company }), camelCase);
+                // Titles come from external job boards — untrusted, XML-wrapped as data.
+                return $"<search_intent>\n{intent}\n</search_intent>\n\n"
+                     + $"<scraped_titles>\n{titlesJson}\n</scraped_titles>";
+            },
+            r => r.Results,
+            cancellationToken);
 
-        var response = await ResolveClient().Messages.GetClaudeMessageAsync(parameters, cancellationToken);
-        var content = response.Message?.ToString()?.Trim()
-            ?? throw new InvalidOperationException("Empty response from Claude API");
-
-        var json = ExtractJson(content, "title-triage");
-        var parsed = JsonSerializer.Deserialize<TitleTriageResponse>(json, CaseInsensitive)
-            ?? throw new InvalidOperationException("Could not parse title triage response");
-
-        _logger.LogInformation("Title triage: {Kept}/{Total} kept",
-            parsed.Results.Count(r => r.Relevant), request.Titles.Count);
-        return parsed;
+        // Counted three ways on purpose: "dropped" and "no verdict" both leave
+        // jobs_triaged_out low, and only this line separates them.
+        _logger.LogInformation(
+            "Title triage: {Total} titles, {Verdicts} verdicts, {Dropped} off-target, {Missing} without a verdict (kept by default)",
+            request.Titles.Count, results.Count, results.Count(r => !r.Relevant), request.Titles.Count - results.Count);
+        return new TitleTriageResponse { Results = results };
     }
 
     public async Task<SeniorityClassifyResponse> ClassifySeniorityAsync(SeniorityClassifyRequest request, CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Classifying seniority for {Count} scraped jobs", request.Jobs.Count);
 
-        var jobsJson = JsonSerializer.Serialize(
-            request.Jobs.Select(j => new { j.JobId, j.Title, j.Description }),
-            new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+        var camelCase = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
-        // Scraped postings — untrusted, XML-wrapped as data.
-        var userMessage = $"<scraped_jobs>\n{jobsJson}\n</scraped_jobs>";
+        var results = await ClassifyInChunksAsync<SeniorityClassifyItem, SeniorityClassifyResponse, SeniorityClassifyResult>(
+            request.Jobs,
+            PromptSeeds.SeniorityClassification,
+            "seniority-classify",
+            chunk =>
+            {
+                var jobsJson = JsonSerializer.Serialize(
+                    chunk.Select(j => new { j.JobId, j.Title, j.Description }), camelCase);
+                // Scraped postings — untrusted, XML-wrapped as data.
+                return $"<scraped_jobs>\n{jobsJson}\n</scraped_jobs>";
+            },
+            r => r.Results,
+            cancellationToken);
 
-        var parameters = new MessageParameters
-        {
-            System = new List<SystemMessage> { new(PromptSeeds.SeniorityClassification) },
-            Messages = new List<Message> { new(RoleType.User, userMessage) },
-            MaxTokens = 2000,
-            Model = _scoring.Analyst.Model,
-            Temperature = 0.2m,
-            Stream = false
-        };
-
-        var response = await ResolveClient().Messages.GetClaudeMessageAsync(parameters, cancellationToken);
-        var content = response.Message?.ToString()?.Trim()
-            ?? throw new InvalidOperationException("Empty response from Claude API");
-
-        var json = ExtractJson(content, "seniority-classify");
-        var parsed = JsonSerializer.Deserialize<SeniorityClassifyResponse>(json, CaseInsensitive)
-            ?? throw new InvalidOperationException("Could not parse seniority classification response");
-
-        _logger.LogInformation("Seniority classification: {Labeled}/{Total} labeled",
-            parsed.Results.Count(r => r.Level is not null), request.Jobs.Count);
-        return parsed;
+        _logger.LogInformation(
+            "Seniority classification: {Total} jobs, {Verdicts} verdicts, {Labeled} labeled, {Missing} without a verdict",
+            request.Jobs.Count, results.Count, results.Count(r => r.Level is not null), request.Jobs.Count - results.Count);
+        return new SeniorityClassifyResponse { Results = results };
     }
 
     public async Task<NormalizedProfile> NormalizeProfileAsync(string text, CancellationToken cancellationToken = default)

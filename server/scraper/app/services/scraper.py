@@ -53,6 +53,18 @@ def _clean(value) -> str | None:
     return text or None
 
 
+def _clean_bool(value) -> bool | None:
+    """Same NaN trap as `_clean`, for a boolean cell.
+
+    `bool(NaN)` is True, so a missing is_remote read through a plain
+    `bool(...) if ... is not None` guard comes out as "remote" rather than
+    "unknown" — NaN is not None.
+    """
+    if value is None or (isinstance(value, float) and pd.isna(value)):
+        return None
+    return bool(value)
+
+
 # Human-ish gap between consecutive job-board searches. LinkedIn rate-limits
 # tight bursts from a single IP (soft block: 429s / empty pages for hours);
 # the same volume spread over minutes stays under the radar. The nightly cron
@@ -149,7 +161,17 @@ def scrape_for_criteria(criteria: SearchCriteria) -> tuple[list[dict], dict]:
 
                 new_count = 0
                 for _, row in df.iterrows():
-                    url = str(row.get("job_url", "")) or ""
+                    # EVERY cell read below goes through _clean/_clean_bool.
+                    # jobspy builds one DataFrame per job, drops its all-NA
+                    # columns, then concatenates them, so a field that some
+                    # jobs in this batch have and others don't arrives as
+                    # float NaN — not None. str(NaN) is the text "nan" and
+                    # bool(NaN) is True, so a bare str()/bool() silently
+                    # invents data. (A field *no* job in the batch has is
+                    # re-added as None afterwards and reads correctly, which
+                    # is why this only bites on partial failures — e.g. a
+                    # LinkedIn detail fetch that times out for some rows.)
+                    url = _clean(row.get("job_url")) or ""
                     if url and url in seen_urls:
                         continue
                     if url:
@@ -164,20 +186,35 @@ def scrape_for_criteria(criteria: SearchCriteria) -> tuple[list[dict], dict]:
                     }
                     company_profile = {k: v for k, v in company_profile.items() if v} or None
 
+                    title_text = _clean(row.get("title")) or ""
+                    description_text = _clean(row.get("description")) or ""
+
+                    # linkedin_fetch_description=True means one extra request
+                    # per job, and jobspy returns {} for the ones that time out
+                    # or get soft-blocked. Those jobs still get scored, so the
+                    # Analyst/Evaluator are billed to read nothing — log it
+                    # rather than let a throttled run look like a quiet one.
+                    if not description_text:
+                        logger.warning(
+                            "Scraped job with no description: '%s' at '%s' (%s) — "
+                            "it will be scored on title alone",
+                            title_text, _clean(row.get("company")) or "", url or "no url",
+                        )
+
                     all_jobs.append({
                         "id": str(uuid4()),
-                        "title": str(row.get("title", "")),
-                        "company": str(row.get("company", "")),
-                        "location": str(row.get("location", "")),
-                        "description": str(row.get("description", "")),
+                        "title": title_text,
+                        "company": _clean(row.get("company")) or "",
+                        "location": _clean(row.get("location")) or "",
+                        "description": description_text,
                         "job_url": url,
                         "date_posted": _clean(row.get("date_posted")),
-                        "site": str(row.get("site", "linkedin")),
+                        "site": _clean(row.get("site")) or "linkedin",
                         "job_level": _clean(row.get("job_level")),
                         "is_remote": _correct_is_remote(
-                            bool(row.get("is_remote")) if row.get("is_remote") is not None else None,
-                            str(row.get("title", "")),
-                            str(row.get("description", "")),
+                            _clean_bool(row.get("is_remote")),
+                            title_text,
+                            description_text,
                         ),
                         "company_logo": _clean(row.get("company_logo")),
                         # Company profile fields jobspy already returns on every
@@ -201,7 +238,12 @@ def scrape_for_criteria(criteria: SearchCriteria) -> tuple[list[dict], dict]:
     return all_jobs, stats
 
 
-_LINKEDIN_JOB_ID_RE = re.compile(r"(?:jobs/view/|currentJobId=)(\d+)")
+# Public LinkedIn job links come slugged — /jobs/view/senior-data-engineer-at-
+# acme-4123456789 — as well as bare (/jobs/view/4123456789) and as a
+# currentJobId= query param on a search page. The optional slug segment must be
+# lazy and end in a hyphen so the trailing digit run is the job id, not the
+# digits inside a slug like "web3-engineer".
+_LINKEDIN_JOB_ID_RE = re.compile(r"(?:jobs/view/(?:[\w-]*?-)?|currentJobId=)(\d+)")
 
 
 def fetch_job_by_url(url: str) -> dict | None:
@@ -250,9 +292,32 @@ def fetch_job_by_url(url: str) -> dict | None:
         logger.warning("Import: could not parse title/company for job %s", job_id)
         return None
 
-    details = scraper._get_job_details(job_id)
-    description = details.get("description") or ""
-    industry = _clean(details.get("company_industry"))
+    # Everything below is parsed from the page already fetched above. Calling
+    # jobspy's _get_job_details(job_id) here would GET the same URL a second
+    # time — doubling the LinkedIn hits per import on a surface this module
+    # otherwise paces carefully — and it swallows every failure of that second
+    # request by returning {}. A slow or throttled retry therefore produced a
+    # job with an empty description that still looked like a successful import,
+    # which import_jobs then scored and saved to the tracker at DecidedToApply.
+    from jobspy.linkedin.util import parse_company_industry, parse_job_level
+    from jobspy.model import DescriptionFormat
+    from jobspy.util import markdown_converter, remove_attributes
+
+    description = None
+    div_content = soup.find("div", class_=lambda x: x and "show-more-less-html__markup" in x)
+    if div_content is not None:
+        description = remove_attributes(div_content).prettify(formatter="html")
+        if scraper.scraper_input.description_format == DescriptionFormat.MARKDOWN:
+            description = markdown_converter(description)
+    description = _clean(description)
+    if not description:
+        # Better a visible import failure than a tracked application whose
+        # description — the only thing the Evaluator actually reads — is empty.
+        logger.warning("Import: no description found for job %s", job_id)
+        return None
+
+    logo_tag = soup.find("img", {"class": "artdeco-entity-image"})
+    industry = _clean(parse_company_industry(soup))
 
     return {
         "title": title,
@@ -261,8 +326,8 @@ def fetch_job_by_url(url: str) -> dict | None:
         "description": description,
         "job_url": f"{scraper.base_url}/jobs/view/{job_id}",
         "site": "linkedin",
-        "job_level": _clean(details.get("job_level")),
+        "job_level": _clean(parse_job_level(soup)),
         "is_remote": None,
-        "company_logo": _clean(details.get("company_logo")),
+        "company_logo": _clean(logo_tag.get("data-delayed-url")) if logo_tag else None,
         "company_profile": {"industry": industry} if industry else None,
     }

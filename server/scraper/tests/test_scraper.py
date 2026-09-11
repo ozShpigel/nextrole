@@ -107,3 +107,128 @@ def test_non_remote_untouched():
 
 def test_none_untouched():
     assert _correct_is_remote(None, "Engineer", "No work-arrangement stated.") is None
+
+
+# --- NaN handling ------------------------------------------------------
+# jobspy builds one DataFrame per job, drops each one's all-NA columns, then
+# concatenates. A field that only SOME jobs in a batch have therefore arrives
+# as float NaN rather than None — and str(NaN) == "nan", bool(NaN) is True.
+# This produced 11 stored jobs with the literal description "nan" in July 2026.
+
+
+def _mixed_nan_frame():
+    """Reproduces jobspy's concat exactly: job A has a description and an
+    is_remote flag (its detail fetch succeeded), job B has neither (its
+    detail fetch timed out and returned {})."""
+    import pandas as pd
+
+    dfs = [
+        pd.DataFrame([{
+            "title": "Backend Engineer", "company": "Acme", "location": "Tel Aviv",
+            "description": "Real description text.", "job_url": "https://x/a",
+            "site": "linkedin", "is_remote": False, "date_posted": "2026-09-01",
+        }]),
+        pd.DataFrame([{
+            "title": "Platform Engineer", "company": "Beta", "location": None,
+            "description": None, "job_url": "https://x/b",
+            "site": "linkedin", "is_remote": None, "date_posted": "2026-09-02",
+        }]),
+    ]
+    return pd.concat([d.dropna(axis=1, how="all") for d in dfs], ignore_index=True)
+
+
+def _scrape_with(monkeypatch, df):
+    from app.models.search_criteria import SearchCriteria
+    from app.services import scraper as scraper_module
+
+    monkeypatch.setattr(scraper_module, "scrape_jobs", lambda **kw: df)
+    criteria = SearchCriteria(name="t", job_titles=["Backend Engineer"], locations=["Tel Aviv"])
+    jobs, _stats = scraper_module.scrape_for_criteria(criteria)
+    return {j["title"]: j for j in jobs}
+
+
+def test_missing_description_is_empty_not_the_text_nan(monkeypatch):
+    jobs = _scrape_with(monkeypatch, _mixed_nan_frame())
+    assert jobs["Platform Engineer"]["description"] == ""
+    assert jobs["Backend Engineer"]["description"] == "Real description text."
+
+
+def test_missing_is_remote_is_unknown_not_true(monkeypatch):
+    # bool(NaN) is True: the whole point. An unfetched is_remote must stay
+    # None so the job doesn't surface under the Remote filter.
+    jobs = _scrape_with(monkeypatch, _mixed_nan_frame())
+    assert jobs["Platform Engineer"]["is_remote"] is None
+    assert jobs["Backend Engineer"]["is_remote"] is False
+
+
+def test_missing_location_is_empty_not_the_text_nan(monkeypatch):
+    jobs = _scrape_with(monkeypatch, _mixed_nan_frame())
+    assert jobs["Platform Engineer"]["location"] == ""
+
+
+def test_missing_job_url_does_not_poison_the_dedup_set(monkeypatch):
+    # "nan" is truthy, so a NaN job_url used to enter seen_urls and every
+    # LATER url-less row was then silently dropped as a duplicate of it.
+    import pandas as pd
+
+    dfs = [
+        pd.DataFrame([{"title": "Has URL", "company": "A", "description": "d",
+                       "job_url": "https://x/a", "site": "linkedin"}]),
+        pd.DataFrame([{"title": "No URL 1", "company": "B", "description": "d",
+                       "job_url": None, "site": "linkedin"}]),
+        pd.DataFrame([{"title": "No URL 2", "company": "C", "description": "d",
+                       "job_url": None, "site": "linkedin"}]),
+    ]
+    df = pd.concat([d.dropna(axis=1, how="all") for d in dfs], ignore_index=True)
+    jobs = _scrape_with(monkeypatch, df)
+    assert set(jobs) == {"Has URL", "No URL 1", "No URL 2"}
+    assert jobs["No URL 1"]["job_url"] == ""
+
+
+def test_clean_bool_treats_nan_as_unknown():
+    import numpy as np
+
+    from app.services.scraper import _clean_bool
+
+    assert _clean_bool(np.nan) is None
+    assert _clean_bool(None) is None
+    assert _clean_bool(True) is True
+    assert _clean_bool(False) is False
+
+
+# --- LinkedIn job-id extraction ----------------------------------------
+
+
+def test_slugged_linkedin_url_yields_the_job_id():
+    # Public LinkedIn job links carry a title slug before the id; these used
+    # to fail to match at all, so a valid pasted link was rejected offline.
+    from app.services.scraper import _LINKEDIN_JOB_ID_RE
+
+    m = _LINKEDIN_JOB_ID_RE.search(
+        "https://www.linkedin.com/jobs/view/senior-data-engineer-at-acme-4123456789"
+    )
+    assert m and m.group(1) == "4123456789"
+
+
+def test_slug_containing_digits_still_yields_the_trailing_job_id():
+    from app.services.scraper import _LINKEDIN_JOB_ID_RE
+
+    m = _LINKEDIN_JOB_ID_RE.search(
+        "https://www.linkedin.com/jobs/view/web3-engineer-at-acme-4123456789?refId=x"
+    )
+    assert m and m.group(1) == "4123456789"
+
+
+def test_bare_and_query_param_linkedin_urls_still_match():
+    from app.services.scraper import _LINKEDIN_JOB_ID_RE
+
+    assert _LINKEDIN_JOB_ID_RE.search(
+        "https://www.linkedin.com/jobs/view/4123456789/").group(1) == "4123456789"
+    assert _LINKEDIN_JOB_ID_RE.search(
+        "https://www.linkedin.com/jobs/search/?currentJobId=4123456789").group(1) == "4123456789"
+
+
+def test_non_linkedin_url_does_not_match():
+    from app.services.scraper import _LINKEDIN_JOB_ID_RE
+
+    assert _LINKEDIN_JOB_ID_RE.search("https://example.com/careers/backend") is None

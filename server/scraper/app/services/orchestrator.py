@@ -1,11 +1,14 @@
 import asyncio
 import logging
 from datetime import datetime, timezone
+from typing import NamedTuple
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.config import Settings
 from app.models.discovered_job import DiscoveredJob
+from app.models.discovery_run import DiscoveryRun
+from app.models.search_criteria import SearchCriteria
 from app.services import company_size_client, glassdoor_client, match_client, news_client, scraper, tracker_client
 
 logger = logging.getLogger(__name__)
@@ -18,6 +21,37 @@ logger = logging.getLogger(__name__)
 # unmeasured estimate; tune against a real run before trusting a daily cron.
 SCORE_BATCH_SIZE = 4
 MAX_CONCURRENT_SCORE_BATCHES = 2
+
+# The tracker duplicate check is one API round trip per relevant job, so a
+# 60-job run makes 60 of them; this caps how many are in flight at once.
+MAX_CONCURRENT_DUP_CHECKS = 5
+
+
+class _RunContext(NamedTuple):
+    """Everything that stays constant for the duration of one discovery run.
+
+    `run` is the mutable part: each phase records its own counters and status
+    fields on it, and they are written back to Mongo once, at completion.
+    """
+
+    db: AsyncIOMotorDatabase
+    settings: Settings
+    criteria: SearchCriteria
+    run: DiscoveryRun
+
+
+class _Enrichment(NamedTuple):
+    """Per-company context fetched once per run and shared by every job at that
+    company. All three are keyed by `_company_key` (company name, stripped and
+    lowercased), not by job id."""
+
+    news: dict
+    glassdoor: dict
+    company_size: dict
+
+
+def _company_key(job_data: dict) -> str:
+    return (job_data.get("company") or "").strip().lower()
 
 
 def _parse_date_posted(value: str | None):
@@ -51,19 +85,63 @@ def _backfill_date_posted(new_date_posted: str | None, existing_date_posted: str
     return new_date_posted
 
 
+def _is_relevant(job_data: dict, triage: dict) -> bool:
+    """Triage fails open: a job with no verdict is kept and scored."""
+    verdict = triage.get(job_data["id"])
+    return verdict is None or verdict["relevant"]
+
+
 async def run_discovery(db: AsyncIOMotorDatabase, settings: Settings, criteria_id: str, run_id: str | None = None):
     """Execute a discovery run: scrape, triage, classify seniority, store.
 
     RAG/vector-search matching was removed — per-job Evaluator scoring is the
     primary matching path again (added as a batched-scoring step below).
+
+    Each step below is one `_phase` function. They run in sequence, take the
+    jobs they operate on as an argument, and record their own outcome on
+    `ctx.run`; only `_open_run`, `_scrape`, `_mark_completed` and `_mark_failed`
+    write run state to Mongo.
+    """
+    ctx = await _open_run(db, settings, criteria_id, run_id)
+    if ctx is None:
+        return
+
+    try:
+        jobs = await _scrape(ctx)
+        jobs = await _drop_already_known(ctx, jobs)
+
+        # Fail fast before triage/duplicate checks if the API is unreachable,
+        # rather than have some call deep into the run be the first to notice.
+        if not await tracker_client.check_api_reachable(settings):
+            raise RuntimeError("API unreachable — aborting run")
+
+        triage = await _triage_titles(ctx, jobs)
+        relevant_jobs = [j for j in jobs if _is_relevant(j, triage)]
+        triaged_out_jobs = [j for j in jobs if not _is_relevant(j, triage)]
+
+        enrichment = await _prefetch_enrichment(ctx, relevant_jobs)
+        seniority = await _classify_seniority(ctx, relevant_jobs)
+
+        await _store_jobs(ctx, relevant_jobs, triaged_out_jobs, triage, seniority, enrichment)
+        await _mark_completed(ctx)
+
+    except Exception as e:
+        await _mark_failed(ctx, e)
+
+
+async def _open_run(
+    db: AsyncIOMotorDatabase, settings: Settings, criteria_id: str, run_id: str | None
+) -> _RunContext | None:
+    """Load the criteria, then resume the caller's DiscoveryRun or open a new
+    one. Returns None if the criteria no longer exists — nothing to run.
+
+    Deliberately outside run_discovery's try/except: if the run record itself
+    can't be written there is no run to mark failed.
     """
     criteria_doc = await db.search_criteria.find_one({"id": criteria_id})
     if not criteria_doc:
         logger.error("Criteria %s not found", criteria_id)
-        return
-
-    from app.models.search_criteria import SearchCriteria
-    from app.models.discovery_run import DiscoveryRun
+        return None
 
     criteria = SearchCriteria(**criteria_doc)
     if run_id:
@@ -74,338 +152,381 @@ async def run_discovery(db: AsyncIOMotorDatabase, settings: Settings, criteria_i
         await db.discovery_runs.insert_one(run.model_dump())
     run.status = "scraping"
     await db.discovery_runs.update_one({"id": run.id}, {"$set": {"status": "scraping"}})
+    return _RunContext(db=db, settings=settings, criteria=criteria, run=run)
 
+
+async def _scrape(ctx: _RunContext) -> list[dict]:
+    """Run jobspy for the criteria. Synchronous library, so it goes to a thread."""
+    run, criteria = ctx.run, ctx.criteria
+    logger.info("Run %s: scraping for criteria '%s'", run.id, criteria.name)
+    jobs, search_stats = await asyncio.get_running_loop().run_in_executor(
+        None, scraper.scrape_for_criteria, criteria
+    )
+    for job in jobs:
+        logger.info("Job scraped: runId=%s jobId=%s company=%s title=%s",
+                    run.id, job.get("id"), job.get("company"), job.get("title"))
+
+    run.jobs_scraped = len(jobs)
+    run.searches_total = search_stats["searches_total"]
+    run.searches_failed = search_stats["searches_failed"]
+    run.searches_empty = search_stats["searches_empty"]
+    await ctx.db.discovery_runs.update_one(
+        {"id": run.id, "status": {"$ne": "cancelled"}},
+        {"$set": {
+            "status": "scoring",
+            "jobs_scraped": len(jobs),
+            "searches_total": run.searches_total,
+            "searches_failed": run.searches_failed,
+            "searches_empty": run.searches_empty,
+        }},
+    )
+    return jobs
+
+
+async def _drop_already_known(ctx: _RunContext, jobs: list[dict]) -> list[dict]:
+    """Skip jobs already discovered in a previous run — before any Haiku/
+    DDG/Sonnet cost, not just before scoring. Overlapping search windows
+    across runs (widened backfills, daily cron re-covering yesterday's
+    tail) would otherwise re-triage/re-score/re-insert the exact same
+    posting every time. Matched by job_url, so it only catches same-
+    platform reposts/overlap — the same job cross-listed on a different
+    site gets a different URL and isn't caught by this.
+    """
+    db, run = ctx.db, ctx.run
+    scraped_urls = [j["job_url"] for j in jobs if j.get("job_url")]
+    existing_by_url = {}
+    if scraped_urls:
+        cursor = db.discovered_jobs.find({"job_url": {"$in": scraped_urls}}, {"job_url": 1, "date_posted": 1})
+        existing_by_url = {doc["job_url"]: doc.get("date_posted") async for doc in cursor}
+    before_dedup = len(jobs)
+    already_known_jobs = [j for j in jobs if j.get("job_url") in existing_by_url]
+    remaining_jobs = [j for j in jobs if j.get("job_url") not in existing_by_url]
+    run.jobs_already_known = before_dedup - len(remaining_jobs)
+
+    for job in already_known_jobs:
+        logger.info("Job skipped: runId=%s jobId=%s reason=%s",
+                    run.id, job.get("id"), "already_known")
+
+    # An "already known" job is otherwise fully discarded here — free
+    # opportunity to backfill/refresh its stored date_posted from this
+    # scrape's fresher attempt (e.g. LinkedIn's own date_posted extraction
+    # is intermittently unreliable — see the null-date_posted investigation
+    # — so a later re-scrape sometimes succeeds where an earlier one
+    # didn't). Only ever moves forward in time: a flaky re-scrape that
+    # returns nothing, or an older date than what's already stored, must
+    # not regress good data.
+    for job in already_known_jobs:
+        new_value = _backfill_date_posted(job.get("date_posted"), existing_by_url.get(job.get("job_url")))
+        if new_value is None:
+            continue
+        await db.discovered_jobs.update_one(
+            {"job_url": job["job_url"]}, {"$set": {"date_posted": new_value}}
+        )
+        run.jobs_date_backfilled += 1
+
+    if run.jobs_already_known:
+        logger.info("Run %s: skipping %d jobs already discovered in a previous run", run.id, run.jobs_already_known)
+    if run.jobs_date_backfilled:
+        logger.info("Run %s: backfilled/refreshed date_posted on %d already-known jobs", run.id, run.jobs_date_backfilled)
+    return remaining_jobs
+
+
+async def _triage_titles(ctx: _RunContext, jobs: list[dict]) -> dict:
+    """Batched Haiku calls flag clearly off-target titles (job-board search
+    padding) so they skip scoring. Fails open — on any error every job is
+    kept. That is the right default for relevance but the expensive one for
+    cost, so the outcome is recorded on the run: a silent triage failure is a
+    ~2x ingest bill that looks like a normal run in jobs_triaged_out alone.
+    """
+    run = ctx.run
+    search_intent = ", ".join(ctx.criteria.job_titles)
+    triage = await match_client.triage_titles(ctx.settings, search_intent, jobs) or {}
+    if not jobs or not search_intent:
+        run.triage_status = "skipped"
+    elif not triage:
+        run.triage_status = "failed"
+        run.triage_unresolved = len(jobs)
+    else:
+        run.triage_unresolved = sum(1 for j in jobs if j["id"] not in triage)
+        run.triage_status = "partial" if run.triage_unresolved else "ok"
+    if run.triage_status in ("failed", "partial"):
+        logger.error(
+            "Run %s: title triage %s — %d/%d jobs have no verdict and will be "
+            "scored unfiltered",
+            run.id, run.triage_status, run.triage_unresolved, len(jobs),
+        )
+
+    for job in jobs:
+        t = triage.get(job["id"])
+        kept = t["relevant"] if t else True
+        reason = (t or {}).get("reason")
+        logger.info("Job triaged: runId=%s jobId=%s kept=%s reason=%s",
+                    run.id, job.get("id"), kept, reason)
+    return triage
+
+
+async def _prefetch_enrichment(ctx: _RunContext, relevant_jobs: list[dict]) -> _Enrichment:
+    """Unique companies across every relevant job, deduped once up front —
+    same prefetch-then-cache pattern the old RAG search path used per-search,
+    just applied to the whole run's relevant set instead of a top-N slice.
+    """
+    run = ctx.run
+    relevant_companies = [j["company"] for j in relevant_jobs if j.get("company")]
+    news_cache, glassdoor_cache, company_size_cache = await asyncio.gather(
+        news_client.prefetch_company_news(relevant_companies),
+        glassdoor_client.prefetch_glassdoor_ratings(relevant_companies),
+        company_size_client.prefetch_company_sizes(relevant_companies),
+    )
+
+    unique_relevant_companies = list(
+        {c.strip().lower(): c for c in relevant_companies if c and c.strip()}.values()
+    )
+    for company in unique_relevant_companies:
+        key = company.strip().lower()
+        gd = glassdoor_cache.get(key)
+        nc = news_cache.get(key)
+        sz = company_size_cache.get(key)
+        logger.info("Company enriched: runId=%s company=%s glassdoor=%s news=%s size=%s",
+                    run.id, company, bool(gd), len(nc or []), bool(sz))
+
+    return _Enrichment(news=news_cache, glassdoor=glassdoor_cache, company_size=company_size_cache)
+
+
+async def _classify_seniority(ctx: _RunContext, relevant_jobs: list[dict]) -> dict:
+    """Batched Haiku calls flag each relevant job's actual seniority band
+    (source-agnostic — replaces jobspy's LinkedIn-only job_level as the
+    client-side filter). Only classifies jobs that survived triage; fails open
+    (None everywhere) on error. Keyed by jobId directly (assigned at scrape
+    time) — no index remap needed even though it only saw relevant_jobs.
+    """
+    run = ctx.run
+    seniority = await match_client.classify_seniority(ctx.settings, relevant_jobs) or {}
+    if not relevant_jobs:
+        run.seniority_status = "skipped"
+    elif not seniority:
+        run.seniority_status = "failed"
+        run.seniority_unresolved = len(relevant_jobs)
+    else:
+        run.seniority_unresolved = sum(
+            1 for j in relevant_jobs if j["id"] not in seniority
+        )
+        run.seniority_status = "partial" if run.seniority_unresolved else "ok"
+    if run.seniority_status in ("failed", "partial"):
+        logger.error(
+            "Run %s: seniority classification %s — %d/%d jobs unlabelled, the "
+            "seniority filter will not exclude them",
+            run.id, run.seniority_status, run.seniority_unresolved, len(relevant_jobs),
+        )
+    for job in relevant_jobs:
+        logger.info("Job classified: runId=%s jobId=%s seniority=%s",
+                    run.id, job["id"], seniority.get(job["id"]))
+    return seniority
+
+
+def _company_profile(job_data: dict, enrichment: _Enrichment) -> dict | None:
+    """jobspy's LinkedIn scraper never populates numEmployees (only Indeed
+    does) — fill the gap from the DDG-scraped prefetch, but never overwrite a
+    real jobspy-sourced value. Narrative context for the Evaluator only
+    (PromptSeeds.Evaluator documents company_profile as never changing a
+    numeric score) — company size is not used as a hard filter here.
+    """
+    profile = dict(job_data.get("company_profile") or {})
+    if not profile.get("numEmployees"):
+        size = enrichment.company_size.get(_company_key(job_data))
+        if size:
+            profile["numEmployees"] = size
+    return profile or None
+
+
+def _base_job(ctx: _RunContext, job_data: dict, seniority: dict) -> dict:
+    """The DiscoveredJob fields every stored job gets, scored or not."""
+    return {
+        "run_id": ctx.run.id,
+        "criteria_id": ctx.criteria.id,
+        "title": job_data["title"],
+        "company": job_data["company"],
+        "location": job_data.get("location"),
+        "description": job_data.get("description"),
+        "job_url": job_data.get("job_url"),
+        "date_posted": job_data.get("date_posted"),
+        "site": job_data.get("site", "linkedin"),
+        "job_level": job_data.get("job_level"),
+        "actual_job_level": seniority.get(job_data.get("id")),
+        "is_remote": job_data.get("is_remote"),
+        "company_logo": job_data.get("company_logo"),
+        "company_profile": job_data.get("company_profile"),
+    }
+
+
+async def _store_jobs(
+    ctx: _RunContext,
+    relevant_jobs: list[dict],
+    triaged_out_jobs: list[dict],
+    triage: dict,
+    seniority: dict,
+    enrichment: _Enrichment,
+) -> None:
+    """Persist every scraped job: the triaged-out ones as flagged records, the
+    rest scored in batches. Both fan out concurrently, each under its own cap.
+
+    Job ids are generated at scrape time (scraper.py), not here — carried on
+    the job dict since before triage, so triaged-out jobs and the "Job
+    scraped"/"Job triaged"/"Job classified" log lines share the same id as the
+    eventually-persisted DiscoveredJob.
+    """
+    batch_sem = asyncio.Semaphore(MAX_CONCURRENT_SCORE_BATCHES)
+    dup_sem = asyncio.Semaphore(MAX_CONCURRENT_DUP_CHECKS)
+    chunks = [
+        relevant_jobs[i:i + SCORE_BATCH_SIZE]
+        for i in range(0, len(relevant_jobs), SCORE_BATCH_SIZE)
+    ]
+    await asyncio.gather(
+        *[_insert_triaged_out(ctx, job_data, triage, seniority) for job_data in triaged_out_jobs],
+        *[
+            _score_and_insert_batch(ctx, chunk, seniority, enrichment, batch_sem, dup_sem)
+            for chunk in chunks
+        ],
+    )
+
+
+async def _insert_triaged_out(ctx: _RunContext, job_data: dict, triage: dict, seniority: dict) -> None:
     try:
-        logger.info("Run %s: scraping for criteria '%s'", run.id, criteria.name)
-        jobs, search_stats = await asyncio.get_running_loop().run_in_executor(
-            None, scraper.scrape_for_criteria, criteria
+        disc_job = DiscoveredJob(
+            **_base_job(ctx, job_data, seniority),
+            id=job_data.get("id"),
+            triaged_out=True,
+            triage_reason=(triage.get(job_data.get("id")) or {}).get("reason"),
         )
-        for job in jobs:
-            logger.info("Job scraped: runId=%s jobId=%s company=%s title=%s",
-                        run.id, job.get("id"), job.get("company"), job.get("title"))
-
-        run.jobs_scraped = len(jobs)
-        run.searches_total = search_stats["searches_total"]
-        run.searches_failed = search_stats["searches_failed"]
-        run.searches_empty = search_stats["searches_empty"]
-        await db.discovery_runs.update_one(
-            {"id": run.id, "status": {"$ne": "cancelled"}},
-            {"$set": {
-                "status": "scoring",
-                "jobs_scraped": len(jobs),
-                "searches_total": run.searches_total,
-                "searches_failed": run.searches_failed,
-                "searches_empty": run.searches_empty,
-            }},
-        )
-
-        # Skip jobs already discovered in a previous run — before any Haiku/
-        # DDG/Sonnet cost, not just before scoring. Overlapping search windows
-        # across runs (widened backfills, daily cron re-covering yesterday's
-        # tail) would otherwise re-triage/re-score/re-insert the exact same
-        # posting every time. Matched by job_url, so it only catches same-
-        # platform reposts/overlap — the same job cross-listed on a different
-        # site gets a different URL and isn't caught by this.
-        scraped_urls = [j["job_url"] for j in jobs if j.get("job_url")]
-        existing_by_url = {}
-        if scraped_urls:
-            cursor = db.discovered_jobs.find({"job_url": {"$in": scraped_urls}}, {"job_url": 1, "date_posted": 1})
-            existing_by_url = {doc["job_url"]: doc.get("date_posted") async for doc in cursor}
-        before_dedup = len(jobs)
-        already_known_jobs = [j for j in jobs if j.get("job_url") in existing_by_url]
-        jobs = [j for j in jobs if j.get("job_url") not in existing_by_url]
-        run.jobs_already_known = before_dedup - len(jobs)
-
-        for job in already_known_jobs:
-            logger.info("Job skipped: runId=%s jobId=%s reason=%s",
-                        run.id, job.get("id"), "already_known")
-
-        # An "already known" job is otherwise fully discarded here — free
-        # opportunity to backfill/refresh its stored date_posted from this
-        # scrape's fresher attempt (e.g. LinkedIn's own date_posted extraction
-        # is intermittently unreliable — see the null-date_posted investigation
-        # — so a later re-scrape sometimes succeeds where an earlier one
-        # didn't). Only ever moves forward in time: a flaky re-scrape that
-        # returns nothing, or an older date than what's already stored, must
-        # not regress good data.
-        for job in already_known_jobs:
-            new_value = _backfill_date_posted(job.get("date_posted"), existing_by_url.get(job.get("job_url")))
-            if new_value is None:
-                continue
-            await db.discovered_jobs.update_one(
-                {"job_url": job["job_url"]}, {"$set": {"date_posted": new_value}}
-            )
-            run.jobs_date_backfilled += 1
-
-        if run.jobs_already_known:
-            logger.info("Run %s: skipping %d jobs already discovered in a previous run", run.id, run.jobs_already_known)
-        if run.jobs_date_backfilled:
-            logger.info("Run %s: backfilled/refreshed date_posted on %d already-known jobs", run.id, run.jobs_date_backfilled)
-
-        # Fail fast before triage/duplicate checks if the API is unreachable,
-        # rather than have some call deep into the run be the first to notice.
-        if not await tracker_client.check_api_reachable(settings):
-            raise RuntimeError("API unreachable — aborting run")
-
-        # Title triage: batched Haiku calls flag clearly off-target titles
-        # (job-board search padding) so they skip scoring. Fails open — on any
-        # error every job is kept. That is the right default for relevance but
-        # the expensive one for cost, so the outcome is recorded on the run:
-        # a silent triage failure is a ~2x ingest bill that looks like a normal
-        # run in jobs_triaged_out alone.
-        search_intent = ", ".join(criteria.job_titles)
-        triage = await match_client.triage_titles(settings, search_intent, jobs) or {}
-        if not jobs or not search_intent:
-            run.triage_status = "skipped"
-        elif not triage:
-            run.triage_status = "failed"
-            run.triage_unresolved = len(jobs)
-        else:
-            run.triage_unresolved = sum(1 for j in jobs if j["id"] not in triage)
-            run.triage_status = "partial" if run.triage_unresolved else "ok"
-        if run.triage_status in ("failed", "partial"):
-            logger.error(
-                "Run %s: title triage %s — %d/%d jobs have no verdict and will be "
-                "scored unfiltered",
-                run.id, run.triage_status, run.triage_unresolved, len(jobs),
-            )
-
-        def _is_relevant(idx: int) -> bool:
-            t = triage.get(jobs[idx]["id"])
-            return t is None or t["relevant"]
-
-        relevant_indices = [i for i in range(len(jobs)) if _is_relevant(i)]
-
-        for job in jobs:
-            t = triage.get(job["id"])
-            kept = t["relevant"] if t else True
-            reason = (t or {}).get("reason")
-            logger.info("Job triaged: runId=%s jobId=%s kept=%s reason=%s",
-                        run.id, job.get("id"), kept, reason)
-
-        # Enrichment prefetch: unique companies across every relevant job,
-        # deduped once up front — same prefetch-then-cache pattern the old RAG
-        # search path used per-search, just applied to the whole run's
-        # relevant set instead of a top-N slice.
-        relevant_companies = [jobs[i]["company"] for i in relevant_indices if jobs[i].get("company")]
-        news_cache, glassdoor_cache, company_size_cache = await asyncio.gather(
-            news_client.prefetch_company_news(relevant_companies),
-            glassdoor_client.prefetch_glassdoor_ratings(relevant_companies),
-            company_size_client.prefetch_company_sizes(relevant_companies),
-        )
-
-        unique_relevant_companies = list(
-            {c.strip().lower(): c for c in relevant_companies if c and c.strip()}.values()
-        )
-        for company in unique_relevant_companies:
-            key = company.strip().lower()
-            gd = glassdoor_cache.get(key)
-            nc = news_cache.get(key)
-            sz = company_size_cache.get(key)
-            logger.info("Company enriched: runId=%s company=%s glassdoor=%s news=%s size=%s",
-                        run.id, company, bool(gd), len(nc or []), bool(sz))
-
-        def _enrich_company_profile(job_data: dict, key: str) -> dict | None:
-            # jobspy's LinkedIn scraper never populates numEmployees (only
-            # Indeed does) — fill the gap from the DDG-scraped prefetch above,
-            # but never overwrite a real jobspy-sourced value. Narrative
-            # context for the Evaluator only (PromptSeeds.Evaluator documents
-            # company_profile as never changing a numeric score) — company
-            # size is not used as a hard filter here.
-            profile = dict(job_data.get("company_profile") or {})
-            if not profile.get("numEmployees"):
-                size = company_size_cache.get(key)
-                if size:
-                    profile["numEmployees"] = size
-            return profile or None
-
-        # Seniority classification: one Haiku call flags each relevant job's
-        # actual seniority band (source-agnostic — replaces jobspy's
-        # LinkedIn-only job_level as the client-side filter). Only classify
-        # jobs that survived triage; fails open (None everywhere) on error.
-        relevant_jobs = [jobs[i] for i in relevant_indices]
-        # Keyed by jobId directly (assigned at scrape time) — no index remap
-        # needed even though classify_seniority only saw relevant_jobs.
-        seniority = await match_client.classify_seniority(settings, relevant_jobs) or {}
-        if not relevant_jobs:
-            run.seniority_status = "skipped"
-        elif not seniority:
-            run.seniority_status = "failed"
-            run.seniority_unresolved = len(relevant_jobs)
-        else:
-            run.seniority_unresolved = sum(
-                1 for j in relevant_jobs if j["id"] not in seniority
-            )
-            run.seniority_status = "partial" if run.seniority_unresolved else "ok"
-        if run.seniority_status in ("failed", "partial"):
-            logger.error(
-                "Run %s: seniority classification %s — %d/%d jobs unlabelled, the "
-                "seniority filter will not exclude them",
-                run.id, run.seniority_status, run.seniority_unresolved, len(relevant_jobs),
-            )
-        for i in relevant_indices:
-            logger.info("Job classified: runId=%s jobId=%s seniority=%s",
-                        run.id, jobs[i]["id"], seniority.get(jobs[i]["id"]))
-
-        # Duplicate check is cheap and still useful as a flag (the job stays
-        # searchable; the UI marks it as already tracked).
-        dup_sem = asyncio.Semaphore(5)
-
-        def _base_job(job_data: dict) -> dict:
-            return {
-                "run_id": run.id,
-                "criteria_id": criteria.id,
-                "title": job_data["title"],
-                "company": job_data["company"],
-                "location": job_data.get("location"),
-                "description": job_data.get("description"),
-                "job_url": job_data.get("job_url"),
-                "date_posted": job_data.get("date_posted"),
-                "site": job_data.get("site", "linkedin"),
-                "job_level": job_data.get("job_level"),
-                "actual_job_level": seniority.get(job_data.get("id")),
-                "is_remote": job_data.get("is_remote"),
-                "company_logo": job_data.get("company_logo"),
-                "company_profile": job_data.get("company_profile"),
-            }
-
-        async def _insert_triaged_out(job_data: dict):
-            try:
-                disc_job = DiscoveredJob(
-                    **_base_job(job_data),
-                    id=job_data.get("id"),
-                    triaged_out=True,
-                    triage_reason=(triage.get(job_data.get("id")) or {}).get("reason"),
-                )
-                await db.discovered_jobs.insert_one(disc_job.model_dump())
-                run.jobs_triaged_out += 1
-            except Exception as e:
-                logger.error("Error ingesting triaged-out job '%s': %s", job_data.get("title"), e)
-
-        # Job ids are now generated at scrape time (scraper.py), not here —
-        # carried on the job dict since before triage, so triaged-out jobs
-        # and "Job scraped"/"Job triaged"/"Job classified" log lines share
-        # the same id as the eventually-persisted DiscoveredJob.
-        relevant_with_ids = [(jobs[i], jobs[i]["id"]) for i in relevant_indices]
-        batch_sem = asyncio.Semaphore(MAX_CONCURRENT_SCORE_BATCHES)
-
-        async def _score_and_insert_batch(chunk: list[tuple[dict, str]]):
-            items = []
-            enriched_profiles: dict[str, dict | None] = {}
-            for job_data, job_id in chunk:
-                key = (job_data.get("company") or "").strip().lower()
-                profile = _enrich_company_profile(job_data, key)
-                enriched_profiles[job_id] = profile
-                items.append({
-                    "id": job_id,
-                    "jobDescription": job_data.get("description") or "",
-                    "title": job_data.get("title"),
-                    "company": job_data.get("company"),
-                    "location": job_data.get("location"),
-                    "datePosted": job_data.get("date_posted"),
-                    "site": job_data.get("site"),
-                    "companyNews": news_cache.get(key) or None,
-                    "glassdoorData": glassdoor_cache.get(key),
-                    "companyProfile": profile,
-                })
-
-            async with batch_sem:
-                scores = await match_client.score_job_batch(settings, items, run_id=run.id)
-
-            for job_data, job_id in chunk:
-                try:
-                    key = (job_data.get("company") or "").strip().lower()
-                    base = _base_job(job_data)
-                    base["company_profile"] = enriched_profiles.get(job_id, base["company_profile"])
-                    async with dup_sem:
-                        is_dup = await tracker_client.check_duplicate(
-                            settings, job_data["company"], job_data["title"]
-                        )
-                    if is_dup:
-                        run.jobs_skipped_duplicate += 1
-
-                    match_response = (scores or {}).get(job_id)
-                    if match_response is None:
-                        run.jobs_score_failed += 1
-                        logger.info("Job skipped: runId=%s jobId=%s reason=%s",
-                                    run.id, job_id, "score_failed")
-                        disc_job = DiscoveredJob(id=job_id, **base, is_duplicate=is_dup)
-                    else:
-                        run.jobs_scored += 1
-                        recommendation = match_response.get("recommendation") or {}
-                        # Snapshots live in their own DiscoveredJob fields — strip
-                        # them out of match_analysis to avoid storing them twice
-                        # (mirrors the manual Score-a-Job page's Save-to-Tracker
-                        # convention).
-                        analysis = {
-                            k: v for k, v in match_response.items()
-                            if k not in ("analystSnapshotInput", "analystSnapshotOutput",
-                                        "evaluatorSnapshotInput", "evaluatorSnapshotOutput")
-                        }
-                        disc_job = DiscoveredJob(
-                            id=job_id,
-                            **base,
-                            is_duplicate=is_dup,
-                            score=match_response.get("overallScore"),
-                            verdict=match_response.get("verdict"),
-                            should_apply=recommendation.get("shouldApply"),
-                            match_analysis=analysis,
-                            analyst_snapshot_input=match_response.get("analystSnapshotInput"),
-                            analyst_snapshot_output=match_response.get("analystSnapshotOutput"),
-                            evaluator_snapshot_input=match_response.get("evaluatorSnapshotInput"),
-                            evaluator_snapshot_output=match_response.get("evaluatorSnapshotOutput"),
-                            company_news=news_cache.get(key) or None,
-                            glassdoor_data=glassdoor_cache.get(key),
-                        )
-                    await db.discovered_jobs.insert_one(disc_job.model_dump())
-                except Exception as e:
-                    logger.error("Job skipped: runId=%s jobId=%s reason=%s error=%s",
-                                 run.id, job_id, "ingest_error", e)
-
-        chunks = [
-            relevant_with_ids[i:i + SCORE_BATCH_SIZE]
-            for i in range(0, len(relevant_with_ids), SCORE_BATCH_SIZE)
-        ]
-        triaged_out_indices = [i for i in range(len(jobs)) if not _is_relevant(i)]
-        await asyncio.gather(
-            *[_insert_triaged_out(jobs[i]) for i in triaged_out_indices],
-            *[_score_and_insert_batch(chunk) for chunk in chunks],
-        )
-
-        run.status = "completed"
-        run.completed_at = datetime.now(timezone.utc)
-        await db.discovery_runs.update_one(
-            {"id": run.id, "status": {"$ne": "cancelled"}},
-            {"$set": {
-                "status": "completed",
-                "completed_at": run.completed_at,
-                "jobs_scored": run.jobs_scored,
-                "jobs_score_failed": run.jobs_score_failed,
-                "jobs_skipped_duplicate": run.jobs_skipped_duplicate,
-                "jobs_triaged_out": run.jobs_triaged_out,
-                "jobs_already_known": run.jobs_already_known,
-                "jobs_date_backfilled": run.jobs_date_backfilled,
-                "triage_status": run.triage_status,
-                "triage_unresolved": run.triage_unresolved,
-                "seniority_status": run.seniority_status,
-                "seniority_unresolved": run.seniority_unresolved,
-            }},
-        )
-        logger.info(
-            "Run %s completed: %d scraped, %d already known (%d date-backfilled), %d scored, "
-            "%d score-failed, %d duplicates, %d triaged out (triage=%s, seniority=%s)",
-            run.id, run.jobs_scraped, run.jobs_already_known, run.jobs_date_backfilled, run.jobs_scored,
-            run.jobs_score_failed, run.jobs_skipped_duplicate, run.jobs_triaged_out,
-            run.triage_status, run.seniority_status,
-        )
-
+        await ctx.db.discovered_jobs.insert_one(disc_job.model_dump())
+        ctx.run.jobs_triaged_out += 1
     except Exception as e:
-        logger.error("Run %s failed: %s", run.id, e)
-        await db.discovery_runs.update_one(
-            {"id": run.id, "status": {"$ne": "cancelled"}},
-            {"$set": {
-                "status": "failed",
-                "error": str(e),
-                "completed_at": datetime.now(timezone.utc),
-            }},
-        )
+        logger.error("Error ingesting triaged-out job '%s': %s", job_data.get("title"), e)
+
+
+async def _score_and_insert_batch(
+    ctx: _RunContext,
+    chunk: list[dict],
+    seniority: dict,
+    enrichment: _Enrichment,
+    batch_sem: asyncio.Semaphore,
+    dup_sem: asyncio.Semaphore,
+) -> None:
+    run = ctx.run
+    items = []
+    enriched_profiles: dict[str, dict | None] = {}
+    for job_data in chunk:
+        job_id = job_data["id"]
+        key = _company_key(job_data)
+        profile = _company_profile(job_data, enrichment)
+        enriched_profiles[job_id] = profile
+        items.append({
+            "id": job_id,
+            "jobDescription": job_data.get("description") or "",
+            "title": job_data.get("title"),
+            "company": job_data.get("company"),
+            "location": job_data.get("location"),
+            "datePosted": job_data.get("date_posted"),
+            "site": job_data.get("site"),
+            "companyNews": enrichment.news.get(key) or None,
+            "glassdoorData": enrichment.glassdoor.get(key),
+            "companyProfile": profile,
+        })
+
+    async with batch_sem:
+        scores = await match_client.score_job_batch(ctx.settings, items, run_id=run.id)
+
+    for job_data in chunk:
+        job_id = job_data["id"]
+        try:
+            key = _company_key(job_data)
+            base = _base_job(ctx, job_data, seniority)
+            base["company_profile"] = enriched_profiles.get(job_id, base["company_profile"])
+
+            # Duplicate check is cheap and still useful as a flag (the job
+            # stays searchable; the UI marks it as already tracked).
+            async with dup_sem:
+                is_dup = await tracker_client.check_duplicate(
+                    ctx.settings, job_data["company"], job_data["title"]
+                )
+            if is_dup:
+                run.jobs_skipped_duplicate += 1
+
+            match_response = (scores or {}).get(job_id)
+            if match_response is None:
+                run.jobs_score_failed += 1
+                logger.info("Job skipped: runId=%s jobId=%s reason=%s",
+                            run.id, job_id, "score_failed")
+                disc_job = DiscoveredJob(id=job_id, **base, is_duplicate=is_dup)
+            else:
+                run.jobs_scored += 1
+                recommendation = match_response.get("recommendation") or {}
+                # Snapshots live in their own DiscoveredJob fields — strip
+                # them out of match_analysis to avoid storing them twice
+                # (mirrors the manual Score-a-Job page's Save-to-Tracker
+                # convention).
+                analysis = {
+                    k: v for k, v in match_response.items()
+                    if k not in ("analystSnapshotInput", "analystSnapshotOutput",
+                                "evaluatorSnapshotInput", "evaluatorSnapshotOutput")
+                }
+                disc_job = DiscoveredJob(
+                    id=job_id,
+                    **base,
+                    is_duplicate=is_dup,
+                    score=match_response.get("overallScore"),
+                    verdict=match_response.get("verdict"),
+                    should_apply=recommendation.get("shouldApply"),
+                    match_analysis=analysis,
+                    analyst_snapshot_input=match_response.get("analystSnapshotInput"),
+                    analyst_snapshot_output=match_response.get("analystSnapshotOutput"),
+                    evaluator_snapshot_input=match_response.get("evaluatorSnapshotInput"),
+                    evaluator_snapshot_output=match_response.get("evaluatorSnapshotOutput"),
+                    company_news=enrichment.news.get(key) or None,
+                    glassdoor_data=enrichment.glassdoor.get(key),
+                )
+            await ctx.db.discovered_jobs.insert_one(disc_job.model_dump())
+        except Exception as e:
+            logger.error("Job skipped: runId=%s jobId=%s reason=%s error=%s",
+                         run.id, job_id, "ingest_error", e)
+
+
+async def _mark_completed(ctx: _RunContext) -> None:
+    run = ctx.run
+    run.status = "completed"
+    run.completed_at = datetime.now(timezone.utc)
+    await ctx.db.discovery_runs.update_one(
+        {"id": run.id, "status": {"$ne": "cancelled"}},
+        {"$set": {
+            "status": "completed",
+            "completed_at": run.completed_at,
+            "jobs_scored": run.jobs_scored,
+            "jobs_score_failed": run.jobs_score_failed,
+            "jobs_skipped_duplicate": run.jobs_skipped_duplicate,
+            "jobs_triaged_out": run.jobs_triaged_out,
+            "jobs_already_known": run.jobs_already_known,
+            "jobs_date_backfilled": run.jobs_date_backfilled,
+            "triage_status": run.triage_status,
+            "triage_unresolved": run.triage_unresolved,
+            "seniority_status": run.seniority_status,
+            "seniority_unresolved": run.seniority_unresolved,
+        }},
+    )
+    logger.info(
+        "Run %s completed: %d scraped, %d already known (%d date-backfilled), %d scored, "
+        "%d score-failed, %d duplicates, %d triaged out (triage=%s, seniority=%s)",
+        run.id, run.jobs_scraped, run.jobs_already_known, run.jobs_date_backfilled, run.jobs_scored,
+        run.jobs_score_failed, run.jobs_skipped_duplicate, run.jobs_triaged_out,
+        run.triage_status, run.seniority_status,
+    )
+
+
+async def _mark_failed(ctx: _RunContext, error: Exception) -> None:
+    logger.error("Run %s failed: %s", ctx.run.id, error)
+    await ctx.db.discovery_runs.update_one(
+        {"id": ctx.run.id, "status": {"$ne": "cancelled"}},
+        {"$set": {
+            "status": "failed",
+            "error": str(error),
+            "completed_at": datetime.now(timezone.utc),
+        }},
+    )

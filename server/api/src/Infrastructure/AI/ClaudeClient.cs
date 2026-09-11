@@ -1107,6 +1107,23 @@ public sealed class ClaudeClient : IClaudeClient
                 label, inTok, outTok, cacheW, cacheR, stopReason);
             _logger.LogDebug("Received {Label} response from Claude. Length: {Length} chars", label, content.Length);
 
+            // Truncation is terminal, and retrying it is strictly worse than
+            // failing. A max_tokens stop means the JSON was cut off mid-structure;
+            // the repair-retry below then asks for the same output under the same
+            // budget, so it dies at the same place — after paying to re-send the
+            // truncated attempt as an assistant turn. Measured on a real 4-job
+            // parse-batch: attempt 1 input=6616/output=4096 stop=max_tokens,
+            // attempt 2 input=10734/output=4096 stop=max_tokens, then a
+            // "failed to return valid JSON after retry" that named the wrong
+            // cause. Raise the role's MaxTokens instead; nothing else can help.
+            if (string.Equals(stopReason, "max_tokens", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new ClaudeJsonException(
+                    $"Claude {label} hit max_tokens ({cfg.MaxTokens}) and was truncated mid-JSON \u2014 "
+                    + "raise MaxTokens for this role; retrying cannot succeed at the same budget.",
+                    content, inputJson);
+            }
+
             try
             {
                 var jsonContent = ExtractJson(content, label);

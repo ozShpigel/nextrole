@@ -84,11 +84,20 @@ public sealed record ScoringConfig
     // jobs (cap 5) in ONE call sharing one system-prompt cost instead of N —
     // Analyst previously ran per-job with zero caching benefit (its ~600-token
     // system prompt is likely below Haiku's cacheable minimum), so batching is
-    // the only lever for its input-cost repetition. ~350-390 tokens/job
-    // observed for ParsedJob output; 4096 covers a 5-job batch with headroom.
+    // the only lever for its input-cost repetition.
     // Temperature = 0 — same rationale as Analyst above: mechanical extraction,
     // not prose.
-    public RoleScoringConfig AnalystBatch { get; init; } = new() { Model = "claude-haiku-4-5-20251001", Temperature = 0m, MaxTokens = 4096 };
+    //
+    // MaxTokens was 4096 on a "~350-390 tokens/job observed, covers a 5-job
+    // batch with headroom" estimate. That estimate held for a typical posting
+    // and not at all for a dense one: extraction is unbounded, and a single
+    // technical JD produced a 24-entry requiredSkills array. A replayed 4-job
+    // batch got through ONE job before hitting the 4096 ceiling, so the real
+    // figure is thousands of tokens per job, not hundreds. Whole batches were
+    // dying this way every run (jobs_score_failed in exact multiples of
+    // SCORE_BATCH_SIZE). Sized to match EvaluatorBatch — an unused budget
+    // costs nothing, a too-small one costs the entire batch.
+    public RoleScoringConfig AnalystBatch { get; init; } = new() { Model = "claude-haiku-4-5-20251001", Temperature = 0m, MaxTokens = 16000 };
 
     // Narrative enrichment: on-demand upgrade of 4 fields only (not the full
     // scores+breakdown schema) — fires once per Add click (~4% of scored

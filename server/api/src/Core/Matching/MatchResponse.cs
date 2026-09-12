@@ -23,9 +23,19 @@ public sealed record MatchResponse
     // scoring against — narrative only, no server-side consequence.
     public string[] MustClarify { get; init; } = [];
     // Literal inventory of missing REQUIRED (not "nice to have") named
-    // tech/skills, independent of the narrative Core Stack score. Checked
-    // mechanically by Correct(): >=4 caps Core Stack's score server-side.
+    // tech/skills, independent of the narrative Core Stack score: >=4 caps
+    // Core Stack's score server-side.
+    //
+    // COMPUTED SERVER-SIDE (ClaimGrounding.RequiredButAbsent). The model still
+    // fills it and Correct() overwrites it, because the cap used to read the
+    // model's own count and a response claiming a technology the candidate had
+    // not got reported the gap away: 12 absent requirements, 1 self-reported
+    // gap, Core Stack 20/20. A check whose input is written by the thing it
+    // checks is not a check.
     public string[] StackedGaps { get; init; } = [];
+    // Technologies the rationale asserts the candidate HAS that their profile
+    // does not evidence. Advisory: the score still ships, the claim is marked.
+    public UnsupportedClaim[] UnsupportedClaims { get; init; } = [];
     // 4-6 extremely short (3-5 word) fragments for an at-a-glance summary
     // before the full breakdown — e.g. a hover tooltip on the Matches page's
     // score ring. Mixes the strongest fit signal(s) with the biggest

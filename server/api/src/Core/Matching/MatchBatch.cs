@@ -35,6 +35,12 @@ public sealed record MatchBatchItem
     public List<CompanyNewsItem>? CompanyNews { get; init; }
     public GlassdoorData? GlassdoorData { get; init; }
     public CompanyProfile? CompanyProfile { get; init; }
+    // The posting's stated requirements as the pool extracted them once at
+    // ingest (PoolJob.MustHaveTech / NiceToHaveTech). Supplied by the per-user
+    // scan; omitted by callers with no pool row behind the job (Import Job),
+    // where JobMatchService falls back to the Analyst's own reading.
+    public string[]? MustHaveTech { get; init; }
+    public string[]? NiceToHaveTech { get; init; }
 }
 
 public sealed record MatchBatchResponse

@@ -23,6 +23,35 @@ public sealed class JobMatchService : IJobMatchService
         _logger = logger;
     }
 
+    // Which technologies this posting REQUIRES, preferring the pool's own
+    // extraction over the Analyst's reading of the same text.
+    //
+    // `mustHaveTech` is read once per posting at ingest, user-independently
+    // (docs/job-pool.md), and it separates "required" from "nice to have" —
+    // which the gap count depends on, because the prompt's rule is that a
+    // nice-to-have is never a gap. The Analyst's NamedTechnologies is the
+    // fallback for the manual page and for pool rows that entered before
+    // extraction existed; it does not make that distinction, so the
+    // nice-to-have half is subtracted by name.
+    private static string[] RequiredTechFrom(MatchBatchItem? item, ParsedJob parsedJob)
+    {
+        if (item?.MustHaveTech is { Length: > 0 } must) return must;
+        var optional = new HashSet<string>(parsedJob.NiceToHaveSkills, StringComparer.OrdinalIgnoreCase);
+        return parsedJob.NamedTechnologies.Where(t => !optional.Contains(t)).ToArray();
+    }
+
+    // Nice-to-haves are not gaps, but a rationale may not claim them either.
+    private static string[] OptionalTechFrom(MatchBatchItem? item, ParsedJob parsedJob)
+    {
+        if (item?.NiceToHaveTech is { Length: > 0 } nice) return nice;
+        var required = new HashSet<string>(RequiredTechFrom(item, parsedJob), StringComparer.OrdinalIgnoreCase);
+        return parsedJob.NiceToHaveSkills
+            .Concat(parsedJob.NamedTechnologies)
+            .Where(t => !required.Contains(t))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
     private static string? VerdictFromScore(int? score, VerdictBands bands) => score switch
     {
         null => null,
@@ -38,23 +67,29 @@ public sealed class JobMatchService : IJobMatchService
         _logger.LogInformation("Starting job match analysis");
 
         string profile;
-        string[] redFlags;
+        StructuredProfile structured;
         if (request.Profile is not null)
         {
             profile = ProfileRenderer.Render(request.Profile);
-            redFlags = request.Profile.RedFlags;
+            structured = request.Profile;
         }
         else
         {
             var profileDoc = await _profileProvider.GetProfileDocumentAsync(userId, cancellationToken);
             profile = profileDoc.Content;
-            redFlags = profileDoc.Structured.RedFlags;
+            structured = profileDoc.Structured;
         }
+        var redFlags = structured.RedFlags;
 
         var (parsedJob, analystSnap) = await ParseAsync(request, cancellationToken);
         var (matchResponse, evalSnap) = await _claudeClient.EvaluateMatchAsync(profile, parsedJob, request.CompanyNews, request.GlassdoorData, request.CompanyProfile, cancellationToken);
 
-        var corrected = Correct(matchResponse, _scoring, ReviewCap(request.GlassdoorData?.ReviewCount), parsedJob, request.GlassdoorData, redFlags) with
+        // No ingest facts on this path — the job was pasted, not scraped — so
+        // the Analyst's own reading of the posting is the requirement list.
+        var corrected = Correct(
+            matchResponse, _scoring, ReviewCap(request.GlassdoorData?.ReviewCount), parsedJob,
+            request.GlassdoorData, redFlags, structured,
+            RequiredTechFrom(null, parsedJob), OptionalTechFrom(null, parsedJob)) with
         {
             JobTitle = parsedJob.JobTitle,
             Company = parsedJob.Company,
@@ -74,7 +109,8 @@ public sealed class JobMatchService : IJobMatchService
 
         var profileDoc = await _profileProvider.GetProfileDocumentAsync(userId, cancellationToken);
         var profile = profileDoc.Content;
-        var redFlags = profileDoc.Structured.RedFlags;
+        var structured = profileDoc.Structured;
+        var redFlags = structured.RedFlags;
 
         // Analyst pass: ONE shared call parses every job in the batch — same
         // shared-system-prompt-cost saving the Evaluator batch call already
@@ -110,7 +146,10 @@ public sealed class JobMatchService : IJobMatchService
         var results = parsed.Select(p =>
         {
             var raw = responseById[p.Item.Id];
-            var corrected = Correct(raw, _scoring, ReviewCap(p.Item.GlassdoorData?.ReviewCount), p.ParsedJob, p.Item.GlassdoorData, redFlags) with
+            var corrected = Correct(
+                raw, _scoring, ReviewCap(p.Item.GlassdoorData?.ReviewCount), p.ParsedJob,
+                p.Item.GlassdoorData, redFlags, structured,
+                RequiredTechFrom(p.Item, p.ParsedJob), OptionalTechFrom(p.Item, p.ParsedJob)) with
             {
                 JobTitle = p.ParsedJob.JobTitle,
                 Company = p.ParsedJob.Company,
@@ -199,9 +238,17 @@ public sealed class JobMatchService : IJobMatchService
 
     // Re-derive verdict from the numeric score (authoritative bands) and recompute
     // shouldApply from the save threshold — the AI's own verdict/flag are advisory.
-    private MatchResponse Correct(MatchResponse r, ScoringConfig cfg, int reviewCap, ParsedJob parsedJob, GlassdoorData? glassdoorData, string[] redFlags)
+    // `profile` and `requiredTech` are what make the gap count and the claim
+    // check possible: the posting's stated requirements are compared against
+    // the candidate's own profile here, on the server, instead of being taken
+    // from the model's account of itself.
+    private MatchResponse Correct(
+        MatchResponse r, ScoringConfig cfg, int reviewCap, ParsedJob parsedJob,
+        GlassdoorData? glassdoorData, string[] redFlags,
+        StructuredProfile profile, string[] requiredTech, string[] optionalTech)
     {
         r = EnforceReviewCaps(r, reviewCap);
+        r = GroundClaims(r, profile, requiredTech, optionalTech);
         r = EnforceStackedGapsCap(r);
         r = EnforceScoreBounds(r);
         r = EnforceEvidenceCaps(r, parsedJob, glassdoorData);
@@ -227,6 +274,50 @@ public sealed class JobMatchService : IJobMatchService
                 : r.Recommendation.QuestionsToAsk
         };
         return r with { Verdict = verdict, Recommendation = rec! };
+    }
+
+    // Replaces the model's stackedGaps with the server's own, and marks any
+    // technology the rationale asserts the candidate has without support in
+    // their profile.
+    //
+    // Order matters: this runs BEFORE EnforceStackedGapsCap, which is the whole
+    // point. The cap has always existed to catch a Core Stack score that
+    // ignored a pile of missing requirements, but its only input was the
+    // model's self-reported gap list — written in the same response as the
+    // claim, and shrunk by exactly the responses that needed capping. Zscaler:
+    // 12 required technologies absent from the profile, 1 self-reported gap,
+    // Core Stack 20/20, overall 88.
+    //
+    // A posting that names no requirements yields no gaps and no claims, and
+    // leaves the model's list alone: there is nothing to check against, and
+    // EnforceEvidenceCaps already handles "the JD said nothing".
+    private MatchResponse GroundClaims(
+        MatchResponse r, StructuredProfile profile, string[] requiredTech, string[] optionalTech)
+    {
+        if (requiredTech.Length == 0 && optionalTech.Length == 0) return r;
+
+        var evidence = ClaimGrounding.ProfileEvidence(profile);
+        var gaps = ClaimGrounding.RequiredButAbsent(requiredTech, evidence);
+
+        // The model's own list is not used, but a divergence is worth seeing:
+        // it is the cheapest signal that the Evaluator is talking itself out of
+        // gaps, and it was invisible while the model owned the field.
+        if (Math.Abs(gaps.Length - r.StackedGaps.Length) >= 2)
+            _logger.LogInformation(
+                "Stacked-gaps divergence: server computed {Computed} from the posting's requirements, "
+                + "model self-reported {Claimed} (computed: {Gaps})",
+                gaps.Length, r.StackedGaps.Length, string.Join(", ", gaps));
+
+        // Nice-to-have technologies are not gaps (the prompt's own rule) but a
+        // rationale still must not claim them, so both lists feed the claim check.
+        var claims = ClaimGrounding.Find(
+            r with { StackedGaps = gaps }, requiredTech.Concat(optionalTech), profile);
+        foreach (var c in claims)
+            _logger.LogWarning(
+                "Unsupported claim: technology={Technology} field={Field} text=\"{Text}\"",
+                c.Technology, c.Field, c.Text);
+
+        return r with { StackedGaps = gaps, UnsupportedClaims = claims };
     }
 
     // A posting with many individually-minor stack gaps was scored too

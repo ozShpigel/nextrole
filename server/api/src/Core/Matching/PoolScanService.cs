@@ -121,6 +121,10 @@ public sealed class PoolScanService : IPoolScanService
                 Company = j.Company,
                 Location = j.Location,
                 DatePosted = j.DatePosted,
+                // Already loaded for the candidate filter; scoring needs the
+                // same facts to ground the rationale against the profile.
+                MustHaveTech = j.MustHaveTech,
+                NiceToHaveTech = j.NiceToHaveTech,
             }).ToList(),
         };
 

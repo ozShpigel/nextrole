@@ -88,81 +88,13 @@ namespace ApplicationTracker.Core.Models;
 // should first re-run the corpus harness and show true positives.
 public static class ResumePackValidator
 {
-    // All comparisons run on normalized text. The output is expected to differ
-    // from the profile in *representation* without differing in content: the
-    // prompt's OUTPUT section orders ASCII punctuation ("plain hyphens, straight
-    // quotes") while the profile stores real typography, so a date range held as
-    // "2023–2026" comes back as "2023-2026" and an exact comparison reports the
-    // employer as fabricated. Every ExperienceTripleNotInProfile across 53 stored
-    // packs was that en-dash.
-    //
-    // Normalization is deliberately narrow — dash forms, quote forms, whitespace
-    // runs, letter case. It never strips or trims words: dropping a qualifier
-    // changes the claim, which is content.
-    private static string Normalize(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value)) return "";
-
-        var sb = new System.Text.StringBuilder(value.Length);
-        var pendingSpace = false;
-        foreach (var ch in value)
-        {
-            var c = ch switch
-            {
-                // Hyphen/dash family: U+2010..U+2015, non-breaking hyphen, minus sign.
-                '‐' or '‑' or '‒' or '–' or '—' or '―' or '−' => '-',
-                // Curly apostrophes and quotes.
-                '‘' or '’' or '‛' or 'ʼ' => '\'',
-                '“' or '”' or '‟' => '"',
-                _ => ch,
-            };
-
-            // Collapse any whitespace run to a single space: the rendered profile
-            // hard-wraps, so a quoted source can carry newlines the original does
-            // not. char.IsWhiteSpace covers NBSP (U+00A0) and friends.
-            if (char.IsWhiteSpace(c))
-            {
-                pendingSpace = sb.Length > 0;
-                continue;
-            }
-            if (pendingSpace) { sb.Append(' '); pendingSpace = false; }
-            sb.Append(char.ToLowerInvariant(c));
-        }
-        return sb.ToString();
-    }
-
-    // Splits on whitespace and grouping punctuation only — NOT on every symbol,
-    // because "c#", ".net", "ci/cd" and "pl/sql" are single skills whose
-    // punctuation is part of the name.
-    private static readonly char[] TokenSeparators = [' ', '(', ')', '[', ']', ',', ';'];
-
-    private static string[] Tokenize(string normalized) =>
-        normalized.Split(TokenSeparators, StringSplitOptions.RemoveEmptyEntries);
-
-    // A skill item traces to the profile when its tokens appear as a contiguous
-    // run inside some profile item's tokens. Token-level rather than raw
-    // substring, so splitting "LLM integration (Anthropic API)" into "LLM
-    // integration" and "Anthropic API" lets both trace, while "Go" does not
-    // falsely trace to "Django".
-    private static bool TracesToProfile(string? item, List<string[]> profileItemTokens)
-    {
-        var tokens = Tokenize(Normalize(item));
-        if (tokens.Length == 0) return false;
-
-        foreach (var candidate in profileItemTokens)
-        {
-            for (var start = 0; start + tokens.Length <= candidate.Length; start++)
-            {
-                var all = true;
-                for (var i = 0; i < tokens.Length && all; i++)
-                {
-                    if (!string.Equals(candidate[start + i], tokens[i], StringComparison.Ordinal)) all = false;
-                }
-                if (all) return true;
-            }
-        }
-        return false;
-    }
+    // Normalization, tokenization and the traces-to-profile comparison moved to
+    // Core.Profile.ProfileTrace so the Evaluator's rationale grounding asks the
+    // question exactly the same way (see ClaimGrounding). Behaviour unchanged.
+    private static string Normalize(string? value) => ProfileTrace.Normalize(value);
+    private static string[] Tokenize(string normalized) => ProfileTrace.Tokenize(normalized);
+    private static bool TracesToProfile(string? item, List<string[]> profileItemTokens) =>
+        ProfileTrace.Traces(item, profileItemTokens);
 
     // A numeric figure: a digit run with the magnitude/percent/plus suffixes these
     // résumés actually use — "700+", "50%", "14k+", "13+", "2023".

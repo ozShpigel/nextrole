@@ -14,4 +14,11 @@ public sealed record PoolJob
     public string? CompanyLogo { get; init; }
     public Dictionary<string, object?>? CompanyProfile { get; init; }
     public DateTime? FirstSeenAt { get; init; }
+    // From the pool's own per-job extraction (extracted.must_have_tech /
+    // nice_to_have_tech): what the posting asks for, read once at ingest and
+    // user-independent. The candidate filter already reads must-haves; scoring
+    // reads both, to compute the gap list and to check the rationale's claims
+    // against the profile instead of trusting the model's account of them.
+    public string[] MustHaveTech { get; init; } = [];
+    public string[] NiceToHaveTech { get; init; } = [];
 }

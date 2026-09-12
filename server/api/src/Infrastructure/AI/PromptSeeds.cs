@@ -1078,10 +1078,23 @@ Compare the level the role demands with the level the candidate has DEMONSTRABLY
 
 ### Stacked gaps (hard rule for Core Stack)
 
-List every genuinely missing named technology/skill the role REQUIRES in the output's `stackedGaps` array ({{OUTPUT_LANGUAGE}}, one short phrase per gap, e.g. "No AWS experience") — this is checked mechanically, not just narrative.
+List every genuinely missing named technology/skill the role REQUIRES in the output's `stackedGaps` array ({{OUTPUT_LANGUAGE}}, one short phrase per gap, e.g. "No AWS experience").
+
+**This list is recomputed on the server** from the posting's stated requirements and the candidate's profile, and the server's version is what reaches the reader and what caps Core Stack. Yours is read only to compare against it. Fill it honestly anyway: a large disagreement is logged and is the signal that this section needs work.
 
 - Count only REQUIRED technologies the profile does not demonstrate. Never count something listed as "nice to have" / "advantage" / "bonus". Never count the same missing technology twice under different names (e.g. "Kubernetes" and "K8s" are one gap).
 - This is independent of your Core Stack score itself — score Core Stack on transferability as usual, per the bands above; `stackedGaps` is a separate, literal inventory of what's missing, not a summary of your reasoning or a restatement of the Core Stack `reason`.
+
+### Naming a technology as the candidate's (hard rule, everywhere)
+
+The rule above governs what you may call MISSING. This one governs what you may call THEIRS, and it applies to every piece of free text you write — `quickHighlights`, every component `reason`, `honestAssessment`, `strengths`, `positiveSignals`.
+
+**Name a technology as something the candidate has ONLY if the profile names it.** Not if the posting requires it. Not if it is adjacent to something they have. Not if their seniority makes it likely.
+
+- A profile listing Docker and Terraform does not give you Kubernetes. A profile listing S3 does not give you AWS. A profile listing Datadog does not give you Prometheus.
+- This is checked on the server against the profile, per technology, and an unsupported name is flagged on the output next to your text. The score still ships; the claim is marked as unsupported.
+- To say the role needs something they lack, say so plainly — "Kubernetes required, not demonstrated" is correct and is not a claim. The failure being prevented is the opposite: reading the posting's requirement list back as a description of the candidate.
+- Wrong, against a profile with no Kubernetes and no AWS: `"Python/Kubernetes/AWS — strong match"`. Right: `"Python match — Kubernetes, AWS absent"`, or simply `"Python — core strength"`.
 
 ---
 
@@ -1120,7 +1133,7 @@ Distill the single most decision-relevant points into 4–6 lines for an at-a-gl
 - English only — this is the one part of the report that is always English regardless of {{OUTPUT_LANGUAGE}} (see OUTPUT LANGUAGE RULES). It must scan fast with no RTL/LTR mixing.
 - Format: `<term> — <explanation>`, one line each. Fragments, not full sentences.
 - STRICT 6-word ceiling on the ENTIRE line (term + explanation combined, count every word including "and"/"—"). This is not a target, it is a hard limit you must not cross. Count the words in each line before you finalize your response; if any line is over 6, cut it down before returning.
-- Name only the SINGLE strongest signal per line, never a list of multiple technologies/facts. Wrong: "Core stack match — Kubernetes, Python, Terraform, Prometheus, Grafana" (lists 5 techs, 9 words). Right: "Core stack match — Kubernetes" (1 tech, 4 words).
+- Name only the SINGLE strongest signal per line, never a list of multiple technologies/facts. Wrong: "Core stack match — Kubernetes, Python, Terraform, Prometheus, Grafana" (lists 5 techs, 9 words). Right: "Core stack match — Kubernetes" (1 tech, 4 words) — **and only when the profile itself names Kubernetes**; see "Naming a technology as the candidate's". The technology you name here must be one of theirs, not one of the posting's.
 - If a term this important genuinely cannot fit an explanation in 6 words, drop the explanation and output the term alone — a bare term beats a truncated or overlong line.
 
 ---

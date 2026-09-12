@@ -34,7 +34,9 @@ Each job scoring = 2 Claude API calls: Analyst (Haiku) + Evaluator (Haiku — mo
 - **Sub-component breakdown**: each dimension's `breakdown.<dim>.components[]` array (modeled by `ScoreComponent` in `MatchResponse.cs`) splits its score into sub-criteria, each with `name`, `score`, `maxScore`, and a one-sentence `reason` — Technical Fit → Core Stack (0-20) + System Design (0-15); Engineering Execution → Role Clarity & Ownership + Engineering Maturity & Stability; Sustainability & Pace → Pace & Workload + Long-term Risk. Dimension score = sum of its components; surfaced by `AnalysisCard` (Matches page card expand, Application Detail page, Manual Score page) alongside a "Signals" summary (recommendation green/red flags). A component may also carry a `reviewAdjustment {base, delta}` (see Employee-review scoring below), rendered in the breakdown as `base N ±delta from employee reviews`.
 - **Role-level match rule (System Design cap)**: the Evaluator caps **System Design** at the "transferable concepts" band (4-7 of 15) when the role demands a level the profile never demonstrates — Architect / Staff / Principal titles, or cross-team architecture ownership — and notes the gap in the component `reason` + `redFlags`. Pure seniority prefixes ("Senior") never trigger it; it targets undemonstrated *role scope*, not years.
 - **People-management is a hard blocker, not just a score cap**: when the posting requires the candidate to formally manage people — either as the role's own duties ("lead the team") or as a stated prior-experience qualification ("5 years as a DevOps lead") — the Evaluator adds a reason to `hardBlockers`, which forces the verdict to `STRONG_NO` server-side (`JobMatchService.Correct`). Individual-contributor mentoring and leading technical initiatives (not people) do **not** count. This is checked mechanically, not just narratively: a non-empty `hardBlockers` array always wins over whatever score the model computed.
-- **Stacked gaps (Core Stack cap)**: the Evaluator lists every genuinely missing *required* named technology/skill in a separate `stackedGaps` array (never "nice to have" items). When 4 or more accumulate, `JobMatchService.EnforceStackedGapsCap` caps the Core Stack component at 11/20 server-side regardless of the model's own score — a posting with many individually-minor gaps was being scored too generously on narrative alone; tuning the verdict threshold couldn't separate this pattern from genuinely strong matches without this mechanical check.
+- **Stacked gaps (Core Stack cap)**: every missing *required* named technology/skill (never "nice to have" items). When 4 or more accumulate, `JobMatchService.EnforceStackedGapsCap` caps the Core Stack component at 11/20 server-side regardless of the model's own score — a posting with many individually-minor gaps was being scored too generously on narrative alone; tuning the verdict threshold couldn't separate this pattern from genuinely strong matches without this mechanical check.
+
+  **The list is computed server-side** (`ClaimGrounding.RequiredButAbsent`), from the posting's stated requirements and the candidate's profile. It used to be the model's own field, which made the cap a check whose only input was written by the thing it was checking — and responses that needed capping were exactly the ones that reported the gaps away. See "Grounding the rationale" below.
 - **Verdicts**: STRONG_YES, YES, MAYBE, NO, STRONG_NO, INSUFFICIENT_DATA — re-derived server-side from `overallScore` against `VerdictBands` (currently 85/68/50/25; golden-set-validated, see Regression testing below), never trusted from the model's own `verdict` field alone.
 - **`min_score_to_save`** (`Scoring.MinScoreToSave`, API-side) drives `shouldApply` on every scored job — manual and ingest-time alike. `SearchCriteria.min_score_to_save` (scraper-side, per-criteria) is a **UI default for the Matches page's min-score filter**, not a write trigger — saving to the Tracker is always an explicit user action (`POST /api/discovery/jobs/{id}/save`), never automatic.
 - **JSON resilience**: `ClaudeClient.cs` has lenient deserializers, fence/brace extraction, comment stripping, and auto-retry with "return ONLY JSON" nudge
@@ -99,6 +101,73 @@ Company Summary, Why Work Here, and full-narrative enrichment can each still be 
 - **"Why work here?" answer** — a personalized single paragraph, always generated in English, answering the interview question. Combines the user's profile + interview-prep self-presentation (trusted, in the system prompt) with the job/company context — description, company summary, news, Glassdoor (untrusted, XML-wrapped in the user message). Generated via `POST /api/applications/{id}/why-work-here` (`ClaudeClient.GenerateWhyWorkHereAsync`, one-shot Haiku), stored on `WhyWorkHere`.
 - **Hebrew translation, on demand** — `PromptSeeds.TranslateFreeText` / `ClaudeClient.TranslateTextAsync` (plain-text counterpart to `TranslateMatchAnalysisAsync`) translates the current `CompanySummary`/`WhyWorkHere` into `CompanySummaryHebrew`/`WhyWorkHereHebrew` via `POST /api/applications/{id}/company-summary/translate` and `.../why-work-here/translate` — same cache-once/`translate` rate-limit-bucket shape as `translate-analysis`, and cleared whenever the English source is regenerated. The client's single "Translate to Hebrew" toggle fires all three translate calls (match analysis + these two) together. Replaces the older `Prompts__HebrewOutput__WhyWorkHere`/`CompanySummary` deployment flags, which generated Hebrew directly at generation time with no English version available at all.
 - **Full-narrative enrichment** — `NarrativeEnrichment` (`ClaudeClient.EnrichNarrativeAsync`, `claude-sonnet-5`) upgrades `honestAssessment`/`recommendation` (`keyReasons`, `questionsToAsk`, `redFlags`, `greenFlags`) from terse to full detail. Used to fire on every "Add" click instead — wasted spend on the majority of added jobs that never reach an interview, and the content wasn't even displayed that early (the detail page's `showFullAnalysis` gate hides `AnalysisCard`/Why-Work-Here/Company-Info until Interviewing — see `docs/tracker.md`). Merges into the stored `MatchAnalysis` via `JsonNode` surgery (only the fields `NarrativeEnrichment` owns) rather than a typed deserialize/re-serialize round-trip, so any field not modeled on `MatchResponse` survives untouched.
+
+## Grounding the rationale
+
+The Evaluator was claiming technologies the candidate did not have, and the
+shape of the claim came from the posting: it read the requirement list back as
+a description of the candidate. Against a Lead Data Engineer whose profile
+contains no `Kubernetes`, no `AWS` and not the word `cloud`:
+
+| Posting | Required tech he had | The rationale said | Score |
+|---|---|---|---|
+| Zscaler, Sr. DevOps Engineer | 5 of 17 | "AWS/EKS/Kubernetes/Terraform - perfect stack match" | 88 |
+| Paragon, SRE | 1 of 8 | "Python/Kubernetes/Prometheus - strong match" | 73 |
+| Aidoc, Senior DevOps | 1 of 8 | "Terraform/Kubernetes/AWS - strong match" | 71 |
+
+Two separate faults, both in `ClaimGrounding` now:
+
+**1. The gap count was the model's own.** `stackedGaps` was the only input to
+the Core Stack cap, and the model wrote it in the same response as the claim.
+Zscaler: 12 required technologies absent from the profile, **1** self-reported
+gap, Core Stack 20/20, and the cap never fired. `RequiredButAbsent` computes
+the list from `must_have_tech` (extracted once at ingest, user-independent —
+`docs/job-pool.md`) against the profile; the Analyst's `NamedTechnologies`
+minus its nice-to-haves is the fallback on the manual page. Aliases collapse
+(`EKS` is not a second gap beside `Kubernetes`), and a nice-to-have is never a
+gap. The model still fills the field and a divergence of 2+ is logged — the
+cheapest available signal that the Evaluator is talking itself out of gaps.
+
+**2. There was a rule for "he lacks X" and none for "he has X."** The prompt
+constrained `stackedGaps` and said nothing about the free text, while its own
+QUICK HIGHLIGHTS example taught the exact failing shape
+(`Right: "Core stack match - Kubernetes"`). `ClaimGrounding.Find` scans
+`quickHighlights`, every component `reason` and `honestAssessment` for any
+posting technology the profile does not evidence, and reports them on
+`MatchResponse.UnsupportedClaims`.
+
+**It annotates, it does not block.** A withheld score leaves a blank card; a
+score with the unsupported claim named is more useful. (A résumé pack goes to
+an employer, so `ResumePackValidator` blocks — different audience, different
+answer.)
+
+Mechanics worth knowing before changing it:
+
+- **The comparison is `ProfileTrace`**, shared with `ResumePackValidator`'s
+  `SkillItemDropped` so both sides ask the question the same way: token-level,
+  contiguous-run, so "Go" does not trace to "Django".
+- **Grounding reads the whole profile**, not just Skills — the Evaluator is
+  handed the rendered profile, so a technology named in an experience highlight
+  ("Spark jobs in Scala") is genuinely supported.
+- **Polarity is decided per clause**, because one sentence routinely asserts one
+  technology and denies another ("Python strong; Kubernetes new but adjacent").
+  Clause boundaries are `;`, `·` and a full stop *followed by whitespace* —
+  splitting on every `.` cut `Node.js` in half and turned "Missing TypeScript,
+  Node.js, React, Next.js, and AWS" into a claim about AWS. That one bug was
+  most of the checker's false positives; `/` is deliberately not a boundary,
+  because `Python/Kubernetes/AWS` is one claim per name sharing one verdict.
+- **It is a verbatim check, so it is literal.** Concrete product names
+  (Kubernetes, AWS, Prometheus, Redis, Grafana) are reliable. Capability
+  phrases that the extractor sometimes emits as "technologies" — "distributed
+  systems", "microservices", "CI/CD" — get flagged when the profile evidences
+  the concept under other words (GitHub Actions is CI/CD). Measured at 185
+  claims over 111 real scored jobs, those phrases are ~9% of the total.
+
+Measured over one user's 111 scored pool jobs, replaying the stored Evaluator
+responses through the real correction path: **22 scores changed, 13 verdicts
+changed, mean -5.6, largest drop -9** (the cap's ceiling bounds it), and **60 of
+111 jobs carried at least one unsupported claim**. Kubernetes (55) and AWS (37)
+were half of them.
 
 ## Per-user scoring (Step 5)
 

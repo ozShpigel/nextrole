@@ -126,7 +126,20 @@ public sealed class PoolJobRepository : IPoolJobRepository
             ? cp.AsBsonDocument.ToDictionary(e => e.Name, e => (object?)(e.Value.IsBsonNull ? null : e.Value.ToString()))
             : null,
         FirstSeenAt = d.TryGetValue("first_seen_at", out var f) && f.IsValidDateTime ? f.ToUniversalTime() : null,
+        MustHaveTech = ExtractedStrings(d, "must_have_tech"),
+        NiceToHaveTech = ExtractedStrings(d, "nice_to_have_tech"),
     };
+
+    // extracted.<field> as a string array. Absent on rows that predate the
+    // pool's extraction step, and on rows whose extraction was abandoned after
+    // its retry cap — an empty list, which scoring reads as "the posting states
+    // no requirements" and falls back to the Analyst for.
+    private static string[] ExtractedStrings(BsonDocument d, string field)
+    {
+        if (!d.TryGetValue("extracted", out var e) || !e.IsBsonDocument) return [];
+        if (!e.AsBsonDocument.TryGetValue(field, out var v) || !v.IsBsonArray) return [];
+        return v.AsBsonArray.Where(x => x.IsString).Select(x => x.AsString).ToArray();
+    }
 
     private static string? Str(BsonDocument d, string field) =>
         d.TryGetValue(field, out var v) && v.IsString ? v.AsString : null;

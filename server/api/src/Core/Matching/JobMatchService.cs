@@ -249,7 +249,7 @@ public sealed class JobMatchService : IJobMatchService
     {
         r = EnforceReviewCaps(r, reviewCap);
         r = GroundClaims(r, profile, requiredTech, optionalTech);
-        r = EnforceStackedGapsCap(r);
+        r = EnforceStackedGapsCap(r, requiredTech);
         r = EnforceScoreBounds(r);
         r = EnforceEvidenceCaps(r, parsedJob, glassdoorData);
         r = EnforceQuickHighlightsLength(r);
@@ -327,22 +327,26 @@ public sealed class JobMatchService : IJobMatchService
     // separate, literal inventory the model fills independently of its own
     // Core Stack narrative score; when enough gaps stack up, cap the score
     // server-side rather than trust the model to self-discount it.
-    private const int StackedGapsThreshold = 4;
-    private const int StackedGapsCoreStackCeiling = 11;
-
-    private MatchResponse EnforceStackedGapsCap(MatchResponse r)
+    // The ceiling itself is CoreStackCap.For - flat at 11 until it was measured
+    // and found to charge the same for 4 missing requirements as for 14.
+    private MatchResponse EnforceStackedGapsCap(MatchResponse r, string[] requiredTech)
     {
-        if (r.StackedGaps.Length < StackedGapsThreshold) return r;
+        var gaps = r.StackedGaps.Length;
+        var required = ClaimGrounding.RequirementCount(requiredTech);
+        var ceiling = CoreStackCap.For(gaps, required);
+        if (ceiling >= CoreStackCap.MaxScore) return r;
+
         var components = r.Breakdown.TechnicalFit.Components;
         var idx = Array.FindIndex(components, c => c.Name.Equals("Core Stack", StringComparison.OrdinalIgnoreCase));
-        if (idx < 0 || components[idx].Score is not int score || score <= StackedGapsCoreStackCeiling)
+        if (idx < 0 || components[idx].Score is not int score || score <= ceiling)
             return r;
 
         var newComponents = (ScoreComponent[])components.Clone();
-        newComponents[idx] = components[idx] with { Score = StackedGapsCoreStackCeiling };
+        newComponents[idx] = components[idx] with { Score = ceiling };
         _logger.LogInformation(
-            "Stacked-gaps cap enforcement: 'Core Stack' {Old} -> {New} ({GapCount} stacked gaps)",
-            score, StackedGapsCoreStackCeiling, r.StackedGaps.Length);
+            "Stacked-gaps cap enforcement: 'Core Stack' {Old} -> {New} "
+            + "({GapCount} of {Required} stated requirements absent)",
+            score, ceiling, gaps, required);
 
         var techFit = r.Breakdown.TechnicalFit with
         {

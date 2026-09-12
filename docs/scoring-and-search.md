@@ -37,6 +37,10 @@ Each job scoring = 2 Claude API calls: Analyst (Haiku) + Evaluator (Haiku — mo
 - **Stacked gaps (Core Stack cap)**: every missing *required* named technology/skill (never "nice to have" items). When 4 or more accumulate, `JobMatchService.EnforceStackedGapsCap` caps the Core Stack component at 11/20 server-side regardless of the model's own score — a posting with many individually-minor gaps was being scored too generously on narrative alone; tuning the verdict threshold couldn't separate this pattern from genuinely strong matches without this mechanical check.
 
   **The list is computed server-side** (`ClaimGrounding.RequiredButAbsent`), from the posting's stated requirements and the candidate's profile. It used to be the model's own field, which made the cap a check whose only input was written by the thing it was checking — and responses that needed capping were exactly the ones that reported the gaps away. See "Grounding the rationale" below.
+
+  **The ceiling scales with coverage** (`CoreStackCap.For`): `min(11, round(20 × matched / required))` once 4+ requirements are absent. It was flat at 11, so four missing requirements and fourteen cost the same, and a candidate with 5 of a posting's 17 kept a score that read as a strong technical match. Coverage rather than the raw gap count, because the count cannot tell 11 missing of 16 from 11 of 40 — see "Choosing the curve".
+
+  **It floors at 0, by design.** A posting whose every stated requirement is absent from the profile has no technical fit to score, and saying so is the point. The other 80 points of the total are untouched by this cap.
 - **Verdicts**: STRONG_YES, YES, MAYBE, NO, STRONG_NO, INSUFFICIENT_DATA — re-derived server-side from `overallScore` against `VerdictBands` (currently 85/68/50/25; golden-set-validated, see Regression testing below), never trusted from the model's own `verdict` field alone.
 - **`min_score_to_save`** (`Scoring.MinScoreToSave`, API-side) drives `shouldApply` on every scored job — manual and ingest-time alike. `SearchCriteria.min_score_to_save` (scraper-side, per-criteria) is a **UI default for the Matches page's min-score filter**, not a write trigger — saving to the Tracker is always an explicit user action (`POST /api/discovery/jobs/{id}/save`), never automatic.
 - **JSON resilience**: `ClaudeClient.cs` has lenient deserializers, fence/brace extraction, comment stripping, and auto-retry with "return ONLY JSON" nudge
@@ -163,11 +167,82 @@ Mechanics worth knowing before changing it:
   the concept under other words (GitHub Actions is CI/CD). Measured at 185
   claims over 111 real scored jobs, those phrases are ~9% of the total.
 
-Measured over one user's 111 scored pool jobs, replaying the stored Evaluator
-responses through the real correction path: **22 scores changed, 13 verdicts
-changed, mean -5.6, largest drop -9** (the cap's ceiling bounds it), and **60 of
-111 jobs carried at least one unsupported claim**. Kubernetes (55) and AWS (37)
-were half of them.
+Measured by replaying stored Evaluator responses through the real correction
+path. Grounding alone, on the 111 scored pool jobs of the profile that surfaced
+the bug: 22 scores changed, mean -5.6, largest drop -9 (the flat ceiling bounded
+it), and **60 of 111 jobs carried at least one unsupported claim** — Kubernetes
+55, AWS 37.
+
+With the coverage-scaled ceiling (below), across all three profiles:
+
+| Profile | jobs | scores changed | verdicts moved | mean | worst |
+|---|---|---|---|---|---|
+| Lead Data Engineer | 111 | 61 | 20 | -7.0 | -16 |
+| Backend / platform | 142 | 50 | 17 | -6.4 | -17 |
+| Full stack | 46 | 24 | 5 | -6.2 | -12 |
+
+`STRONG_YES` counts went 2 -> 1, 5 -> 1 and 1 -> 0. Every one of those drops was
+a posting where the rationale claimed a stack the profile did not evidence: the
+two largest, both at 10 of 11 stated requirements absent, had Core Stack 18 and
+19 out of 20 and read "Strong Python, asyncio, pytest, LLM integration match".
+
+### Choosing the curve
+
+Four candidates were replayed through the real correction path over **299 real
+scored jobs across three profiles**, with the stored Evaluator responses as
+input. The measurement that mattered was not the one on the profile that
+prompted the change — a curve measured only on a candidate whose whole pool is
+off-target looks good whatever it does. Two on-target profiles were included as
+controls: a backend/platform engineer against backend postings, and a full-stack
+engineer against full-stack postings.
+
+| | Rule | Verdicts moved: data eng. | backend | full-stack |
+|---|---|---|---|---|
+| A | `gaps≥4 → 11` (was shipped) | — | — | — |
+| B | `11 − 2·(gaps−4)`, floor 2 | 8 | **12** | 4 |
+| **C** | `gaps≥4 → min(11, 20·matched/req)` | 7 | 10 | **2** |
+| D | `4-5:11 6-8:8 9-11:5 12+:3` | 4 | 8 | 2 |
+| E | `coverage<0.6 → 20·coverage`, no gate | 10 | **18** | 3 |
+
+**E is out on the control.** Without the gap gate, coverage fires on postings
+that name only three or four technologies, where it is noise: an on-target match
+with 2 gaps of 4 and Core Stack 17/20 lost seven points, and the one genuinely
+well-matched posting in the other candidate's pool fell from 93 to 85.
+
+**B is the wrong shape.** Reading only the count, it was simultaneously harsher
+on the controls and *milder* on the worst mismatches than C — more aggressive on
+honest matches and less on fabricated ones, which is backwards.
+
+**C keeps the `gaps ≥ 4` gate and `min(11, …)`**, so it is a strict tightening:
+no job scores higher than it did under the flat rule, and nothing below the
+threshold is touched at all. `ClaimGroundingTests` pins both ends — the
+arithmetic across the boundary, and four real postings that must not move.
+
+#### Known limitations, measured and deliberately left
+
+**Nothing propagates a stack mismatch into the other three dimensions.** Core
+Stack is 20 of 100. Zscaler's Sr. DevOps Engineer — 5 of 16 stated requirements
+present, Core Stack capped from 20 to 6 — still lands at **74**, a mid-board
+MAYBE, because System Design, Engineering Execution and Sustainability are
+scored against process and pace signals that have nothing to do with whether the
+candidate can do the work. The lever for that is dimension propagation, not this
+curve. Recorded rather than changed: this was the third scoring change in a day
+and the next one wants a week of real scores behind it.
+
+**Coverage penalises postings that enumerate many niche tools.** A posting
+listing eleven named frameworks gives low coverage even to a strong general
+match: a senior Python engineer against `Python, asyncio, pytest, Playwright,
+LangGraph, Claude Agent SDK, OpenAI Agents SDK, DSPy, MLflow, LangSmith,
+Braintrust` evidences one of eleven, and the ceiling drops to 2. That case scored
+92 on a rationale claiming "Strong Python, asyncio, pytest" — so capping it is
+right here — but the mechanism would treat a genuinely strong candidate the same
+way. Bounded by the 4-gap gate and by the cap only touching one component of
+four.
+
+**The claim check is verbatim, so capability phrases over-flag.** "CI/CD" is
+flagged against a profile that says GitHub Actions, "distributed systems"
+against one that describes 2.3 TB/day pipelines. ~9% of flags. Tolerable while
+this annotates rather than blocks; it would not be tolerable if it ever gated.
 
 ## Per-user scoring (Step 5)
 

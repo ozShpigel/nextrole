@@ -94,6 +94,16 @@ public static class ClaimGrounding
             && group.Any(a => ProfileTrace.Traces(a, evidence));
     }
 
+    // Alias-deduplicated count of what the posting requires: the denominator of
+    // coverage. Counted by the same rules as the gap list, so "EKS" beside
+    // "Kubernetes" is one requirement on both sides of the ratio.
+    public static int RequirementCount(IEnumerable<string> requiredTech) =>
+        requiredTech
+            .Where(t => !string.IsNullOrWhiteSpace(t))
+            .Select(AliasKey)
+            .Distinct(StringComparer.Ordinal)
+            .Count();
+
     // The server's own stackedGaps: required technologies the profile does not
     // evidence, de-duplicated across aliases. Order follows the posting, so the
     // list reads like the requirement list it came from.
@@ -227,4 +237,49 @@ public sealed record UnsupportedClaim
     public string Field { get; init; } = "";
     public string Technology { get; init; } = "";
     public string Text { get; init; } = "";
+}
+
+// The Core Stack ceiling: how far a pile of missing requirements pulls the
+// technical-fit score down. Separate from the class above because it is the
+// consequence, not the check - but it lives here because it consumes the same
+// alias rules, and counting gaps and requirements on different bases would make
+// the coverage ratio meaningless.
+public static class CoreStackCap
+{
+    public const int MaxScore = 20;
+    // Below this many absent requirements, a low Core Stack score is the
+    // model's own judgement and is left alone. Unchanged since the cap existed.
+    public const int GapThreshold = 4;
+    // The ceiling at the threshold, and the highest this cap ever allows.
+    public const int Ceiling = 11;
+
+    // Was flat: four gaps and fourteen gaps both capped at 11, so a candidate
+    // with 5 of a posting's 17 requirements kept a score that read as a strong
+    // technical match. Now scaled by coverage - the share of what the posting
+    // asks for that the profile actually evidences.
+    //
+    // Coverage rather than the raw gap count, because the count alone cannot
+    // tell 11 missing of 16 from 11 missing of 40, and because a curve on the
+    // count punished honest matches harder than fabricated ones when measured:
+    // over 299 real scored jobs across three profiles, a -2-per-gap decay moved
+    // 12 verdicts on an on-target backend profile while being milder on the
+    // worst mismatches than this is.
+    //
+    // Still gated on GapThreshold, so this can only ever hold a score at or
+    // below where the flat rule held it - never above. Dropping the gate and
+    // capping on coverage alone was measured too: on postings that name only
+    // three or four technologies, coverage is noise, and it cost honest matches
+    // (2 gaps of 4, Core Stack 17/20) seven points each.
+    //
+    // Floors at 0 by design. A posting whose every stated requirement is absent
+    // from the profile has no technical fit to score, and saying so is the point.
+    public static int For(int gapCount, int requirementCount)
+    {
+        if (gapCount < GapThreshold) return MaxScore;      // no cap
+        if (requirementCount <= 0) return Ceiling;          // nothing to divide by
+        var matched = Math.Max(0, requirementCount - gapCount);
+        var scaled = (int)Math.Round(MaxScore * (double)matched / requirementCount,
+                                     MidpointRounding.AwayFromZero);
+        return Math.Min(Ceiling, scaled);
+    }
 }

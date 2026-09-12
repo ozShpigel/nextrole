@@ -47,6 +47,9 @@ services:
     restart: unless-stopped
     env_file: [.env.demo-client]
 
+  # The private instance's criteria-driven ingest: every is_active
+  # SearchCriteria, scraped for its owner. Scores nothing (Step 5 moved that
+  # to the per-user scan) and is slated for retirement with search_criteria.
   ingest:
     image: ghcr.io/ozshpigel/scraper:latest
     profiles: ["cron"]
@@ -54,6 +57,24 @@ services:
     env_file: [.env.scraper]
     environment:
       - API_BASE_URL=http://api:8080
+
+  # The public instance's shared job pool. Reads its role list from
+  # config/roles.json in the image, not from anyone's saved search, and is
+  # what every user of that instance matches against - without it a visitor
+  # can upload a CV and still see an empty Matches tab, because the candidate
+  # filter has no extracted requirements to filter on (docs/job-pool.md).
+  #
+  # Runs against .env.demo-scraper's database and calls the demo API, whose
+  # three ingest endpoints (title-triage, seniority-classify, job-facts) are
+  # all on the DemoMode allowlist - so this works before the instance is
+  # flipped to cookie identity, not after.
+  demo-pool-ingest:
+    image: ghcr.io/ozshpigel/scraper:latest
+    profiles: ["cron"]
+    command: python -m app.cli run-pool
+    env_file: [.env.demo-scraper]
+    environment:
+      - API_BASE_URL=http://demo-api:8080
 
   mailbot:
     image: ghcr.io/ozshpigel/mailbot:latest

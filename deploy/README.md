@@ -83,7 +83,23 @@ cluster storage, which matters on the M0 free tier.
   resolve sibling container names.
 - Frontend API URLs are Vite build-time variables. They must be unset in
   GitHub Actions variables so the code falls back to relative paths.
-- Cron schedules are UTC.
+- Cron schedules are UTC. Three cron-profile services, staggered so they do
+  not contend for the API's `discovery` rate-limit bucket. The host crontab is
+  the source of truth for the invocation form — match the `ingest` line that is
+  already installed rather than the shape below, which is illustrative:
+
+      0  5 * * *  cd /srv/nextrole && docker compose --profile cron run --rm ingest
+      30 5 * * *  cd /srv/nextrole && docker compose --profile cron run --rm demo-pool-ingest   # new
+      0  6 * * *  cd /srv/nextrole && docker compose --profile cron run --rm mailbot
+
+- **`demo-pool-ingest` is what makes the public instance usable.** It fills the
+  shared job pool the per-user scan matches against; without it a visitor
+  uploads a CV and sees an empty Matches tab, because the candidate filter has
+  no extracted requirements to filter on. It needs no identity of its own (the
+  pool is user-independent) and its three API calls are all on the DemoMode
+  allowlist, so it can be scheduled before the instance is flipped to cookie
+  identity. First run costs roughly $0.33 in extraction over ~160 postings;
+  subsequent runs only pay for what is new (`docs/job-pool.md`).
 
 ## Monitoring
 
@@ -129,10 +145,10 @@ To check for drift:
 
 **`docker compose pull` alone is not enough.** A running container keeps using its old
 image until recreated. Always follow with `--force-recreate`, and remember that the
-cron-profile containers (`ingest`, `mailbot`) are pulled separately:
+cron-profile containers (`ingest`, `demo-pool-ingest`, `mailbot`) are pulled separately:
 
     docker compose pull api scraper
     docker compose up -d --force-recreate api scraper
-    docker compose --profile cron pull ingest mailbot
+    docker compose --profile cron pull ingest demo-pool-ingest mailbot
 
 Verify with `docker inspect -f '{{.State.StartedAt}}' nextrole-api-1`.

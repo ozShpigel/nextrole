@@ -68,6 +68,61 @@ the index/migration/registration/seeder allowlist.
 `UserId` is `[JsonIgnore]`: a request body can never claim one, and a response
 can never leak one.
 
+## The hole the wrapper does not cover: the scraper
+
+`UserScopedCollection` makes a missed filter impossible in C#. None of it
+reaches Python. The scraper reaches user data over HTTP, where a user-scoped
+call that forgets identity **does not fail**: the API's resolver mints a fresh
+id, files the write under it, and returns 201. The row is then invisible to the
+person who asked for it and to everyone else.
+
+That is not hypothetical. `POST /api/discovery/jobs/{id}/save` shipped without
+it, so pressing **Add** on a match created an application owned by a
+one-request id — the client refetched the board, the board was empty, and
+nothing anywhere logged a problem.
+
+The rule, and the check behind it:
+
+- `tracker_client._request_with_retry` is the single funnel for every call the
+  scraper makes into the API, and its `user_id` parameter **has no default**.
+  Omitting it is a `TypeError` at the call site.
+- A resolved id travels as the `uid` cookie, so `IdentityResolver` stays the
+  only code that decides who a request is. The scraper never asserts a user
+  any other way.
+- `user_id=None` is how a call says it is genuinely user-independent — title
+  triage, seniority classification, job-facts extraction. An explicit `None` is
+  a decision; a missing argument is an oversight.
+- `tests/test_identity_forwarding.py` walks the AST of `app/services/*.py` and
+  fails if any `_request_with_retry` call site omits `user_id`, and checks that
+  the four job-action endpoints declare the identity dependency. Verified by
+  mutation: reverting any one of the three fixes turns it red.
+
+Work with no request behind it (the demo seeder, the golden-set eval CLIs) has
+no user to resolve. `identity.instance_user_id` returns the configured single
+user on a `Fixed` instance and **raises** on a `Cookie` one, rather than
+scoring against somebody who does not exist.
+
+## Per-user job state on a shared pool document
+
+`dismissed` and `saved_to_tracker` lived on the `discovered_jobs` document.
+Harmless with one user; with two, a dismiss hid the posting for everybody and a
+save marked it saved for everybody. They are opinions held by a person, exactly
+like a score, so they moved to `poolJobState` — one row per `(UserId, JobId)`,
+the same shape `jobScores` uses (`app/services/pool_state.py`).
+
+Separate from `jobScores` rather than two more fields on it, because the
+scoring path upserts whole score documents and would overwrite them. Two
+collections never written by the same code beat one collection with an
+ordering hazard.
+
+The read path already loads the user's score rows, so filtering by their own
+state costs one more indexed query and shrinks the `$in` on the pool. The
+response still carries `dismissed` / `saved_to_tracker` per job, so the client
+did not change. Pre-existing flags are migrated on startup
+(`_migrate_pool_job_flags`) and attributed to the legacy owner, matching how
+the criteria they came from were stamped; the source fields are left in place,
+unread, so the change is reversible.
+
 ## Uniqueness is per user
 
 Two users tracking the same job at the same company are not duplicates. The

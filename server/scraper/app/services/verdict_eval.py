@@ -21,6 +21,7 @@ import json
 import logging
 from pathlib import Path
 
+from app import identity
 from app.config import Settings
 from app.services import match_client
 
@@ -62,7 +63,8 @@ async def run_eval(settings: Settings, cases: list[dict] | None = None) -> list[
     for i, case in enumerate(cases):
         if i > 0:
             await asyncio.sleep(PACING_SECONDS)
-        response = await match_client.score_job(settings, case["jdText"])
+        response = await match_client.score_job(
+            settings, case["jdText"], user_id=identity.instance_user_id(settings))
         if response is None:
             raise RuntimeError(
                 f"eval-verdict: API call failed for case '{case['id']}' — "

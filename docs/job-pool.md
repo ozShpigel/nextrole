@@ -104,6 +104,24 @@ The run reports `jobs_extracted` against `jobs_new`, plus
 `jobs_extract_retried` and `jobs_extract_abandoned`, so a silently-failing
 extractor does not look like a normal run.
 
+## What a pool document must never hold
+
+Only what is true of the posting for everyone. A pool row is shared, so any
+field on it that means "this user thinks..." is a leak waiting to happen.
+
+`dismissed` and `saved_to_tracker` were exactly that, and they hid postings for
+every user when one user acted. They now live per user in `poolJobState`
+(`app/services/pool_state.py`), keyed `(UserId, JobId)` like `jobScores`.
+Scores went the same way in Step 5, for the same reason.
+
+`is_duplicate` is still written onto the document by the criteria-driven path.
+That path's rows carry a `criteria_id`, and a criteria belongs to exactly one
+user, so those documents are single-user in practice. Pool rows never get the
+field. It goes when `search_criteria` does (Tasks.md).
+
+The test to apply to a new field: **would two users ever disagree about it?**
+If yes, it belongs in a per-user row, not on the job.
+
 ## Measured size (2026-09-12)
 
 One real run over the five baseline roles — Israel, `hours_old=72`,

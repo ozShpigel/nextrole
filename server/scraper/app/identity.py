@@ -48,6 +48,26 @@ def legacy_owner_user_id(settings: Settings) -> str:
     return fixed if settings.identity_mode == "fixed" and fixed else ORPHANED_LEGACY_DATA
 
 
+def instance_user_id(settings: Settings) -> str:
+    """Identity for work with no HTTP request behind it: the demo seeder and
+    the golden-set eval CLIs.
+
+    Only meaningful on a single-user instance, where "the user" is a
+    configuration value. On a multi-user instance there is no current user
+    outside a request, and scoring against a made-up one would quietly
+    produce results attributed to somebody who does not exist — so this
+    raises instead of guessing.
+    """
+    fixed = _parse(settings.identity_fixed_user_id)
+    if settings.identity_mode == "fixed" and fixed:
+        return fixed
+    raise RuntimeError(
+        "This command scores against a stored profile and needs a single "
+        "configured user: set IDENTITY_MODE=fixed and IDENTITY_FIXED_USER_ID. "
+        f"(mode={settings.identity_mode!r})"
+    )
+
+
 def resolve(settings: Settings, request: Request) -> str:
     if settings.identity_mode == "fixed":
         fixed = _parse(settings.identity_fixed_user_id)

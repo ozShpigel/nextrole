@@ -6,6 +6,7 @@ is exercised manually via `python -m app.cli eval-verdict`.
 """
 import pytest
 
+from app.config import Settings
 from app.services import match_client, verdict_eval
 from app.services.verdict_eval import (
     classify,
@@ -37,6 +38,16 @@ def test_classify_unrecognized_and_none_are_unscoreable():
     assert classify(None) == "unscoreable"
 
 
+_EVAL_USER = "11111111-1111-1111-1111-111111111111"
+
+
+def _settings():
+    """A single-user instance: the eval scores against a stored profile, so
+    there has to be one user whose profile that is."""
+    return Settings(mongodb_connection_string="mongodb://x", identity_mode="fixed",
+                    identity_fixed_user_id=_EVAL_USER)
+
+
 @pytest.mark.asyncio
 async def test_run_eval_happy_path(monkeypatch):
     cases = [_case("g-01", "strong"), _case("g-02", "reject", tags=["trap"])]
@@ -45,14 +56,15 @@ async def test_run_eval_happy_path(monkeypatch):
         "g-02": {"verdict": "MAYBE", "overallScore": 55},  # wrong band -> fail
     }
 
-    async def fake_score_job(settings, jd_text):
+    async def fake_score_job(settings, jd_text, *, user_id, profile=None):
+        assert user_id == _EVAL_USER, "the eval must score against the configured user"
         case_id = next(c["id"] for c in cases if c["jdText"] == jd_text)
         return responses[case_id]
 
     monkeypatch.setattr(match_client, "score_job", fake_score_job)
     monkeypatch.setattr(verdict_eval.asyncio, "sleep", lambda *_: _no_sleep())
 
-    results = await run_eval(settings=object(), cases=cases)
+    results = await run_eval(settings=_settings(), cases=cases)
 
     assert results[0]["passed"] is True and results[0]["band"] == "strong"
     assert results[1]["passed"] is False and results[1]["band"] == "weak"
@@ -67,7 +79,7 @@ async def test_run_eval_raises_instead_of_recording_a_partial_result(monkeypatch
     cases = [_case("g-01", "strong"), _case("g-02", "reject")]
     call_count = {"n": 0}
 
-    async def flaky_score_job(settings, jd_text):
+    async def flaky_score_job(settings, jd_text, *, user_id, profile=None):
         call_count["n"] += 1
         if call_count["n"] == 1:
             return {"verdict": "STRONG_YES", "overallScore": 90}
@@ -77,7 +89,7 @@ async def test_run_eval_raises_instead_of_recording_a_partial_result(monkeypatch
     monkeypatch.setattr(verdict_eval.asyncio, "sleep", lambda *_: _no_sleep())
 
     with pytest.raises(RuntimeError, match="g-02"):
-        await run_eval(settings=object(), cases=cases)
+        await run_eval(settings=_settings(), cases=cases)
 
 
 def test_format_report_groups_failures_by_tag_and_separates_uncertain():

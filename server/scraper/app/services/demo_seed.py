@@ -23,6 +23,7 @@ from datetime import datetime, timezone
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
+from app import identity
 from app.config import Settings
 from app.models.discovered_job import DiscoveredJob
 from app.services import match_client
@@ -227,7 +228,8 @@ async def seed_demo_jobs(db: AsyncIOMotorDatabase, settings: Settings) -> dict:
             {"id": p["job_url"], "jobDescription": p["description"], "title": p["title"], "company": p["company"]}
             for p in chunk
         ]
-        batch_scores = await match_client.score_job_batch(settings, items)
+        batch_scores = await match_client.score_job_batch(
+            settings, items, user_id=identity.instance_user_id(settings))
         if batch_scores:
             scores.update(batch_scores)
         else:

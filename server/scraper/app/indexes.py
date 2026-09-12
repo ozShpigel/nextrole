@@ -1,6 +1,7 @@
 import logging
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
+from pymongo import UpdateOne
 
 logger = logging.getLogger(__name__)
 
@@ -145,6 +146,9 @@ async def _backfill_ttl_managed(db: AsyncIOMotorDatabase) -> None:
 USER_ID_INDEX_NAME = "idx_user_id"
 
 
+_POOL_STATE = "poolJobState"
+
+
 async def ensure_user_scope(db: AsyncIOMotorDatabase, legacy_owner_user_id: str) -> None:
     """Give every search criteria an owner, and index the field every criteria
     query now filters on.
@@ -154,8 +158,9 @@ async def ensure_user_scope(db: AsyncIOMotorDatabase, legacy_owner_user_id: str)
     own single user when it has one, otherwise a well-known id nothing reads.
     Nothing is deleted. Idempotent; a second run finds nothing to stamp.
 
-    discovered_jobs / discovery_runs are deliberately absent: the job pool is
-    shared across users by design, so there is nothing to scope there.
+    The pool documents themselves are deliberately not stamped: the job pool
+    is shared across users by design. What *was* wrongly on them is the two
+    per-user flags, migrated below.
     """
     try:
         result = await db.search_criteria.update_many(
@@ -170,6 +175,59 @@ async def ensure_user_scope(db: AsyncIOMotorDatabase, legacy_owner_user_id: str)
         await db.search_criteria.create_index("user_id", name=USER_ID_INDEX_NAME)
     except Exception as e:
         logger.warning("search_criteria user scope ensure failed (continuing): %s", e)
+
+    await _migrate_pool_job_flags(db, legacy_owner_user_id)
+
+
+POOL_STATE_INDEX_NAME = "idx_userid_jobid"
+
+
+async def _migrate_pool_job_flags(db: AsyncIOMotorDatabase, legacy_owner_user_id: str) -> None:
+    """Move `saved_to_tracker` / `dismissed` off the shared pool document.
+
+    Both are opinions held by a person, and while there was one user it did no
+    harm to keep them on the job. With two, a dismiss hid the posting for
+    everybody. They now live in `poolJobState`, one row per (user, job) —
+    see app/services/pool_state.py.
+
+    Pre-existing true flags are attributed to the legacy owner, matching how
+    the criteria those jobs came from were stamped above. The source fields
+    are left in place: nothing reads them any more, and leaving them makes
+    this reversible. Idempotent — upserts by the same (user, job) key.
+    """
+    try:
+        await db[_POOL_STATE].create_index(
+            [("UserId", 1), ("JobId", 1)], name=POOL_STATE_INDEX_NAME)
+
+        cursor = db.discovered_jobs.find(
+            {"$or": [{"saved_to_tracker": True}, {"dismissed": True}]},
+            {"id": 1, "saved_to_tracker": 1, "dismissed": 1},
+        )
+        ops = []
+        async for doc in cursor:
+            fields = {"UserId": legacy_owner_user_id, "JobId": doc["id"]}
+            if doc.get("saved_to_tracker"):
+                fields["SavedToTracker"] = True
+            if doc.get("dismissed"):
+                fields["Dismissed"] = True
+            ops.append(UpdateOne(
+                {"_id": f"{legacy_owner_user_id}:{doc['id']}"},
+                {"$set": fields}, upsert=True,
+            ))
+        if ops:
+            await db[_POOL_STATE].bulk_write(ops, ordered=False)
+            logger.warning(
+                "Pool-flag migration: %d saved/dismissed flags attributed to user %s",
+                len(ops), legacy_owner_user_id,
+            )
+    except Exception as e:
+        # Loud, but not fatal: the cost of failing here is that a previously
+        # dismissed job reappears in one user's Matches, not that anyone sees
+        # another user's data.
+        logger.error(
+            "POOL FLAG MIGRATION FAILED (%s) - previously saved/dismissed jobs may "
+            "reappear in Matches. Safe to retry by restarting.", e, exc_info=True,
+        )
 
 
 POOL_KEY_INDEX_NAME = "uniq_pool_key"

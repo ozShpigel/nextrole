@@ -5,6 +5,7 @@ from typing import NamedTuple
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
+from app import identity
 from app.config import Settings
 from app.models.discovered_job import DiscoveredJob
 from app.models.discovery_run import DiscoveryRun
@@ -454,8 +455,13 @@ async def _extract_and_insert_batch(
             # Still a useful flag even though nothing is scored: the UI marks
             # a job the user already tracks.
             async with dup_sem:
+                # Whose tracker — the owner of the criteria this run is for.
+                # An unowned criteria predates multi-user and is attributed the
+                # same way the migration attributes it.
                 is_dup = await tracker_client.check_duplicate(
-                    ctx.settings, job_data["company"], job_data["title"]
+                    ctx.settings, job_data["company"], job_data["title"],
+                    user_id=(ctx.criteria.user_id
+                             or identity.legacy_owner_user_id(ctx.settings)),
                 )
             if is_dup:
                 run.jobs_skipped_duplicate += 1

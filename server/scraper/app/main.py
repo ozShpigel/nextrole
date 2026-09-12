@@ -22,7 +22,7 @@ from app.schemas.criteria import (
     search_pairs,
 )
 from app.models.search_criteria import SearchCriteria
-from app.services import match_client, orchestrator, scraper, tracker_client
+from app.services import match_client, orchestrator, pool_state, scraper, tracker_client
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -349,10 +349,21 @@ async def list_scored_jobs(
         query["is_remote"] = is_remote
     if actual_job_level:
         query["actual_job_level"] = {"$in": [lvl.strip() for lvl in actual_job_level.split(",") if lvl.strip()]}
+    # Dismissed/saved are per-user (app/services/pool_state.py), so they are
+    # applied to this user's own rows rather than to the shared pool document
+    # — which also keeps the $in list below smaller.
+    state = await pool_state.state_for(db, user_id, list(by_job))
     if not include_dismissed:
-        query["dismissed"] = {"$ne": True}
+        for job_id, st in state.items():
+            if st["dismissed"]:
+                by_job.pop(job_id, None)
     if not include_saved:
-        query["saved_to_tracker"] = {"$ne": True}
+        for job_id, st in state.items():
+            if st["saved"]:
+                by_job.pop(job_id, None)
+    if not by_job:
+        return {"jobs": [], "total": 0, "limit": limit, "offset": offset}
+    query["id"] = {"$in": list(by_job)}
 
     docs = await db.discovered_jobs.find(query).to_list(None)
     for d in docs:
@@ -364,6 +375,11 @@ async def list_scored_jobs(
         d["score"] = row.get("Score")
         d["verdict"] = row.get("Verdict")
         d["should_apply"] = row.get("ShouldApply")
+        # Same field names the client has always read, filled from this
+        # user's row instead of the shared document.
+        st = state.get(d["id"], {})
+        d["dismissed"] = st.get("dismissed", False)
+        d["saved_to_tracker"] = st.get("saved", False)
         analysis = row.get("MatchAnalysis")
         if analysis:
             try:
@@ -416,11 +432,18 @@ async def _resolve_company_logo(company: str | None, own_logo: str | None) -> st
 
 
 @app.post("/api/discovery/jobs/{job_id}/save")
-async def save_job(job_id: str):
+async def save_job(job_id: str, user_id: str = Depends(current_user_id)):
+    """Add a pool job to this user's tracker.
+
+    The identity has to travel with the outbound call: the API resolves the
+    owner from the uid cookie, and a server-to-server POST that omits it does
+    not fail — it files the application under a freshly minted id, which is
+    a row no one can ever see again.
+    """
     doc = await db.discovered_jobs.find_one({"id": job_id})
     if not doc:
         raise HTTPException(404, "Job not found")
-    if doc.get("saved_to_tracker"):
+    if await pool_state.is_saved(db, user_id, job_id):
         return {"status": "already_saved"}
 
     match_analysis = doc.get("match_analysis")
@@ -428,6 +451,7 @@ async def save_job(job_id: str):
 
     app_id = await tracker_client.save_to_tracker(
         settings=settings,
+        user_id=user_id,
         title=doc["title"],
         company=doc["company"],
         description=doc.get("description"),
@@ -446,7 +470,7 @@ async def save_job(job_id: str):
     if not app_id:
         raise HTTPException(500, "Failed to save to tracker")
 
-    await db.discovered_jobs.update_one({"id": job_id}, {"$set": {"saved_to_tracker": True}})
+    await pool_state.mark_saved(db, user_id, job_id)
     # Full-narrative enrichment no longer fires here — the API now defers it
     # to the first time this application's status crosses into an
     # interviewing stage (ApplicationEndpoints.EnrichNarrativeOnInterviewingAsync),
@@ -455,10 +479,12 @@ async def save_job(job_id: str):
 
 
 @app.post("/api/discovery/jobs/{job_id}/dismiss")
-async def dismiss_job(job_id: str):
-    result = await db.discovered_jobs.update_one({"id": job_id}, {"$set": {"dismissed": True}})
-    if result.matched_count == 0:
+async def dismiss_job(job_id: str, user_id: str = Depends(current_user_id)):
+    """Hide a pool job from this user's Matches. Per user: the posting stays
+    in the shared pool and stays visible to everyone else."""
+    if not await db.discovered_jobs.find_one({"id": job_id}, {"_id": 1}):
         raise HTTPException(404, "Job not found")
+    await pool_state.mark_dismissed(db, user_id, job_id)
     return {"status": "dismissed"}
 
 
@@ -467,7 +493,7 @@ class UnsaveJobRequest(BaseModel):
 
 
 @app.post("/api/discovery/jobs/unsave")
-async def unsave_job(request: UnsaveJobRequest):
+async def unsave_job(request: UnsaveJobRequest, user_id: str = Depends(current_user_id)):
     # Reverse of save_job. The tracker Application has no reference back to
     # the discovered_jobs _id — only the job's URL (Application.JobUrl) — so
     # when the API deletes an Application it can't clear this flag itself;
@@ -477,10 +503,10 @@ async def unsave_job(request: UnsaveJobRequest):
     # legitimately have more than one discovered_jobs doc.
     if not request.job_url.strip():
         raise HTTPException(400, "job_url is required")
-    result = await db.discovered_jobs.update_many(
-        {"job_url": request.job_url}, {"$set": {"saved_to_tracker": False}}
-    )
-    return {"status": "unsaved", "modified": result.modified_count}
+    job_ids = [d["id"] for d in await db.discovered_jobs.find(
+        {"job_url": request.job_url}, {"id": 1}).to_list(None)]
+    modified = await pool_state.clear_saved(db, user_id, job_ids)
+    return {"status": "unsaved", "modified": modified}
 
 
 class ImportJobsRequest(BaseModel):
@@ -491,7 +517,7 @@ MAX_IMPORT_URLS = 5  # matches the Evaluator batch cap (see match_client.score_j
 
 
 @app.post("/api/discovery/jobs/import")
-async def import_jobs(request: ImportJobsRequest):
+async def import_jobs(request: ImportJobsRequest, user_id: str = Depends(current_user_id)):
     """The "Import Job" button on Active — one or more LinkedIn job URLs
     found outside of discovery. Fetches each directly (no search), scores
     them in one batch call, and saves straight to the tracker at
@@ -532,7 +558,9 @@ async def import_jobs(request: ImportJobsRequest):
             }
             for i, (_url, job) in enumerate(fetched)
         ]
-        scores = await match_client.score_job_batch(settings, batch_items)
+        # Scored against this user's profile, and saved to this user's
+        # tracker — both need the identity forwarded, not just the save.
+        scores = await match_client.score_job_batch(settings, batch_items, user_id=user_id)
 
         for i, (url, job) in enumerate(fetched):
             match_response = (scores or {}).get(str(i))
@@ -554,6 +582,7 @@ async def import_jobs(request: ImportJobsRequest):
 
             saved = await tracker_client.save_to_tracker(
                 settings=settings,
+                user_id=user_id,
                 title=job["title"],
                 company=job["company"],
                 description=job["description"],

@@ -104,11 +104,23 @@ export default function ProcessingPage() {
   const [progress, setProgress] = useState(0);
   const startRef = useRef<number | null>(null);
   const rafRef = useRef<number | null>(null);
+  // The upload below must run once per file, not once per effect invocation.
+  const uploadedRef = useRef<File | null>(null);
 
   // The real upload — parse the handed-off file, merge into the current
   // profile, and save. Runs once, independent of the canned step timers.
+  //
+  // StrictMode invokes this effect twice on mount, and `cancelled` only guards
+  // the setState calls — the awaited mutations run to completion either way.
+  // That billed two Claude PDF reads and two profile saves per upload (each
+  // save also firing the pool-role classifier), which showed up as six
+  // normalize-file calls for three CVs. The ref is keyed by the file itself, so
+  // a genuinely new file still uploads while a re-invocation for the same one
+  // does not.
   useEffect(() => {
     if (!file) return;
+    if (uploadedRef.current === file) return;
+    uploadedRef.current = file;
     let cancelled = false;
     (async () => {
       try {

@@ -40,6 +40,7 @@ cd server/scraper
 - `scoring_config` + the agent prompts are **read-only server configuration** (Options pattern, env overrides, change = redeploy). The candidate **profile is the user-editable input** — stored as `StructuredProfile`, rendered to the `content` string prompts consume; **never hand-edit `content`**. Keep prompts generic/objective; candidate signal comes only from the injected profile. Detail: `docs/scoring-and-search.md`.
 - **Every user-scoped query takes an explicit `userId`.** Repositories never see a raw `IMongoCollection<T>` — they get `UserScopedCollection<T>`, which has no overload that omits the userId, ANDs the filter on internally, and exposes no way back to the raw handle - so "remember to scope it" is a compile error rather than a convention (`ArchitectureTests` guards the rest). `_id = userId` for one-per-user documents (profile, resumeFile, interviewInsights); a `UserId` field + index for the rest. The job pool (`discovered_jobs`, `discovery_runs`) is shared. Detail: `docs/multi-user.md`.
 - **Identity resolution is the only code that knows which deployment it is.** `Identity:Mode` is `Fixed` (private, id from config) or `Cookie` (multi-user, id from the `uid` cookie, issued by the API on a visitor first request — the API is the only issuer; the scraper only reads it); everything downstream takes a plain `Guid` and must not branch on deployment. Misconfiguration fails at startup, in both the API and the scraper.
+- **The job pool is shared; the role list is a config file.** `server/scraper/config/roles.json` drives the daily `python -m app.cli run-pool` ingest — not anyone's profile or saved search. A listing is identified by `pool_key` (unique index), marked inactive after N absent runs and never deleted, and has its stated requirements extracted exactly once on entry. Detail: `docs/job-pool.md`.
 - **Single-tenant, no auth (intentional).** Public exposure = private instance + seeded demo instance. `DemoMode=true` 403s writes via an allowlist middleware — **new mutating endpoints must be allowlisted in `Program.cs` / `main.py` to work in demo**. Never set `ApiKey` on the demo. Detail: `docs/demo-mode.md`; ops: `docs/hosting-a-public-demo.md`.
 - Use the context7 MCP server to fetch up-to-date library documentation.
 
@@ -74,6 +75,7 @@ carries the visual weight; typography stays quiet.
 | Generate Pack — AI-tailored résumé PDF per application | `docs/resume-pack.md` |
 | Interview prep, Q&A rubric, keyword cues, mock interview | `docs/interview-prep.md` |
 | Mailbot (Gmail sync, parsing rules, resync, OAuth) | `docs/mailbot.md` |
+| Shared job pool: role config, dedupe, expiry, per-job extraction | `docs/job-pool.md` |
 | Multi-user identity, userId scoping, migration | `docs/multi-user.md` |
 | Demo mode, ApiKey gate, seeder | `docs/demo-mode.md` |
 

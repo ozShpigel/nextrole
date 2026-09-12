@@ -186,6 +186,45 @@ public static class MatchEndpoints
         .WithName("ClassifySeniority")
         .WithSummary("Classify scraped jobs' actual seniority band from title+description (one Haiku call per run)");
 
+        // Per-job extraction for the shared job pool — one batched Haiku call
+        // per ingest run, same shape and "discovery" bucket as title-triage and
+        // seniority-classify above. Deliberately takes no user identity: it
+        // reads no profile and scores nothing, so one stored result is valid
+        // for every user and is never recomputed per user (docs/job-pool.md).
+        app.MapPost("/api/match/job-facts", async (
+            [FromBody] JobFactsRequest request,
+            ApplicationTracker.Core.AI.IClaudeClient claude,
+            ILogger<Program> logger,
+            CancellationToken ct) =>
+        {
+            if (request?.Jobs is null || request.Jobs.Count == 0)
+                return Results.BadRequest(new { error = "at least one job is required" });
+            if (request.Jobs.Count > 200)
+                return Results.BadRequest(new { error = "too many jobs (max 200)" });
+            if (request.Jobs.Any(j => string.IsNullOrWhiteSpace(j.JobId)))
+                return Results.BadRequest(new { error = "jobId is required for every job (scraper/API version mismatch)" });
+            if (request.Jobs.Any(j => j.Title.Length > 500))
+                return Results.BadRequest(new { error = "a title exceeds maximum length of 500 characters" });
+            // Same 50K cap every other description-carrying endpoint uses, so an
+            // unauthenticated caller cannot drive unbounded Anthropic spend.
+            if (request.Jobs.Any(j => (j.Description?.Length ?? 0) > 50_000))
+                return Results.BadRequest(new { error = "a description exceeds maximum length of 50,000 characters" });
+
+            try
+            {
+                var result = await claude.ExtractJobFactsAsync(request, ct);
+                return Results.Ok(result);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Error extracting job facts");
+                return Results.Problem(detail: "An error occurred while extracting job facts", statusCode: 500);
+            }
+        })
+        .RequireRateLimiting("discovery")
+        .WithName("ExtractJobFacts")
+        .WithSummary("Extract stated requirements from scraped postings (user-independent, once per job)");
+
         // Narrative enrichment: on-demand upgrade of a scored job's narrative
         // fields (honestAssessment/recommendation/companyNewsAnalysis/
         // employeeReviewsAnalysis) from ingest-time terse to full detail —

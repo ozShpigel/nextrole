@@ -13,7 +13,7 @@ from pydantic import BaseModel
 
 from app.config import Settings
 from app import identity
-from app.indexes import ensure_ttl_index, ensure_user_scope
+from app.indexes import ensure_pool_indexes, ensure_ttl_index, ensure_user_scope
 from app.schemas.criteria import (
     MAX_SEARCHES_PER_RUN,
     CreateCriteriaRequest,
@@ -74,6 +74,7 @@ async def lifespan(app: FastAPI):
 
     await ensure_ttl_index(db)
     await ensure_user_scope(db, identity.legacy_owner_user_id(settings))
+    await ensure_pool_indexes(db)
 
     # Demo pool freshness: seeded fictional jobs re-enter the Search page's
     # days-back window on every cold start — which on the free tier happens

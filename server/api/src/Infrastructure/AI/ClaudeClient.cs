@@ -695,6 +695,35 @@ public sealed class ClaudeClient : IClaudeClient
         return new SeniorityClassifyResponse { Results = results };
     }
 
+    public async Task<JobFactsResponse> ExtractJobFactsAsync(JobFactsRequest request, CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Extracting job facts for {Count} pool jobs", request.Jobs.Count);
+
+        var camelCase = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+
+        var results = await ClassifyInChunksAsync<JobFactsItem, JobFactsResponse, JobFacts>(
+            request.Jobs,
+            PromptSeeds.JobFactsExtraction,
+            "job-facts",
+            chunk =>
+            {
+                var jobsJson = JsonSerializer.Serialize(
+                    chunk.Select(j => new { j.JobId, j.Title, j.Company, j.Location, j.Description }), camelCase);
+                // Scraped postings — untrusted, XML-wrapped as data.
+                return $"<scraped_jobs>\n{jobsJson}\n</scraped_jobs>";
+            },
+            r => r.Results,
+            cancellationToken);
+
+        // A job with no facts is not dropped: the pool keeps it and the caller
+        // records that extraction is still owed, so a bad run costs a retry
+        // rather than a posting.
+        _logger.LogInformation(
+            "Job facts: {Total} jobs, {Extracted} extracted, {Missing} without facts",
+            request.Jobs.Count, results.Count, request.Jobs.Count - results.Count);
+        return new JobFactsResponse { Results = results };
+    }
+
     public async Task<NormalizedProfile> NormalizeProfileAsync(string text, CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Normalizing profile free-text ({Length} chars)", text.Length);

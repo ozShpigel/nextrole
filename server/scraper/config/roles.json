@@ -1,0 +1,17 @@
+{
+  "_comment": "The shared job pool's daily ingest. Roles are configuration, not code: edit this file (or point ROLES_CONFIG_PATH elsewhere) and the next run picks it up. The pool is user-independent - nothing here is derived from anyone's profile.",
+  "roles": [
+    "Backend Engineer",
+    "Platform Engineer",
+    "DevOps Engineer",
+    "Full Stack Engineer",
+    "Software Engineer"
+  ],
+  "locations": ["Israel"],
+  "site_names": ["linkedin"],
+  "results_wanted": 50,
+  "hours_old": 72,
+  "country": "Israel",
+  "missed_runs_before_inactive": 3,
+  "max_roles": 12
+}

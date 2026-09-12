@@ -5,6 +5,7 @@ long-running web service), this runs a discovery ingest (scrape -> triage ->
 score -> store) to completion in its own process and exits — the mailbot
 pattern. Run it as a Render Cron Job using the scraper image:
 
+    python -m app.cli run-pool            # daily shared-pool ingest (cron)
     python -m app.cli run-all             # every is_active criteria (cron)
     python -m app.cli run <criteria_id>   # one specific criteria
     python -m app.cli eval-verdict        # golden-set Evaluator verdict report
@@ -24,8 +25,8 @@ import certifi
 from motor.motor_asyncio import AsyncIOMotorClient
 
 from app.config import Settings
-from app.indexes import ensure_ttl_index
-from app.services import demo_seed, orchestrator, subscore_eval, verdict_eval
+from app.indexes import ensure_pool_indexes, ensure_ttl_index
+from app.services import demo_seed, orchestrator, pool, subscore_eval, verdict_eval
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("cli")
@@ -47,6 +48,22 @@ async def _run(criteria_id: str):
         logger.info("Ingest run for criteria %s", criteria_id)
         await orchestrator.run_discovery(db, settings, criteria_id)
         logger.info("Ingest run done")
+    await _with_db(_r)
+
+
+async def _run_pool():
+    """Daily shared-pool ingest: one run over the configured role list, folded
+    into the pool everyone reads. Not driven by anyone's profile or saved
+    search — see docs/job-pool.md."""
+    async def _r(db, settings):
+        await ensure_ttl_index(db)
+        await ensure_pool_indexes(db)
+        run = await pool.run_pool_ingest(db, settings)
+        if run.status == "failed":
+            # Exit non-zero so a cron failure is visible instead of a green tick
+            # over a run that ingested nothing.
+            logger.error("run-pool: %s", run.error)
+            sys.exit(1)
     await _with_db(_r)
 
 
@@ -111,6 +128,10 @@ def main():
     run = sub.add_parser("run", help="Scrape, triage, score, and store jobs for one criteria")
     run.add_argument("criteria_id", help="SearchCriteria id to run")
 
+    sub.add_parser(
+        "run-pool",
+        help="Daily shared-pool ingest over the configured role list (config/roles.json)")
+
     sub.add_parser("run-all", help="Run every criteria with is_active=true, sequentially")
 
     sub.add_parser(
@@ -132,6 +153,8 @@ def main():
 
     if args.command == "run":
         asyncio.run(_run(args.criteria_id))
+    elif args.command == "run-pool":
+        asyncio.run(_run_pool())
     elif args.command == "run-all":
         asyncio.run(_run_all())
     elif args.command == "seed-demo-jobs":

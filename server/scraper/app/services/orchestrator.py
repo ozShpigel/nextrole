@@ -9,7 +9,7 @@ from app.config import Settings
 from app.models.discovered_job import DiscoveredJob
 from app.models.discovery_run import DiscoveryRun
 from app.models.search_criteria import SearchCriteria
-from app.services import company_size_client, glassdoor_client, match_client, news_client, scraper, tracker_client
+from app.services import company_size_client, glassdoor_client, match_client, news_client, pool, scraper, tracker_client
 
 logger = logging.getLogger(__name__)
 
@@ -339,7 +339,16 @@ def _company_profile(job_data: dict, enrichment: _Enrichment) -> dict | None:
 
 
 def _base_job(ctx: _RunContext, job_data: dict, seniority: dict) -> dict:
-    """The DiscoveredJob fields every stored job gets, scored or not."""
+    """The DiscoveredJob fields every stored job gets.
+
+    Criteria-driven runs feed the SAME shared pool the daily run does: same
+    pool_key identity, same presence lifecycle, same exemption from the
+    deletion TTL. Without that these jobs would be scored by nothing (ingest
+    no longer scores) and scanned by nothing (the per-user scan reads the
+    pool), which is a dead end. What is left of this path is a manual way to
+    pull an ad-hoc search into the pool. See docs/job-pool.md.
+    """
+    now = datetime.now(timezone.utc)
     return {
         "run_id": ctx.run.id,
         "criteria_id": ctx.criteria.id,
@@ -355,6 +364,13 @@ def _base_job(ctx: _RunContext, job_data: dict, seniority: dict) -> dict:
         "is_remote": job_data.get("is_remote"),
         "company_logo": job_data.get("company_logo"),
         "company_profile": job_data.get("company_profile"),
+        "pool_key": pool.pool_key(job_data),
+        "ttl_managed": False,
+        "is_active": True,
+        "missed_runs": 0,
+        "first_seen_at": now,
+        "last_seen_at": now,
+        "last_seen_run_id": ctx.run.id,
     }
 
 
@@ -367,7 +383,8 @@ async def _store_jobs(
     enrichment: _Enrichment,
 ) -> None:
     """Persist every scraped job: the triaged-out ones as flagged records, the
-    rest scored in batches. Both fan out concurrently, each under its own cap.
+    rest with their stated requirements extracted. Both fan out concurrently,
+    each under its own cap. Nothing here scores — see _extract_and_insert_batch.
 
     Job ids are generated at scrape time (scraper.py), not here — carried on
     the job dict since before triage, so triaged-out jobs and the "Job
@@ -383,7 +400,7 @@ async def _store_jobs(
     await asyncio.gather(
         *[_insert_triaged_out(ctx, job_data, triage, seniority) for job_data in triaged_out_jobs],
         *[
-            _score_and_insert_batch(ctx, chunk, seniority, enrichment, batch_sem, dup_sem)
+            _extract_and_insert_batch(ctx, chunk, seniority, enrichment, batch_sem, dup_sem)
             for chunk in chunks
         ],
     )
@@ -403,7 +420,7 @@ async def _insert_triaged_out(ctx: _RunContext, job_data: dict, triage: dict, se
         logger.error("Error ingesting triaged-out job '%s': %s", job_data.get("title"), e)
 
 
-async def _score_and_insert_batch(
+async def _extract_and_insert_batch(
     ctx: _RunContext,
     chunk: list[dict],
     seniority: dict,
@@ -411,30 +428,22 @@ async def _score_and_insert_batch(
     batch_sem: asyncio.Semaphore,
     dup_sem: asyncio.Semaphore,
 ) -> None:
+    """Store a batch of scraped jobs in the shared pool.
+
+    Ingest does NOT score. Scoring is per user and on demand — a pool job is
+    scored the first time a user whose filter it passes opens the match tab
+    (PoolScanService). Ingest reads only what the posting itself states, once,
+    user-independently, exactly as the daily pool run does.
+    """
     run = ctx.run
-    items = []
     enriched_profiles: dict[str, dict | None] = {}
     for job_data in chunk:
-        job_id = job_data["id"]
-        key = _company_key(job_data)
-        profile = _company_profile(job_data, enrichment)
-        enriched_profiles[job_id] = profile
-        items.append({
-            "id": job_id,
-            "jobDescription": job_data.get("description") or "",
-            "title": job_data.get("title"),
-            "company": job_data.get("company"),
-            "location": job_data.get("location"),
-            "datePosted": job_data.get("date_posted"),
-            "site": job_data.get("site"),
-            "companyNews": enrichment.news.get(key) or None,
-            "glassdoorData": enrichment.glassdoor.get(key),
-            "companyProfile": profile,
-        })
+        enriched_profiles[job_data["id"]] = _company_profile(job_data, enrichment)
 
     async with batch_sem:
-        scores = await match_client.score_job_batch(ctx.settings, items, run_id=run.id)
+        facts = await match_client.extract_job_facts(ctx.settings, chunk) or {}
 
+    now = datetime.now(timezone.utc)
     for job_data in chunk:
         job_id = job_data["id"]
         try:
@@ -442,8 +451,8 @@ async def _score_and_insert_batch(
             base = _base_job(ctx, job_data, seniority)
             base["company_profile"] = enriched_profiles.get(job_id, base["company_profile"])
 
-            # Duplicate check is cheap and still useful as a flag (the job
-            # stays searchable; the UI marks it as already tracked).
+            # Still a useful flag even though nothing is scored: the UI marks
+            # a job the user already tracks.
             async with dup_sem:
                 is_dup = await tracker_client.check_duplicate(
                     ctx.settings, job_data["company"], job_data["title"]
@@ -451,44 +460,26 @@ async def _score_and_insert_batch(
             if is_dup:
                 run.jobs_skipped_duplicate += 1
 
-            match_response = (scores or {}).get(job_id)
-            if match_response is None:
-                run.jobs_score_failed += 1
-                logger.info("Job skipped: runId=%s jobId=%s reason=%s",
-                            run.id, job_id, "score_failed")
-                disc_job = DiscoveredJob(id=job_id, **base, is_duplicate=is_dup)
-            else:
-                run.jobs_scored += 1
-                recommendation = match_response.get("recommendation") or {}
-                # Snapshots live in their own DiscoveredJob fields — strip
-                # them out of match_analysis to avoid storing them twice
-                # (mirrors the manual Score-a-Job page's Save-to-Tracker
-                # convention).
-                analysis = {
-                    k: v for k, v in match_response.items()
-                    if k not in ("analystSnapshotInput", "analystSnapshotOutput",
-                                "evaluatorSnapshotInput", "evaluatorSnapshotOutput")
-                }
-                disc_job = DiscoveredJob(
-                    id=job_id,
-                    **base,
-                    is_duplicate=is_dup,
-                    score=match_response.get("overallScore"),
-                    verdict=match_response.get("verdict"),
-                    should_apply=recommendation.get("shouldApply"),
-                    match_analysis=analysis,
-                    analyst_snapshot_input=match_response.get("analystSnapshotInput"),
-                    analyst_snapshot_output=match_response.get("analystSnapshotOutput"),
-                    evaluator_snapshot_input=match_response.get("evaluatorSnapshotInput"),
-                    evaluator_snapshot_output=match_response.get("evaluatorSnapshotOutput"),
-                    company_news=enrichment.news.get(key) or None,
-                    glassdoor_data=enrichment.glassdoor.get(key),
-                )
+            job_facts = facts.get(job_id)
+            if job_facts:
+                run.jobs_extracted += 1
+                base["actual_job_level"] = job_facts.get("seniority") or base.get("actual_job_level")
+
+            disc_job = DiscoveredJob(
+                id=job_id,
+                **base,
+                is_duplicate=is_dup,
+                extracted=job_facts,
+                extracted_at=now if job_facts else None,
+                extract_attempts=1,
+                company_news=enrichment.news.get(key) or None,
+                glassdoor_data=enrichment.glassdoor.get(key),
+            )
             await ctx.db.discovered_jobs.insert_one(disc_job.model_dump())
+            run.jobs_new += 1
         except Exception as e:
             logger.error("Job skipped: runId=%s jobId=%s reason=%s error=%s",
                          run.id, job_id, "ingest_error", e)
-
 
 async def _mark_completed(ctx: _RunContext) -> None:
     run = ctx.run

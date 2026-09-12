@@ -184,3 +184,65 @@ async def score_job_batch(settings: Settings, jobs: list[dict], run_id: str | No
         return None
 
 
+
+
+async def extract_job_facts(settings: Settings, jobs: list[dict]) -> dict[str, dict] | None:
+    """One batched Haiku call: read each posting's stated requirements
+    (required years, must/nice-to-have tech, seniority, domain, location).
+
+    User-independent by construction — the API endpoint reads no profile and
+    scores nothing — which is why the result is stored on the job once and
+    reused for every user rather than recomputed per user.
+
+    Returns {job_id: facts}, or None on any failure. The caller must treat a
+    missing entry as "extraction still owed" and keep the job: a posting is
+    worth more than the facts about it, and the next run retries.
+
+    Correlates by jobId, not list position — same version-mismatch rationale
+    as triage_titles.
+    """
+    if not jobs:
+        return None
+    items = [
+        {
+            "jobId": j["id"],
+            "title": j.get("title") or "",
+            "company": j.get("company"),
+            "location": j.get("location"),
+            "description": j.get("description"),
+        }
+        for j in jobs
+    ]
+    resp = await _request_with_retry(
+        "POST",
+        f"{settings.api_base_url}/api/match/job-facts",
+        settings=settings,
+        timeout=180.0,
+        operation="job-facts",
+        retry_on_timeout=False,
+        json={"jobs": items},
+    )
+    if resp is None or resp.status_code != 200:
+        logger.warning("Job-facts extraction failed (%s) — jobs stored without facts, retried next run",
+                       resp.status_code if resp is not None else "no response")
+        return None
+    try:
+        results = (resp.json() or {}).get("results") or []
+    except Exception as e:
+        logger.warning("Job-facts response unparseable (%s) — jobs stored without facts", e)
+        return None
+
+    facts = {
+        r["jobId"]: {
+            "required_years": r.get("requiredYears"),
+            "must_have_tech": r.get("mustHaveTech") or [],
+            "nice_to_have_tech": r.get("niceToHaveTech") or [],
+            "seniority": r.get("seniority"),
+            "domain": r.get("domain"),
+            "location": r.get("location"),
+        }
+        for r in results
+        if r.get("jobId")
+    }
+    logger.info("Job facts: %d/%d jobs extracted", len(facts), len(jobs))
+    return facts

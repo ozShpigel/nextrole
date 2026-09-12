@@ -42,4 +42,13 @@ class DiscoveryRun(BaseModel):
     # kept so pre-migration run rows still render. Not written by the current
     # flow (saving to the Tracker is always an explicit user action).
     jobs_saved: int = 0
+    # ---- Shared pool run (docs/job-pool.md) ---------------------------------
+    # A pool run folds a scrape into the shared pool rather than producing a
+    # user's result set, so its counters are about the pool's shape, not fit.
+    jobs_new: int = 0             # first time this listing has been seen
+    jobs_extracted: int = 0       # new jobs whose stated requirements were read
+    jobs_missed: int = 0          # active pool jobs absent from this run
+    jobs_marked_inactive: int = 0 # absent long enough to leave the default view
+    jobs_extract_retried: int = 0     # jobs re-attempted because they had no facts
+    jobs_extract_abandoned: int = 0   # hit the attempt cap; never retried again
     error: str | None = None

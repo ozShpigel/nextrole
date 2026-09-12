@@ -7,7 +7,8 @@ from pydantic import BaseModel, Field
 class DiscoveredJob(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid4()))
     run_id: str
-    criteria_id: str
+    # None for shared-pool jobs: the pool is not driven by a saved search.
+    criteria_id: str | None = None
     # From JobSpy
     title: str
     company: str
@@ -55,4 +56,32 @@ class DiscoveredJob(BaseModel):
     # search intent (one Haiku call per run; never scored or enriched).
     triaged_out: bool = False
     triage_reason: str | None = None
+    # Retention marker: criteria-driven jobs are purged by the TTL index after
+    # 60 days; shared-pool jobs opt out (pool.py sets this False) because an
+    # expired pool listing is marked inactive, never deleted. See indexes.py.
+    ttl_managed: bool = True
+    # ---- Shared pool (docs/job-pool.md) -------------------------------------
+    # Stable identity for a listing across runs: the job_url when the board
+    # gives one, otherwise a hash of company+title+date_posted. Unique index.
+    pool_key: str | None = None
+    # Presence, not quality: a listing stops being active once it has been
+    # absent from N consecutive runs. Never deleted — an inactive job is still
+    # readable, it just drops out of the default view.
+    is_active: bool = True
+    missed_runs: int = 0
+    first_seen_at: datetime | None = None
+    last_seen_at: datetime | None = None
+    last_seen_run_id: str | None = None
+    # Stated requirements read once, when the job first enters the pool:
+    # required_years, must_have_tech, nice_to_have_tech, seniority, domain,
+    # location. User-independent by construction (no profile is read and
+    # nothing is scored), so it is computed once and reused for every user —
+    # never recomputed per user. None = extraction still owed (a failed or
+    # skipped call), which the next run retries.
+    extracted: dict | None = None
+    extracted_at: datetime | None = None
+    # Bounded retry: incremented on every extraction attempt, successful or
+    # not. At MAX_EXTRACT_ATTEMPTS the job is left unextracted for good rather
+    # than billing a Claude call a day for a posting nothing can parse.
+    extract_attempts: int = 0
     discovered_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

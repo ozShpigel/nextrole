@@ -29,6 +29,8 @@ class Settings(BaseSettings):
     identity_mode: str = "fixed"
     identity_fixed_user_id: str = ""
     identity_cookie_name: str = "uid"
+    # Path to the shared pool role list (app/../config/roles.json by default).
+    roles_config_path: str = ""
     # Public demo instance: block all writes (criteria/run/job mutations) so
     # visitors can't pollute shared data. Off = private instance, full read/write.
     demo_mode: bool = False

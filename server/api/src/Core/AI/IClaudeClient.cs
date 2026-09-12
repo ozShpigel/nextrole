@@ -52,6 +52,11 @@ public interface IClaudeClient
     // only — same batched-per-run, fail-open contract as TriageTitlesAsync.
     Task<SeniorityClassifyResponse> ClassifySeniorityAsync(SeniorityClassifyRequest request, CancellationToken cancellationToken = default);
 
+    // Per-job extraction for the shared job pool: run once when a posting first
+    // enters the pool, never per user. Stated requirements only -- no profile is
+    // read and nothing is scored, which is what makes one stored result valid
+    // for every user. Batched and chunked like the two calls above.
+    Task<JobFactsResponse> ExtractJobFactsAsync(JobFactsRequest request, CancellationToken cancellationToken = default);
 
 
     Task<EmailParseResult?> ParseEmailAsync(string subject, string from, string body, List<string> knownCompanies, DateTime? referenceDate = null, CancellationToken cancellationToken = default);

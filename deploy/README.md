@@ -32,7 +32,51 @@ Scheduled jobs run as systemd timers rather than always-on containers.
 7. `docker compose up -d`
 8. Install timers: `cp systemd/* /etc/systemd/system/ && systemctl enable --now nextrole-*.timer`
 
+## Multi-user migration — read before the first deploy of this build
+
+Both services migrate pre-multi-user data on startup, and **both must run**.
+The API stamps `userId` onto the tracker collections and re-keys the
+one-per-user singletons; the scraper rebuilds the retention TTL, stamps
+`search_criteria`, and creates the pool indexes. Each refuses to start if its
+own migration cannot complete — the API because it would otherwise serve a
+view of the database that does not match what is in it, the scraper because
+until its TTL rebuild lands every shared-pool job is a deletion candidate under
+the old unfiltered index. Full detail: `docs/multi-user.md`, `docs/job-pool.md`.
+
+### `Identity:FixedUserId` is set once and cannot be changed afterwards
+
+On `private.nextrole.cloud` (`Identity:Mode=Fixed`), this GUID is the answer to
+"who owns all the existing data". The first startup stamps every pre-multi-user
+document with it and re-keys the profile and résumé file onto it.
+
+**Changing it later orphans everything.** The previous owner's rows stay in the
+database under the old id, and the instance comes up looking empty — the data
+is intact but unreachable without a second, hand-written migration. Decide the
+value before the first boot and keep it in the environment file for good.
+
+> The pre-deploy rehearsal was run with the `appsettings.json` default
+> `11111111-1111-1111-1111-111111111111`. If production deploys with a
+> different GUID, the rehearsal still holds — the id is a parameter, not a
+> behaviour — but the deployed value is the one that becomes permanent.
+
+### Rehearse against a copy first
+
+```bash
+# Copy production (documents AND index definitions) to a scratch name
+dotnet run --project server/api/src/DbCopy -- job-tracker=job-tracker-rehearsal
+dotnet run --project server/api/src/DbCopy -- jobmatch=jobmatch-rehearsal
+
+# Point a local API + scraper at the copy and watch the startup logs, then
+# boot a second time: a correct migration logs nothing at all on the rerun.
+```
+
+Copying the index definitions is the point: the migration drops and rebuilds
+the legacy unique indexes, and a document-only copy silently skips half the
+test. Drop the copies afterwards — a full copy of production roughly doubles
+cluster storage, which matters on the M0 free tier.
+
 ## Notes
+
 
 - `nginx/*.conf.template` override the images' baked-in `resolver 8.8.8.8`
   with Docker's internal DNS (`127.0.0.11`). Without this, nginx cannot

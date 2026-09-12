@@ -124,9 +124,24 @@ startupLogger.LogInformation("MongoDB connected: {Connected}",
     builder.Configuration["MongoDB:ConnectionString"] is not null);
 startupLogger.LogInformation("URLs: {Urls}", builder.WebHost.GetSetting("urls") ?? "default");
 
-// Enforce the (Company, JobTitle) uniqueness invariant: clear any existing duplicate
-// rows, then build the unique index. Failure here must not brick startup, so it's
-// best-effort — the app still serves if Mongo is briefly unreachable at boot.
+// Migration is fatal, indexes are best-effort, and the order matters: the
+// per-user unique indexes cannot build while pre-multi-user documents still
+// have no UserId. An API that could not migrate must not serve requests -- it
+// would answer with a view of the database that does not match what is in it --
+// so MigrateOrThrowAsync retries a few connection failures and then brings the
+// process down for the orchestrator to restart.
+var identity = app.Services.GetRequiredService<ApplicationTracker.Api.Identity.IdentityResolver>();
+startupLogger.LogInformation(
+    "Identity mode: {Mode} (legacy documents are owned by {UserId})",
+    identity.Mode, identity.LegacyOwnerUserId);
+
+await UserScopeMigrationInitializer.MigrateOrThrowAsync(
+    app.Services.GetRequiredService<IMongoClient>(),
+    builder.Configuration["MongoDB:DatabaseName"] ?? "job-tracker",
+    builder.Configuration["MongoDB:ProfileDatabase"] ?? builder.Configuration["MongoDB:Database"] ?? "jobmatch",
+    identity.LegacyOwnerUserId,
+    startupLogger);
+
 try
 {
     await ApplicationIndexInitializer.EnsureIndexesAsync(
@@ -136,11 +151,21 @@ try
         app.Services.GetRequiredService<IMongoCollection<StatusUpdate>>(),
         app.Services.GetRequiredService<IMongoCollection<TrackedEmail>>(),
         app.Services.GetRequiredService<IMongoCollection<MatchSnapshot>>(),
+        app.Services.GetRequiredService<IMongoCollection<ResumePack>>(),
+        app.Services.GetRequiredService<IMongoCollection<MockInterviewSession>>(),
         startupLogger);
 }
 catch (Exception ex)
 {
-    startupLogger.LogError(ex, "Failed to ensure application indexes — continuing startup");
+    // Best-effort on purpose: a missing index costs uniqueness guarantees and
+    // query speed, not user isolation, so it must not stop the API serving.
+    // Loud on purpose too: without uniq_user_company_jobtitle_ci the tracker
+    // dedupe reverts to a check-then-act race, and duplicate applications
+    // accumulate silently rather than surfacing as an error anyone sees.
+    startupLogger.LogError(ex,
+        "INDEX ENSURE FAILED — continuing startup WITHOUT the per-user unique indexes. "
+        + "Application and message dedupe are now best-effort and duplicates can accumulate. "
+        + "Fix the cause and restart.");
 }
 
 // Demo-only: keep the Seeder's fake discovery pool inside the Matches page's

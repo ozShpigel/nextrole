@@ -1,12 +1,19 @@
+using System.Text.Json.Serialization;
+using ApplicationTracker.Core.Identity;
 using MongoDB.Bson.Serialization.Attributes;
 
 namespace ApplicationTracker.Core.Models;
 
-public sealed record Application
+public sealed record Application : IUserOwned
 {
     [BsonId]
     [BsonRepresentation(MongoDB.Bson.BsonType.String)]
     public Guid Id { get; init; } = Guid.NewGuid();
+    // Owner. Set from the resolved request identity. [JsonIgnore] so a request
+    // body can never claim one and a response can never leak one.
+    [JsonIgnore]
+    [BsonRepresentation(MongoDB.Bson.BsonType.String)]
+    public Guid UserId { get; init; }
     public required string JobTitle { get; init; }
     public required string Company { get; init; }
     [BsonRepresentation(MongoDB.Bson.BsonType.String)]

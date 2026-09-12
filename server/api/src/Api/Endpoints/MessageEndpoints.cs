@@ -2,6 +2,8 @@ using ApplicationTracker.Core.Models;
 using ApplicationTracker.Core.Repositories;
 using Microsoft.AspNetCore.Mvc;
 
+using ApplicationTracker.Core.Identity;
+
 namespace ApplicationTracker.Api.Endpoints;
 
 public static class MessageEndpoints
@@ -14,10 +16,11 @@ public static class MessageEndpoints
         // (see docs/demo-mode.md's mailbot guard), so this is defense in depth.
         app.MapPost("/api/messages", async (
             [FromBody] TrackedEmail email,
+            IUserContext user,
             ITrackedEmailRepository repo,
             CancellationToken ct) =>
         {
-            var saved = await repo.UpsertAsync(email, ct);
+            var saved = await repo.UpsertAsync(user.UserId, email, ct);
             return Results.Ok(saved);
         })
         .WithName("UpsertMessage")
@@ -29,12 +32,14 @@ public static class MessageEndpoints
         // display-only data) so the list can show a real logo instead of
         // always falling back to the initials avatar.
         app.MapGet("/api/messages", async (
+            IUserContext user,
+
             ITrackedEmailRepository repo,
             IApplicationRepository appRepo,
             CancellationToken ct) =>
         {
-            var messages = await repo.GetAllAsync(ct);
-            var apps = await appRepo.GetAllListItemsAsync(ct);
+            var messages = await repo.GetAllAsync(user.UserId, ct);
+            var apps = await appRepo.GetAllListItemsAsync(user.UserId, ct);
             var logoByAppId = apps
                 .Where(a => !string.IsNullOrEmpty(a.CompanyLogo))
                 .ToDictionary(a => a.Id, a => a.CompanyLogo);
@@ -63,10 +68,12 @@ public static class MessageEndpoints
         // Lets the mailbot skip already-processed mail before spending a Claude
         // call on it — a lightweight projection, not the full message list.
         app.MapGet("/api/messages/gmail-ids", async (
+            IUserContext user,
+
             ITrackedEmailRepository repo,
             CancellationToken ct) =>
         {
-            var ids = await repo.GetGmailMessageIdsAsync(ct);
+            var ids = await repo.GetGmailMessageIdsAsync(user.UserId, ct);
             return Results.Ok(ids);
         })
         .WithName("GetTrackedGmailMessageIds")
@@ -76,10 +83,11 @@ public static class MessageEndpoints
         // non-persisting analysis.
         app.MapDelete("/api/messages/{id:guid}", async (
             Guid id,
+            IUserContext user,
             ITrackedEmailRepository repo,
             CancellationToken ct) =>
         {
-            await repo.DeleteAsync(id, ct);
+            await repo.DeleteAsync(user.UserId, id, ct);
             return Results.NoContent();
         })
         .WithName("DeleteMessage")
@@ -91,10 +99,11 @@ public static class MessageEndpoints
         // and re-fire in a loop that read as the Messages page flickering.
         app.MapPatch("/api/messages/{id:guid}/read", async (
             Guid id,
+            IUserContext user,
             ITrackedEmailRepository repo,
             CancellationToken ct) =>
         {
-            await repo.MarkReadAsync(id, ct);
+            await repo.MarkReadAsync(user.UserId, id, ct);
             return Results.NoContent();
         })
         .WithName("MarkMessageRead")

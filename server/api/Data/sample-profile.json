@@ -62,8 +62,8 @@
     { "category": "Practices", "items": ["REST API design", "CI/CD", "Test automation", "Observability", "Incident response"] }
   ],
   "education": [
-    "B.Sc. Computer Science, Tel Aviv University, 2014",
-    "AWS Certified Solutions Architect – Associate, 2022"
+    { "institution": "Tel Aviv University", "detail": "B.Sc. Computer Science · 2014" },
+    { "institution": "AWS", "detail": "Certified Solutions Architect – Associate · 2022" }
   ],
   "spokenLanguages": ["English (fluent)", "Hebrew (native)"],
   "sideProjects": [

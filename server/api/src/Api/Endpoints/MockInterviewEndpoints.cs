@@ -5,6 +5,8 @@ using ApplicationTracker.Core.Profile;
 using ApplicationTracker.Core.Repositories;
 using Microsoft.AspNetCore.Mvc;
 
+using ApplicationTracker.Core.Identity;
+
 namespace ApplicationTracker.Api.Endpoints;
 
 public static class MockInterviewEndpoints
@@ -19,6 +21,7 @@ public static class MockInterviewEndpoints
         app.MapPost("/api/mock-interview/turn", async (
             [FromBody] MockInterviewTurnRequest request,
             IClaudeClient claude,
+            IUserContext user,
             IApplicationRepository appRepo,
             ILogger<Program> logger,
             CancellationToken ct) =>
@@ -32,8 +35,8 @@ public static class MockInterviewEndpoints
 
             try
             {
-                var ctx = await BuildContextAsync(request.Persona, request.Language, request.QuestionTarget, request.ApplicationId, appRepo, ct);
-                var result = await claude.GenerateMockInterviewTurnAsync(ctx, transcript, ct);
+                var ctx = await BuildContextAsync(user.UserId, request.Persona, request.Language, request.QuestionTarget, request.ApplicationId, appRepo, ct);
+                var result = await claude.GenerateMockInterviewTurnAsync(user.UserId, ctx, transcript, ct);
                 return Results.Ok(new
                 {
                     nudge = result.Nudge,
@@ -63,6 +66,7 @@ public static class MockInterviewEndpoints
         app.MapPost("/api/mock-interview/debrief", async (
             [FromBody] MockInterviewTurnRequest request,
             IClaudeClient claude,
+            IUserContext user,
             IApplicationRepository appRepo,
             ILogger<Program> logger,
             CancellationToken ct) =>
@@ -78,8 +82,8 @@ public static class MockInterviewEndpoints
 
             try
             {
-                var ctx = await BuildContextAsync(request.Persona, request.Language, request.QuestionTarget, request.ApplicationId, appRepo, ct);
-                var debrief = await claude.GenerateMockInterviewDebriefAsync(ctx, transcript, ct);
+                var ctx = await BuildContextAsync(user.UserId, request.Persona, request.Language, request.QuestionTarget, request.ApplicationId, appRepo, ct);
+                var debrief = await claude.GenerateMockInterviewDebriefAsync(user.UserId, ctx, transcript, ct);
                 return Results.Ok(debrief);
             }
             catch (InvalidOperationException ex) when (ex.Message.Contains("ApiKey"))
@@ -102,6 +106,7 @@ public static class MockInterviewEndpoints
         // Persist a completed session for later review.
         app.MapPost("/api/mock-interview/sessions", async (
             [FromBody] SaveMockSessionRequest request,
+            IUserContext user,
             IMockInterviewRepository repo,
             ILogger<Program> logger,
             CancellationToken ct) =>
@@ -127,7 +132,7 @@ public static class MockInterviewEndpoints
                     Debrief = request.Debrief,
                     CompletedAt = request.Debrief != null ? DateTime.UtcNow : null,
                 };
-                var created = await repo.CreateAsync(session, ct);
+                var created = await repo.CreateAsync(user.UserId, session, ct);
                 return Results.Created($"/api/mock-interview/sessions/{created.Id}", created);
             }
             catch (Exception ex)
@@ -141,10 +146,12 @@ public static class MockInterviewEndpoints
 
         // List saved sessions (lightweight — no transcripts).
         app.MapGet("/api/mock-interview/sessions", async (
+            IUserContext user,
+
             IMockInterviewRepository repo,
             CancellationToken ct) =>
         {
-            var sessions = await repo.GetAllAsync(ct);
+            var sessions = await repo.GetAllAsync(user.UserId, ct);
             var items = sessions.Select(s => new
             {
                 id = s.Id,
@@ -166,10 +173,11 @@ public static class MockInterviewEndpoints
         // Full session (transcript + debrief) for review.
         app.MapGet("/api/mock-interview/sessions/{id:guid}", async (
             Guid id,
+            IUserContext user,
             IMockInterviewRepository repo,
             CancellationToken ct) =>
         {
-            var session = await repo.GetByIdAsync(id, ct);
+            var session = await repo.GetByIdAsync(user.UserId, id, ct);
             return session is null ? Results.NotFound() : Results.Ok(session);
         })
         .WithName("GetMockInterviewSession")
@@ -177,13 +185,14 @@ public static class MockInterviewEndpoints
 
         app.MapDelete("/api/mock-interview/sessions/{id:guid}", async (
             Guid id,
+            IUserContext user,
             IMockInterviewRepository repo,
             ILogger<Program> logger,
             CancellationToken ct) =>
         {
             try
             {
-                await repo.DeleteAsync(id, ct);
+                await repo.DeleteAsync(user.UserId, id, ct);
                 return Results.NoContent();
             }
             catch (Exception ex)
@@ -200,6 +209,7 @@ public static class MockInterviewEndpoints
         // (undoable) and never touches the scoring fields.
         app.MapPost("/api/mock-interview/adopt-rubric", async (
             [FromBody] AdoptRubricRequest request,
+            IUserContext user,
             IProfileProvider provider,
             ILogger<Program> logger,
             CancellationToken ct) =>
@@ -209,7 +219,7 @@ public static class MockInterviewEndpoints
 
             try
             {
-                var prep = await provider.GetInterviewPrepAsync(ct);
+                var prep = await provider.GetInterviewPrepAsync(user.UserId, ct);
                 var rubric = prep.QaRubric.ToList();
                 rubric.Add(new QaEntry
                 {
@@ -218,7 +228,7 @@ public static class MockInterviewEndpoints
                     Categories = request.Categories ?? new List<string>(),
                     Topic = request.Topic ?? "",
                 });
-                await provider.UpsertInterviewPrepAsync(null, null, null, null, rubric, ct);
+                await provider.UpsertInterviewPrepAsync(user.UserId, null, null, null, null, rubric, ct);
                 return Results.Ok(new { adopted = true, count = rubric.Count });
             }
             catch (ArgumentException ex)
@@ -238,12 +248,12 @@ public static class MockInterviewEndpoints
     }
 
     private static async Task<MockInterviewContext> BuildContextAsync(
-        string? persona, string? language, int? questionTarget, Guid? applicationId,
+        Guid userId, string? persona, string? language, int? questionTarget, Guid? applicationId,
         IApplicationRepository appRepo, CancellationToken ct)
     {
         Application? app = null;
         if (applicationId is { } id)
-            app = await appRepo.GetByIdAsync(id, ct);
+            app = await appRepo.GetByIdAsync(userId, id, ct);
 
         var target = questionTarget ?? 6;
         target = Math.Clamp(target, 3, 12);

@@ -4,10 +4,10 @@ namespace ApplicationTracker.Core.Repositories;
 
 public interface IMockInterviewRepository
 {
-    Task<MockInterviewSession> CreateAsync(MockInterviewSession session, CancellationToken ct = default);
-    Task<MockInterviewSession?> GetByIdAsync(Guid id, CancellationToken ct = default);
+    Task<MockInterviewSession> CreateAsync(Guid userId, MockInterviewSession session, CancellationToken ct = default);
+    Task<MockInterviewSession?> GetByIdAsync(Guid userId, Guid id, CancellationToken ct = default);
     // Newest-first. Returns full sessions; the list endpoint projects a
-    // lightweight shape (the per-session transcripts stay small for a single user).
-    Task<List<MockInterviewSession>> GetAllAsync(CancellationToken ct = default);
-    Task DeleteAsync(Guid id, CancellationToken ct = default);
+    // lightweight shape (one user's transcripts stay small).
+    Task<List<MockInterviewSession>> GetAllAsync(Guid userId, CancellationToken ct = default);
+    Task DeleteAsync(Guid userId, Guid id, CancellationToken ct = default);
 }

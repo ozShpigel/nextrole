@@ -12,11 +12,10 @@ namespace ApplicationTracker.Infrastructure.Profile;
 
 public sealed class MongoProfileProvider : IProfileProvider
 {
-    private const string DocId = "default";
     private const string CollectionName = "profile";
 
-    private const string CacheKey = "profile_doc";
-    private const string InterviewPrepCacheKey = "interview_prep_doc";
+    private static string CacheKey(Guid userId) => "profile_doc:" + userId;
+    private static string InterviewPrepCacheKey(Guid userId) => "interview_prep_doc:" + userId;
     private static readonly TimeSpan CacheDuration = TimeSpan.FromSeconds(30);
 
     // Sub-doc holding the structured, user-editable profile. The rendered prompt
@@ -187,42 +186,55 @@ public sealed class MongoProfileProvider : IProfileProvider
         _logger = logger;
     }
 
-    public async Task<string> GetProfileAsync(CancellationToken cancellationToken = default)
+    // The profile document _id IS the userId, stored as its canonical string
+    // form so it matches the [BsonRepresentation(BsonType.String)] Guids every
+    // other collection persists. There is no query-by-field path here, so a
+    // lookup cannot forget to scope itself -- it would simply find nothing.
+    // The pre-multi-user profile key. Only referenced to detect a document the
+    // startup migration has not re-keyed yet -- see LoadDefaultProfileAsync.
+    private const string LegacyProfileDocId = "default";
+
+    private static string DocKey(Guid userId) => userId.ToString();
+
+    private static FilterDefinition<BsonDocument> UserFilter(Guid userId) =>
+        Builders<BsonDocument>.Filter.Eq("_id", DocKey(userId));
+
+
+    public async Task<string> GetProfileAsync(Guid userId, CancellationToken cancellationToken = default)
     {
-        var doc = await GetProfileDocumentAsync(cancellationToken);
+        var doc = await GetProfileDocumentAsync(userId, cancellationToken);
         return doc.Content;
     }
 
-    public async Task<ProfileDocument> GetProfileDocumentAsync(CancellationToken cancellationToken = default)
+    public async Task<ProfileDocument> GetProfileDocumentAsync(Guid userId, CancellationToken cancellationToken = default)
     {
-        if (_cache.TryGetValue(CacheKey, out ProfileDocument? cached) && cached is not null)
+        if (_cache.TryGetValue(CacheKey(userId), out ProfileDocument? cached) && cached is not null)
             return cached;
 
-        var filter = Builders<BsonDocument>.Filter.Eq("id", DocId);
+        var filter = UserFilter(userId);
         var doc = await _collection.Find(filter).FirstOrDefaultAsync(cancellationToken);
 
         ProfileDocument result;
         if (doc is null)
         {
-            _logger.LogInformation("No profile doc in Mongo; seeding from Data/sample-profile.json");
-            result = await SeedFromFileAsync(cancellationToken);
+            result = await LoadDefaultProfileAsync(userId, cancellationToken);
         }
         else
         {
             result = ToProfileDocument(doc);
         }
 
-        _cache.Set(CacheKey, result, CacheDuration);
+        _cache.Set(CacheKey(userId), result, CacheDuration);
         return result;
     }
 
-    public async Task UpsertProfileAsync(StructuredProfile profile, CancellationToken cancellationToken = default)
+    public async Task UpsertProfileAsync(Guid userId, StructuredProfile profile, CancellationToken cancellationToken = default)
     {
         profile ??= new StructuredProfile();
         var structuredBson = ToBson(profile);
         var content = ProfileRenderer.Render(profile);
 
-        var filter = Builders<BsonDocument>.Filter.Eq("id", DocId);
+        var filter = UserFilter(userId);
         var existing = await _collection.Find(filter).FirstOrDefaultAsync(cancellationToken);
 
         // Version history: snapshot the PREVIOUS structured profile when it
@@ -244,7 +256,6 @@ public sealed class MongoProfileProvider : IProfileProvider
         // full-document replace.
         var sets = new List<UpdateDefinition<BsonDocument>>
         {
-            Builders<BsonDocument>.Update.SetOnInsert("id", DocId),
             Builders<BsonDocument>.Update.Set("updated_at", DateTime.UtcNow),
             Builders<BsonDocument>.Update.Set(StructuredKey, structuredBson),
             // `content` is the rendered, prompt-facing projection of the structured profile.
@@ -260,7 +271,7 @@ public sealed class MongoProfileProvider : IProfileProvider
             new UpdateOptions { IsUpsert = true },
             cancellationToken);
 
-        _cache.Remove(CacheKey);
+        _cache.Remove(CacheKey(userId));
 
         _logger.LogInformation(
             "Profile upserted ({Roles} role(s), {Content} chars rendered)",
@@ -293,12 +304,12 @@ public sealed class MongoProfileProvider : IProfileProvider
         history[field] = arr;
     }
 
-    public async Task<IReadOnlyList<ProfileHistoryEntry>> GetHistoryAsync(string field, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<ProfileHistoryEntry>> GetHistoryAsync(Guid userId, string field, CancellationToken cancellationToken = default)
     {
         ValidateHistoryField(field);
 
         // Read straight from Mongo — the cached ProfileDocument doesn't carry history.
-        var filter = Builders<BsonDocument>.Filter.Eq("id", DocId);
+        var filter = UserFilter(userId);
         var doc = await _collection.Find(filter).FirstOrDefaultAsync(cancellationToken);
 
         var entries = new List<ProfileHistoryEntry>();
@@ -335,11 +346,11 @@ public sealed class MongoProfileProvider : IProfileProvider
         return (text.Length > 300 ? text[..300] + "…" : text, text.Length);
     }
 
-    public async Task RestoreHistoryAsync(string field, int index, CancellationToken cancellationToken = default)
+    public async Task RestoreHistoryAsync(Guid userId, string field, int index, CancellationToken cancellationToken = default)
     {
         ValidateHistoryField(field);
 
-        var filter = Builders<BsonDocument>.Filter.Eq("id", DocId);
+        var filter = UserFilter(userId);
         var doc = await _collection.Find(filter).FirstOrDefaultAsync(cancellationToken);
         if (doc is null || !doc.Contains("history") || !doc["history"].IsBsonDocument)
             throw new ArgumentException("No history to restore from");
@@ -355,7 +366,7 @@ public sealed class MongoProfileProvider : IProfileProvider
         // Route through UpsertProfileAsync so restoring itself snapshots the
         // current value into history (i.e. a restore is undoable).
         if (field == "profile")
-            await UpsertProfileAsync(FromBson(value), cancellationToken);
+            await UpsertProfileAsync(userId, FromBson(value), cancellationToken);
     }
 
     // ── Interview prep ──────────────────────────────────────────────────────
@@ -363,12 +374,12 @@ public sealed class MongoProfileProvider : IProfileProvider
     // with version history under `history_interview_prep`. Writes use a partial
     // $set so the profile `content` field is untouched.
 
-    public async Task<InterviewPrepDocument> GetInterviewPrepAsync(CancellationToken cancellationToken = default)
+    public async Task<InterviewPrepDocument> GetInterviewPrepAsync(Guid userId, CancellationToken cancellationToken = default)
     {
-        if (_cache.TryGetValue(InterviewPrepCacheKey, out InterviewPrepDocument? cached) && cached is not null)
+        if (_cache.TryGetValue(InterviewPrepCacheKey(userId), out InterviewPrepDocument? cached) && cached is not null)
             return cached;
 
-        var filter = Builders<BsonDocument>.Filter.Eq("id", DocId);
+        var filter = UserFilter(userId);
         var doc = await _collection.Find(filter).FirstOrDefaultAsync(cancellationToken);
 
         var sub = doc != null && doc.Contains(InterviewPrepKey) && doc[InterviewPrepKey].IsBsonDocument
@@ -376,7 +387,7 @@ public sealed class MongoProfileProvider : IProfileProvider
             : new BsonDocument();
         var result = ToInterviewPrepDocument(sub);
 
-        _cache.Set(InterviewPrepCacheKey, result, CacheDuration);
+        _cache.Set(InterviewPrepCacheKey(userId), result, CacheDuration);
         return result;
     }
 
@@ -408,6 +419,7 @@ public sealed class MongoProfileProvider : IProfileProvider
     }
 
     public async Task UpsertInterviewPrepAsync(
+        Guid userId,
         string? selfPresentationHr,
         string? selfPresentationTechnical,
         string? presentingWorkProject,
@@ -415,14 +427,14 @@ public sealed class MongoProfileProvider : IProfileProvider
         IReadOnlyList<QaEntry>? qaRubric,
         CancellationToken cancellationToken = default)
     {
-        var filter = Builders<BsonDocument>.Filter.Eq("id", DocId);
+        var filter = UserFilter(userId);
         var existing = await _collection.Find(filter).FirstOrDefaultAsync(cancellationToken);
 
         // Ensure the base profile doc is seeded before we attach interview prep,
         // so an upsert here never creates a doc that bypasses profile seeding.
         if (existing is null)
         {
-            await GetProfileDocumentAsync(cancellationToken);
+            await GetProfileDocumentAsync(userId, cancellationToken);
             existing = await _collection.Find(filter).FirstOrDefaultAsync(cancellationToken);
         }
 
@@ -489,7 +501,7 @@ public sealed class MongoProfileProvider : IProfileProvider
         await _collection.UpdateOneAsync(
             filter, update, new UpdateOptions { IsUpsert = true }, cancellationToken);
 
-        _cache.Remove(InterviewPrepCacheKey);
+        _cache.Remove(InterviewPrepCacheKey(userId));
 
         _logger.LogInformation(
             "Interview prep upserted (hr={Hr}, tech={Tech}, work={Work}, personal={Personal}, qaEntries={QaCount})",
@@ -498,16 +510,16 @@ public sealed class MongoProfileProvider : IProfileProvider
             qaRubric is null ? "unchanged" : newRubric.Count.ToString());
     }
 
-    public async Task SetPresentationCuesAsync(string field, IReadOnlyList<string> cues, CancellationToken cancellationToken = default)
+    public async Task SetPresentationCuesAsync(Guid userId, string field, IReadOnlyList<string> cues, CancellationToken cancellationToken = default)
     {
         if (field is not ("self_presentation_hr" or "self_presentation_technical"))
             throw new ArgumentException($"Cues are not supported for field '{field}'");
 
-        var filter = Builders<BsonDocument>.Filter.Eq("id", DocId);
+        var filter = UserFilter(userId);
         // Ensure the base/interview-prep doc exists before a targeted $set.
         var existing = await _collection.Find(filter).FirstOrDefaultAsync(cancellationToken);
         if (existing is null)
-            await GetProfileDocumentAsync(cancellationToken);
+            await GetProfileDocumentAsync(userId, cancellationToken);
 
         var arr = new BsonArray(cues.Select(c => (BsonValue)c));
         // Dot-path $set touches only this one key — siblings (text, qa_rubric,
@@ -516,15 +528,15 @@ public sealed class MongoProfileProvider : IProfileProvider
         await _collection.UpdateOneAsync(
             filter, update, new UpdateOptions { IsUpsert = true }, cancellationToken);
 
-        _cache.Remove(InterviewPrepCacheKey);
+        _cache.Remove(InterviewPrepCacheKey(userId));
         _logger.LogInformation("Persisted {Count} keyword cues for {Field}", cues.Count, field);
     }
 
-    public async Task<IReadOnlyList<ProfileHistoryEntry>> GetInterviewPrepHistoryAsync(string field, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<ProfileHistoryEntry>> GetInterviewPrepHistoryAsync(Guid userId, string field, CancellationToken cancellationToken = default)
     {
         ValidateInterviewPrepHistoryField(field);
 
-        var filter = Builders<BsonDocument>.Filter.Eq("id", DocId);
+        var filter = UserFilter(userId);
         var doc = await _collection.Find(filter).FirstOrDefaultAsync(cancellationToken);
 
         var entries = new List<ProfileHistoryEntry>();
@@ -547,11 +559,11 @@ public sealed class MongoProfileProvider : IProfileProvider
         return entries;
     }
 
-    public async Task RestoreInterviewPrepHistoryAsync(string field, int index, CancellationToken cancellationToken = default)
+    public async Task RestoreInterviewPrepHistoryAsync(Guid userId, string field, int index, CancellationToken cancellationToken = default)
     {
         ValidateInterviewPrepHistoryField(field);
 
-        var filter = Builders<BsonDocument>.Filter.Eq("id", DocId);
+        var filter = UserFilter(userId);
         var doc = await _collection.Find(filter).FirstOrDefaultAsync(cancellationToken);
         if (doc is null || !doc.Contains(InterviewPrepHistoryKey) || !doc[InterviewPrepHistoryKey].IsBsonDocument)
             throw new ArgumentException("No history to restore from");
@@ -569,19 +581,19 @@ public sealed class MongoProfileProvider : IProfileProvider
         switch (field)
         {
             case "self_presentation_hr":
-                await UpsertInterviewPrepAsync(value.IsString ? value.AsString : "", null, null, null, null, cancellationToken);
+                await UpsertInterviewPrepAsync(userId, value.IsString ? value.AsString : "", null, null, null, null, cancellationToken);
                 break;
             case "self_presentation_technical":
-                await UpsertInterviewPrepAsync(null, value.IsString ? value.AsString : "", null, null, null, cancellationToken);
+                await UpsertInterviewPrepAsync(userId, null, value.IsString ? value.AsString : "", null, null, null, cancellationToken);
                 break;
             case "presenting_work_project":
-                await UpsertInterviewPrepAsync(null, null, value.IsString ? value.AsString : "", null, null, cancellationToken);
+                await UpsertInterviewPrepAsync(userId, null, null, value.IsString ? value.AsString : "", null, null, cancellationToken);
                 break;
             case "presenting_personal_project":
-                await UpsertInterviewPrepAsync(null, null, null, value.IsString ? value.AsString : "", null, cancellationToken);
+                await UpsertInterviewPrepAsync(userId, null, null, null, value.IsString ? value.AsString : "", null, cancellationToken);
                 break;
             case "qa_rubric":
-                await UpsertInterviewPrepAsync(null, null, null, null, ReadQaRubric(value), cancellationToken);
+                await UpsertInterviewPrepAsync(userId, null, null, null, null, ReadQaRubric(value), cancellationToken);
                 break;
         }
     }
@@ -689,8 +701,45 @@ public sealed class MongoProfileProvider : IProfileProvider
         return string.Join("\n\n", blocks);
     }
 
-    private async Task<ProfileDocument> SeedFromFileAsync(CancellationToken cancellationToken)
+    // A user with no stored profile is simply a user who has not uploaded a CV
+    // yet. Reading their profile must NOT create a document for them: on a
+    // cookie instance every bot and bounce resolves to a fresh id, and writing
+    // here would leave a row behind for each one. The empty ProfileDocument
+    // below is returned, never persisted; the first write is the CV upload.
+    //
+    // The one exception is an instance configured with a single fixed user
+    // (Identity:FixedUserId): that user IS the instance, and bootstrapping it
+    // from Data/sample-profile.json is the behaviour the private deployment
+    // has always had.
+    private async Task<ProfileDocument> LoadDefaultProfileAsync(Guid userId, CancellationToken cancellationToken)
     {
+        var isConfiguredFixedUser = Guid.TryParse(_configuration["Identity:FixedUserId"], out var fixedUserId)
+            && fixedUserId == userId;
+        if (!isConfiguredFixedUser)
+        {
+            _logger.LogInformation("No profile for user {UserId}; returning an empty profile without persisting one", userId);
+            return ToProfileDocument(BuildProfileDoc(userId, new StructuredProfile()));
+        }
+
+        // The startup migration is best-effort (Mongo can be briefly
+        // unreachable at boot), so a legacy id="default" document may still be
+        // sitting there un-migrated. Seeding on top of that would write a
+        // sample profile at the new key, and the next migration run would then
+        // see a document already there and refuse to re-key -- stranding the
+        // real profile under the old key and showing the user a blank one.
+        // Nothing is lost either way, but refuse rather than displace.
+        var unmigratedLegacy = await _collection
+            .Find(Builders<BsonDocument>.Filter.Eq("id", LegacyProfileDocId))
+            .AnyAsync(cancellationToken);
+        if (unmigratedLegacy)
+        {
+            _logger.LogError(
+                "Refusing to bootstrap a profile for {UserId}: a legacy id=\"{LegacyId}\" document exists that the startup migration has not re-keyed yet. " +
+                "Restart once Mongo is reachable so the migration can run; the existing profile is intact.",
+                userId, LegacyProfileDocId);
+            return ToProfileDocument(BuildProfileDoc(userId, new StructuredProfile()));
+        }
+
         var basePath = _configuration["ContentRoot"] ?? Directory.GetCurrentDirectory();
         var relativePath = _configuration["Profile:FilePath"] ?? "Data/sample-profile.json";
         var filePath = Path.Combine(basePath, relativePath);
@@ -708,21 +757,20 @@ public sealed class MongoProfileProvider : IProfileProvider
             _logger.LogWarning("Seed file missing: {FilePath}. Inserted empty profile.", filePath);
         }
 
-        var content = ProfileRenderer.Render(profile);
-        var doc = new BsonDocument
-        {
-            ["id"] = DocId,
-            ["content"] = content,
-            [StructuredKey] = ToBson(profile),
-            ["updated_at"] = DateTime.UtcNow
-        };
-
-        var filter = Builders<BsonDocument>.Filter.Eq("id", DocId);
+        var doc = BuildProfileDoc(userId, profile);
         await _collection.ReplaceOneAsync(
-            filter, doc, new ReplaceOptions { IsUpsert = true }, cancellationToken);
+            UserFilter(userId), doc, new ReplaceOptions { IsUpsert = true }, cancellationToken);
 
         return ToProfileDocument(doc);
     }
+
+    private static BsonDocument BuildProfileDoc(Guid userId, StructuredProfile profile) => new()
+    {
+        ["_id"] = DocKey(userId),
+        ["content"] = ProfileRenderer.Render(profile),
+        [StructuredKey] = ToBson(profile),
+        ["updated_at"] = DateTime.UtcNow,
+    };
 
     private static ProfileDocument ToProfileDocument(BsonDocument doc)
     {

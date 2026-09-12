@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+using ApplicationTracker.Core.Identity;
 using MongoDB.Bson.Serialization.Attributes;
 
 namespace ApplicationTracker.Core.Models;
@@ -61,11 +63,16 @@ public sealed record MockTurnResult
 }
 
 // A persisted, completed (or in-review) mock-interview session.
-public sealed record MockInterviewSession
+public sealed record MockInterviewSession : IUserOwned
 {
     [BsonId]
     [BsonRepresentation(MongoDB.Bson.BsonType.String)]
     public Guid Id { get; init; } = Guid.NewGuid();
+    // Owner. Set from the resolved request identity. [JsonIgnore] so a request
+    // body can never claim one and a response can never leak one.
+    [JsonIgnore]
+    [BsonRepresentation(MongoDB.Bson.BsonType.String)]
+    public Guid UserId { get; init; }
     public string Persona { get; init; } = "hr";
     public string Mode { get; init; } = "generic";      // generic | bound
     [BsonRepresentation(MongoDB.Bson.BsonType.String)]

@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+using ApplicationTracker.Core.Identity;
 using MongoDB.Bson.Serialization.Attributes;
 
 namespace ApplicationTracker.Core.Models;
@@ -6,11 +8,16 @@ namespace ApplicationTracker.Core.Models;
 // field (removed below, superseded by the structured retro) — without this,
 // the driver throws on any unmapped element instead of silently dropping it.
 [BsonIgnoreExtraElements]
-public sealed record Interview
+public sealed record Interview : IUserOwned
 {
     [BsonId]
     [BsonRepresentation(MongoDB.Bson.BsonType.String)]
     public Guid Id { get; init; } = Guid.NewGuid();
+    // Owner. Set from the resolved request identity. [JsonIgnore] so a request
+    // body can never claim one and a response can never leak one.
+    [JsonIgnore]
+    [BsonRepresentation(MongoDB.Bson.BsonType.String)]
+    public Guid UserId { get; init; }
     // Not `required`: the interview endpoints take this from the route and
     // overwrite whatever the body carries, so JSON binding must not demand it.
     [BsonRepresentation(MongoDB.Bson.BsonType.String)]

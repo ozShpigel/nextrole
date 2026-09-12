@@ -43,3 +43,33 @@ async def ensure_ttl_index(db: AsyncIOMotorDatabase) -> None:
             )
         except Exception as e:
             logger.warning("TTL index ensure failed (continuing): %s", e)
+
+
+USER_ID_INDEX_NAME = "idx_user_id"
+
+
+async def ensure_user_scope(db: AsyncIOMotorDatabase, legacy_owner_user_id: str) -> None:
+    """Give every search criteria an owner, and index the field every criteria
+    query now filters on.
+
+    Criteria written before multi-user have no `user_id` and would otherwise
+    belong to nobody. They are stamped with the legacy owner — this instance's
+    own single user when it has one, otherwise a well-known id nothing reads.
+    Nothing is deleted. Idempotent; a second run finds nothing to stamp.
+
+    discovered_jobs / discovery_runs are deliberately absent: the job pool is
+    shared across users by design, so there is nothing to scope there.
+    """
+    try:
+        result = await db.search_criteria.update_many(
+            {"user_id": {"$exists": False}},
+            {"$set": {"user_id": legacy_owner_user_id}},
+        )
+        if result.modified_count:
+            logger.warning(
+                "User-scope migration: stamped %d unowned search criteria with user %s",
+                result.modified_count, legacy_owner_user_id,
+            )
+        await db.search_criteria.create_index("user_id", name=USER_ID_INDEX_NAME)
+    except Exception as e:
+        logger.warning("search_criteria user scope ensure failed (continuing): %s", e)

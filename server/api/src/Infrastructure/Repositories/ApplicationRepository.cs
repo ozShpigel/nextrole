@@ -7,21 +7,21 @@ namespace ApplicationTracker.Infrastructure.Repositories;
 public sealed class ApplicationRepository : IApplicationRepository
 {
     private readonly IMongoClient _mongoClient;
-    private readonly IMongoCollection<Application> _applications;
-    private readonly IMongoCollection<Interview> _interviews;
-    private readonly IMongoCollection<Note> _notes;
-    private readonly IMongoCollection<StatusUpdate> _statusUpdates;
-    private readonly IMongoCollection<ResumePack> _resumePacks;
+    private readonly UserScopedCollection<Application> _applications;
+    private readonly UserScopedCollection<Interview> _interviews;
+    private readonly UserScopedCollection<Note> _notes;
+    private readonly UserScopedCollection<StatusUpdate> _statusUpdates;
+    private readonly UserScopedCollection<ResumePack> _resumePacks;
 
     private static readonly Collation CaseInsensitive = new("en", strength: CollationStrength.Secondary);
 
     public ApplicationRepository(
         IMongoClient mongoClient,
-        IMongoCollection<Application> applications,
-        IMongoCollection<Interview> interviews,
-        IMongoCollection<Note> notes,
-        IMongoCollection<StatusUpdate> statusUpdates,
-        IMongoCollection<ResumePack> resumePacks)
+        UserScopedCollection<Application> applications,
+        UserScopedCollection<Interview> interviews,
+        UserScopedCollection<Note> notes,
+        UserScopedCollection<StatusUpdate> statusUpdates,
+        UserScopedCollection<ResumePack> resumePacks)
     {
         _mongoClient = mongoClient;
         _applications = applications;
@@ -31,54 +31,55 @@ public sealed class ApplicationRepository : IApplicationRepository
         _resumePacks = resumePacks;
     }
 
-    public async Task<(Application Application, bool Created)> CreateAsync(Application app, CancellationToken ct = default)
+    public async Task<(Application Application, bool Created)> CreateAsync(Guid userId, Application app, CancellationToken ct = default)
     {
+        var owned = app with { UserId = userId };
         try
         {
-            await _applications.InsertOneAsync(app, cancellationToken: ct);
-            return (app, true);
+            await _applications.InsertOneAsync(userId, owned, ct);
+            return (owned, true);
         }
         catch (MongoWriteException ex) when (ex.WriteError?.Category == ServerErrorCategory.DuplicateKey)
         {
             var filter = Builders<Application>.Filter.And(
-                Builders<Application>.Filter.Eq(a => a.Company, app.Company),
-                Builders<Application>.Filter.Eq(a => a.JobTitle, app.JobTitle));
+                Builders<Application>.Filter.Eq(a => a.Company, owned.Company),
+                Builders<Application>.Filter.Eq(a => a.JobTitle, owned.JobTitle));
             var existing = await _applications
-                .Find(filter, new FindOptions { Collation = CaseInsensitive })
+                .Find(userId, filter, new FindOptions { Collation = CaseInsensitive })
                 .FirstOrDefaultAsync(ct);
 
             // A withdrawn/rejected application is a closed chapter, not "still in
             // progress" — a fresh Add for the same (Company, JobTitle) should reopen
-            // it with the new job's content, not silently hand back the closed record
+            // it with the new job content, not silently hand back the closed record
             // untouched (previously "Add" looked like a no-op: saved_to_tracker flipped
             // client-side, but the tracker kept showing the old closed card).
             if (existing is { Status: ApplicationStatus.Withdrawn or ApplicationStatus.Rejected })
             {
-                var revived = app with { Id = existing.Id };
-                await _applications.ReplaceOneAsync(a => a.Id == existing.Id, revived, cancellationToken: ct);
+                var revived = owned with { Id = existing.Id };
+                await _applications.ReplaceOneAsync(userId, a => a.Id == existing.Id, revived, ct: ct);
                 return (revived, true);
             }
 
-            // A concurrent save already inserted this (Company, JobTitle) and it's
+            // A concurrent save already inserted this (Company, JobTitle) and it is
             // still active — the unique index rejected ours. Return the winner
             // instead of bubbling an error so the caller stays idempotent.
-            return (existing ?? app, false);
+            return (existing ?? owned, false);
         }
     }
 
-    public async Task<Application?> GetByIdAsync(Guid id, CancellationToken ct = default)
+    public async Task<Application?> GetByIdAsync(Guid userId, Guid id, CancellationToken ct = default)
     {
-        return await _applications.Find(a => a.Id == id).FirstOrDefaultAsync(ct);
+        return await _applications.Find(userId, a => a.Id == id).FirstOrDefaultAsync(ct);
     }
 
-    public async Task<List<Application>> GetAllAsync(CancellationToken ct = default)
+    public async Task<List<Application>> GetAllAsync(Guid userId, CancellationToken ct = default)
     {
-        return await _applications.Find(FilterDefinition<Application>.Empty)
+        return await _applications.FindAll(userId)
             .SortByDescending(a => a.CreatedAt)
             .ToListAsync(ct);
     }
 
-    public async Task<List<ApplicationListItem>> GetAllListItemsAsync(CancellationToken ct = default)
+    public async Task<List<ApplicationListItem>> GetAllListItemsAsync(Guid userId, CancellationToken ct = default)
     {
         var projection = Builders<Application>.Projection
             .Include(a => a.Id)
@@ -93,7 +94,7 @@ public sealed class ApplicationRepository : IApplicationRepository
             .Include(a => a.UpdatedAt)
             .Include(a => a.AppliedAt);
 
-        var items = await _applications.Find(FilterDefinition<Application>.Empty)
+        var items = await _applications.FindAll(userId)
             .SortByDescending(a => a.CreatedAt)
             .Project<ApplicationListItem>(projection)
             .ToListAsync(ct);
@@ -102,7 +103,7 @@ public sealed class ApplicationRepository : IApplicationRepository
         // query over the small set of future, not-completed interviews).
         var now = DateTime.UtcNow;
         var upcoming = await _interviews
-            .Find(i => i.ScheduledAt >= now && !i.Completed)
+            .Find(userId, i => i.ScheduledAt >= now && !i.Completed)
             .ToListAsync(ct);
         if (upcoming.Count > 0)
         {
@@ -117,16 +118,16 @@ public sealed class ApplicationRepository : IApplicationRepository
                 .ToList();
         }
 
-        return await EnrichWithPackStatusAsync(items, ct);
+        return await EnrichWithPackStatusAsync(userId, items, ct);
     }
 
     // Cheap second query over the small resumePacks collection — same shape
     // as the upcoming-interview enrichment above.
-    private async Task<List<ApplicationListItem>> EnrichWithPackStatusAsync(List<ApplicationListItem> items, CancellationToken ct)
+    private async Task<List<ApplicationListItem>> EnrichWithPackStatusAsync(Guid userId, List<ApplicationListItem> items, CancellationToken ct)
     {
         var appIds = items.Select(it => it.Id).ToList();
         var packs = await _resumePacks
-            .Find(p => appIds.Contains(p.ApplicationId))
+            .Find(userId, p => appIds.Contains(p.ApplicationId))
             .Project(p => new { p.ApplicationId, p.GeneratedAt })
             .ToListAsync(ct);
         if (packs.Count == 0) return items;
@@ -139,29 +140,30 @@ public sealed class ApplicationRepository : IApplicationRepository
             .ToList();
     }
 
-    public async Task<List<Application>> GetByIdsAsync(IEnumerable<Guid> ids, CancellationToken ct = default)
+    public async Task<List<Application>> GetByIdsAsync(Guid userId, IEnumerable<Guid> ids, CancellationToken ct = default)
     {
         var filter = Builders<Application>.Filter.In(a => a.Id, ids);
-        return await _applications.Find(filter).ToListAsync(ct);
+        return await _applications.Find(userId, filter).ToListAsync(ct);
     }
 
-    public async Task<Application> UpdateAsync(Application app, CancellationToken ct = default)
+    public async Task<Application> UpdateAsync(Guid userId, Application app, CancellationToken ct = default)
     {
-        await _applications.ReplaceOneAsync(a => a.Id == app.Id, app, cancellationToken: ct);
-        return app;
+        var owned = app with { UserId = userId };
+        await _applications.ReplaceOneAsync(userId, a => a.Id == owned.Id, owned, ct: ct);
+        return owned;
     }
 
-    public async Task DeleteAsync(Guid id, CancellationToken ct = default)
+    public async Task DeleteAsync(Guid userId, Guid id, CancellationToken ct = default)
     {
         using var session = await _mongoClient.StartSessionAsync(cancellationToken: ct);
         session.StartTransaction();
         try
         {
-            await _interviews.DeleteManyAsync(session, i => i.ApplicationId == id, cancellationToken: ct);
-            await _notes.DeleteManyAsync(session, n => n.ApplicationId == id, cancellationToken: ct);
-            await _statusUpdates.DeleteManyAsync(session, s => s.ApplicationId == id, cancellationToken: ct);
-            await _resumePacks.DeleteManyAsync(session, p => p.ApplicationId == id, cancellationToken: ct);
-            await _applications.DeleteOneAsync(session, a => a.Id == id, cancellationToken: ct);
+            await _interviews.DeleteManyAsync(session, userId, i => i.ApplicationId == id, ct);
+            await _notes.DeleteManyAsync(session, userId, n => n.ApplicationId == id, ct);
+            await _statusUpdates.DeleteManyAsync(session, userId, s => s.ApplicationId == id, ct);
+            await _resumePacks.DeleteManyAsync(session, userId, p => p.ApplicationId == id, ct);
+            await _applications.DeleteOneAsync(session, userId, a => a.Id == id, ct);
             await session.CommitTransactionAsync(ct);
         }
         catch
@@ -171,24 +173,23 @@ public sealed class ApplicationRepository : IApplicationRepository
         }
     }
 
-    public async Task<List<ApplicationSummary>> GetAllSummariesAsync(CancellationToken ct = default)
+    public async Task<List<ApplicationSummary>> GetAllSummariesAsync(Guid userId, CancellationToken ct = default)
     {
         var projection = Builders<Application>.Projection
             .Include(a => a.Id)
             .Include(a => a.Status)
             .Include(a => a.MatchScore);
 
-        return await _applications.Find(FilterDefinition<Application>.Empty)
+        return await _applications.FindAll(userId)
             .Project<ApplicationSummary>(projection)
             .ToListAsync(ct);
     }
 
-    public async Task<bool> ExistsAsync(string company, string jobTitle, CancellationToken ct = default)
+    public async Task<bool> ExistsAsync(Guid userId, string company, string jobTitle, CancellationToken ct = default)
     {
         var filter = Builders<Application>.Filter.And(
             Builders<Application>.Filter.Eq(a => a.Company, company),
             Builders<Application>.Filter.Eq(a => a.JobTitle, jobTitle));
-        var options = new FindOptions { Collation = CaseInsensitive };
-        return await _applications.Find(filter, options).AnyAsync(ct);
+        return await _applications.Find(userId, filter, new FindOptions { Collation = CaseInsensitive }).AnyAsync(ct);
     }
 }

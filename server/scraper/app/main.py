@@ -6,13 +6,14 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 
 import certifi
-from fastapi import BackgroundTasks, FastAPI, HTTPException
+from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel
 
 from app.config import Settings
-from app.indexes import ensure_ttl_index
+from app import identity
+from app.indexes import ensure_ttl_index, ensure_user_scope
 from app.schemas.criteria import (
     MAX_SEARCHES_PER_RUN,
     CreateCriteriaRequest,
@@ -35,6 +36,7 @@ def _tag_utc(doc: dict) -> dict:
     return doc
 
 settings = Settings()
+identity.validate(settings)
 db_client: AsyncIOMotorClient | None = None
 db = None
 
@@ -71,6 +73,7 @@ async def lifespan(app: FastAPI):
         )
 
     await ensure_ttl_index(db)
+    await ensure_user_scope(db, identity.legacy_owner_user_id(settings))
 
     # Demo pool freshness: seeded fictional jobs re-enter the Search page's
     # days-back window on every cold start — which on the free tier happens
@@ -140,13 +143,25 @@ async def demo_guard(request, call_next):
 # (mirrors the candy-babies pattern). Removing the nginx middleman eliminates
 # the double-hop retry amplification that was causing Cloudflare 429s on cold
 # starts.
+# allow_credentials is on only when the origins are explicit: a browser
+# refuses to send the uid cookie to a wildcard origin, and CORS forbids
+# pairing "*" with credentials at all. A cookie-mode deploy therefore has to
+# list its frontend origins in CORS_ORIGINS.
+_cors_origins = settings.parsed_cors_origins()
+_allow_credentials = _cors_origins != ["*"]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.parsed_cors_origins(),
-    allow_credentials=False,
+    allow_origins=_cors_origins,
+    allow_credentials=_allow_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# Resolved once per request, the same way the API resolves it. Endpoints take
+# the id as a parameter so a criteria query cannot be written without one.
+def current_user_id(request: Request) -> str:
+    return identity.resolve(settings, request)
 
 
 # ---------------------------------------------------------------------------
@@ -167,29 +182,29 @@ async def health():
 # ---------------------------------------------------------------------------
 
 @app.get("/api/discovery/criteria")
-async def list_criteria():
-    docs = await db.search_criteria.find().sort("created_at", -1).to_list(100)
+async def list_criteria(user_id: str = Depends(current_user_id)):
+    docs = await db.search_criteria.find({"user_id": user_id}).sort("created_at", -1).to_list(100)
     for d in docs:
         d.pop("_id", None)
     return docs
 
 
 @app.post("/api/discovery/criteria", status_code=201)
-async def create_criteria(req: CreateCriteriaRequest):
-    criteria = SearchCriteria(**req.model_dump())
+async def create_criteria(req: CreateCriteriaRequest, user_id: str = Depends(current_user_id)):
+    criteria = SearchCriteria(**req.model_dump(), user_id=user_id)
     await db.search_criteria.insert_one(criteria.model_dump())
     return criteria.model_dump()
 
 
 @app.put("/api/discovery/criteria/{criteria_id}")
-async def update_criteria(criteria_id: str, req: UpdateCriteriaRequest):
+async def update_criteria(criteria_id: str, req: UpdateCriteriaRequest, user_id: str = Depends(current_user_id)):
     updates = req.model_dump(exclude_unset=True)
     if not updates:
         raise HTTPException(400, "No fields to update")
     # Partial update: enforce the titles x locations search budget against the
     # merged result (schema-level validation can't see the other half).
     if "job_titles" in updates or "locations" in updates:
-        existing = await db.search_criteria.find_one({"id": criteria_id})
+        existing = await db.search_criteria.find_one({"id": criteria_id, "user_id": user_id})
         if not existing:
             raise HTTPException(404, "Criteria not found")
         titles = updates.get("job_titles", existing.get("job_titles") or [])
@@ -197,17 +212,17 @@ async def update_criteria(criteria_id: str, req: UpdateCriteriaRequest):
         if search_pairs(titles, locations) > MAX_SEARCHES_PER_RUN:
             raise HTTPException(400, pairs_error(titles, locations))
     updates["updated_at"] = datetime.now(timezone.utc)
-    result = await db.search_criteria.update_one({"id": criteria_id}, {"$set": updates})
+    result = await db.search_criteria.update_one({"id": criteria_id, "user_id": user_id}, {"$set": updates})
     if result.matched_count == 0:
         raise HTTPException(404, "Criteria not found")
-    doc = await db.search_criteria.find_one({"id": criteria_id})
+    doc = await db.search_criteria.find_one({"id": criteria_id, "user_id": user_id})
     doc.pop("_id", None)
     return doc
 
 
 @app.delete("/api/discovery/criteria/{criteria_id}", status_code=204)
-async def delete_criteria(criteria_id: str):
-    result = await db.search_criteria.delete_one({"id": criteria_id})
+async def delete_criteria(criteria_id: str, user_id: str = Depends(current_user_id)):
+    result = await db.search_criteria.delete_one({"id": criteria_id, "user_id": user_id})
     if result.deleted_count == 0:
         raise HTTPException(404, "Criteria not found")
 
@@ -217,8 +232,8 @@ async def delete_criteria(criteria_id: str):
 # ---------------------------------------------------------------------------
 
 @app.post("/api/discovery/run/{criteria_id}", status_code=202)
-async def trigger_run(criteria_id: str, background_tasks: BackgroundTasks):
-    doc = await db.search_criteria.find_one({"id": criteria_id})
+async def trigger_run(criteria_id: str, background_tasks: BackgroundTasks, user_id: str = Depends(current_user_id)):
+    doc = await db.search_criteria.find_one({"id": criteria_id, "user_id": user_id})
     if not doc:
         raise HTTPException(404, "Criteria not found")
     from app.models.discovery_run import DiscoveryRun

@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+using ApplicationTracker.Core.Identity;
 using MongoDB.Bson.Serialization.Attributes;
 
 namespace ApplicationTracker.Core.Models;
@@ -7,11 +9,16 @@ namespace ApplicationTracker.Core.Models;
 // invents facts. Only the structured content is persisted; the PDF is
 // rendered on demand from it (see IResumePdfRenderer), so the template can
 // evolve without regenerating. Keyed 1:1 by ApplicationId, not a singleton.
-public sealed record ResumePack
+public sealed record ResumePack : IUserOwned
 {
     [BsonId]
     [BsonRepresentation(MongoDB.Bson.BsonType.String)]
     public Guid ApplicationId { get; init; }
+    // Owner. Set from the resolved request identity. [JsonIgnore] so a request
+    // body can never claim one and a response can never leak one.
+    [JsonIgnore]
+    [BsonRepresentation(MongoDB.Bson.BsonType.String)]
+    public Guid UserId { get; init; }
     // How this posting's stated requirements fared against the profile, and the
     // focused questions worth answering to close the evidence gaps. Advisory
     // output for the candidate — deliberately NOT rendered into the PDF.

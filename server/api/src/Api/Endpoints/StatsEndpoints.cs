@@ -2,6 +2,8 @@ using ApplicationTracker.Api.DTOs;
 using ApplicationTracker.Core.Models;
 using ApplicationTracker.Core.Repositories;
 
+using ApplicationTracker.Core.Identity;
+
 namespace ApplicationTracker.Api.Endpoints;
 
 public static class StatsEndpoints
@@ -9,10 +11,12 @@ public static class StatsEndpoints
     public static WebApplication MapStatsEndpoints(this WebApplication app)
     {
         app.MapGet("/api/stats", async (
+            IUserContext user,
+
             IApplicationRepository repo,
             CancellationToken ct) =>
         {
-            var apps = await repo.GetAllSummariesAsync(ct);
+            var apps = await repo.GetAllSummariesAsync(user.UserId, ct);
             var total = apps.Count;
             var withScore = apps.Where(a => a.MatchScore.HasValue).ToList();
             var avgScore = withScore.Count > 0 ? (int)withScore.Average(a => a.MatchScore!.Value) : 0;
@@ -52,14 +56,15 @@ public static class StatsEndpoints
         // /api/applications/{id} already returns, never called this route.
         app.MapGet("/api/applications/{id:guid}/timeline", async (
             Guid id,
+            IUserContext user,
             IStatusUpdateRepository statusRepo,
             IInterviewRepository interviewRepo,
             INoteRepository noteRepo,
             CancellationToken ct) =>
         {
-            var statusUpdatesTask = statusRepo.GetByApplicationIdAsync(id, ct);
-            var interviewsTask = interviewRepo.GetByApplicationIdAsync(id, ct);
-            var notesTask = noteRepo.GetByApplicationIdAsync(id, ct);
+            var statusUpdatesTask = statusRepo.GetByApplicationIdAsync(user.UserId, id, ct);
+            var interviewsTask = interviewRepo.GetByApplicationIdAsync(user.UserId, id, ct);
+            var notesTask = noteRepo.GetByApplicationIdAsync(user.UserId, id, ct);
             await Task.WhenAll(statusUpdatesTask, interviewsTask, notesTask);
 
             var statusUpdates = statusUpdatesTask.Result;

@@ -291,11 +291,11 @@ public sealed class ClaudeClient : IClaudeClient
         public MatchResponse? Response { get; init; }
     }
 
-    public async Task<NarrativeEnrichResponse> EnrichNarrativeAsync(NarrativeEnrichRequest request, CancellationToken cancellationToken = default)
+    public async Task<NarrativeEnrichResponse> EnrichNarrativeAsync(Guid userId, NarrativeEnrichRequest request, CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Enriching narrative for: {Title} at {Company}", request.Title, request.Company);
 
-        var profile = await _profileProvider.GetProfileAsync(cancellationToken);
+        var profile = await _profileProvider.GetProfileAsync(userId, cancellationToken);
         var (systemPrompt, userMessage) = _promptBuilder.BuildNarrativeEnrichmentPrompt(profile, request, PromptSeeds.NarrativeEnrichment);
 
         var (result, _) = await CallClaudeAsync<NarrativeEnrichResponse>(
@@ -766,12 +766,12 @@ public sealed class ClaudeClient : IClaudeClient
     // ── Mock interview ──────────────────────────────────────────────────────
 
     public async Task<MockTurnResult> GenerateMockInterviewTurnAsync(
-        MockInterviewContext context, IReadOnlyList<MockInterviewTurn> transcript, CancellationToken cancellationToken = default)
+        Guid userId, MockInterviewContext context, IReadOnlyList<MockInterviewTurn> transcript, CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Mock interview turn — persona={Persona}, lang={Lang}, turns={Turns}, bound={Bound}",
             context.Persona, context.Language, transcript.Count, context.Application != null);
 
-        var systemPrompt = await BuildMockSystemPromptAsync(PromptSeeds.MockInterviewTurn, context, cancellationToken);
+        var systemPrompt = await BuildMockSystemPromptAsync(userId, PromptSeeds.MockInterviewTurn, context, cancellationToken);
         var userMessage = BuildMockUserMessage(context, transcript);
 
         var parameters = new MessageParameters
@@ -802,11 +802,11 @@ public sealed class ClaudeClient : IClaudeClient
     }
 
     public async Task<MockInterviewDebrief> GenerateMockInterviewDebriefAsync(
-        MockInterviewContext context, IReadOnlyList<MockInterviewTurn> transcript, CancellationToken cancellationToken = default)
+        Guid userId, MockInterviewContext context, IReadOnlyList<MockInterviewTurn> transcript, CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Mock interview debrief — persona={Persona}, turns={Turns}", context.Persona, transcript.Count);
 
-        var systemPrompt = await BuildMockSystemPromptAsync(PromptSeeds.MockInterviewDebrief, context, cancellationToken);
+        var systemPrompt = await BuildMockSystemPromptAsync(userId, PromptSeeds.MockInterviewDebrief, context, cancellationToken);
         var userMessage = BuildMockUserMessage(context, transcript);
 
         var parameters = new MessageParameters
@@ -920,10 +920,10 @@ public sealed class ClaudeClient : IClaudeClient
     // Trusted context: base instruction + persona/language directives + the
     // user's own profile, the persona-matched self-presentation, project
     // pitches, and the prepared-question skeleton. All trusted (system prompt).
-    private async Task<string> BuildMockSystemPromptAsync(string seed, MockInterviewContext context, CancellationToken ct)
+    private async Task<string> BuildMockSystemPromptAsync(Guid userId, string seed, MockInterviewContext context, CancellationToken ct)
     {
-        var profile = await _profileProvider.GetProfileAsync(ct);
-        var prep = await _profileProvider.GetInterviewPrepAsync(ct);
+        var profile = await _profileProvider.GetProfileAsync(userId, ct);
+        var prep = await _profileProvider.GetInterviewPrepAsync(userId, ct);
 
         var sb = new System.Text.StringBuilder(seed);
 

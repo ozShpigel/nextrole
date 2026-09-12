@@ -22,6 +22,13 @@ class Settings(BaseSettings):
     # Comma-separated list of allowed browser origins (frontend URLs).
     # "*" = allow any origin — fine for dev; prefer explicit list in prod.
     cors_origins: str = "*"
+    # Request identity (mirrors the API Identity section). "fixed" = single
+    # user, id from identity_fixed_user_id; "cookie" = multi-user, id from the
+    # uid cookie. Cookie mode needs explicit cors_origins, since a browser will
+    # not send credentials to a wildcard origin.
+    identity_mode: str = "fixed"
+    identity_fixed_user_id: str = ""
+    identity_cookie_name: str = "uid"
     # Public demo instance: block all writes (criteria/run/job mutations) so
     # visitors can't pollute shared data. Off = private instance, full read/write.
     demo_mode: bool = False

@@ -2,6 +2,8 @@ using ApplicationTracker.Core.AI;
 using ApplicationTracker.Core.Models;
 using ApplicationTracker.Core.Repositories;
 
+using ApplicationTracker.Core.Identity;
+
 namespace ApplicationTracker.Api.Endpoints;
 
 public static class InterviewInsightsEndpoints
@@ -15,13 +17,15 @@ public static class InterviewInsightsEndpoints
         // Cross-application retro log, most recent interview first. GET is
         // never demo-gated (the middleware only blocks mutating verbs).
         app.MapGet("/api/interview-insights/retros", async (
+            IUserContext user,
+
             IInterviewRepository interviewRepo,
             IApplicationRepository appRepo,
             CancellationToken ct) =>
         {
-            var retros = await interviewRepo.GetRetrosAsync(ct);
+            var retros = await interviewRepo.GetRetrosAsync(user.UserId, ct);
             var appIds = retros.Select(i => i.ApplicationId).Distinct();
-            var apps = (await appRepo.GetByIdsAsync(appIds, ct)).ToDictionary(a => a.Id);
+            var apps = (await appRepo.GetByIdsAsync(user.UserId, appIds, ct)).ToDictionary(a => a.Id);
 
             var result = retros.Select(i =>
             {
@@ -43,12 +47,14 @@ public static class InterviewInsightsEndpoints
         // The persisted, standing insight (if any) plus how stale it is relative
         // to the current retro set. Pure read — never demo-gated.
         app.MapGet("/api/interview-insights", async (
+            IUserContext user,
+
             IInterviewRepository interviewRepo,
             IInterviewInsightRepository insightRepo,
             CancellationToken ct) =>
         {
-            var retros = await interviewRepo.GetRetrosAsync(ct);
-            var insight = await insightRepo.GetAsync(ct);
+            var retros = await interviewRepo.GetRetrosAsync(user.UserId, ct);
+            var insight = await insightRepo.GetAsync(user.UserId, ct);
             return Results.Ok(BuildResponse(insight, retros));
         })
         .WithName("GetInterviewInsight")
@@ -59,23 +65,25 @@ public static class InterviewInsightsEndpoints
         // persists it. This is now a write (unlike the old ephemeral synthesis),
         // so it's a normal demo-blocked mutation, not allowlisted.
         app.MapPost("/api/interview-insights/synthesize", async (
+            IUserContext user,
+
             IInterviewRepository interviewRepo,
             IInterviewInsightRepository insightRepo,
             IClaudeClient claude,
             ILogger<Program> logger,
             CancellationToken ct) =>
         {
-            var retros = await interviewRepo.GetRetrosAsync(ct);
+            var retros = await interviewRepo.GetRetrosAsync(user.UserId, ct);
             if (retros.Count < MinRetrosForSynthesis)
             {
-                var existing = await insightRepo.GetAsync(ct);
+                var existing = await insightRepo.GetAsync(user.UserId, ct);
                 return Results.Ok(BuildResponse(existing, retros));
             }
 
             try
             {
                 var synthesis = await claude.GenerateInterviewInsightAsync(retros, ct);
-                var saved = await insightRepo.UpsertAsync(new InterviewInsight
+                var saved = await insightRepo.UpsertAsync(user.UserId, new InterviewInsight
                 {
                     Summary = synthesis.Summary,
                     SourceRetroIds = retros.Select(r => r.Id.ToString()).ToList(),

@@ -6,20 +6,21 @@ namespace ApplicationTracker.Infrastructure.Repositories;
 
 public sealed class ResumePackRepository : IResumePackRepository
 {
-    private readonly IMongoCollection<ResumePack> _collection;
+    private readonly UserScopedCollection<ResumePack> _collection;
 
-    public ResumePackRepository(IMongoCollection<ResumePack> collection) => _collection = collection;
+    public ResumePackRepository(UserScopedCollection<ResumePack> collection) => _collection = collection;
 
-    public async Task<ResumePack?> GetByApplicationIdAsync(Guid applicationId, CancellationToken ct = default)
+    public async Task<ResumePack?> GetByApplicationIdAsync(Guid userId, Guid applicationId, CancellationToken ct = default)
     {
-        return await _collection.Find(p => p.ApplicationId == applicationId).FirstOrDefaultAsync(ct);
+        return await _collection.Find(userId, p => p.ApplicationId == applicationId).FirstOrDefaultAsync(ct);
     }
 
-    public async Task<ResumePack> UpsertAsync(ResumePack pack, CancellationToken ct = default)
+    public async Task<ResumePack> UpsertAsync(Guid userId, ResumePack pack, CancellationToken ct = default)
     {
+        var owned = pack with { UserId = userId };
         await _collection.ReplaceOneAsync(
-            p => p.ApplicationId == pack.ApplicationId, pack,
+            userId, p => p.ApplicationId == owned.ApplicationId, owned,
             new ReplaceOptions { IsUpsert = true }, ct);
-        return pack;
+        return owned;
     }
 }

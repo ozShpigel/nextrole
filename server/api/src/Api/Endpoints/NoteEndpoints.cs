@@ -2,6 +2,8 @@ using ApplicationTracker.Core.Models;
 using ApplicationTracker.Core.Repositories;
 using Microsoft.AspNetCore.Mvc;
 
+using ApplicationTracker.Core.Identity;
+
 namespace ApplicationTracker.Api.Endpoints;
 
 public static class NoteEndpoints
@@ -11,15 +13,16 @@ public static class NoteEndpoints
         app.MapPost("/api/applications/{id:guid}/notes", async (
             Guid id,
             [FromBody] Note note,
+            IUserContext user,
             IApplicationRepository appRepo,
             INoteRepository repo,
             CancellationToken ct) =>
         {
-            var existing = await appRepo.GetByIdAsync(id, ct);
+            var existing = await appRepo.GetByIdAsync(user.UserId, id, ct);
             if (existing is null) return Results.NotFound();
 
             var created = note with { ApplicationId = id };
-            await repo.CreateAsync(created, ct);
+            await repo.CreateAsync(user.UserId, created, ct);
             return Results.Created($"/api/notes/{created.Id}", created);
         })
         .WithName("CreateNote")
@@ -28,14 +31,15 @@ public static class NoteEndpoints
         app.MapPut("/api/notes/{id:guid}", async (
             Guid id,
             [FromBody] Note note,
+            IUserContext user,
             INoteRepository repo,
             CancellationToken ct) =>
         {
-            var existing = await repo.GetByIdAsync(id, ct);
+            var existing = await repo.GetByIdAsync(user.UserId, id, ct);
             if (existing is null) return Results.NotFound();
 
             var updated = note with { Id = id, ApplicationId = existing.ApplicationId };
-            await repo.UpdateAsync(updated, ct);
+            await repo.UpdateAsync(user.UserId, updated, ct);
             return Results.Ok(updated);
         })
         .WithName("UpdateNote")
@@ -43,10 +47,11 @@ public static class NoteEndpoints
 
         app.MapDelete("/api/notes/{id:guid}", async (
             Guid id,
+            IUserContext user,
             INoteRepository repo,
             CancellationToken ct) =>
         {
-            await repo.DeleteAsync(id, ct);
+            await repo.DeleteAsync(user.UserId, id, ct);
             return Results.NoContent();
         })
         .WithName("DeleteNote")

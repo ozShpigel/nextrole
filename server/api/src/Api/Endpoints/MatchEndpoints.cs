@@ -6,6 +6,8 @@ using ApplicationTracker.Core.Repositories;
 using ApplicationTracker.Infrastructure.Pdf;
 using Microsoft.AspNetCore.Mvc;
 
+using ApplicationTracker.Core.Identity;
+
 namespace ApplicationTracker.Api.Endpoints;
 
 public static class MatchEndpoints
@@ -18,6 +20,7 @@ public static class MatchEndpoints
     {
         app.MapPost("/api/match", async (
             [FromBody] MatchRequest request,
+            IUserContext user,
             IJobMatchService jobMatchService,
             ILogger<Program> logger,
             CancellationToken ct) =>
@@ -35,7 +38,7 @@ public static class MatchEndpoints
 
             try
             {
-                var response = await jobMatchService.AnalyzeMatchAsync(request, ct);
+                var response = await jobMatchService.AnalyzeMatchAsync(user.UserId, request, ct);
                 return Results.Ok(response);
             }
             catch (InvalidOperationException ex) when (ex.Message.Contains("ApiKey"))
@@ -63,6 +66,7 @@ public static class MatchEndpoints
         // the interactive "match" bucket the manual Score-a-Job page uses.
         app.MapPost("/api/match/discovery-score-batch", async (
             [FromBody] MatchBatchRequest request,
+            IUserContext user,
             IJobMatchService jobMatchService,
             ILogger<Program> logger,
             CancellationToken ct) =>
@@ -83,7 +87,7 @@ public static class MatchEndpoints
 
             try
             {
-                var response = await jobMatchService.AnalyzeMatchBatchAsync(request, ct);
+                var response = await jobMatchService.AnalyzeMatchBatchAsync(user.UserId, request, ct);
                 return Results.Ok(response);
             }
             catch (InvalidOperationException ex) when (ex.Message.Contains("ApiKey"))
@@ -190,6 +194,7 @@ public static class MatchEndpoints
         // fires interactively, per user click, not per bulk-ingest batch.
         app.MapPost("/api/match/enrich-narrative", async (
             [FromBody] NarrativeEnrichRequest request,
+            IUserContext user,
             ApplicationTracker.Core.AI.IClaudeClient claude,
             ILogger<Program> logger,
             CancellationToken ct) =>
@@ -201,7 +206,7 @@ public static class MatchEndpoints
 
             try
             {
-                var result = await claude.EnrichNarrativeAsync(request, ct);
+                var result = await claude.EnrichNarrativeAsync(user.UserId, request, ct);
                 return Results.Ok(result);
             }
             catch (InvalidOperationException ex) when (ex.Message.Contains("ApiKey"))
@@ -229,13 +234,15 @@ public static class MatchEndpoints
         };
 
         app.MapGet("/api/match/profile", async (
+            IUserContext user,
+
             IProfileProvider provider,
             ILogger<Program> logger,
             CancellationToken ct) =>
         {
             try
             {
-                var doc = await provider.GetProfileDocumentAsync(ct);
+                var doc = await provider.GetProfileDocumentAsync(user.UserId, ct);
                 return Results.Ok(ToProfileResponse(doc));
             }
             catch (Exception ex)
@@ -249,6 +256,7 @@ public static class MatchEndpoints
 
         app.MapPut("/api/match/profile", async (
             [FromBody] StructuredProfile request,
+            IUserContext user,
             IProfileProvider provider,
             ILogger<Program> logger,
             CancellationToken ct) =>
@@ -266,8 +274,10 @@ public static class MatchEndpoints
 
             try
             {
-                await provider.UpsertProfileAsync(request, ct);
-                var updated = await provider.GetProfileDocumentAsync(ct);
+                await provider.UpsertProfileAsync(user.UserId, request, ct);
+                var updated = await provider.GetProfileDocumentAsync(user.UserId, ct);
+
+
                 return Results.Ok(ToProfileResponse(updated));
             }
             catch (Exception ex)
@@ -322,6 +332,7 @@ public static class MatchEndpoints
         app.MapPost("/api/match/profile/normalize-file", async (
             IFormFile file,
             ApplicationTracker.Core.AI.IClaudeClient claude,
+            IUserContext user,
             IResumeFileRepository resumeFileRepo,
             ILogger<Program> logger,
             CancellationToken ct) =>
@@ -348,7 +359,7 @@ public static class MatchEndpoints
 
                     // Persist before parsing — the upload survives even if Claude
                     // parsing fails, so the user can retry without re-uploading.
-                    await resumeFileRepo.UpsertAsync(new ResumeFile
+                    await resumeFileRepo.UpsertAsync(user.UserId, new ResumeFile
                     {
                         Bytes = bytes, FileName = name, ContentType = "application/pdf",
                         PageCount = PdfPageCounter.CountPages(bytes),
@@ -365,7 +376,7 @@ public static class MatchEndpoints
                     if (text.Length > 50_000)
                         text = text[..50_000];
 
-                    await resumeFileRepo.UpsertAsync(new ResumeFile
+                    await resumeFileRepo.UpsertAsync(user.UserId, new ResumeFile
                     {
                         Bytes = System.Text.Encoding.UTF8.GetBytes(text), FileName = name, ContentType = "text/plain",
                     }, ct);
@@ -395,6 +406,7 @@ public static class MatchEndpoints
         // Metadata for the currently-stored résumé file — plain read, never demo-gated.
         app.MapGet("/api/match/profile/resume-file", async (
             HttpContext http,
+            IUserContext user,
             IResumeFileRepository resumeFileRepo,
             CancellationToken ct) =>
         {
@@ -406,7 +418,7 @@ public static class MatchEndpoints
             // (that only applies to the navigation's own document/scripts).
             http.Response.Headers.CacheControl = "no-store";
 
-            var file = await resumeFileRepo.GetAsync(ct);
+            var file = await resumeFileRepo.GetAsync(user.UserId, ct);
             if (file is null) return Results.NotFound();
 
             // Computed on the fly rather than persisted — the preview needs
@@ -438,6 +450,7 @@ public static class MatchEndpoints
         // inline (via <embed>) instead of forcing a download. Plain read.
         app.MapGet("/api/match/profile/resume-file/download", async (
             HttpContext http,
+            IUserContext user,
             IResumeFileRepository resumeFileRepo,
             CancellationToken ct) =>
         {
@@ -447,7 +460,7 @@ public static class MatchEndpoints
             // control what an <embed>'s underlying PDF plugin caches either.
             http.Response.Headers.CacheControl = "no-store";
 
-            var file = await resumeFileRepo.GetAsync(ct);
+            var file = await resumeFileRepo.GetAsync(user.UserId, ct);
             if (file is null) return Results.NotFound();
             return Results.File(file.Bytes, file.ContentType);
         })
@@ -460,13 +473,14 @@ public static class MatchEndpoints
         // place — no client caller as of 2026-08-23.
         app.MapGet("/api/match/profile/history/{field}", async (
             string field,
+            IUserContext user,
             IProfileProvider provider,
             ILogger<Program> logger,
             CancellationToken ct) =>
         {
             try
             {
-                var entries = await provider.GetHistoryAsync(field, ct);
+                var entries = await provider.GetHistoryAsync(user.UserId, field, ct);
                 return Results.Ok(new { entries });
             }
             catch (ArgumentException ex)
@@ -486,14 +500,15 @@ public static class MatchEndpoints
         app.MapPost("/api/match/profile/history/{field}/restore", async (
             string field,
             [FromBody] RestoreHistoryRequest request,
+            IUserContext user,
             IProfileProvider provider,
             ILogger<Program> logger,
             CancellationToken ct) =>
         {
             try
             {
-                await provider.RestoreHistoryAsync(field, request?.Index ?? -1, ct);
-                var updated = await provider.GetProfileDocumentAsync(ct);
+                await provider.RestoreHistoryAsync(user.UserId, field, request?.Index ?? -1, ct);
+                var updated = await provider.GetProfileDocumentAsync(user.UserId, ct);
                 return Results.Ok(ToProfileResponse(updated));
             }
             catch (ArgumentException ex)
@@ -523,13 +538,15 @@ public static class MatchEndpoints
         };
 
         app.MapGet("/api/match/interview-prep", async (
+            IUserContext user,
+
             IProfileProvider provider,
             ILogger<Program> logger,
             CancellationToken ct) =>
         {
             try
             {
-                var doc = await provider.GetInterviewPrepAsync(ct);
+                var doc = await provider.GetInterviewPrepAsync(user.UserId, ct);
                 return Results.Ok(ToInterviewPrepResponse(doc));
             }
             catch (Exception ex)
@@ -543,6 +560,7 @@ public static class MatchEndpoints
 
         app.MapPut("/api/match/interview-prep", async (
             [FromBody] InterviewPrepRequest request,
+            IUserContext user,
             IProfileProvider provider,
             ILogger<Program> logger,
             CancellationToken ct) =>
@@ -570,14 +588,14 @@ public static class MatchEndpoints
                         Topic = e.Topic ?? "",
                     })
                     .ToList();
-                await provider.UpsertInterviewPrepAsync(
+                await provider.UpsertInterviewPrepAsync(user.UserId, 
                     request.SelfPresentationHr,
                     request.SelfPresentationTechnical,
                     request.PresentingWorkProject,
                     request.PresentingPersonalProject,
                     qa,
                     ct);
-                var updated = await provider.GetInterviewPrepAsync(ct);
+                var updated = await provider.GetInterviewPrepAsync(user.UserId, ct);
                 return Results.Ok(ToInterviewPrepResponse(updated));
             }
             catch (ArgumentException ex)
@@ -596,13 +614,14 @@ public static class MatchEndpoints
         // Unused: same dead History UI as /api/match/profile/history above.
         app.MapGet("/api/match/interview-prep/history/{field}", async (
             string field,
+            IUserContext user,
             IProfileProvider provider,
             ILogger<Program> logger,
             CancellationToken ct) =>
         {
             try
             {
-                var entries = await provider.GetInterviewPrepHistoryAsync(field, ct);
+                var entries = await provider.GetInterviewPrepHistoryAsync(user.UserId, field, ct);
                 return Results.Ok(new { entries });
             }
             catch (ArgumentException ex)
@@ -622,14 +641,15 @@ public static class MatchEndpoints
         app.MapPost("/api/match/interview-prep/history/{field}/restore", async (
             string field,
             [FromBody] RestoreHistoryRequest request,
+            IUserContext user,
             IProfileProvider provider,
             ILogger<Program> logger,
             CancellationToken ct) =>
         {
             try
             {
-                await provider.RestoreInterviewPrepHistoryAsync(field, request?.Index ?? -1, ct);
-                var updated = await provider.GetInterviewPrepAsync(ct);
+                await provider.RestoreInterviewPrepHistoryAsync(user.UserId, field, request?.Index ?? -1, ct);
+                var updated = await provider.GetInterviewPrepAsync(user.UserId, ct);
                 return Results.Ok(ToInterviewPrepResponse(updated));
             }
             catch (ArgumentException ex)
@@ -651,6 +671,7 @@ public static class MatchEndpoints
         app.MapPost("/api/match/interview-prep/cues", async (
             [FromBody] PresentationCuesRequest request,
             ApplicationTracker.Core.AI.IClaudeClient claude,
+            IUserContext user,
             IProfileProvider provider,
             ILogger<Program> logger,
             CancellationToken ct) =>
@@ -661,7 +682,7 @@ public static class MatchEndpoints
 
             try
             {
-                var prep = await provider.GetInterviewPrepAsync(ct);
+                var prep = await provider.GetInterviewPrepAsync(user.UserId, ct);
                 var text = field == "self_presentation_hr" ? prep.SelfPresentationHr : prep.SelfPresentationTechnical;
                 var cached = field == "self_presentation_hr" ? prep.SelfPresentationHrCues : prep.SelfPresentationTechnicalCues;
 
@@ -672,7 +693,7 @@ public static class MatchEndpoints
                     return Results.Ok(new { cues = cached, cached = true });
 
                 var cues = await claude.GeneratePresentationCuesAsync(text, ct);
-                await provider.SetPresentationCuesAsync(field, cues, ct);
+                await provider.SetPresentationCuesAsync(user.UserId, field, cues, ct);
                 return Results.Ok(new { cues, cached = false });
             }
             catch (InvalidOperationException ex) when (ex.Message.Contains("ApiKey"))

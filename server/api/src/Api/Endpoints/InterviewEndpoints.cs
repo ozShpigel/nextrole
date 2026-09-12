@@ -3,6 +3,8 @@ using ApplicationTracker.Core.Profile;
 using ApplicationTracker.Core.Repositories;
 using Microsoft.AspNetCore.Mvc;
 
+using ApplicationTracker.Core.Identity;
+
 namespace ApplicationTracker.Api.Endpoints;
 
 public static class InterviewEndpoints
@@ -17,11 +19,12 @@ public static class InterviewEndpoints
         app.MapPost("/api/applications/{id:guid}/interviews", async (
             Guid id,
             [FromBody] Interview interview,
+            IUserContext user,
             IApplicationRepository appRepo,
             IInterviewRepository repo,
             CancellationToken ct) =>
         {
-            var existing = await appRepo.GetByIdAsync(id, ct);
+            var existing = await appRepo.GetByIdAsync(user.UserId, id, ct);
             if (existing is null) return Results.NotFound();
 
             // Idempotency for mailbot-created interviews: multiple emails in one
@@ -32,7 +35,7 @@ public static class InterviewEndpoints
             // instead of inserting a duplicate. Manual interviews are never merged.
             if (interview.Notes == AutoDetectedNote)
             {
-                var current = await repo.GetByApplicationIdAsync(id, ct);
+                var current = await repo.GetByApplicationIdAsync(user.UserId, id, ct);
                 var duplicate = current.FirstOrDefault(i =>
                     i.Type == interview.Type && i.Notes == AutoDetectedNote);
                 if (duplicate is not null)
@@ -44,13 +47,13 @@ public static class InterviewEndpoints
                         Interviewer = interview.Interviewer ?? duplicate.Interviewer,
                         Topics = interview.Topics ?? duplicate.Topics,
                     };
-                    await repo.UpdateAsync(merged, ct);
+                    await repo.UpdateAsync(user.UserId, merged, ct);
                     return Results.Ok(merged);
                 }
             }
 
             var created = interview with { ApplicationId = id };
-            await repo.CreateAsync(created, ct);
+            await repo.CreateAsync(user.UserId, created, ct);
             return Results.Created($"/api/interviews/{created.Id}", created);
         })
         .WithName("CreateInterview")
@@ -59,10 +62,11 @@ public static class InterviewEndpoints
         app.MapPut("/api/interviews/{id:guid}", async (
             Guid id,
             [FromBody] Interview interview,
+            IUserContext user,
             IInterviewRepository repo,
             CancellationToken ct) =>
         {
-            var existing = await repo.GetByIdAsync(id, ct);
+            var existing = await repo.GetByIdAsync(user.UserId, id, ct);
             if (existing is null) return Results.NotFound();
 
             if (interview.RetroRating is < 1 or > 5)
@@ -77,7 +81,7 @@ public static class InterviewEndpoints
                 ApplicationId = existing.ApplicationId,
                 RetroCategories = InterviewCategories.Normalize(interview.RetroCategories),
             };
-            await repo.UpdateAsync(updated, ct);
+            await repo.UpdateAsync(user.UserId, updated, ct);
             return Results.Ok(updated);
         })
         .WithName("UpdateInterview")
@@ -85,23 +89,26 @@ public static class InterviewEndpoints
 
         app.MapDelete("/api/interviews/{id:guid}", async (
             Guid id,
+            IUserContext user,
             IInterviewRepository repo,
             CancellationToken ct) =>
         {
-            await repo.DeleteAsync(id, ct);
+            await repo.DeleteAsync(user.UserId, id, ct);
             return Results.NoContent();
         })
         .WithName("DeleteInterview")
         .WithSummary("Delete interview");
 
         app.MapGet("/api/interviews/upcoming", async (
+            IUserContext user,
+
             IInterviewRepository repo,
             IApplicationRepository appRepo,
             CancellationToken ct) =>
         {
-            var interviews = await repo.GetUpcomingAsync(10, ct);
+            var interviews = await repo.GetUpcomingAsync(user.UserId, 10, ct);
             var appIds = interviews.Select(i => i.ApplicationId).Distinct();
-            var apps = (await appRepo.GetByIdsAsync(appIds, ct)).ToDictionary(a => a.Id);
+            var apps = (await appRepo.GetByIdsAsync(user.UserId, appIds, ct)).ToDictionary(a => a.Id);
 
             var result = interviews.Select(i =>
             {

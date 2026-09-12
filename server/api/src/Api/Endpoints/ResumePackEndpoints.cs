@@ -6,6 +6,8 @@ using ApplicationTracker.Core.Repositories;
 using ApplicationTracker.Infrastructure.Pdf;
 using Microsoft.AspNetCore.Mvc;
 
+using ApplicationTracker.Core.Identity;
+
 namespace ApplicationTracker.Api.Endpoints;
 
 public static class ResumePackEndpoints
@@ -19,15 +21,16 @@ public static class ResumePackEndpoints
         // template if it ever changes independently of the pack content.
         app.MapGet("/api/applications/{id:guid}/pack", async (
             Guid id,
+            IUserContext user,
             IResumePackRepository packRepo,
             IProfileProvider profileProvider,
             IResumePdfRenderer renderer,
             CancellationToken ct) =>
         {
-            var pack = await packRepo.GetByApplicationIdAsync(id, ct);
+            var pack = await packRepo.GetByApplicationIdAsync(user.UserId, id, ct);
             if (pack is null) return Results.NotFound();
 
-            var profileDoc = await profileProvider.GetProfileDocumentAsync(ct);
+            var profileDoc = await profileProvider.GetProfileDocumentAsync(user.UserId, ct);
             var pdfBytes = renderer.Render(pack, profileDoc.Structured);
             var pageCount = PdfPageCounter.CountPages(pdfBytes);
             // Real page size (not assumed A4/Letter) — lets the preview size its
@@ -56,6 +59,7 @@ public static class ResumePackEndpoints
         // DemoMode like every other mutation.
         app.MapPost("/api/applications/{id:guid}/pack", async (
             Guid id,
+            IUserContext user,
             IApplicationRepository appRepo,
             IResumePackRepository packRepo,
             IProfileProvider profileProvider,
@@ -63,12 +67,12 @@ public static class ResumePackEndpoints
             ILogger<Program> logger,
             CancellationToken ct) =>
         {
-            var application = await appRepo.GetByIdAsync(id, ct);
+            var application = await appRepo.GetByIdAsync(user.UserId, id, ct);
             if (application is null) return Results.NotFound();
 
             try
             {
-                var profileDoc = await profileProvider.GetProfileDocumentAsync(ct);
+                var profileDoc = await profileProvider.GetProfileDocumentAsync(user.UserId, ct);
                 var synthesis = await claude.GenerateResumePackAsync(application, profileDoc.Content, profileDoc.Structured, ct);
 
                 // Validate while the raw synthesis (Provenance included) is
@@ -101,7 +105,7 @@ public static class ResumePackEndpoints
                 }
 
                 var repaired = validation.Synthesis;
-                var saved = await packRepo.UpsertAsync(new ResumePack
+                var saved = await packRepo.UpsertAsync(user.UserId, new ResumePack
                 {
                     ApplicationId = id,
                     RequirementCoverage = repaired.RequirementCoverage,
@@ -140,10 +144,11 @@ public static class ResumePackEndpoints
         app.MapPut("/api/applications/{id:guid}/pack", async (
             Guid id,
             [FromBody] ResumePackUpdateRequest request,
+            IUserContext user,
             IResumePackRepository packRepo,
             CancellationToken ct) =>
         {
-            var existing = await packRepo.GetByApplicationIdAsync(id, ct);
+            var existing = await packRepo.GetByApplicationIdAsync(user.UserId, id, ct);
             if (existing is null) return Results.NotFound();
 
             var updated = existing with
@@ -154,7 +159,7 @@ public static class ResumePackEndpoints
                 SideProjects = request.SideProjects,
                 GeneratedAt = DateTime.UtcNow,
             };
-            var saved = await packRepo.UpsertAsync(updated, ct);
+            var saved = await packRepo.UpsertAsync(user.UserId, updated, ct);
             return Results.Ok(saved);
         })
         .WithName("UpdateResumePack")
@@ -173,19 +178,20 @@ public static class ResumePackEndpoints
         app.MapGet("/api/applications/{id:guid}/pack/pdf", async (
             Guid id,
             bool? inline,
+            IUserContext user,
             IApplicationRepository appRepo,
             IResumePackRepository packRepo,
             IProfileProvider profileProvider,
             IResumePdfRenderer renderer,
             CancellationToken ct) =>
         {
-            var application = await appRepo.GetByIdAsync(id, ct);
+            var application = await appRepo.GetByIdAsync(user.UserId, id, ct);
             if (application is null) return Results.NotFound();
 
-            var pack = await packRepo.GetByApplicationIdAsync(id, ct);
+            var pack = await packRepo.GetByApplicationIdAsync(user.UserId, id, ct);
             if (pack is null) return Results.NotFound();
 
-            var profileDoc = await profileProvider.GetProfileDocumentAsync(ct);
+            var profileDoc = await profileProvider.GetProfileDocumentAsync(user.UserId, ct);
             var pdfBytes = renderer.Render(pack, profileDoc.Structured);
 
             if (inline == true) return Results.File(pdfBytes, "application/pdf");

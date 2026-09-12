@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>ApplicationTracker.DbCopy</AssemblyName>
+    <RootNamespace>ApplicationTracker.DbCopy</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- The driver is the only dependency: this tool deliberately knows nothing
+         about the document schema, so a model change can never break it. -->
+    <PackageReference Include="MongoDB.Driver" Version="3.2.0" />
+  </ItemGroup>
+
+</Project>

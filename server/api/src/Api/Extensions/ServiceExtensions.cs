@@ -1,4 +1,6 @@
+using ApplicationTracker.Api.Identity;
 using ApplicationTracker.Core.AI;
+using ApplicationTracker.Core.Identity;
 using ApplicationTracker.Core.Matching;
 using ApplicationTracker.Core.Models;
 using ApplicationTracker.Core.Profile;
@@ -19,33 +21,39 @@ public static class ServiceExtensions
         // Exposed so MongoProfileProvider can locate Data/sample-profile.json at runtime
         configuration["ContentRoot"] = AppContext.BaseDirectory;
 
+        // Identity: the one place that knows whether this deployment reads a
+        // cookie or a fixed configured id. Everything downstream takes a Guid.
+        services.Configure<IdentityOptions>(configuration.GetSection(IdentityOptions.SectionName));
+        services.AddSingleton<IdentityResolver>();
+        services.AddScoped<IUserContext, HttpUserContext>();
+
         // Repositories
         services.AddScoped<IApplicationRepository>(sp =>
         {
             var client = sp.GetRequiredService<IMongoClient>();
-            var apps = sp.GetRequiredService<IMongoCollection<Application>>();
-            var interviews = sp.GetRequiredService<IMongoCollection<Interview>>();
-            var notes = sp.GetRequiredService<IMongoCollection<Note>>();
-            var statusUpdates = sp.GetRequiredService<IMongoCollection<StatusUpdate>>();
-            var resumePacks = sp.GetRequiredService<IMongoCollection<ResumePack>>();
+            var apps = sp.GetRequiredService<UserScopedCollection<Application>>();
+            var interviews = sp.GetRequiredService<UserScopedCollection<Interview>>();
+            var notes = sp.GetRequiredService<UserScopedCollection<Note>>();
+            var statusUpdates = sp.GetRequiredService<UserScopedCollection<StatusUpdate>>();
+            var resumePacks = sp.GetRequiredService<UserScopedCollection<ResumePack>>();
             return new ApplicationRepository(client, apps, interviews, notes, statusUpdates, resumePacks);
         });
         services.AddScoped<IInterviewRepository>(sp =>
-            new InterviewRepository(sp.GetRequiredService<IMongoCollection<Interview>>()));
+            new InterviewRepository(sp.GetRequiredService<UserScopedCollection<Interview>>()));
         services.AddScoped<INoteRepository>(sp =>
-            new NoteRepository(sp.GetRequiredService<IMongoCollection<Note>>()));
+            new NoteRepository(sp.GetRequiredService<UserScopedCollection<Note>>()));
         services.AddScoped<IStatusUpdateRepository>(sp =>
-            new StatusUpdateRepository(sp.GetRequiredService<IMongoCollection<StatusUpdate>>()));
+            new StatusUpdateRepository(sp.GetRequiredService<UserScopedCollection<StatusUpdate>>()));
         services.AddScoped<IMockInterviewRepository>(sp =>
-            new MockInterviewRepository(sp.GetRequiredService<IMongoCollection<MockInterviewSession>>()));
+            new MockInterviewRepository(sp.GetRequiredService<UserScopedCollection<MockInterviewSession>>()));
         services.AddScoped<IInterviewInsightRepository>(sp =>
             new InterviewInsightRepository(sp.GetRequiredService<IMongoCollection<InterviewInsight>>()));
         services.AddScoped<IResumePackRepository>(sp =>
-            new ResumePackRepository(sp.GetRequiredService<IMongoCollection<ResumePack>>()));
+            new ResumePackRepository(sp.GetRequiredService<UserScopedCollection<ResumePack>>()));
         services.AddScoped<ITrackedEmailRepository>(sp =>
-            new TrackedEmailRepository(sp.GetRequiredService<IMongoCollection<TrackedEmail>>()));
+            new TrackedEmailRepository(sp.GetRequiredService<UserScopedCollection<TrackedEmail>>()));
         services.AddScoped<IMatchSnapshotRepository>(sp =>
-            new MatchSnapshotRepository(sp.GetRequiredService<IMongoCollection<MatchSnapshot>>()));
+            new MatchSnapshotRepository(sp.GetRequiredService<UserScopedCollection<MatchSnapshot>>()));
         services.AddSingleton<IResumePdfRenderer, QuestPdfResumeRenderer>();
 
         // ResumeFile lives in the "jobmatch" DB alongside the profile (same

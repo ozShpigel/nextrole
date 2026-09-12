@@ -1,37 +1,42 @@
 namespace ApplicationTracker.Core.Profile;
 
+// Every method takes the owning userId explicitly. The profile, its interview
+// prep, and their history all live on ONE document whose _id IS the userId, so
+// this stays a single-document-lookup provider — there is no query-by-field
+// path here, and no uniqueness constraint to enforce by hand.
 public interface IProfileProvider
 {
-    Task<string> GetProfileAsync(CancellationToken cancellationToken = default);
-    Task<ProfileDocument> GetProfileDocumentAsync(CancellationToken cancellationToken = default);
+    Task<string> GetProfileAsync(Guid userId, CancellationToken cancellationToken = default);
+    Task<ProfileDocument> GetProfileDocumentAsync(Guid userId, CancellationToken cancellationToken = default);
     // Persist the structured profile; the prompt-facing `content` string is
     // re-rendered from it (ProfileRenderer) and stored alongside.
-    Task UpsertProfileAsync(StructuredProfile profile, CancellationToken cancellationToken = default);
+    Task UpsertProfileAsync(Guid userId, StructuredProfile profile, CancellationToken cancellationToken = default);
 
     // Version history: snapshots of prior versions of the structured profile,
     // newest-first. (Prompts and scoring config are read-only configuration and
     // are no longer stored or versioned here.)
-    Task<IReadOnlyList<ProfileHistoryEntry>> GetHistoryAsync(string field, CancellationToken cancellationToken = default);
-    Task RestoreHistoryAsync(string field, int index, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<ProfileHistoryEntry>> GetHistoryAsync(Guid userId, string field, CancellationToken cancellationToken = default);
+    Task RestoreHistoryAsync(Guid userId, string field, int index, CancellationToken cancellationToken = default);
 
     // Interview prep — standalone authored content (self-presentation, Q&A rubric,
     // project pitches). Stored under an `interview_prep` sub-object on the same
-    // singleton doc, with its own version history. Per-field carry-forward semantics.
-    Task<InterviewPrepDocument> GetInterviewPrepAsync(CancellationToken cancellationToken = default);
+    // per-user doc, with its own version history. Per-field carry-forward semantics.
+    Task<InterviewPrepDocument> GetInterviewPrepAsync(Guid userId, CancellationToken cancellationToken = default);
     Task UpsertInterviewPrepAsync(
+        Guid userId,
         string? selfPresentationHr,
         string? selfPresentationTechnical,
         string? presentingWorkProject,
         string? presentingPersonalProject,
         IReadOnlyList<QaEntry>? qaRubric,
         CancellationToken cancellationToken = default);
-    Task<IReadOnlyList<ProfileHistoryEntry>> GetInterviewPrepHistoryAsync(string field, CancellationToken cancellationToken = default);
-    Task RestoreInterviewPrepHistoryAsync(string field, int index, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<ProfileHistoryEntry>> GetInterviewPrepHistoryAsync(Guid userId, string field, CancellationToken cancellationToken = default);
+    Task RestoreInterviewPrepHistoryAsync(Guid userId, string field, int index, CancellationToken cancellationToken = default);
 
     // Persist generated keyword cues for a self-presentation field
     // (self_presentation_hr | self_presentation_technical). Stored alongside the
     // text so they survive reloads; invalidated when the text changes on save.
-    Task SetPresentationCuesAsync(string field, IReadOnlyList<string> cues, CancellationToken cancellationToken = default);
+    Task SetPresentationCuesAsync(Guid userId, string field, IReadOnlyList<string> cues, CancellationToken cancellationToken = default);
 }
 
 public sealed record QaEntry

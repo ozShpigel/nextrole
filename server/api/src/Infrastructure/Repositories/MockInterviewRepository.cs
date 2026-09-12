@@ -6,30 +6,31 @@ namespace ApplicationTracker.Infrastructure.Repositories;
 
 public sealed class MockInterviewRepository : IMockInterviewRepository
 {
-    private readonly IMongoCollection<MockInterviewSession> _sessions;
+    private readonly UserScopedCollection<MockInterviewSession> _sessions;
 
-    public MockInterviewRepository(IMongoCollection<MockInterviewSession> sessions) => _sessions = sessions;
+    public MockInterviewRepository(UserScopedCollection<MockInterviewSession> sessions) => _sessions = sessions;
 
-    public async Task<MockInterviewSession> CreateAsync(MockInterviewSession session, CancellationToken ct = default)
+    public async Task<MockInterviewSession> CreateAsync(Guid userId, MockInterviewSession session, CancellationToken ct = default)
     {
-        await _sessions.InsertOneAsync(session, cancellationToken: ct);
-        return session;
+        var owned = session with { UserId = userId };
+        await _sessions.InsertOneAsync(userId, owned, ct);
+        return owned;
     }
 
-    public async Task<MockInterviewSession?> GetByIdAsync(Guid id, CancellationToken ct = default)
+    public async Task<MockInterviewSession?> GetByIdAsync(Guid userId, Guid id, CancellationToken ct = default)
     {
-        return await _sessions.Find(s => s.Id == id).FirstOrDefaultAsync(ct);
+        return await _sessions.Find(userId, s => s.Id == id).FirstOrDefaultAsync(ct);
     }
 
-    public async Task<List<MockInterviewSession>> GetAllAsync(CancellationToken ct = default)
+    public async Task<List<MockInterviewSession>> GetAllAsync(Guid userId, CancellationToken ct = default)
     {
-        return await _sessions.Find(FilterDefinition<MockInterviewSession>.Empty)
+        return await _sessions.FindAll(userId)
             .SortByDescending(s => s.CreatedAt)
             .ToListAsync(ct);
     }
 
-    public async Task DeleteAsync(Guid id, CancellationToken ct = default)
+    public async Task DeleteAsync(Guid userId, Guid id, CancellationToken ct = default)
     {
-        await _sessions.DeleteOneAsync(s => s.Id == id, ct);
+        await _sessions.DeleteOneAsync(userId, s => s.Id == id, ct);
     }
 }

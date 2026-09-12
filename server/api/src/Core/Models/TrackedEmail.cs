@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+using ApplicationTracker.Core.Identity;
 using MongoDB.Bson.Serialization.Attributes;
 
 namespace ApplicationTracker.Core.Models;
@@ -10,11 +12,16 @@ namespace ApplicationTracker.Core.Models;
 // The mailbot's daily sync window overlaps previous runs on purpose, and
 // re-sync re-walks a company's full history, so GmailMessageId is the dedupe
 // key: the repository upserts on it rather than inserting blindly.
-public sealed record TrackedEmail
+public sealed record TrackedEmail : IUserOwned
 {
     [BsonId]
     [BsonRepresentation(MongoDB.Bson.BsonType.String)]
     public Guid Id { get; init; } = Guid.NewGuid();
+    // Owner. Set from the resolved request identity. [JsonIgnore] so a request
+    // body can never claim one and a response can never leak one.
+    [JsonIgnore]
+    [BsonRepresentation(MongoDB.Bson.BsonType.String)]
+    public Guid UserId { get; init; }
     public required string GmailMessageId { get; init; }
     // Null when the parser recognized the email as job-related but couldn't be
     // tied to a tracked application (company match failed) — still surfaced so

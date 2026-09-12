@@ -8,6 +8,8 @@ using ApplicationTracker.Core.Profile;
 using ApplicationTracker.Core.Repositories;
 using Microsoft.AspNetCore.Mvc;
 
+using ApplicationTracker.Core.Identity;
+
 namespace ApplicationTracker.Api.Endpoints;
 
 public static class ApplicationEndpoints
@@ -46,7 +48,7 @@ public static class ApplicationEndpoints
     // Resolves its own services from a fresh DI scope since the request's
     // scope (and anything scoped resolved from it, like IApplicationRepository)
     // is already disposed by the time this runs.
-    private static async Task EnrichOnInterviewingAsync(Guid appId, IServiceScopeFactory scopeFactory)
+    private static async Task EnrichOnInterviewingAsync(Guid userId, Guid appId, IServiceScopeFactory scopeFactory)
     {
         using var scope = scopeFactory.CreateScope();
         var repo = scope.ServiceProvider.GetRequiredService<IApplicationRepository>();
@@ -54,7 +56,7 @@ public static class ApplicationEndpoints
         var profile = scope.ServiceProvider.GetRequiredService<IProfileProvider>();
         var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
 
-        var app = await repo.GetByIdAsync(appId, CancellationToken.None);
+        var app = await repo.GetByIdAsync(userId, appId, CancellationToken.None);
         if (app is null) return;
 
         if (!string.IsNullOrWhiteSpace(app.MatchAnalysis) && !string.IsNullOrWhiteSpace(app.JobDescription))
@@ -85,7 +87,7 @@ public static class ApplicationEndpoints
                         StackedGaps = existingNode["stackedGaps"]?.Deserialize<string[]>(CaseInsensitive) ?? [],
                     };
 
-                    var enriched = await claude.EnrichNarrativeAsync(request, CancellationToken.None);
+                    var enriched = await claude.EnrichNarrativeAsync(userId, request, CancellationToken.None);
 
                     // Same merge shape as the old Python _enrich_saved_job: overwrite
                     // only the narrative fields NarrativeEnrichment owns, leave every
@@ -112,7 +114,7 @@ public static class ApplicationEndpoints
                         existingNode["employeeReviewsAnalysis"] = JsonSerializer.SerializeToNode(enriched.EmployeeReviewsAnalysis, CamelCase);
 
                     app = app with { MatchAnalysis = existingNode.ToJsonString(), MatchAnalysisHebrew = null, UpdatedAt = DateTime.UtcNow };
-                    await repo.UpdateAsync(app, CancellationToken.None);
+                    await repo.UpdateAsync(userId, app, CancellationToken.None);
                 }
             }
             catch (Exception ex)
@@ -130,7 +132,7 @@ public static class ApplicationEndpoints
             {
                 var summary = await claude.SummarizeCompanyAsync(app.Company, CancellationToken.None);
                 app = app with { CompanySummary = summary, UpdatedAt = DateTime.UtcNow };
-                await repo.UpdateAsync(app, CancellationToken.None);
+                await repo.UpdateAsync(userId, app, CancellationToken.None);
             }
             catch (Exception ex)
             {
@@ -142,11 +144,11 @@ public static class ApplicationEndpoints
         {
             try
             {
-                var profileText = await profile.GetProfileAsync(CancellationToken.None);
-                var prep = await profile.GetInterviewPrepAsync(CancellationToken.None);
+                var profileText = await profile.GetProfileAsync(userId, CancellationToken.None);
+                var prep = await profile.GetInterviewPrepAsync(userId, CancellationToken.None);
                 var answer = await claude.GenerateWhyWorkHereAsync(app, profileText, prep, CancellationToken.None);
                 app = app with { WhyWorkHere = answer, UpdatedAt = DateTime.UtcNow };
-                await repo.UpdateAsync(app, CancellationToken.None);
+                await repo.UpdateAsync(userId, app, CancellationToken.None);
             }
             catch (Exception ex)
             {
@@ -161,6 +163,7 @@ public static class ApplicationEndpoints
     {
         app.MapPost("/api/applications", async (
             [FromBody] Application application,
+            IUserContext user,
             IApplicationRepository repo,
             IMatchSnapshotRepository snapshots,
             IStatusUpdateRepository statusRepo,
@@ -176,7 +179,7 @@ public static class ApplicationEndpoints
                 // MatchSnapshot). The raw fields themselves are [BsonIgnore]
                 // on Application, so clearing them here also keeps the
                 // response body honest about what actually got stored.
-                var snapshotId = await snapshots.UpsertAsync(
+                var snapshotId = await snapshots.UpsertAsync(user.UserId, 
                     application.AnalystSnapshotInput, application.AnalystSnapshotOutput,
                     application.EvaluatorSnapshotInput, application.EvaluatorSnapshotOutput, ct);
                 application = application with
@@ -188,7 +191,7 @@ public static class ApplicationEndpoints
                     EvaluatorSnapshotOutput = null,
                 };
 
-                var (created, isNew) = await repo.CreateAsync(application, ct);
+                var (created, isNew) = await repo.CreateAsync(user.UserId, application, ct);
 
                 if (!isNew)
                 {
@@ -196,7 +199,7 @@ public static class ApplicationEndpoints
                     return Results.Ok(created);
                 }
 
-                await statusRepo.CreateAsync(new StatusUpdate
+                await statusRepo.CreateAsync(user.UserId, new StatusUpdate
                 {
                     ApplicationId = created.Id,
                     FromStatus = ApplicationStatus.Analyzing,
@@ -217,10 +220,12 @@ public static class ApplicationEndpoints
         .WithSummary("Create a new application");
 
         app.MapGet("/api/applications", async (
+            IUserContext user,
+
             IApplicationRepository repo,
             CancellationToken ct) =>
         {
-            var apps = await repo.GetAllListItemsAsync(ct);
+            var apps = await repo.GetAllListItemsAsync(user.UserId, ct);
             return Results.Ok(apps);
         })
         .WithName("GetAllApplications")
@@ -228,6 +233,7 @@ public static class ApplicationEndpoints
 
         app.MapGet("/api/applications/{id:guid}", async (
             Guid id,
+            IUserContext user,
             IApplicationRepository appRepo,
             IInterviewRepository interviewRepo,
             INoteRepository noteRepo,
@@ -235,13 +241,13 @@ public static class ApplicationEndpoints
             IResumePackRepository packRepo,
             CancellationToken ct) =>
         {
-            var application = await appRepo.GetByIdAsync(id, ct);
+            var application = await appRepo.GetByIdAsync(user.UserId, id, ct);
             if (application is null) return Results.NotFound();
 
-            var interviewsTask = interviewRepo.GetByApplicationIdAsync(id, ct);
-            var notesTask = noteRepo.GetByApplicationIdAsync(id, ct);
-            var statusUpdatesTask = statusRepo.GetByApplicationIdAsync(id, ct);
-            var packTask = packRepo.GetByApplicationIdAsync(id, ct);
+            var interviewsTask = interviewRepo.GetByApplicationIdAsync(user.UserId, id, ct);
+            var notesTask = noteRepo.GetByApplicationIdAsync(user.UserId, id, ct);
+            var statusUpdatesTask = statusRepo.GetByApplicationIdAsync(user.UserId, id, ct);
+            var packTask = packRepo.GetByApplicationIdAsync(user.UserId, id, ct);
             await Task.WhenAll(interviewsTask, notesTask, statusUpdatesTask, packTask);
 
             return Results.Ok(new
@@ -260,6 +266,7 @@ public static class ApplicationEndpoints
         app.MapPut("/api/applications/{id:guid}/status", async (
             Guid id,
             [FromBody] StatusUpdateRequest request,
+            IUserContext user,
             IApplicationRepository repo,
             IStatusUpdateRepository statusRepo,
             IServiceScopeFactory scopeFactory,
@@ -268,7 +275,7 @@ public static class ApplicationEndpoints
         {
             try
             {
-                var existing = await repo.GetByIdAsync(id, ct);
+                var existing = await repo.GetByIdAsync(user.UserId, id, ct);
                 if (existing is null) return Results.NotFound();
 
                 var oldStatus = existing.Status;
@@ -290,8 +297,8 @@ public static class ApplicationEndpoints
                 };
 
                 // Independent writes — run concurrently to save a round-trip.
-                var updateTask = repo.UpdateAsync(updated, ct);
-                var statusTask = statusRepo.CreateAsync(new StatusUpdate
+                var updateTask = repo.UpdateAsync(user.UserId, updated, ct);
+                var statusTask = statusRepo.CreateAsync(user.UserId, new StatusUpdate
                 {
                     ApplicationId = id,
                     FromStatus = oldStatus,
@@ -308,7 +315,7 @@ public static class ApplicationEndpoints
                 // awaited) so a slow Claude call never holds up this response.
                 if (!InterviewingStatuses.Contains(oldStatus) && InterviewingStatuses.Contains(request.NewStatus))
                 {
-                    _ = EnrichOnInterviewingAsync(id, scopeFactory);
+                    _ = EnrichOnInterviewingAsync(user.UserId, id, scopeFactory);
                 }
 
                 return Results.Ok(updated);
@@ -324,13 +331,14 @@ public static class ApplicationEndpoints
 
         app.MapDelete("/api/applications/{id:guid}", async (
             Guid id,
+            IUserContext user,
             IApplicationRepository repo,
             ILogger<Program> logger,
             CancellationToken ct) =>
         {
             try
             {
-                await repo.DeleteAsync(id, ct);
+                await repo.DeleteAsync(user.UserId, id, ct);
                 return Results.NoContent();
             }
             catch (Exception ex)
@@ -345,14 +353,15 @@ public static class ApplicationEndpoints
         app.MapPut("/api/applications/{id:guid}/salary", async (
             Guid id,
             [FromBody] SalaryUpdateRequest request,
+            IUserContext user,
             IApplicationRepository repo,
             CancellationToken ct) =>
         {
-            var existing = await repo.GetByIdAsync(id, ct);
+            var existing = await repo.GetByIdAsync(user.UserId, id, ct);
             if (existing is null) return Results.NotFound();
 
             var updated = existing with { Salary = request.Salary, UpdatedAt = DateTime.UtcNow };
-            await repo.UpdateAsync(updated, ct);
+            await repo.UpdateAsync(user.UserId, updated, ct);
             return Results.Ok(updated);
         })
         .WithName("UpdateApplicationSalary")
@@ -361,17 +370,18 @@ public static class ApplicationEndpoints
         app.MapPut("/api/applications/{id:guid}/title", async (
             Guid id,
             [FromBody] TitleUpdateRequest request,
+            IUserContext user,
             IApplicationRepository repo,
             CancellationToken ct) =>
         {
             if (string.IsNullOrWhiteSpace(request?.JobTitle))
                 return Results.BadRequest(new { error = "jobTitle is required" });
 
-            var existing = await repo.GetByIdAsync(id, ct);
+            var existing = await repo.GetByIdAsync(user.UserId, id, ct);
             if (existing is null) return Results.NotFound();
 
             var updated = existing with { JobTitle = request.JobTitle.Trim(), UpdatedAt = DateTime.UtcNow };
-            await repo.UpdateAsync(updated, ct);
+            await repo.UpdateAsync(user.UserId, updated, ct);
             return Results.Ok(updated);
         })
         .WithName("UpdateApplicationTitle")
@@ -380,13 +390,14 @@ public static class ApplicationEndpoints
         app.MapPut("/api/applications/{id:guid}/match-analysis", async (
             Guid id,
             [FromBody] MatchAnalysisUpdateRequest request,
+            IUserContext user,
             IApplicationRepository repo,
             CancellationToken ct) =>
         {
             if (string.IsNullOrWhiteSpace(request?.MatchAnalysis))
                 return Results.BadRequest(new { error = "matchAnalysis is required" });
 
-            var existing = await repo.GetByIdAsync(id, ct);
+            var existing = await repo.GetByIdAsync(user.UserId, id, ct);
             if (existing is null) return Results.NotFound();
 
             // Called by the scraper's background enrichment task, once the
@@ -398,7 +409,7 @@ public static class ApplicationEndpoints
             // MatchAnalysis this call is about to replace, so keeping it
             // around would silently show a translation of stale content.
             var updated = existing with { MatchAnalysis = request.MatchAnalysis, MatchAnalysisHebrew = null, UpdatedAt = DateTime.UtcNow };
-            await repo.UpdateAsync(updated, ct);
+            await repo.UpdateAsync(user.UserId, updated, ct);
             return Results.Ok(updated);
         })
         .WithName("UpdateApplicationMatchAnalysis")
@@ -406,12 +417,13 @@ public static class ApplicationEndpoints
 
         app.MapPost("/api/applications/{id:guid}/company-summary", async (
             Guid id,
+            IUserContext user,
             IApplicationRepository repo,
             IClaudeClient claude,
             ILogger<Program> logger,
             CancellationToken ct) =>
         {
-            var existing = await repo.GetByIdAsync(id, ct);
+            var existing = await repo.GetByIdAsync(user.UserId, id, ct);
             if (existing is null) return Results.NotFound();
 
             var summary = await claude.SummarizeCompanyAsync(existing.Company, ct);
@@ -419,7 +431,7 @@ public static class ApplicationEndpoints
             // this call just replaced, so keeping it would silently show a
             // translation of stale content (same reasoning as MatchAnalysisHebrew).
             var updated = existing with { CompanySummary = summary, CompanySummaryHebrew = null, UpdatedAt = DateTime.UtcNow };
-            await repo.UpdateAsync(updated, ct);
+            await repo.UpdateAsync(user.UserId, updated, ct);
 
             return Results.Ok(new { company_summary = summary });
         })
@@ -428,21 +440,22 @@ public static class ApplicationEndpoints
 
         app.MapPost("/api/applications/{id:guid}/why-work-here", async (
             Guid id,
+            IUserContext user,
             IApplicationRepository repo,
             IClaudeClient claude,
             IProfileProvider profile,
             ILogger<Program> logger,
             CancellationToken ct) =>
         {
-            var existing = await repo.GetByIdAsync(id, ct);
+            var existing = await repo.GetByIdAsync(user.UserId, id, ct);
             if (existing is null) return Results.NotFound();
 
-            var profileText = await profile.GetProfileAsync(ct);
-            var prep = await profile.GetInterviewPrepAsync(ct);
+            var profileText = await profile.GetProfileAsync(user.UserId, ct);
+            var prep = await profile.GetInterviewPrepAsync(user.UserId, ct);
             var answer = await claude.GenerateWhyWorkHereAsync(existing, profileText, prep, ct);
             // WhyWorkHereHebrew cleared for the same reason CompanySummaryHebrew is above.
             var updated = existing with { WhyWorkHere = answer, WhyWorkHereHebrew = null, UpdatedAt = DateTime.UtcNow };
-            await repo.UpdateAsync(updated, ct);
+            await repo.UpdateAsync(user.UserId, updated, ct);
 
             return Results.Ok(new { why_work_here = answer });
         })
@@ -451,12 +464,13 @@ public static class ApplicationEndpoints
 
         app.MapPost("/api/applications/{id:guid}/translate-analysis", async (
             Guid id,
+            IUserContext user,
             IApplicationRepository repo,
             IClaudeClient claude,
             ILogger<Program> logger,
             CancellationToken ct) =>
         {
-            var existing = await repo.GetByIdAsync(id, ct);
+            var existing = await repo.GetByIdAsync(user.UserId, id, ct);
             if (existing is null) return Results.NotFound();
 
             // Translate once per application, not per page view — a cached
@@ -481,7 +495,7 @@ public static class ApplicationEndpoints
             }
 
             var updated = existing with { MatchAnalysisHebrew = translated, UpdatedAt = DateTime.UtcNow };
-            await repo.UpdateAsync(updated, ct);
+            await repo.UpdateAsync(user.UserId, updated, ct);
 
             return Results.Ok(new { matchAnalysisHebrew = translated });
         })
@@ -491,11 +505,12 @@ public static class ApplicationEndpoints
 
         app.MapPost("/api/applications/{id:guid}/company-summary/translate", async (
             Guid id,
+            IUserContext user,
             IApplicationRepository repo,
             IClaudeClient claude,
             CancellationToken ct) =>
         {
-            var existing = await repo.GetByIdAsync(id, ct);
+            var existing = await repo.GetByIdAsync(user.UserId, id, ct);
             if (existing is null) return Results.NotFound();
 
             if (!string.IsNullOrWhiteSpace(existing.CompanySummaryHebrew))
@@ -506,7 +521,7 @@ public static class ApplicationEndpoints
 
             var translated = await claude.TranslateTextAsync(existing.CompanySummary, ct);
             var updated = existing with { CompanySummaryHebrew = translated, UpdatedAt = DateTime.UtcNow };
-            await repo.UpdateAsync(updated, ct);
+            await repo.UpdateAsync(user.UserId, updated, ct);
 
             return Results.Ok(new { company_summary_hebrew = translated });
         })
@@ -516,11 +531,12 @@ public static class ApplicationEndpoints
 
         app.MapPost("/api/applications/{id:guid}/why-work-here/translate", async (
             Guid id,
+            IUserContext user,
             IApplicationRepository repo,
             IClaudeClient claude,
             CancellationToken ct) =>
         {
-            var existing = await repo.GetByIdAsync(id, ct);
+            var existing = await repo.GetByIdAsync(user.UserId, id, ct);
             if (existing is null) return Results.NotFound();
 
             if (!string.IsNullOrWhiteSpace(existing.WhyWorkHereHebrew))
@@ -531,7 +547,7 @@ public static class ApplicationEndpoints
 
             var translated = await claude.TranslateTextAsync(existing.WhyWorkHere, ct);
             var updated = existing with { WhyWorkHereHebrew = translated, UpdatedAt = DateTime.UtcNow };
-            await repo.UpdateAsync(updated, ct);
+            await repo.UpdateAsync(user.UserId, updated, ct);
 
             return Results.Ok(new { why_work_here_hebrew = translated });
         })
@@ -542,10 +558,11 @@ public static class ApplicationEndpoints
         app.MapGet("/api/applications/exists", async (
             [FromQuery] string company,
             [FromQuery] string jobTitle,
+            IUserContext user,
             IApplicationRepository repo,
             CancellationToken ct) =>
         {
-            var exists = await repo.ExistsAsync(company, jobTitle, ct);
+            var exists = await repo.ExistsAsync(user.UserId, company, jobTitle, ct);
             return Results.Ok(exists);
         })
         .WithName("ApplicationExists")

@@ -4,6 +4,6 @@ namespace ApplicationTracker.Core.Repositories;
 
 public interface IResumePackRepository
 {
-    Task<ResumePack?> GetByApplicationIdAsync(Guid applicationId, CancellationToken ct = default);
-    Task<ResumePack> UpsertAsync(ResumePack pack, CancellationToken ct = default);
+    Task<ResumePack?> GetByApplicationIdAsync(Guid userId, Guid applicationId, CancellationToken ct = default);
+    Task<ResumePack> UpsertAsync(Guid userId, ResumePack pack, CancellationToken ct = default);
 }

@@ -42,6 +42,15 @@ Console.WriteLine($"Seeding demo data → host={host}, tracker DB='{trackerDb}',
 
 var client = new MongoClient(connectionString);
 
+// Everything this seeder writes belongs to one user. There is no anonymous
+// or demo reader: whoever owns this data reaches it with that id. Mirrors
+// IdentityResolver.LegacyOwnerUserId, so pointing the seeder at a Fixed-mode
+// instance seeds that instance's own user, not a second orphaned one.
+var seedUserId = Guid.TryParse(Env("Identity__FixedUserId"), out var configuredUser) && configuredUser != Guid.Empty
+    ? configuredUser
+    : ApplicationTracker.Core.Identity.UserIds.OrphanedLegacyData;
+Console.WriteLine($"Seeding as user {seedUserId}");
+
 // 1) Persona — sample-profile.json is the single source of truth for the demo
 // persona's content, with a hardcoded fake identity (name/email/phone/
 // LinkedIn — never part of the file, and the only user-editable fields) laid
@@ -76,8 +85,8 @@ var demoProfile = sampleProfile with
     Location = "Tel Aviv, Israel",
     LinkedIn = "linkedin.com/in/alex-morgan-demo",
 };
-await profileProvider.UpsertProfileAsync(demoProfile);
-var profile = await profileProvider.GetProfileDocumentAsync();
+await profileProvider.UpsertProfileAsync(seedUserId, demoProfile);
+var profile = await profileProvider.GetProfileDocumentAsync(seedUserId);
 Console.WriteLine($"Profile persona synced from sample-profile.json ({profile.Structured.Experience.Length} role(s), {profile.Structured.SideProjects.Length} side project(s)).");
 
 // 1b) A résumé file to preview on the Profile page's Résumé tab — rendered
@@ -103,7 +112,7 @@ var resumeFileRepo = new ResumeFileRepository(resumeFileCol);
         SideProjects = sp.SideProjects.ToList(),
     };
     var pdfBytes = new QuestPdfResumeRenderer().Render(pack, sp);
-    await resumeFileRepo.UpsertAsync(new ResumeFile
+    await resumeFileRepo.UpsertAsync(seedUserId, new ResumeFile
     {
         Bytes = pdfBytes,
         FileName = "resume.pdf",
@@ -247,7 +256,7 @@ var seeds = new List<(Application App, Interview[] Interviews, string? MatchAnal
 // "I Applied"/"Remove" actions change) force-reset back to the seed's
 // values, rather than skipped, so a demo visitor's status changes don't
 // stick around forever. New ones are inserted as before.
-var existing = await apps.Find(FilterDefinition<Application>.Empty).ToListAsync();
+var existing = await apps.Find(a => a.UserId == seedUserId).ToListAsync();
 var existingByKey = existing.ToDictionary(a => $"{a.Company}|{a.JobTitle}".ToLowerInvariant());
 var curatedKeys = seeds.Select(s => $"{s.App.Company}|{s.App.JobTitle}".ToLowerInvariant()).ToHashSet();
 
@@ -260,7 +269,7 @@ foreach (var (app, ivs, matchAnalysisJson) in seeds)
         if (current.Status != app.Status || current.AppliedAt != app.AppliedAt)
         {
             await apps.UpdateOneAsync(
-                a => a.Id == current.Id,
+                a => a.UserId == seedUserId && a.Id == current.Id,
                 Builders<Application>.Update
                     .Set(a => a.Status, app.Status)
                     .Set(a => a.AppliedAt, app.AppliedAt)
@@ -272,6 +281,7 @@ foreach (var (app, ivs, matchAnalysisJson) in seeds)
         if (matchAnalysisJson != null)
         {
             var backfillFilter = Builders<Application>.Filter.And(
+                Builders<Application>.Filter.Eq(a => a.UserId, seedUserId),
                 Builders<Application>.Filter.Eq(a => a.Company, app.Company),
                 Builders<Application>.Filter.Eq(a => a.JobTitle, app.JobTitle),
                 Builders<Application>.Filter.Eq(a => a.MatchAnalysis, null));
@@ -281,10 +291,11 @@ foreach (var (app, ivs, matchAnalysisJson) in seeds)
         continue;
     }
 
-    var toInsert = matchAnalysisJson != null ? app with { MatchAnalysis = matchAnalysisJson } : app;
+    var toInsert = (matchAnalysisJson != null ? app with { MatchAnalysis = matchAnalysisJson } : app) with { UserId = seedUserId };
     await apps.InsertOneAsync(toInsert);
     await statusUpdates.InsertOneAsync(new StatusUpdate
     {
+        UserId = seedUserId,
         ApplicationId = app.Id,
         FromStatus = ApplicationStatus.Analyzing,
         ToStatus = app.Status,
@@ -292,7 +303,7 @@ foreach (var (app, ivs, matchAnalysisJson) in seeds)
         Timestamp = app.CreatedAt,
     });
     foreach (var iv in ivs)
-        await interviews.InsertOneAsync(iv with { ApplicationId = app.Id });
+        await interviews.InsertOneAsync(iv with { UserId = seedUserId, ApplicationId = app.Id });
 
     created++;
 }
@@ -316,12 +327,13 @@ Console.WriteLine($"Applications: {created} created, {reset} reset to curated st
 // (DecidedToApply + a generated pack) isn't permanently empty — Generate Pack
 // itself isn't demo-allowlisted, so a visitor could never fill this column
 // themselves. Idempotent — skip if a pack already exists for that application.
-var solaceApp = await apps.Find(a => a.Company == "Solace Fintech").FirstOrDefaultAsync();
-if (solaceApp is not null && await resumePacksCol.Find(p => p.ApplicationId == solaceApp.Id).FirstOrDefaultAsync() is null)
+var solaceApp = await apps.Find(a => a.UserId == seedUserId && a.Company == "Solace Fintech").FirstOrDefaultAsync();
+if (solaceApp is not null && await resumePacksCol.Find(p => p.UserId == seedUserId && p.ApplicationId == solaceApp.Id).FirstOrDefaultAsync() is null)
 {
     var sp = profile.Structured;
     await resumePacksCol.InsertOneAsync(new ResumePack
     {
+        UserId = seedUserId,
         ApplicationId = solaceApp.Id,
         TailoredSummary = sp.Summary,
         Experience = sp.Experience.Select(e => new TailoredExperienceItem
@@ -345,9 +357,9 @@ else Console.WriteLine("Résumé pack already present or Solace Fintech app miss
 // fresh (not skip-if-any-exist) so a demo visitor marking one read doesn't
 // stick around past the next reseed — mirrors the discovery jobs pattern.
 var messagesCol = db.GetCollection<TrackedEmail>("messages");
-await messagesCol.DeleteManyAsync(FilterDefinition<TrackedEmail>.Empty);
+await messagesCol.DeleteManyAsync(m => m.UserId == seedUserId);
 {
-    var appIdByCompany = (await apps.Find(FilterDefinition<Application>.Empty).ToListAsync())
+    var appIdByCompany = (await apps.Find(a => a.UserId == seedUserId).ToListAsync())
         .ToDictionary(a => a.Company, a => a.Id);
 
     Guid? AppId(string company) => appIdByCompany.TryGetValue(company, out var id) ? id : null;
@@ -435,7 +447,7 @@ await messagesCol.DeleteManyAsync(FilterDefinition<TrackedEmail>.Empty);
             ReceivedAt = now.AddDays(-10),
         },
     };
-    await messagesCol.InsertManyAsync(messages);
+    await messagesCol.InsertManyAsync(messages.Select(m => m with { UserId = seedUserId }));
     Console.WriteLine($"Messages reset: {messages.Count} reinserted.");
 }
 
@@ -445,6 +457,7 @@ await messagesCol.DeleteManyAsync(FilterDefinition<TrackedEmail>.Empty);
 // still referenced "C#/.NET" and an "order-processing service" from an
 // earlier persona iteration, neither of which appear on the résumé anymore).
 await profileProvider.UpsertInterviewPrepAsync(
+    seedUserId,
     selfPresentationHr:
         "I'm a backend-leaning software engineer with about nine years of experience building and operating " +
         "web services in e-commerce and healthtech. I care most about shipping reliable software with a small, " +
@@ -680,6 +693,7 @@ foreach (var (i, posting) in morePostings.Select((posting, i) => (i, posting)))
 }
 
 await jobsCol.InsertManyAsync(jobs);
+
 await runsCol.InsertOneAsync(new BsonDocument
 {
     ["id"] = runId, ["criteria_id"] = criteriaId, ["criteria_name"] = demoCriteriaName,

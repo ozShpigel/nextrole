@@ -33,7 +33,7 @@ public sealed class JobMatchService : IJobMatchService
         _ => "STRONG_NO"
     };
 
-    public async Task<MatchResponse> AnalyzeMatchAsync(MatchRequest request, CancellationToken cancellationToken = default)
+    public async Task<MatchResponse> AnalyzeMatchAsync(Guid userId, MatchRequest request, CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Starting job match analysis");
 
@@ -46,7 +46,7 @@ public sealed class JobMatchService : IJobMatchService
         }
         else
         {
-            var profileDoc = await _profileProvider.GetProfileDocumentAsync(cancellationToken);
+            var profileDoc = await _profileProvider.GetProfileDocumentAsync(userId, cancellationToken);
             profile = profileDoc.Content;
             redFlags = profileDoc.Structured.RedFlags;
         }
@@ -68,11 +68,11 @@ public sealed class JobMatchService : IJobMatchService
         return corrected;
     }
 
-    public async Task<MatchBatchResponse> AnalyzeMatchBatchAsync(MatchBatchRequest request, CancellationToken cancellationToken = default)
+    public async Task<MatchBatchResponse> AnalyzeMatchBatchAsync(Guid userId, MatchBatchRequest request, CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Starting batch job match analysis ({Count} jobs)", request.Jobs.Count);
 
-        var profileDoc = await _profileProvider.GetProfileDocumentAsync(cancellationToken);
+        var profileDoc = await _profileProvider.GetProfileDocumentAsync(userId, cancellationToken);
         var profile = profileDoc.Content;
         var redFlags = profileDoc.Structured.RedFlags;
 

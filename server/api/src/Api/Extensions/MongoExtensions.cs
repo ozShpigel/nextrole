@@ -1,4 +1,5 @@
 using ApplicationTracker.Core.Models;
+using ApplicationTracker.Infrastructure.Repositories;
 using MongoDB.Driver;
 
 namespace ApplicationTracker.Api.Extensions;
@@ -18,52 +19,33 @@ public static class MongoExtensions
             return client.GetDatabase(databaseName);
         });
 
+        // Raw handles stay registered because index creation and the
+        // cross-user migration legitimately span users. Everything else takes
+        // the UserScopedCollection wrapper registered alongside each one, which
+        // has no overload that skips the userId filter.
+        Register<Application>(services, "applications");
+        Register<Interview>(services, "interviews");
+        Register<Note>(services, "notes");
+        Register<StatusUpdate>(services, "statusUpdates");
+        Register<MockInterviewSession>(services, "mockInterviewSessions");
+        Register<ResumePack>(services, "resumePacks");
+        Register<TrackedEmail>(services, "messages");
+        Register<MatchSnapshot>(services, "matchSnapshots");
+
+        // One document per user, keyed by _id = userId: no separate userId
+        // field, so there is no unscoped query shape to guard against.
         services.AddSingleton(sp =>
-        {
-            var database = sp.GetRequiredService<IMongoDatabase>();
-            return database.GetCollection<Application>("applications");
-        });
-        services.AddSingleton(sp =>
-        {
-            var database = sp.GetRequiredService<IMongoDatabase>();
-            return database.GetCollection<Interview>("interviews");
-        });
-        services.AddSingleton(sp =>
-        {
-            var database = sp.GetRequiredService<IMongoDatabase>();
-            return database.GetCollection<Note>("notes");
-        });
-        services.AddSingleton(sp =>
-        {
-            var database = sp.GetRequiredService<IMongoDatabase>();
-            return database.GetCollection<StatusUpdate>("statusUpdates");
-        });
-        services.AddSingleton(sp =>
-        {
-            var database = sp.GetRequiredService<IMongoDatabase>();
-            return database.GetCollection<MockInterviewSession>("mockInterviewSessions");
-        });
-        services.AddSingleton(sp =>
-        {
-            var database = sp.GetRequiredService<IMongoDatabase>();
-            return database.GetCollection<InterviewInsight>("interviewInsights");
-        });
-        services.AddSingleton(sp =>
-        {
-            var database = sp.GetRequiredService<IMongoDatabase>();
-            return database.GetCollection<ResumePack>("resumePacks");
-        });
-        services.AddSingleton(sp =>
-        {
-            var database = sp.GetRequiredService<IMongoDatabase>();
-            return database.GetCollection<TrackedEmail>("messages");
-        });
-        services.AddSingleton(sp =>
-        {
-            var database = sp.GetRequiredService<IMongoDatabase>();
-            return database.GetCollection<MatchSnapshot>("matchSnapshots");
-        });
+            sp.GetRequiredService<IMongoDatabase>().GetCollection<InterviewInsight>("interviewInsights"));
 
         return services;
+    }
+
+    private static void Register<T>(IServiceCollection services, string collectionName)
+        where T : Core.Identity.IUserOwned
+    {
+        services.AddSingleton(sp =>
+            sp.GetRequiredService<IMongoDatabase>().GetCollection<T>(collectionName));
+        services.AddSingleton(sp =>
+            new UserScopedCollection<T>(sp.GetRequiredService<IMongoCollection<T>>()));
     }
 }

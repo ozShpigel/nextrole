@@ -6,6 +6,9 @@ from pydantic import BaseModel, Field
 
 class SearchCriteria(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid4()))
+    # Owner. Set from the resolved request identity, never from the request
+    # body (CreateCriteriaRequest has no such field).
+    user_id: str = ""
     name: str
     job_titles: list[str]
     locations: list[str] = []

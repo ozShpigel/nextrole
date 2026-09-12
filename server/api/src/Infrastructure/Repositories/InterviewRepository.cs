@@ -6,52 +6,54 @@ namespace ApplicationTracker.Infrastructure.Repositories;
 
 public sealed class InterviewRepository : IInterviewRepository
 {
-    private readonly IMongoCollection<Interview> _interviews;
+    private readonly UserScopedCollection<Interview> _interviews;
 
-    public InterviewRepository(IMongoCollection<Interview> interviews) => _interviews = interviews;
+    public InterviewRepository(UserScopedCollection<Interview> interviews) => _interviews = interviews;
 
-    public async Task<Interview> CreateAsync(Interview interview, CancellationToken ct = default)
+    public async Task<Interview> CreateAsync(Guid userId, Interview interview, CancellationToken ct = default)
     {
-        await _interviews.InsertOneAsync(interview, cancellationToken: ct);
-        return interview;
+        var owned = interview with { UserId = userId };
+        await _interviews.InsertOneAsync(userId, owned, ct);
+        return owned;
     }
 
-    public async Task<Interview?> GetByIdAsync(Guid id, CancellationToken ct = default)
+    public async Task<Interview?> GetByIdAsync(Guid userId, Guid id, CancellationToken ct = default)
     {
-        return await _interviews.Find(i => i.Id == id).FirstOrDefaultAsync(ct);
+        return await _interviews.Find(userId, i => i.Id == id).FirstOrDefaultAsync(ct);
     }
 
-    public async Task<List<Interview>> GetByApplicationIdAsync(Guid applicationId, CancellationToken ct = default)
+    public async Task<List<Interview>> GetByApplicationIdAsync(Guid userId, Guid applicationId, CancellationToken ct = default)
     {
-        return await _interviews.Find(i => i.ApplicationId == applicationId)
+        return await _interviews.Find(userId, i => i.ApplicationId == applicationId)
             .SortBy(i => i.ScheduledAt)
             .ToListAsync(ct);
     }
 
-    public async Task<List<Interview>> GetUpcomingAsync(int count = 5, CancellationToken ct = default)
+    public async Task<List<Interview>> GetUpcomingAsync(Guid userId, int count = 5, CancellationToken ct = default)
     {
         var now = DateTime.UtcNow;
-        return await _interviews.Find(i => !i.Completed && i.ScheduledAt >= now)
+        return await _interviews.Find(userId, i => !i.Completed && i.ScheduledAt >= now)
             .SortBy(i => i.ScheduledAt)
             .Limit(count)
             .ToListAsync(ct);
     }
 
-    public async Task<List<Interview>> GetRetrosAsync(CancellationToken ct = default)
+    public async Task<List<Interview>> GetRetrosAsync(Guid userId, CancellationToken ct = default)
     {
-        return await _interviews.Find(i => i.Completed && i.RetroRating != null)
+        return await _interviews.Find(userId, i => i.Completed && i.RetroRating != null)
             .SortByDescending(i => i.ScheduledAt)
             .ToListAsync(ct);
     }
 
-    public async Task<Interview> UpdateAsync(Interview interview, CancellationToken ct = default)
+    public async Task<Interview> UpdateAsync(Guid userId, Interview interview, CancellationToken ct = default)
     {
-        await _interviews.ReplaceOneAsync(i => i.Id == interview.Id, interview, cancellationToken: ct);
-        return interview;
+        var owned = interview with { UserId = userId };
+        await _interviews.ReplaceOneAsync(userId, i => i.Id == owned.Id, owned, ct: ct);
+        return owned;
     }
 
-    public async Task DeleteAsync(Guid id, CancellationToken ct = default)
+    public async Task DeleteAsync(Guid userId, Guid id, CancellationToken ct = default)
     {
-        await _interviews.DeleteOneAsync(i => i.Id == id, ct);
+        await _interviews.DeleteOneAsync(userId, i => i.Id == id, ct);
     }
 }

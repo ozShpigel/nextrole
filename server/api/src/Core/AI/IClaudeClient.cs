@@ -39,7 +39,7 @@ public interface IClaudeClient
     // immutable context and are never recomputed here — only honestAssessment,
     // recommendation detail, companyNewsAnalysis, and employeeReviewsAnalysis
     // come back at full detail.
-    Task<NarrativeEnrichResponse> EnrichNarrativeAsync(NarrativeEnrichRequest request, CancellationToken cancellationToken = default);
+    Task<NarrativeEnrichResponse> EnrichNarrativeAsync(Guid userId, NarrativeEnrichRequest request, CancellationToken cancellationToken = default);
 
     // One cheap Haiku call per discovery run: flags scraped titles that are
     // clearly off-target for the search intent, so the scraper skips
@@ -51,6 +51,8 @@ public interface IClaudeClient
     // (replaces reliance on jobspy's LinkedIn-only job_level tag). Labels
     // only — same batched-per-run, fail-open contract as TriageTitlesAsync.
     Task<SeniorityClassifyResponse> ClassifySeniorityAsync(SeniorityClassifyRequest request, CancellationToken cancellationToken = default);
+
+
 
     Task<EmailParseResult?> ParseEmailAsync(string subject, string from, string body, List<string> knownCompanies, DateTime? referenceDate = null, CancellationToken cancellationToken = default);
     Task<string> SummarizeCompanyAsync(string companyName, CancellationToken cancellationToken = default);
@@ -89,11 +91,11 @@ public interface IClaudeClient
     // by the caller; the interviewer's reply for the next turn is returned. Uses
     // the user's profile + interview-prep (trusted) and, when bound to an
     // application, the job/company context (untrusted, XML-wrapped).
-    Task<MockTurnResult> GenerateMockInterviewTurnAsync(MockInterviewContext context, IReadOnlyList<MockInterviewTurn> transcript, CancellationToken cancellationToken = default);
+    Task<MockTurnResult> GenerateMockInterviewTurnAsync(Guid userId, MockInterviewContext context, IReadOnlyList<MockInterviewTurn> transcript, CancellationToken cancellationToken = default);
 
     // End-of-session debrief: scores the whole transcript on the fixed 1–5
     // rubric and returns highlights, improvements, and answer rewrites.
-    Task<MockInterviewDebrief> GenerateMockInterviewDebriefAsync(MockInterviewContext context, IReadOnlyList<MockInterviewTurn> transcript, CancellationToken cancellationToken = default);
+    Task<MockInterviewDebrief> GenerateMockInterviewDebriefAsync(Guid userId, MockInterviewContext context, IReadOnlyList<MockInterviewTurn> transcript, CancellationToken cancellationToken = default);
 
     // Interview Insights: one-shot batch synthesis of a free-form observation
     // summary across the user's real-interview retros (self-rating +

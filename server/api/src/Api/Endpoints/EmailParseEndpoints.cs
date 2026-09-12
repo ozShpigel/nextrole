@@ -2,6 +2,8 @@ using ApplicationTracker.Core.AI;
 using ApplicationTracker.Core.Email;
 using Microsoft.AspNetCore.Mvc;
 
+using ApplicationTracker.Core.Identity;
+
 namespace ApplicationTracker.Api.Endpoints;
 
 public static class EmailParseEndpoints

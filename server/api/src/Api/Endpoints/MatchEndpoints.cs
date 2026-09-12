@@ -186,6 +186,65 @@ public static class MatchEndpoints
         .WithName("ClassifySeniority")
         .WithSummary("Classify scraped jobs' actual seniority band from title+description (one Haiku call per run)");
 
+        // Match tab open: narrow the shared pool with the cheap filter, score
+        // only what this user has never had scored, keep the results. This is
+        // the ONLY thing that spends an Evaluator call on a pool job — ingest
+        // does not score (docs/job-pool.md, docs/scoring-and-search.md).
+        // Shares the "discovery" bucket: a scan is a burst of batch calls, not
+        // an interactive one, so it must not starve the manual Score-a-Job page.
+        app.MapPost("/api/match/pool-scan", async (
+            IUserContext user,
+            IPoolScanService scan,
+            ILogger<Program> logger,
+            CancellationToken ct) =>
+        {
+            try
+            {
+                var result = await scan.ScanAsync(user.UserId, ct);
+                return Results.Ok(result);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Pool scan failed");
+                return Results.Problem("An error occurred while scanning the job pool.", statusCode: 500);
+            }
+        })
+        .RequireRateLimiting("discovery")
+        .WithName("PoolScan")
+        .WithSummary("Score the shared pool's new candidates against this user's profile");
+
+        // What the match tab renders: this user's scores for the pool jobs it
+        // is about to show. Scores are per user and live in jobScores, never on
+        // the shared pool document.
+        app.MapPost("/api/match/pool-scores", async (
+            [FromBody] PoolScoresRequest request,
+            IUserContext user,
+            IJobScoreRepository scores,
+            CancellationToken ct) =>
+        {
+            if (request?.JobIds is null || request.JobIds.Count == 0)
+                return Results.Ok(new { scores = Array.Empty<object>() });
+            if (request.JobIds.Count > 500)
+                return Results.BadRequest(new { error = "too many job ids (max 500)" });
+
+            var rows = await scores.GetByJobIdsAsync(user.UserId, request.JobIds, ct);
+            return Results.Ok(new
+            {
+                scores = rows.Select(r => new
+                {
+                    jobId = r.JobId,
+                    score = r.Score,
+                    verdict = r.Verdict,
+                    shouldApply = r.ShouldApply,
+                    matchAnalysis = r.MatchAnalysis,
+                    error = r.Error,
+                    scoredAt = r.ScoredAt,
+                }),
+            });
+        })
+        .WithName("PoolScores")
+        .WithSummary("This user's stored scores for a set of pool jobs");
+
         // Per-job extraction for the shared job pool — one batched Haiku call
         // per ingest run, same shape and "discovery" bucket as title-triage and
         // seniority-classify above. Deliberately takes no user identity: it

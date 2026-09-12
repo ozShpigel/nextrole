@@ -285,41 +285,65 @@ async def list_scored_jobs(
     include_saved: bool = True,
     limit: int = 50,
     offset: int = 0,
+    user_id: str = Depends(current_user_id),
 ):
-    """Cross-run browse: the Matches page's primary data source, replacing
-    the old on-demand RAG search. Every discovered job is scored at ingest
-    time now, so "search" is really "filter/sort what's already scored" —
-    this is the query surface for that, distinct from the per-run drill-down
-    at GET /api/discovery/runs/{run_id}/jobs.
+    """Cross-run browse: the Matches page's primary data source.
 
-    Defaults exclude triaged-out and unscored/score-failed jobs (nothing
-    useful to show) and dismissed jobs (acted-on, same spirit as the old
-    RAG search's acted-on exclusion) — saved jobs stay visible by default
-    since "already in my Tracker" isn't the same signal as "not interested."
+    Scores are PER USER now (docs/scoring-and-search.md). The pool document
+    says what a posting is; this user's `jobScores` row says what it is worth
+    to them, and a pool job with no row for this user has simply never been
+    scored for them yet — the match tab's scan is what creates those rows.
+
+    So the score/verdict filters and the sort run against the user's own rows,
+    not against a shared `score` field that no longer exists on pool documents.
+    The join is done here rather than with $lookup because the sort key lives
+    in the joined collection: a user has at most a few hundred scored jobs, so
+    loading their rows and merging in memory is both simpler and cheaper than
+    an aggregation pipeline that would have to sort after the lookup anyway.
+
+    Defaults exclude triaged-out and dismissed jobs (acted-on) — saved jobs
+    stay visible by default since "already in my Tracker" isn't the same
+    signal as "not interested."
     """
     limit = max(1, min(limit, 200))
     offset = max(0, offset)
 
-    query: dict = {
-        "triaged_out": {"$ne": True},
-        "score": {"$ne": None},
-        "discovered_at": {"$gte": datetime.now(timezone.utc) - timedelta(days=max(1, days_back))},
-    }
+    # This user's scores first: they decide which pool jobs are even eligible.
+    score_query: dict = {"UserId": user_id, "Score": {"$ne": None}}
     if min_score is not None:
-        query["score"]["$gte"] = min_score
+        score_query["Score"]["$gte"] = min_score
     if verdict:
-        query["verdict"] = {"$in": [v.strip() for v in verdict.split(",") if v.strip()]}
+        score_query["Verdict"] = {"$in": [v.strip() for v in verdict.split(",") if v.strip()]}
+    score_rows = await db.jobScores.find(
+        score_query, {"JobId": 1, "Score": 1, "Verdict": 1, "ShouldApply": 1, "MatchAnalysis": 1}
+    ).to_list(None)
+    if not score_rows:
+        return {"jobs": [], "total": 0, "limit": limit, "offset": offset}
+    by_job = {r["JobId"]: r for r in score_rows}
+
+    query: dict = {
+        "id": {"$in": list(by_job)},
+        "triaged_out": {"$ne": True},
+    }
+    # Recency still applies, and still means what the control says it means.
+    # Pool jobs date from first_seen_at; rows written before the pool existed
+    # only have discovered_at, so either satisfies it.
+    cutoff = datetime.now(timezone.utc) - timedelta(days=max(1, days_back))
+    query["$and"] = [{"$or": [
+        {"first_seen_at": {"$gte": cutoff}},
+        {"first_seen_at": {"$exists": False}, "discovered_at": {"$gte": cutoff}},
+    ]}]
     if criteria_id:
         query["criteria_id"] = criteria_id
     if location and location.strip():
         query["location"] = {"$regex": re.escape(location.strip()), "$options": "i"}
     if q and q.strip():
         pattern = re.escape(q.strip())
-        query["$or"] = [
+        query["$and"].append({"$or": [
             {"title": {"$regex": pattern, "$options": "i"}},
             {"company": {"$regex": pattern, "$options": "i"}},
             {"description": {"$regex": pattern, "$options": "i"}},
-        ]
+        ]})
     if is_remote is not None:
         query["is_remote"] = is_remote
     if actual_job_level:
@@ -329,18 +353,27 @@ async def list_scored_jobs(
     if not include_saved:
         query["saved_to_tracker"] = {"$ne": True}
 
-    total = await db.discovered_jobs.count_documents(query)
-    docs = await (
-        db.discovered_jobs.find(query)
-        .sort("score", -1)
-        .skip(offset)
-        .limit(limit)
-        .to_list(limit)
-    )
+    docs = await db.discovered_jobs.find(query).to_list(None)
     for d in docs:
         d.pop("_id", None)
         _tag_utc(d)
-    return {"jobs": docs, "total": total, "limit": limit, "offset": offset}
+        row = by_job.get(d["id"], {})
+        # The per-user verdict, presented under the field names the client has
+        # always read — nothing downstream needs to know the score moved.
+        d["score"] = row.get("Score")
+        d["verdict"] = row.get("Verdict")
+        d["should_apply"] = row.get("ShouldApply")
+        analysis = row.get("MatchAnalysis")
+        if analysis:
+            try:
+                d["match_analysis"] = json.loads(analysis)
+            except (TypeError, ValueError):
+                d["match_analysis"] = None
+
+    docs.sort(key=lambda d: (d.get("score") or 0), reverse=True)
+    total = len(docs)
+    return {"jobs": docs[offset:offset + limit], "total": total, "limit": limit, "offset": offset}
+
 
 
 @app.post("/api/discovery/runs/{run_id}/abort")

@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo, useRef, useLayoutEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { createPortal } from 'react-dom';
 import { X, SlidersHorizontal, Plus, Check, Search } from 'lucide-react';
-import { useScoredJobs } from '../lib/queries';
+import { useScoredJobs, useDemoMode, usePoolScan } from '../lib/queries';
 import { useSaveJob, useDismissJob } from '../lib/mutations';
 import type { DiscoveredJobSummary } from '../lib/types';
 import { VERDICT_LABELS } from '../lib/scoring';
@@ -13,6 +14,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
 const ED_BTN = 'rounded-full border px-4 py-[0.5rem] text-[13px] font-medium transition-all disabled:opacity-50 disabled:pointer-events-none';
+// Shared by every reason the board can be empty, so they read as one voice.
+const EMPTY_STATE = 'w-full ed-display italic text-center text-[var(--ed-ink-faint)] py-12 text-[16px] border-t border-[var(--ed-rule-strong)]';
 const ED_GHOST = `${ED_BTN} border-[var(--ed-rule)] text-[var(--ed-ink-soft)] hover:border-[var(--ed-ink)] hover:text-[var(--ed-ink)]`;
 
 // Source-agnostic (Evaluator-classified) seniority band — replaces the old
@@ -469,8 +472,35 @@ export default function SearchPage() {
     limit: 100,
   }), [daysBack, searchDebounced, locationDebounced, isRemote, levels, verdicts, minScore]);
 
+  const qc = useQueryClient();
   const jobsQuery = useScoredJobs(query);
   const jobs = jobsQuery.data?.jobs ?? [];
+
+  // Nothing is scored at ingest any more, so opening this tab is what causes
+  // scoring to happen at all: narrow the shared pool against this profile,
+  // score whatever has never been scored for this user, persist it.
+  //
+  // Once per mount, not on every filter change: a scan costs Claude calls,
+  // and the filters above are a view over what has already been scored.
+  // Skipped on the read-only demo: scanning persists scores, so it would 403
+  // on every open and surface as a scoring error over a board that is in fact
+  // fully populated from seeded data.
+  const demoMode = useDemoMode();
+  const poolScan = usePoolScan(!demoMode);
+  const scan = poolScan.data;
+  const scanning = poolScan.isFetching;
+
+  // Only when something was actually scored: a no-op scan (everything already
+  // done) should not make the board flicker.
+  const scoredCount = scan?.scored ?? 0;
+  useEffect(() => {
+    if (scoredCount > 0) qc.invalidateQueries({ queryKey: ['discovery', 'jobs'] });
+  }, [scoredCount, qc]);
+  // A capped scan means there are genuinely more candidates waiting (the
+  // server only sets the flag when a further page exists). Continuing is an
+  // explicit action rather than an automatic loop: the cap is a spend bound,
+  // and draining it silently would defeat the point of having one.
+  const moreToScore = !!scan?.capped;
   const selectedJob = jobs.find((j) => j.id === selectedId) ?? null;
 
   // A filter change can drop the currently-selected job out of the list —
@@ -552,9 +582,23 @@ export default function SearchPage() {
           <h1 className="font-medium text-[24px] leading-[1.2] tracking-[-0.01em] text-[var(--ed-ink)]">
             Matches
           </h1>
-          {jobsQuery.data && (
-            <span className="text-[13px] font-medium text-[var(--ed-ink-faint)] tabular-nums">{jobsQuery.data.total} match{jobsQuery.data.total === 1 ? '' : 'es'}</span>
-          )}
+          <div className="flex items-center gap-3">
+            {scanning && (
+              <span className="text-[13px] text-[var(--ed-ink-faint)]">Scoring new jobs…</span>
+            )}
+            {moreToScore && !scanning && (
+              <button
+                type="button"
+                className={`${ED_BTN} border-[var(--ed-accent)] text-[var(--ed-accent)] hover:bg-[var(--ed-accent)] hover:text-[var(--ed-paper)]`}
+                onClick={() => poolScan.refetch()}
+              >
+                Score more
+              </button>
+            )}
+            {jobsQuery.data && (
+              <span className="text-[13px] font-medium text-[var(--ed-ink-faint)] tabular-nums">{jobsQuery.data.total} match{jobsQuery.data.total === 1 ? '' : 'es'}</span>
+            )}
+          </div>
         </header>
 
         <div className="mb-5 flex items-center gap-3 max-[640px]:flex-col max-[640px]:items-stretch">
@@ -690,13 +734,35 @@ export default function SearchPage() {
           )}
 
           {jobsQuery.isLoading ? (
-            <p className="w-full ed-display italic text-center text-[var(--ed-ink-faint)] py-12 text-[16px] border-t border-[var(--ed-rule-strong)]">
+            <p className={EMPTY_STATE}>
               Loading matches…
             </p>
           ) : jobs.length === 0 ? (
-            <p className="w-full ed-display italic text-center text-[var(--ed-ink-faint)] py-12 text-[16px] border-t border-[var(--ed-rule-strong)]">
-              No matches — widen the date range or relax the filters.
-            </p>
+            /* Four different reasons the board can be empty, and they need
+               different answers. Telling someone to "relax the filters" when
+               they have not uploaded a CV, or when scoring is still running,
+               reads as broken. */
+            scan?.profileMissing ? (
+              <p className={EMPTY_STATE}>
+                Upload your CV in Settings to start matching — nothing is scored until we know what you do.
+              </p>
+            ) : scanning ? (
+              <p className={EMPTY_STATE}>
+                Scoring the job pool against your profile…
+              </p>
+            ) : poolScan.isError ? (
+              <p className={EMPTY_STATE}>
+                Couldn’t score the job pool: {(poolScan.error as Error).message}
+              </p>
+            ) : scan && scan.alreadyScored + scan.scored === 0 ? (
+              <p className={EMPTY_STATE}>
+                No matches yet — nothing in the pool of {scan.poolSize} open role{scan.poolSize === 1 ? '' : 's'} lines up with your profile.
+              </p>
+            ) : (
+              <p className={EMPTY_STATE}>
+                No matches — widen the date range or relax the filters.
+              </p>
+            )
           ) : selectedJob ? (
             <>
               {/* A job is selected — master-detail view: compact list + JD/analysis panel. */}

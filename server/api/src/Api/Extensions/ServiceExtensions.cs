@@ -54,6 +54,12 @@ public static class ServiceExtensions
             new TrackedEmailRepository(sp.GetRequiredService<UserScopedCollection<TrackedEmail>>()));
         services.AddScoped<IMatchSnapshotRepository>(sp =>
             new MatchSnapshotRepository(sp.GetRequiredService<UserScopedCollection<MatchSnapshot>>()));
+        services.AddScoped<IJobScoreRepository>(sp =>
+            new JobScoreRepository(sp.GetRequiredService<UserScopedCollection<JobScore>>()));
+        services.AddScoped<IUserQuotaRepository>(sp =>
+            new UserQuotaRepository(sp.GetRequiredService<IMongoCollection<UserQuota>>()));
+        services.AddScoped<IPoolJobRepository>(sp =>
+            new PoolJobRepository(sp.GetRequiredService<IMongoCollection<MongoDB.Bson.BsonDocument>>()));
         services.AddSingleton<IResumePdfRenderer, QuestPdfResumeRenderer>();
 
         // ResumeFile lives in the "jobmatch" DB alongside the profile (same
@@ -95,6 +101,7 @@ public static class ServiceExtensions
         services.AddHttpContextAccessor();
         services.AddSingleton<IClaudeClient, ClaudeClient>();
         services.AddScoped<IJobMatchService, JobMatchService>();
+        services.AddScoped<IPoolScanService, PoolScanService>();
 
         return services;
     }

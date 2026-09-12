@@ -178,6 +178,22 @@ export interface DiscoveredJobSummary {
   discovered_at?: string;
 }
 
+// Result of a match-tab scan (POST /api/match/pool-scan). Scoring is per user
+// and on demand: the pool is shared, and a score is an opinion about one person.
+export interface PoolScanResult {
+  poolSize: number;
+  // New candidates this scan took on. Already-scored jobs never appear here.
+  candidates: number;
+  scored: number;
+  // Running total of jobs scored for this user, not a per-scan number.
+  alreadyScored: number;
+  // More candidates are waiting beyond this scan's cap. Only ever true when
+  // there genuinely is more, so it is safe to drive a "Score more" control.
+  capped: boolean;
+  // No profile yet - nothing was scored and nothing was spent.
+  profileMissing: boolean;
+}
+
 export interface ScoredJobsQuery {
   min_score?: number;
   verdict?: string; // comma-separated, e.g. "STRONG_YES,YES"

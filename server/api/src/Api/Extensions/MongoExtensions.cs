@@ -32,10 +32,21 @@ public static class MongoExtensions
         Register<TrackedEmail>(services, "messages");
         Register<MatchSnapshot>(services, "matchSnapshots");
 
+        Register<JobScore>(services, "jobScores");
+
         // One document per user, keyed by _id = userId: no separate userId
         // field, so there is no unscoped query shape to guard against.
         services.AddSingleton(sp =>
             sp.GetRequiredService<IMongoDatabase>().GetCollection<InterviewInsight>("interviewInsights"));
+        services.AddSingleton(sp =>
+            sp.GetRequiredService<IMongoDatabase>().GetCollection<UserQuota>("userQuotas"));
+
+
+        // The shared job pool the scraper writes. Not user-scoped on purpose
+        // (docs/job-pool.md) and read as BsonDocument, since the scraper owns
+        // its schema.
+        services.AddSingleton(sp =>
+            sp.GetRequiredService<IMongoDatabase>().GetCollection<MongoDB.Bson.BsonDocument>("discovered_jobs"));
 
         return services;
     }

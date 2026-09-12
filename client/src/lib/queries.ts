@@ -12,6 +12,7 @@ import type {
   ResumePack,
   ResumeFileMeta,
   MessageItem,
+  PoolScanResult,
 } from './types';
 
 // The Matches page's primary data source — every discovered job is scored at
@@ -29,6 +30,31 @@ export function useScoredJobs(query: ScoredJobsQuery) {
     queryKey: ['discovery', 'jobs', query],
     queryFn: () => discoveryApi(`/jobs${qs ? `?${qs}` : ''}`),
     staleTime: 30 * 1000,
+  });
+}
+
+// The match tab's scan: narrow the shared pool against this user's profile,
+// score whatever has never been scored for them, persist it. Ingest scores
+// nothing, so this is what puts anything on the board at all.
+//
+// A query rather than a mutation even though it writes. Two reasons, and the
+// second is why the first matters: React Query dedupes concurrent queries by
+// key, so StrictMode\x27s double-mount fires ONE scan instead of two; and a
+// mutation fired from a mount effect settles against the observer that started
+// it, which in StrictMode is the mount React then throws away - leaving the
+// rendered component showing "Scoring..." forever over a request that finished.
+//
+// staleTime Infinity + gcTime 0: never re-scans while the page stays open
+// (a scan costs Claude calls), always re-scans on a fresh visit.
+export function usePoolScan(enabled: boolean) {
+  return useQuery<PoolScanResult>({
+    queryKey: ['match', 'pool-scan'],
+    queryFn: () => matchApi('/pool-scan', { method: 'POST' }),
+    enabled,
+    staleTime: Infinity,
+    gcTime: 0,
+    refetchOnWindowFocus: false,
+    retry: false,
   });
 }
 

@@ -1,5 +1,18 @@
 # Scoring Pipeline & Matches
 
+> **Superseded in part (Step 5): ingest no longer scores.** Discovery used to
+> score every relevant job at ingest time against the one user's profile. It
+> cannot any more: the job pool is shared by every user (`docs/job-pool.md`),
+> and a score is an opinion about one candidate. Scoring is **per user and on
+> demand** — when a user opens the match tab, `PoolScanService` narrows the
+> pool with a cheap Mongo filter over the facts extracted once per job, scores
+> only what that user has never had scored, and stores the result in
+> `jobScores`. See **Per-user scoring** at the end of this document.
+>
+> Everything below about the Analyst/Evaluator rubric, the prompts, the
+> profile, batching and the verdict bands is unchanged and still current — it
+> is only *when* and *for whom* scoring runs that moved.
+
 **Scope (post-RAG-removal): the Evaluator is the primary matching path again.** Discovery scores every relevant job at ingest time via a batched Evaluator call (see **Ingest-time scoring** below); the manual "Score a Job" page (`POST /api/match`) uses the exact same rubric for one-off pasted postings. RAG (Atlas `$vectorSearch`, HyDE, the comparative-ranking "Advisor") was removed — it added retrieval-resolution and batch-composition failure modes that a single-user tool doesn't need to trade cost for. This is a *revival*, not a green-field design: the codebase ran a per-job-scoring architecture before RAG replaced it in 2026, and the schema fields that design left behind (`DiscoveredJob.score/verdict/match_analysis`, `DiscoveryRun.jobs_scored`) are exactly what this flow now populates again.
 
 Each job scoring = 2 Claude API calls: Analyst (Haiku) + Evaluator (Haiku — moved off Sonnet 2026-08-11, see `ScoringConfig.cs`). The **Analyst is a generic job-description parser** (raw posting → `ParsedJob` JSON; `PromptBuilder.BuildAnalysisPrompt` passes the posting in the user message inside `<job_description>`). The **Evaluator** scores fit. Both prompts are written to be **generic and objective** — no candidate/role/stack is baked in; the candidate-specific signal comes only from the injected profile.
@@ -86,3 +99,74 @@ Company Summary, Why Work Here, and full-narrative enrichment can each still be 
 - **"Why work here?" answer** — a personalized single paragraph, always generated in English, answering the interview question. Combines the user's profile + interview-prep self-presentation (trusted, in the system prompt) with the job/company context — description, company summary, news, Glassdoor (untrusted, XML-wrapped in the user message). Generated via `POST /api/applications/{id}/why-work-here` (`ClaudeClient.GenerateWhyWorkHereAsync`, one-shot Haiku), stored on `WhyWorkHere`.
 - **Hebrew translation, on demand** — `PromptSeeds.TranslateFreeText` / `ClaudeClient.TranslateTextAsync` (plain-text counterpart to `TranslateMatchAnalysisAsync`) translates the current `CompanySummary`/`WhyWorkHere` into `CompanySummaryHebrew`/`WhyWorkHereHebrew` via `POST /api/applications/{id}/company-summary/translate` and `.../why-work-here/translate` — same cache-once/`translate` rate-limit-bucket shape as `translate-analysis`, and cleared whenever the English source is regenerated. The client's single "Translate to Hebrew" toggle fires all three translate calls (match analysis + these two) together. Replaces the older `Prompts__HebrewOutput__WhyWorkHere`/`CompanySummary` deployment flags, which generated Hebrew directly at generation time with no English version available at all.
 - **Full-narrative enrichment** — `NarrativeEnrichment` (`ClaudeClient.EnrichNarrativeAsync`, `claude-sonnet-5`) upgrades `honestAssessment`/`recommendation` (`keyReasons`, `questionsToAsk`, `redFlags`, `greenFlags`) from terse to full detail. Used to fire on every "Add" click instead — wasted spend on the majority of added jobs that never reach an interview, and the content wasn't even displayed that early (the detail page's `showFullAnalysis` gate hides `AnalysisCard`/Why-Work-Here/Company-Info until Interviewing — see `docs/tracker.md`). Merges into the stored `MatchAnalysis` via `JsonNode` surgery (only the fields `NarrativeEnrichment` owns) rather than a typed deserialize/re-serialize round-trip, so any field not modeled on `MatchResponse` survives untouched.
+
+## Per-user scoring (Step 5)
+
+The pool is shared; scores are not. `discovered_jobs` holds what a posting
+says, `jobScores` holds what it is worth to one user — keyed by
+`(userId, jobId)`, user-scoped like every other per-user collection
+(`docs/multi-user.md`).
+
+**On match-tab open** (`POST /api/match/pool-scan`):
+
+1. **Cheap Mongo filter** (`CandidateFilter.FromProfile` → `PoolJobRepository`)
+   over the facts extracted once per job: location, seniority band, tech
+   overlap. Every clause is "matches **or** is unstated" — the extraction is
+   best-effort, and missing facts must never hide a job. Seniority accepts one
+   band either side of the candidate's own; location matches on the country,
+   not the city, and never excludes a remote posting. Tech is compared with a
+   case-insensitive collation rather than by storing a second lowercased copy.
+2. **Score only what is new.** "New" is decided by the *absence of a jobScores
+   row*, not by a last-visited timestamp. Same answer for the common case, and
+   a better one otherwise: it also picks up a job that only started matching
+   after a profile edit, and two tabs scanning at once cannot double-charge.
+3. **Persist**, including failures. A job the model returned nothing for still
+   gets a row carrying the reason — without it, every visit would re-send it
+   and be billed again.
+
+Bounds: `MaxCandidatesPerScan = 50`. A first-ever scan, or a profile edit that
+widens the filter, must not become an unbounded scoring bill in one request;
+the remainder is picked up on the next visit (`capped: true` says so). A user
+with no profile yet scores nothing at all and spends nothing.
+
+**Pack quota: 3 per user per UTC day.** Claimed atomically in
+`UserQuotaRepository` *before* the Claude call — the `pack` rate-limit bucket
+caps bursts, this caps spend. A generation that fails or is rejected by the
+validator still costs the allowance: the call was made and billed. Over the
+limit returns `429` with the limit in the body.
+
+### The match tab
+
+`SearchPage` runs the scan **once per mount** (`usePoolScan`), not on every
+filter change: a scan costs Claude calls, and the filter controls are a view
+over what has already been scored. The jobs query is invalidated only when
+something was actually scored, so a no-op scan does not make the board flicker.
+Skipped entirely on the read-only demo, where the scan would 403 on every open
+over a board that is fully populated from seeded data.
+
+`capped` drives an explicit **Score more** control, not an automatic loop.
+Auto-draining would defeat the cap, which exists to bound what one visit can
+spend. The server only sets the flag when a further page genuinely exists (it
+fetches one row past the cap to find out), so the control is never a no-op —
+and because already-scored jobs are excluded *in the query*, each press makes
+real progress instead of re-reading the same first page.
+
+**The board distinguishes four reasons it can be empty**, because "relax the
+filters" is the wrong answer to three of them:
+
+| State | What it says |
+|---|---|
+| `profileMissing` | Upload your CV in Settings — nothing is scored until we know what you do |
+| scan in flight | Scoring the job pool against your profile… |
+| scan failed | Couldn't score the job pool: *reason* |
+| scanned, nothing scored for this user | No matches yet — nothing in the pool of *n* open roles lines up with your profile |
+| scored, but filtered out | No matches — widen the date range or relax the filters |
+
+**The Matches read path** (`GET /api/discovery/jobs`, the scraper) joins this
+user's `jobScores` rows onto the shared pool documents and presents them under
+the field names the client has always read, so the score/verdict filters and
+the sort operate on the user's own numbers. The join is done in the service
+rather than with `$lookup` because the sort key lives in the joined collection;
+a user has at most a few hundred scored jobs, so loading their rows and merging
+is simpler and cheaper than an aggregation that would have to sort afterwards
+anyway.

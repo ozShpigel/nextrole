@@ -694,6 +694,24 @@ foreach (var (i, posting) in morePostings.Select((posting, i) => (i, posting)))
 
 await jobsCol.InsertManyAsync(jobs);
 
+// Scores are per user now (docs/scoring-and-search.md): the Matches page reads
+// jobScores, not the pool document. A seeded board therefore needs the seed
+// user's own rows, or it renders empty however many jobs were inserted.
+var jobScoresCol = db.GetCollection<BsonDocument>("jobScores");
+await jobScoresCol.DeleteManyAsync(Builders<BsonDocument>.Filter.Eq("UserId", seedUserId.ToString()));
+await jobScoresCol.InsertManyAsync(jobs.Select(j => new BsonDocument
+{
+    ["_id"] = $"{seedUserId}:{j["id"].AsString}",
+    ["UserId"] = seedUserId.ToString(),
+    ["JobId"] = j["id"].AsString,
+    ["Score"] = j["score"],
+    ["Verdict"] = j["verdict"],
+    ["ShouldApply"] = j["should_apply"],
+    ["MatchAnalysis"] = j["match_analysis"].ToJson(),
+    ["Error"] = BsonNull.Value,
+    ["ScoredAt"] = now,
+}));
+Console.WriteLine($"Seeded {jobs.Count} per-user job score(s) for {seedUserId}.");
 await runsCol.InsertOneAsync(new BsonDocument
 {
     ["id"] = runId, ["criteria_id"] = criteriaId, ["criteria_name"] = demoCriteriaName,
@@ -792,6 +810,13 @@ static BsonDocument Job(
         ["company_news"] = BsonNull.Value, ["glassdoor_data"] = BsonNull.Value,
         ["is_duplicate"] = false, ["saved_to_tracker"] = saved, ["dismissed"] = false,
         ["discovered_at"] = at,
+        // Pool membership: the Matches read path only shows pool jobs, and the
+        // per-user scan only considers them. Without these a seeded demo board
+        // would be empty.
+        ["pool_key"] = "https://example.com/jobs/" + company.ToLowerInvariant().Replace(" ", "-"),
+        ["is_active"] = true, ["missed_runs"] = 0, ["ttl_managed"] = false,
+        ["first_seen_at"] = at, ["last_seen_at"] = at, ["last_seen_run_id"] = runId,
+        ["extract_attempts"] = 1,
         // Lets DemoJobFreshnessInitializer (API startup, DemoMode-gated) find and
         // re-bump these docs' discovered_at without touching any real scraped data.
         ["seed_marker"] = true,

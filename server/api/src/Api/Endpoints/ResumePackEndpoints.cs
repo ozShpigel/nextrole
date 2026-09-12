@@ -12,6 +12,12 @@ namespace ApplicationTracker.Api.Endpoints;
 
 public static class ResumePackEndpoints
 {
+    // Per user, per UTC day. The pack is the priciest call in the product, so
+    // this is a spend cap, not an abuse cap -- the "pack" rate-limit bucket
+    // already handles bursts. Claimed atomically in UserQuotaRepository rather
+    // than read-then-trusted.
+    private const int PacksPerDay = 3;
+
     public static WebApplication MapResumePackEndpoints(this WebApplication app)
     {
         // Pure read — never demo-gated. Also renders the PDF once just to
@@ -63,12 +69,31 @@ public static class ResumePackEndpoints
             IApplicationRepository appRepo,
             IResumePackRepository packRepo,
             IProfileProvider profileProvider,
+            IUserQuotaRepository quotas,
             IClaudeClient claude,
             ILogger<Program> logger,
             CancellationToken ct) =>
         {
             var application = await appRepo.GetByIdAsync(user.UserId, id, ct);
             if (application is null) return Results.NotFound();
+
+            // Daily allowance, claimed BEFORE the Claude call: a pack is the
+            // most expensive thing a user can trigger, and the rate limiter
+            // caps bursts, not spend. Claimed rather than counted so two
+            // concurrent clicks cannot both pass the same check.
+            //
+            // A generation that then fails (or is rejected by the validator)
+            // still costs the allowance. That is deliberate: the call was made
+            // and billed, so the cap has to count it. Refunding on failure
+            // would make the cap a cap on successes, which is not what it is
+            // protecting.
+            if (!await quotas.TryConsumePackAsync(user.UserId, PacksPerDay, ct))
+            {
+                logger.LogInformation("Pack quota exhausted for {UserId}", user.UserId);
+                return Results.Json(
+                    new { error = $"Daily limit reached: {PacksPerDay} resume packs per day.", limit = PacksPerDay },
+                    statusCode: StatusCodes.Status429TooManyRequests);
+            }
 
             try
             {

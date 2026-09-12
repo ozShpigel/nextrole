@@ -104,6 +104,50 @@ The run reports `jobs_extracted` against `jobs_new`, plus
 `jobs_extract_retried` and `jobs_extract_abandoned`, so a silently-failing
 extractor does not look like a normal run.
 
+## Measured size (2026-09-12)
+
+One real run over the five baseline roles — Israel, `hours_old=72`,
+`results_wanted=50`:
+
+| | |
+|---|---|
+| Raw results | 250 (5 searches × 50, none failed or empty) |
+| Unique jobs | **167** |
+| `distinct pool_key` | 167 — dedupe held exactly |
+| Wall clock | ~9 minutes |
+| Extraction cost | $0.33 cold, $0.00198/job (Haiku 4.5 list price) |
+| Steady state | the next run found 1 new job of 168 → roughly $0.02–0.08/day at 10–40 new/day |
+
+**This is why there is no vector DB.** At this size the per-user pre-filter is a
+scan over a few hundred documents; retrieval infrastructure starts earning its
+keep two orders of magnitude further up. Revisit if the number below ever
+approaches tens of thousands — not before.
+
+### Two things the 167 is not
+
+**It is not the supply.** All five searches returned *exactly* 50, which is
+`results_wanted`. Every one hit the parameter, so 167 is bounded by the
+parameter and not by the market — the real number of matching open roles is
+unknown and higher. Raising `results_wanted` is the only way to find out.
+
+**It is not the pool size.** 167 is one scrape's 72-hour window. The pool
+accumulates under 60-day retention while listings stay active, so steady state
+is more like 600–2,500 documents. Both figures are well inside "no vector DB",
+but quoting 167 as the pool size would understate it by an order of magnitude.
+
+### Re-measuring
+
+```bash
+# API must be up for job-facts extraction.
+MONGODB_DATABASE_NAME=<scratch> API_BASE_URL=http://127.0.0.1:5002 \
+  python -m app.cli run-pool
+```
+
+Against a scratch database, never the live pool: a measurement run inserts real
+jobs, and mixing it into the live pool makes the next run's "new vs refreshed"
+counts meaningless. Read the unique count from `distinct pool_key`, and the cost
+from the API's `Claude job-facts usage` lines.
+
 ## Role growth
 
 The role list has two halves, and the split is the design.

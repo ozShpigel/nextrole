@@ -74,11 +74,17 @@ public sealed class PoolRoleService : IPoolRoleService
             return;
         }
 
-        var released = await _roles.ClaimAsync(userId, result.Role, ct);
+        var claim = await _roles.ClaimAsync(userId, result.Role, ct);
+        if (claim.CollidedWith is not null)
+            // Not an error — the canonicaliser did its job — but worth seeing:
+            // a classifier drifting toward synonyms would otherwise be invisible.
+            _logger.LogWarning(
+                "Pool role variant collapsed: classifier returned {Returned}, reusing the existing {Existing}",
+                result.Role, claim.CollidedWith);
         _logger.LogInformation(
-            "Pool role for {UserId}: {Role} ({Source})", userId, result.Role,
-            result.Existing ? "already searched" : "new to the daily run");
-        LogDropped(released, userId, "they were the last user under it");
+            "Pool role for {UserId}: {Role} ({Source})", userId, claim.Role,
+            result.Existing || claim.CollidedWith is not null ? "already searched" : "new to the daily run");
+        LogDropped(claim.ReleasedRoles, userId, "they were the last user under it");
     }
 
     private void LogDropped(List<string> dropped, Guid userId, string because)

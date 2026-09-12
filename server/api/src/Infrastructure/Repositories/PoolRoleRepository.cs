@@ -1,3 +1,4 @@
+using ApplicationTracker.Core.Matching;
 using ApplicationTracker.Core.Models;
 using ApplicationTracker.Core.Repositories;
 using MongoDB.Driver;
@@ -16,9 +17,25 @@ public sealed class PoolRoleRepository : IPoolRoleRepository
     public async Task<List<PoolRole>> GetAllAsync(CancellationToken ct = default) =>
         await _roles.Find(FilterDefinition<PoolRole>.Empty).ToListAsync(ct);
 
-    public async Task<List<string>> ClaimAsync(Guid userId, string role, CancellationToken ct = default)
+    public async Task<ClaimOutcome> ClaimAsync(Guid userId, string role, CancellationToken ct = default)
     {
-        var key = PoolRole.KeyFor(role);
+        var canonical = RoleCanonicalizer.Canonicalize(role);
+
+        // Match on the canonical form of each stored role NAME, not on the _id.
+        // The scraper mirrors baseline roles under its own simpler key, and
+        // matching by id would mean the two services had to agree on a
+        // canonicalisation algorithm across languages — a rule with nothing
+        // holding it true. This way there is one implementation, here.
+        var existing = await _roles.Find(FilterDefinition<PoolRole>.Empty).ToListAsync(ct);
+        var match = existing.FirstOrDefault(r => RoleCanonicalizer.Canonicalize(r.Role) == canonical);
+
+        var key = match?.Id ?? canonical;
+        var storedAs = match?.Role ?? role.Trim();
+        // A variant of a role already being searched: reported so the classifier
+        // drifting toward synonyms is visible rather than silently absorbed.
+        var collidedWith = match is not null && !string.Equals(match.Role, role.Trim(), StringComparison.Ordinal)
+            ? match.Role
+            : null;
 
         // Claim first, release second. The other order would briefly leave a
         // role with no users during a re-claim of the same role, and a daily
@@ -27,14 +44,15 @@ public sealed class PoolRoleRepository : IPoolRoleRepository
             r => r.Id == key,
             Builders<PoolRole>.Update
                 .SetOnInsert(r => r.Id, key)
-                .SetOnInsert(r => r.Role, role.Trim())
+                .SetOnInsert(r => r.Role, storedAs)
                 .SetOnInsert(r => r.CreatedAt, DateTime.UtcNow)
                 .Set(r => r.UpdatedAt, DateTime.UtcNow)
                 .AddToSet(r => r.UserIds, userId),
             new UpdateOptions { IsUpsert = true },
             ct);
 
-        return await RemoveUserFromAsync(userId, exceptKey: key, ct);
+        var released = await RemoveUserFromAsync(userId, exceptKey: key, ct);
+        return new ClaimOutcome(storedAs, collidedWith, released);
     }
 
     public Task<List<string>> ReleaseAsync(Guid userId, CancellationToken ct = default) =>

@@ -553,6 +553,15 @@ public sealed class ClaudeClient : IClaudeClient
     // output tokens (~50/row, dominated by the UUID) and 48 titles truncated at
     // 2000. Seniority rows are cheaper (no reason string) but share the shape.
     private const int ClassifyChunkSize = 25;
+    // Job-facts rows are far bigger than a triage or seniority row — two tech
+    // arrays plus four scalars, versus a verdict and a short reason. Measured on
+    // a real 167-job run: 25 items produced 3,192-3,779 output tokens (~140/row)
+    // and one chunk of 25 tipped past 4,000 and truncated, costing its call and
+    // leaving 25 jobs unextracted. Sized for roughly double the observed worst
+    // case, because a truncation is deterministic for a given chunk: retrying
+    // the same items in the same size truncates again, so those jobs would burn
+    // all three attempts and end up with no facts at all.
+    private const int JobFactsChunkSize = 12;
     private const int ClassifyChunkMaxTokens = 4000;
     // Keeps a full 200-item run (8 chunks) inside the scraper's 120s timeout.
     private const int ClassifyChunkParallelism = 4;
@@ -584,9 +593,10 @@ public sealed class ClaudeClient : IClaudeClient
         string label,
         Func<IReadOnlyList<TItem>, string> buildUserMessage,
         Func<TResponse, List<TResult>> selectResults,
-        CancellationToken cancellationToken) where TResponse : class
+        CancellationToken cancellationToken,
+        int? chunkSize = null) where TResponse : class
     {
-        var chunks = items.Chunk(ClassifyChunkSize).ToList();
+        var chunks = items.Chunk(chunkSize ?? ClassifyChunkSize).ToList();
         var perChunk = new List<TResult>[chunks.Count];
         using var gate = new SemaphoreSlim(ClassifyChunkParallelism);
 
@@ -607,6 +617,13 @@ public sealed class ClaudeClient : IClaudeClient
 
                 var response = await ResolveClient().Messages.GetClaudeMessageAsync(parameters, cancellationToken);
                 ThrowIfTruncated(response, label, chunk.Length);
+
+                // Same usage line the streaming path emits. These batched calls
+                // are the whole per-run bill for ingest, so "what does a day
+                // cost" has to be answerable from the logs rather than estimated.
+                _logger.LogInformation(
+                    "Claude {Label} usage — input={Input} output={Output} items={Items}",
+                    label, response.Usage?.InputTokens, response.Usage?.OutputTokens, chunk.Length);
 
                 var content = response.Message?.ToString()?.Trim()
                     ?? throw new InvalidOperationException($"{label}: empty response from Claude API");
@@ -713,7 +730,8 @@ public sealed class ClaudeClient : IClaudeClient
                 return $"<scraped_jobs>\n{jobsJson}\n</scraped_jobs>";
             },
             r => r.Results,
-            cancellationToken);
+            cancellationToken,
+            JobFactsChunkSize);
 
         // A job with no facts is not dropped: the pool keeps it and the caller
         // records that extraction is still owed, so a bad run costs a retry

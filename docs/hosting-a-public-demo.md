@@ -20,9 +20,12 @@ fictional data**. Nothing is forked; the only difference is environment variable
 | Database     | your real DB             | a **separate**, fictional-data-only DB |
 | Who uses it  | you                      | anyone (read-only)                   |
 
-With demo mode on, the client shows a "read-only demo" banner (it reads
-`GET /api/config`), non-persisting AI analyses still work (score a job, run a mock
-interview), and every write to the tracker is blocked.
+With demo mode on, non-persisting AI analyses still work (score a job, run a mock
+interview) and every write to the tracker is blocked. There is no page-level
+banner any more — the read-only state shows up where a visitor meets it: the
+controls that would write are disabled with a "disabled in the read-only demo"
+tooltip, and a 403 surfaces the same message. The client still reads
+`GET /api/config`; that is what those controls key off.
 
 ## The switch = two environment variables
 
@@ -115,8 +118,9 @@ No **Mailbot** on the demo — it writes to the tracker, which demo mode blocks.
 
 ## Verify
 
-- Open the public site → it shows **fictional** data and the **read-only demo**
-  banner. `GET https://<public-api>/api/config` returns `{"demoMode": true}`.
+- Open the public site → it shows **fictional** data, and the controls that
+  would write are disabled. `GET https://<public-api>/api/config` returns
+  `{"demoMode": true}`.
 - Your **private** instance is unchanged: real connection string, `DemoMode` unset.
 
 ## Optional: hosting the PRIVATE instance too (for a cloud mailbot cron)

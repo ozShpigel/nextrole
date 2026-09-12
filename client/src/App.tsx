@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { Navigate, NavLink, Outlet, useLocation, useNavigationType } from 'react-router-dom';
 import { Search, Kanban, Mail, GraduationCap, User } from 'lucide-react';
-import { useConfig, useProfile, useResumeFile } from './lib/queries';
+import { useProfile, useResumeFile } from './lib/queries';
 import { BrandMark } from './components/BrandMark';
 
 // Routes exempt from the onboarding redirect: "/" is the onboarding screen
@@ -98,14 +98,8 @@ function ScrollToTop() {
 }
 
 export default function App() {
-  const { data: config } = useConfig();
   return (
     <div className="relative">
-      {config?.demoMode && (
-        <div className="bg-primary/10 text-foreground border-b border-border text-center text-[0.78rem] font-medium py-[0.4rem] px-4">
-          Live demo — real AI scoring.
-        </div>
-      )}
       <nav data-app-nav className="bg-background/80 backdrop-blur-[20px] border-b border-border sticky top-0 z-50">
         <div className="w-full px-8 flex items-center gap-4 md:gap-10 h-14">
           <NavLink to="/" className="shrink-0 inline-flex items-center gap-[0.4rem] font-serif font-bold text-[1rem] text-foreground tracking-[-0.01em] transition-opacity hover:opacity-75">

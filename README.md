@@ -111,7 +111,7 @@ Keeps your tracker up to date without you lifting a finger. A one-shot cron proc
 
 [**nextrole.cloud**](https://nextrole.cloud) runs the same image as the private instance against its own database, with `Identity:Mode=Cookie`: your first request gets a `uid` cookie (HttpOnly, Secure, SameSite=Lax, one year) and your first document appears when you upload a CV — not before. There is no password, no account recovery, and no link to share; lose the cookie and you're a new user. Everything you create — profile, scores, packs, the board — is filtered by that id, and the job pool underneath is the one thing everybody shares. Quotas keep the AI spend bounded (3 résumé packs per user per day). [Details](docs/multi-user.md)
 
-`DemoMode=true` is the other way to expose an instance publicly: seeded fictional data, live AI scoring and reads, and every write blocked with a read-only banner — reseeded from `dotnet run --project server/api/src/Seeder`, safe to re-run any time. Use it when you want a public instance nobody can change. [Details](docs/demo-mode.md) · [Hosting your own](docs/hosting-a-public-demo.md)
+`DemoMode=true` is the other way to expose an instance publicly: seeded fictional data, live AI scoring and reads, and every write blocked, with the controls that would write disabled — reseeded from `dotnet run --project server/api/src/Seeder`, safe to re-run any time. Use it when you want a public instance nobody can change. [Details](docs/demo-mode.md) · [Hosting your own](docs/hosting-a-public-demo.md)
 
 ---
 

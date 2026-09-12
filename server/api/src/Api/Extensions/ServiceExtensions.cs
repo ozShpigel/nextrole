@@ -58,6 +58,8 @@ public static class ServiceExtensions
             new JobScoreRepository(sp.GetRequiredService<UserScopedCollection<JobScore>>()));
         services.AddScoped<IUserQuotaRepository>(sp =>
             new UserQuotaRepository(sp.GetRequiredService<IMongoCollection<UserQuota>>()));
+        services.AddScoped<IPoolRoleRepository>(sp =>
+            new PoolRoleRepository(sp.GetRequiredService<IMongoCollection<PoolRole>>()));
         services.AddScoped<IPoolJobRepository>(sp =>
             new PoolJobRepository(sp.GetRequiredService<IMongoCollection<MongoDB.Bson.BsonDocument>>()));
         services.AddSingleton<IResumePdfRenderer, QuestPdfResumeRenderer>();
@@ -102,6 +104,7 @@ public static class ServiceExtensions
         services.AddSingleton<IClaudeClient, ClaudeClient>();
         services.AddScoped<IJobMatchService, JobMatchService>();
         services.AddScoped<IPoolScanService, PoolScanService>();
+        services.AddScoped<IPoolRoleService, PoolRoleService>();
 
         return services;
     }

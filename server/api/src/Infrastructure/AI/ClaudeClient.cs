@@ -724,6 +724,59 @@ public sealed class ClaudeClient : IClaudeClient
         return new JobFactsResponse { Results = results };
     }
 
+    public async Task<RoleClassificationResponse> ClassifyRoleAsync(
+        RoleClassificationRequest request, CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation(
+            "Classifying pool role from {Titles} title(s) against {Existing} existing role(s)",
+            request.Titles.Count, request.ExistingRoles.Count);
+
+        var camelCase = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+        var candidate = JsonSerializer.Serialize(
+            new { request.Titles, request.Summary, request.Skills }, camelCase);
+
+        // The candidate's own profile text is data, not instruction — same
+        // XML-wrapped treatment as every other untrusted input.
+        var userMessage =
+            $"<existing_roles>\n{JsonSerializer.Serialize(request.ExistingRoles, camelCase)}\n</existing_roles>\n\n"
+            + $"<candidate>\n{candidate}\n</candidate>";
+
+        var parameters = new MessageParameters
+        {
+            System = new List<SystemMessage> { new(PromptSeeds.RoleClassification) },
+            Messages = new List<Message> { new(RoleType.User, userMessage) },
+            MaxTokens = 256,
+            Model = "claude-haiku-4-5-20251001",
+            Temperature = 0m,
+            Stream = false,
+        };
+
+        var response = await ResolveClient().Messages.GetClaudeMessageAsync(parameters, cancellationToken);
+        var content = response.Message?.ToString()?.Trim()
+            ?? throw new InvalidOperationException("Empty response from Claude API");
+
+        var json = ExtractJson(content, "role-classification");
+        var result = JsonSerializer.Deserialize<RoleClassificationResponse>(json, CaseInsensitive)
+            ?? throw new InvalidOperationException("Failed to deserialize RoleClassificationResponse");
+
+        // `existing` is the model's claim; this is the check. A role reported as
+        // existing that is not on the list would otherwise consume a cap slot
+        // while looking free.
+        var matched = request.ExistingRoles.FirstOrDefault(
+            r => string.Equals(r, result.Role, StringComparison.OrdinalIgnoreCase));
+        var corrected = result with
+        {
+            Role = matched ?? result.Role,
+            Existing = matched is not null,
+        };
+        if (corrected.Existing != result.Existing)
+            _logger.LogInformation(
+                "Role classification claimed existing={Claimed} for {Role}; corrected to {Actual}",
+                result.Existing, result.Role, corrected.Existing);
+
+        return corrected;
+    }
+
     public async Task<NormalizedProfile> NormalizeProfileAsync(string text, CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Normalizing profile free-text ({Length} chars)", text.Length);

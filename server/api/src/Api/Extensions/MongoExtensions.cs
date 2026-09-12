@@ -41,6 +41,10 @@ public static class MongoExtensions
         services.AddSingleton(sp =>
             sp.GetRequiredService<IMongoDatabase>().GetCollection<UserQuota>("userQuotas"));
 
+        // Shared-pool state, like discovered_jobs: the role list the daily
+        // run searches, grown and pruned by who is using the product.
+        services.AddSingleton(sp =>
+            sp.GetRequiredService<IMongoDatabase>().GetCollection<PoolRole>("pool_roles"));
 
         // The shared job pool the scraper writes. Not user-scoped on purpose
         // (docs/job-pool.md) and read as BsonDocument, since the scraper owns

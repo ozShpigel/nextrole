@@ -16,6 +16,27 @@ public static class MatchEndpoints
     // mirrored by the ChipInput max in the Settings UI.
     private const int MaxSignalItems = 3;
 
+    // Resolves its own scope: the request that triggered this has already
+    // returned, so anything scoped to it is disposed by the time this runs.
+    private static async Task SyncPoolRoleAsync(
+        Guid userId, StructuredProfile profile, IServiceScopeFactory scopeFactory)
+    {
+        using var scope = scopeFactory.CreateScope();
+        var roles = scope.ServiceProvider.GetRequiredService<IPoolRoleService>();
+        var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+        try
+        {
+            await roles.SyncForProfileAsync(userId, profile, CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            // The role list is eventually-consistent with profiles by design:
+            // the next save re-derives it from scratch, so a failure here costs
+            // a delay, not correctness.
+            logger.LogError(ex, "Pool role sync failed for {UserId}", userId);
+        }
+    }
+
     public static WebApplication MapMatchEndpoints(this WebApplication app)
     {
         app.MapPost("/api/match", async (
@@ -356,6 +377,7 @@ public static class MatchEndpoints
             [FromBody] StructuredProfile request,
             IUserContext user,
             IProfileProvider provider,
+            IServiceScopeFactory scopeFactory,
             ILogger<Program> logger,
             CancellationToken ct) =>
         {
@@ -375,6 +397,12 @@ public static class MatchEndpoints
                 await provider.UpsertProfileAsync(user.UserId, request, ct);
                 var updated = await provider.GetProfileDocumentAsync(user.UserId, ct);
 
+                // The shared pool searches the roles its users are actually
+                // under, so a saved profile can add one (or release the last
+                // claim on another). Fire-and-forget: it costs a Haiku call,
+                // and a role list that lags a save by a second is a far better
+                // outcome than a save that fails because of one.
+                _ = SyncPoolRoleAsync(user.UserId, request, scopeFactory);
 
                 return Results.Ok(ToProfileResponse(updated));
             }

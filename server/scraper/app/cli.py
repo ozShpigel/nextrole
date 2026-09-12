@@ -26,6 +26,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 
 from app.config import Settings
 from app.indexes import ensure_pool_indexes, ensure_ttl_index
+from app import roles
 from app.services import demo_seed, orchestrator, pool, subscore_eval, verdict_eval
 
 logging.basicConfig(level=logging.INFO)
@@ -58,6 +59,9 @@ async def _run_pool():
     async def _r(db, settings):
         await ensure_ttl_index(db)
         await ensure_pool_indexes(db)
+        # Keep the classifier view of "already searched" current before the
+        # run reads the grown half back out of the same collection.
+        await roles.publish_baseline(db, roles.load(settings.roles_config_path or None))
         run = await pool.run_pool_ingest(db, settings)
         if run.status == "failed":
             # Exit non-zero so a cron failure is visible instead of a green tick

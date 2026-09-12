@@ -66,13 +66,16 @@ async def run_pool_ingest(db: AsyncIOMotorDatabase, settings: Settings) -> Disco
     """Scrape every configured role, fold the results into the shared pool, and
     age out what has stopped appearing."""
     config = roles_config.load(settings.roles_config_path or None)
+    # Baseline roles from the file, plus whatever users have grown the pool
+    # with, capped — see roles.effective_roles.
+    search_roles = await roles_config.effective_roles(db, config)
     run = DiscoveryRun(criteria_id="pool", criteria_name="Shared job pool")
     await db.discovery_runs.insert_one(run.model_dump())
     logger.info("Pool run %s: %d role(s) x %d location(s)",
-                run.id, len(config.roles), len(config.locations))
+                run.id, len(search_roles), len(config.locations))
 
     try:
-        jobs, stats = await _scrape(config)
+        jobs, stats = await _scrape(config, search_roles)
         run.jobs_scraped = len(jobs)
         run.searches_total = stats["searches_total"]
         run.searches_failed = stats["searches_failed"]
@@ -98,7 +101,7 @@ async def run_pool_ingest(db: AsyncIOMotorDatabase, settings: Settings) -> Disco
     return run
 
 
-async def _scrape(config: roles_config.RolesConfig) -> tuple[list[dict], dict]:
+async def _scrape(config: roles_config.RolesConfig, search_roles: list[str]) -> tuple[list[dict], dict]:
     """Reuse the criteria scraper by handing it the role list as its titles.
 
     Same jobspy wrapper, pacing, NaN handling and is_remote correction the
@@ -107,7 +110,7 @@ async def _scrape(config: roles_config.RolesConfig) -> tuple[list[dict], dict]:
     """
     as_criteria = SearchCriteria(
         name="Shared job pool",
-        job_titles=config.roles,
+        job_titles=search_roles,
         locations=config.locations,
         site_names=config.site_names,
         results_wanted=config.results_wanted,

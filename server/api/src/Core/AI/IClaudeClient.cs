@@ -58,6 +58,10 @@ public interface IClaudeClient
     // for every user. Batched and chunked like the two calls above.
     Task<JobFactsResponse> ExtractJobFactsAsync(JobFactsRequest request, CancellationToken cancellationToken = default);
 
+    // Role canonicalisation for the shared pool daily search: which single
+    // search term covers this candidate work. Prefers a role already being
+    // searched; invents one only when none fits. See PoolRoleService.
+    Task<RoleClassificationResponse> ClassifyRoleAsync(RoleClassificationRequest request, CancellationToken cancellationToken = default);
 
     Task<EmailParseResult?> ParseEmailAsync(string subject, string from, string body, List<string> knownCompanies, DateTime? referenceDate = null, CancellationToken cancellationToken = default);
     Task<string> SummarizeCompanyAsync(string companyName, CancellationToken cancellationToken = default);

@@ -104,10 +104,74 @@ The run reports `jobs_extracted` against `jobs_new`, plus
 `jobs_extract_retried` and `jobs_extract_abandoned`, so a silently-failing
 extractor does not look like a normal run.
 
+## Role growth
+
+The role list has two halves, and the split is the design.
+
+**Baseline** — `config/roles.json`. Human-authored, always searched, never
+dropped by user churn. A file because it is a decision that should survive
+every deploy and everyone coming and going.
+
+**Grown** — the `pool_roles` collection. A new user's CV may reveal a role
+nothing on the baseline covers; that role joins the daily run, and leaves again
+when the last user under it does. In Mongo because the app writes it: a file the
+app edits would be lost on the next container restart and would diverge between
+replicas.
+
+### How a role joins
+
+On profile save, `PoolRoleService` asks one cheap Haiku call which single search
+term covers this candidate's work, given the roles already being searched. The
+prompt pushes hard toward **reuse**: a Go backend engineer, a Python backend
+engineer and a backend-leaning full stack engineer all belong under an existing
+"Backend Engineer". Only a genuinely uncovered candidate — a data scientist, a
+mobile engineer — gets a new role, and it must be a generic canonical title (no
+seniority, no technology, no company).
+
+This runs off the request path. A role list that lags a profile save by a second
+is a much better outcome than a save that fails because of one, and the next
+save re-derives everything from scratch.
+
+`null` is a real answer: a profile too thin to place leaves the list untouched
+rather than spending a capped slot on a guess. The model's `existing` claim is
+re-checked against the list server-side — a role reported as existing but absent
+from it would otherwise occupy a slot while looking free.
+
+The scraper mirrors the baseline into `pool_roles` at startup
+(`roles.publish_baseline`) purely so the classifier can see it: the API is a
+separate service with no access to the config file, and classifying against an
+empty list is how you end up searching both "Backend Engineer" and "Backend
+Developer". Those mirrored rows carry no users and are exempt from deletion.
+
+### How a role leaves
+
+A role exists while at least one user's profile places them under it. Claiming a
+role releases every other claim, so switching roles and dropping one are the
+same operation, and a role whose last user leaves is deleted. Emptying a profile
+releases without claiming.
+
+"No active user needs it" is therefore *derived* from an empty user list rather
+than tracked separately — one representation, nothing to keep in sync.
+
+### The cap
+
+`max_roles` (default 12) bounds the whole list, baseline included, and is
+enforced in the scraper when the run is assembled — that is where a role costs
+something (titles × locations of extra scraping per day), and it is the half
+that knows the config file.
+
+Baseline roles are never cut. Grown roles compete for what is left, **most-needed
+first, then oldest**, so the cap behaves like a queue rather than a race: a role
+several users need is not displaced by one that arrived later. Roles over the
+cap are held back and named in a warning, not dropped — raising `max_roles`
+admits them on the next run. Loading a config whose `max_roles` is below the
+baseline count raises, since such a cap could never be honoured.
+
 ## Not here yet
 
 
-Role growth from a new user's CV, and the cap on total roles, are Step 6.
+The Matches page reads the pool through the per-user scan (Step 5), and role
+growth is in place (above).
 
 Scoring has moved out of ingest entirely — both the daily pool run and the
 criteria-driven run now only extract facts. The criteria path writes into the

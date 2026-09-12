@@ -66,6 +66,8 @@ const HE_LABELS: Record<string, string> = {
   'Concerns': 'חששות',
   'Positive Signals': 'אותות חיוביים',
   'Stacked Gaps': 'פערים מצטברים',
+  'Unsupported Claims': 'טענות ללא ביסוס',
+  'Named in the analysis below, but not in your profile': 'מוזכרות בניתוח למטה, אך אינן מופיעות בפרופיל שלך',
   'Recommendation': 'המלצה',
   'Key Reasons': 'סיבות עיקריות',
   'Questions to Ask': 'שאלות לשאול',
@@ -127,6 +129,10 @@ interface MatchAnalysis {
   hardBlockers?: { filter: string; reason: string }[];
   mustClarify?: string[];
   stackedGaps?: string[];
+  // Technologies the rationale named as yours that your profile does not
+  // evidence. Server-side check (ClaimGrounding); advisory, never withholds
+  // the score - see docs/scoring-and-search.md.
+  unsupportedClaims?: { field: string; technology: string; text: string }[];
 }
 
 interface AnalysisCardProps {
@@ -276,6 +282,25 @@ export default function AnalysisCard({ matchAnalysisJson, headerAction, lang = '
                   <span className={SUBLABEL}>{t('Stacked Gaps', lang)} ({a.stackedGaps.length})</span>
                   <ul dir="auto" className="list-disc pl-5 m-0 marker:text-[var(--ed-accent)]">
                     {a.stackedGaps.map((item, i) => <li key={i} className="text-[16px] mb-[0.3rem] text-[var(--ed-ink)] leading-[1.6]"><BidiText text={item} /></li>)}
+                  </ul>
+                </div>
+              )}
+
+              {/* Unsupported claims - the rationale named a technology the
+                  profile doesn't evidence. Shown rather than stripped: the
+                  sentence stays readable and the reader learns not to trust
+                  that half of it. --ed-no because it is a correctness warning,
+                  not a score. */}
+              {a.unsupportedClaims && a.unsupportedClaims.length > 0 && (
+                <div className="mt-3 p-[0.9rem_1.1rem] rounded-xl border border-[var(--ed-no)]">
+                  <span className={SUBLABEL}>{t('Unsupported Claims', lang)} ({new Set(a.unsupportedClaims.map(c => c.technology)).size})</span>
+                  <p className="text-[13px] text-[var(--ed-ink-faint)] m-0 mb-[0.5rem] leading-[1.6]">
+                    {t('Named in the analysis below, but not in your profile', lang)}
+                  </p>
+                  <ul dir="auto" className="list-disc pl-5 m-0 marker:text-[var(--ed-no)]">
+                    {[...new Set(a.unsupportedClaims.map(c => c.technology))].map((tech, i) => (
+                      <li key={i} className="text-[16px] mb-[0.3rem] text-[var(--ed-ink)] leading-[1.6]"><BidiText text={tech} /></li>
+                    ))}
                   </ul>
                 </div>
               )}

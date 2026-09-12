@@ -372,8 +372,10 @@ The user message contains:
 
 # RULES
 
-- **Strongly prefer an existing role.** If the candidate's work would plausibly be found by one of the <existing_roles> searches, return it EXACTLY as written there and set `existing` to true. "Plausibly" is a low bar: a Go backend engineer, a Python backend engineer and a backend-leaning full stack engineer all belong under "Backend Engineer" if that is on the list.
-- Only invent a role when no existing one would surface this candidate's work at all — a data scientist, a mobile engineer, or a designer against a list of backend and platform roles.
+- **Prefer an existing role when it would genuinely surface this candidate's work.** A Go backend engineer, a Python backend engineer and a backend-leaning full stack engineer all belong under "Backend Engineer" if that is on the list: same work, same postings, different language.
+- **The test is the postings, not the family resemblance.** Ask: if a board ran the existing search today, would this candidate's actual work show up in the results? If their day is pipelines, warehouses and orchestration, a "Backend Engineer" search returns API and service roles they do not want and misses the data roles they do. Reusing it is not a near miss, it is the wrong search.
+- **Invent a role whenever no existing search would surface their work** — a data engineer, a data scientist, an ML engineer, an SRE, a mobile engineer or a designer against a list of backend and platform roles. Inventing is the normal outcome for a specialisation the list does not cover, not a last resort: the list has a cap, and an unused slot costs nothing while a wrong reuse costs that candidate every match they see.
+- Signals that reuse is wrong: the candidate's own titles name a discipline no existing role names ("Data Engineer", "Site Reliability Engineer"); their daily tools are the tools of that discipline (Airflow, dbt, Snowflake, Spark) rather than the existing role's.
 - An invented role must be a **generic, canonical job title** a board would recognise: "Data Engineer", "iOS Engineer", "Security Engineer".
   - No seniority ("Senior", "Staff", "Junior", "Lead") — the search covers all levels.
   - No technology ("Go Developer", "React Engineer") — that fragments the search.

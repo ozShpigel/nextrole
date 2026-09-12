@@ -7,6 +7,11 @@ interface ApiError extends Error {
   data?: Record<string, unknown>;
 }
 
+// The uid cookie identifies the user (see docs/multi-user.md). Both the Vite
+// dev proxy and the deployed nginx serve the client and both services from one
+// origin, where the browser sends cookies anyway; `credentials: 'include'` is
+// set explicitly so a cross-origin deploy (VITE_API_URL / VITE_SCRAPER_URL
+// pointing elsewhere) keeps working rather than silently losing identity.
 const API_BASE      = (import.meta.env.VITE_API_URL     || '').replace(/\/$/, '');
 const SCRAPER_BASE  = (import.meta.env.VITE_SCRAPER_URL || '').replace(/\/$/, '');
 
@@ -23,6 +28,7 @@ export async function api(path: string, options: ApiOptions = {}) {
   const { headers, ...fetchOptions } = options;
   const url = API_BASE ? `${API_BASE}/api${path}` : `/api${path}`;
   const res = await fetch(url, {
+    credentials: 'include',
     headers: { 'Content-Type': 'application/json', ...headers },
     ...fetchOptions,
   });
@@ -42,6 +48,7 @@ export async function matchApi(path: string, options: ApiOptions = {}) {
   // boundary) — forcing application/json would break the request.
   const isForm = fetchOptions.body instanceof FormData;
   const res = await fetch(url, {
+    credentials: 'include',
     headers: isForm ? { ...headers } : { 'Content-Type': 'application/json', ...headers },
     ...fetchOptions,
   });
@@ -61,6 +68,7 @@ export async function scraperApi(path: string, options: ApiOptions = {}) {
   const { headers, ...fetchOptions } = options;
   const url = SCRAPER_BASE ? `${SCRAPER_BASE}/api${path}` : `/api${path}`;
   const res = await fetch(url, {
+    credentials: 'include',
     headers: { 'Content-Type': 'application/json', ...headers },
     ...fetchOptions,
   });
@@ -79,6 +87,7 @@ export async function discoveryApi(path: string, options: ApiOptions = {}) {
   const { headers, ...fetchOptions } = options;
   const url = SCRAPER_BASE ? `${SCRAPER_BASE}/api/discovery${path}` : `/api/discovery${path}`;
   const res = await fetch(url, {
+    credentials: 'include',
     headers: { 'Content-Type': 'application/json', ...headers },
     ...fetchOptions,
   });

@@ -112,8 +112,46 @@ immediately, since retrying cannot fix it. Index creation next to it stays
 best-effort: missing indexes cost correctness guarantees and speed, not user
 isolation.
 
+## Issuing the cookie
+
+`UseUserIdentityCookie` sets `uid` on the first request from any visitor who
+does not already have one — unconditionally, not on CV upload. That is what
+removes the "has this visitor uploaded yet" branch from everything downstream:
+by the time any code cares who the user is, the answer exists.
+
+```
+Set-Cookie: uid=<guid>; expires=<+1 year>; path=/; secure; samesite=lax; httponly
+```
+
+No `Domain`, so the cookie is host-only and scoped to the site the browser
+actually asked for. There is no login, no recovery, and the id is never shown
+to the user or readable from JS.
+
+Minting an id still creates nothing. A bot or a bounce takes a cookie and
+leaves no rows behind; the first document for a user is the résumé file written
+by their CV upload.
+
+**The API is the only issuer.** The scraper reads the same cookie — both sit
+behind the client's nginx on one origin, so the browser sends it to both — but
+never sets one. Two services minting concurrently on a first page load would
+race, and the loser's id, possibly the one a CV had just been uploaded under,
+would be overwritten in the browser.
+
+In `Fixed` mode no cookie is issued at all: identity comes from configuration
+and there is nothing to persist in a browser.
+
+### Origins
+
+Client, API and scraper are same-origin in both environments — the Vite dev
+proxy (`client/vite.config.js`) in development, the client's nginx
+(`client/nginx.conf`) in production — so the cookie flows without CORS being
+involved at all. The client still sends `credentials: 'include'` and both
+services still enable CORS credentials when their allowed origins are listed
+explicitly, so that pointing `VITE_API_URL` / `VITE_SCRAPER_URL` at a different
+host keeps working instead of silently losing identity. A wildcard `*` origin
+cannot carry credentials — that is a CORS rule, not a choice.
+
 ## Deferred
 
-Real authentication, per-user Gmail OAuth, and issuing the `uid` cookie
-itself — until that lands, a Cookie-mode instance mints a new id per request,
-so every request looks like a brand-new user.
+Real authentication and per-user Gmail OAuth. Cookie issuance is in place; the
+daily ingest is still profile-driven (see Step 4).

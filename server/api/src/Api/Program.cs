@@ -2,6 +2,7 @@ using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.RateLimiting;
 using System.Text.Json.Serialization;
 using ApplicationTracker.Api.Endpoints;
+using ApplicationTracker.Api.Identity;
 using ApplicationTracker.Api.Extensions;
 using ApplicationTracker.Core.Models;
 using ApplicationTracker.Infrastructure.Pdf;
@@ -53,9 +54,14 @@ builder.Services.AddCors(options =>
     options.AddDefaultPolicy(policy =>
     {
         if (corsOrigins.Length == 1 && corsOrigins[0] == "*")
+            // A wildcard origin and credentials are mutually exclusive per the
+            // CORS spec, so a "*" deploy cannot carry the uid cookie. Both the
+            // dev proxy and the deployed nginx put the client and the API on one
+            // origin, where CORS does not apply at all -- list real origins here
+            // only if you genuinely serve them cross-origin.
             policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader();
         else if (corsOrigins.Length > 0)
-            policy.WithOrigins(corsOrigins).AllowAnyMethod().AllowAnyHeader();
+            policy.WithOrigins(corsOrigins).AllowAnyMethod().AllowAnyHeader().AllowCredentials();
     });
 });
 
@@ -348,6 +354,8 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
     app.MapScalarApiReference();
 }
+
+app.UseUserIdentityCookie();
 
 app.MapApplicationEndpoints();
 app.MapInterviewEndpoints();

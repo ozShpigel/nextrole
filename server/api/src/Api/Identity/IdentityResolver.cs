@@ -39,20 +39,28 @@ public sealed class IdentityResolver
     public Guid LegacyOwnerUserId =>
         _options.Mode == IdentityMode.Fixed ? _fixedUserId : UserIds.OrphanedLegacyData;
 
+    // Lets the cookie middleware tell "this visitor already has an id" from
+    // "we just minted one", which is the difference between leaving the
+    // response alone and attaching a Set-Cookie.
+    public bool TryReadCookie(HttpContext? http, out Guid userId)
+    {
+        var raw = http?.Request.Cookies[_options.CookieName];
+        if (Guid.TryParse(raw, out userId) && userId != Guid.Empty) return true;
+        userId = Guid.Empty;
+        return false;
+    }
 
     public Guid Resolve(HttpContext? http)
     {
         if (_options.Mode == IdentityMode.Fixed) return _fixedUserId;
 
-        var raw = http?.Request.Cookies[_options.CookieName];
-        if (Guid.TryParse(raw, out var fromCookie) && fromCookie != Guid.Empty)
-            return fromCookie;
+        if (TryReadCookie(http, out var fromCookie)) return fromCookie;
 
         // No usable cookie: this visitor is new to us, so they get a fresh id.
         // Minting it does NOT create any document — a bot or a bounce leaves
         // nothing behind; the first row appears only when a CV is uploaded.
-        // Issuing the cookie that makes this id stick beyond the current
-        // request is the next step's job.
+        // UserIdentityCookie attaches the Set-Cookie that makes this id stick
+        // beyond the current request.
         if (http is null) return Guid.NewGuid();
 
         if (http.Items.TryGetValue(HttpContextItemKey, out var parked) && parked is Guid existing)

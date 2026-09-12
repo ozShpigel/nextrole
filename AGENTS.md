@@ -1,6 +1,6 @@
 # NextRole — Agent Guide
 
-NextRole is a single-user job application platform that automates the job hunt end-to-end: it discovers listings from LinkedIn/Indeed, scores every one against the user's profile with AI at ingest time, monitors Gmail for application updates, and tracks everything — discovery through interviews — in one dashboard. See `project-scope.md` and `implementation-plan.md` for full detail.
+NextRole is a multi-user job application platform that automates the job hunt end-to-end: a daily run discovers listings into one shared job pool and reads what each posting asks for once, each user's own scoring happens on demand when they open Matches, Gmail is monitored for application updates, and everything — discovery through interviews — is tracked in one dashboard. See `project-scope.md` and `implementation-plan.md` for full detail.
 
 ## Stack & structure
 
@@ -8,7 +8,7 @@ NextRole is a single-user job application platform that automates the job hunt e
 |---|---|
 | `/client` | React + Vite + shadcn/ui + Tailwind v4 (TypeScript, Bun) |
 | `/server/api` | ASP.NET Core (C#) — **all Claude/Anthropic calls live here** |
-| `/server/scraper` | Python FastAPI — scraping, ingest-time AI scoring |
+| `/server/scraper` | Python FastAPI — scraping, dedupe, per-job fact extraction. Never scores, never reads a profile |
 | `/server/mailbot` | .NET console app — one-shot Gmail sync (cron), not a service |
 | `/server/api/src/DbCopy` | CLI: copy a database (documents + index definitions) to a scratch name, for rehearsing a migration against real data |
 
@@ -70,7 +70,9 @@ carries the visual weight; typography stays quiet.
 
 | Area | Doc |
 |---|---|
-| Scoring pipeline, ingest-time batched scoring, title triage, company enrichment, on-demand AI | `docs/scoring-and-search.md` |
+| Scoring pipeline, title triage, company enrichment, on-demand AI (superseded in part by the shared pool) | `docs/scoring-and-search.md` |
+| Shared job pool, dedupe, fact extraction, role growth, measured size | `docs/job-pool.md` |
+| Multi-user: identity modes, userId scoping, per-user scoring and quotas | `docs/multi-user.md` |
 | Editorial Broadsheet theme (tokens, page pattern, portal caveat, status colors) | `docs/design-system.md` |
 | Tracker list projection + Applications tab buckets | `docs/tracker.md` |
 | Generate Pack — AI-tailored résumé PDF per application | `docs/resume-pack.md` |
@@ -93,5 +95,5 @@ carries the visual weight; typography stays quiet.
 ## Security
 
 - CORS defaults to restrictive (empty) — set `CorsOrigins` env var explicitly
-- Rate-limit buckets (`Program.cs`): `match` (10/min — manual "Score a Job" page, normalize, interview-prep cues) and `discovery` (20/min — the batched ingest-time scoring endpoint `/api/match/discovery-score-batch`, kept separate so a big discovery run never starves the manual page). 50K char max on job descriptions.
+- Rate-limit buckets (`Program.cs`): `match` (10/min — manual "Score a Job" page, normalize, interview-prep cues) and `discovery` (20/min — the batch endpoints a run or a scan drives, including `/api/match/pool-scan` and the legacy `/api/match/discovery-score-batch`, kept separate so a big scan never starves the manual page). 50K char max on job descriptions.
 - Nginx adds `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, and `Content-Security-Policy` headers

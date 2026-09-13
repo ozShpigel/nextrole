@@ -1,6 +1,7 @@
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.RateLimiting;
 using System.Text.Json.Serialization;
+using ApplicationTracker.Api;
 using ApplicationTracker.Api.Endpoints;
 using ApplicationTracker.Api.Identity;
 using ApplicationTracker.Api.Extensions;
@@ -113,6 +114,17 @@ builder.Services.AddRateLimiter(options =>
     // (result is cached on the application document, never re-called once it
     // succeeds) — same cost shape as insights/pack.
     options.AddFixedWindowLimiter("translate", cfg =>
+    {
+        cfg.PermitLimit = 10;
+        cfg.Window = TimeSpan.FromMinutes(1);
+        cfg.QueueLimit = 0;
+    });
+    // Company summary and why-work-here are per-application "generate" clicks,
+    // the same cost shape as insights/pack -- and the only two Claude-calling
+    // endpoints that shipped with no bucket at all. Note this covers the HTTP
+    // path only: EnrichOnInterviewingAsync calls the same Claude methods
+    // in-process, where no limiter applies.
+    options.AddFixedWindowLimiter("enrich", cfg =>
     {
         cfg.PermitLimit = 10;
         cfg.Window = TimeSpan.FromMinutes(1);
@@ -314,7 +326,13 @@ if (demoMode)
             using var reader = new StreamReader(ctx.Request.Body, System.Text.Encoding.UTF8, leaveOpen: true);
             var body = await reader.ReadToEndAsync();
             ctx.Request.Body.Position = 0;
-            isAllowedWithdraw = body.Contains("\"Withdrawn\"", StringComparison.OrdinalIgnoreCase);
+            // Reads the actual newStatus field -- NOT a substring search over the
+            // body, which is what used to be here: Note is free text, so
+            // {"newStatus":"OfferReceived","note":"Withdrawn"} got through and
+            // opened every transition, including the ones that fire Claude.
+            // The decision lives in DemoWriteGate so DemoWriteGateTests can
+            // cover it without a host or a database.
+            isAllowedWithdraw = DemoWriteGate.IsWithdrawnTransition(body);
         }
         // Matches page "Add": allow POST /api/applications only for the
         // scraper's own save-from-discovery call, identified by the

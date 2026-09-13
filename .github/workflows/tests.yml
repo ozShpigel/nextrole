@@ -1,0 +1,90 @@
+name: Tests
+
+# The five other workflows in this directory build and deploy. None of them run
+# a test, so until this file existed nothing checked any suite in the repo
+# before it shipped -- including ArchitectureTests, which the README calls the
+# multi-user guarantee ("the guarantee is this suite, not a convention"). A
+# regression in it deployed silently. The client suite was found red on main
+# for exactly that reason.
+#
+# Deliberately NOT here: the Playwright suite in /e2e. It needs a live MongoDB
+# and a real Anthropic key, so every run costs money against a billed key, and
+# its global-setup DROPS two databases. It stays a local, deliberate command
+# (cd e2e && npx playwright test --reporter=line) until it has its own
+# throwaway Mongo service and a spend-capped key of its own.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# A second push to the same branch makes the first run's answer irrelevant.
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  api:
+    name: API — architecture tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Restore
+        run: dotnet restore server/api/tests/ArchitectureTests
+      # Release mirrors the documented local command: a dev API server holding
+      # the Debug output lock is why AGENTS.md specifies -c Release.
+      - name: Test
+        run: dotnet test server/api/tests/ArchitectureTests -c Release --no-restore --nologo
+
+  scraper:
+    name: Scraper — pytest
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server/scraper
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: server/scraper/requirements-dev.txt
+      - name: Install
+        run: pip install -r requirements-dev.txt
+      # Includes test_identity_forwarding.py, which walks the AST and fails on
+      # any scraper->API call that omits its user_id. That check cannot live in
+      # UserScopedCollection -- it is the one guarding the HTTP boundary.
+      - name: Test
+        run: python -m pytest -q
+
+  client:
+    name: Client — typecheck + vitest
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: client
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      # Bun, not npm: AGENTS.md mandates it and bun.lock is the committed
+      # resolution. (The production image in client/Dockerfile still runs
+      # `npm install` against package-lock.json -- a known divergence, tracked
+      # separately, deliberately not papered over here.)
+      - name: Install
+        run: bun install --frozen-lockfile
+      # `vite build` strips types without checking them, so nothing in this repo
+      # typechecked until this step existed. App code is clean; the errors this
+      # can still surface are in test files.
+      - name: Typecheck
+        run: bunx tsc --noEmit
+      - name: Test
+        run: bunx vitest run

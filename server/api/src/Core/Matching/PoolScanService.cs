@@ -34,6 +34,14 @@ public sealed class PoolScanService : IPoolScanService
     public const int MaxCandidatesPerScan = 50;
     // Matches the Evaluator's batch size elsewhere in the codebase.
     private const int ScoreBatchSize = 5;
+    // Batches run concurrently. One batch is an Analyst call and an Evaluator
+    // call back to back, measured at ~80s over 51 real batches — so ten of them
+    // in sequence is thirteen minutes, which no synchronous HTTP request
+    // survives (nginx's default proxy_read_timeout is 60s, and the browser gave
+    // up long before the work did). Five at a time puts a full scan at roughly
+    // two rounds. The scraper's own ingest path has had the same guardrail
+    // since it was batching: MAX_CONCURRENT_SCORE_BATCHES.
+    private const int MaxConcurrentBatches = 5;
 
     private static readonly JsonSerializerOptions CamelCase = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
@@ -92,12 +100,24 @@ public sealed class PoolScanService : IPoolScanService
             "Pool scan for {UserId}: {Pool} active, {New} new candidate(s) to score, {Done} already scored, more={More}",
             userId, poolSize, toScore.Count, alreadyScored.Count, more);
 
-        var scored = 0;
-        foreach (var batch in Chunk(toScore, ScoreBatchSize))
+        var batches = Chunk(toScore, ScoreBatchSize).ToList();
+        var perBatch = new int[batches.Count];
+        using var gate = new SemaphoreSlim(MaxConcurrentBatches);
+        await Task.WhenAll(batches.Select(async (batch, i) =>
         {
-            ct.ThrowIfCancellationRequested();
-            scored += await ScoreBatchAsync(userId, batch, ct);
-        }
+            await gate.WaitAsync(ct);
+            try
+            {
+                // Each batch upserts its own rows as it finishes, so a scan cut
+                // short still keeps what it paid for.
+                perBatch[i] = await ScoreBatchAsync(userId, batch, ct);
+            }
+            finally
+            {
+                gate.Release();
+            }
+        }));
+        var scored = perBatch.Sum();
 
         return new PoolScanResult
         {

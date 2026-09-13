@@ -59,8 +59,9 @@ A few more things NextRole does:
 - **Automated job discovery**: A daily cron scrapes LinkedIn for a role list held in a config file — not anyone's saved search — into one shared pool. Listings are deduplicated by URL (or company + title + date), and one absent from several consecutive runs is marked inactive, never deleted. Each posting's stated requirements are read once, user-independently, and reused for every user.
 - **Manual scoring**: Paste any single job description and get a weighted compatibility score with a sub-component breakdown and an honest verdict. [Details](docs/scoring-and-search.md)
 - **Email sync**: The mailbot detects interview invites, rejections, and offers in Gmail and updates the tracker automatically — idempotent, and it never moves an application backwards. [Details](#email-sync-mailbot)
-- **Résumé upload**: Drop in a PDF and your profile is normalized automatically — the PDF goes to Claude natively, no extraction library.
+- **Résumé upload**: Drop in a PDF and your profile is normalized automatically — the PDF goes to Claude natively, no extraction library. On a first upload the wait is the product: three raymarched spheres fuse into one as each real step completes — the parse returning, the profile saving, the first scores landing — and you are handed to Matches with jobs already on screen rather than an empty tab. The animation has no timer in it; nothing can finish before the work does.
 - **Generate Pack**: A one-click, AI-tailored résumé PDF per application — reorders and re-emphasizes your real profile toward that job's description, never invents facts, and renders on demand (nothing stored as a file). [Details](docs/resume-pack.md)
+- **Claims checked against your profile**: the Evaluator used to read a posting's requirement list back as a description of you — "AWS/EKS/Kubernetes — perfect stack match" against a CV containing none of them. Every technology named as yours in a score is now compared to your actual profile server-side, and an unsupported one is flagged on the card rather than quietly believed. The missing-requirements count that caps the technical score is computed the same way, instead of being taken from the model's own account of itself. [Details](docs/scoring-and-search.md)
 - **Prompt-injection defense**: Untrusted external data — job descriptions, scraped news, raw emails — is always XML-wrapped in the user message and kept out of the system prompt.
 
 ---
@@ -109,7 +110,9 @@ Keeps your tracker up to date without you lifting a finger. A one-shot cron proc
 
 ## Public instance
 
-[**nextrole.cloud**](https://nextrole.cloud) runs the same image as the private instance against its own database, with `Identity:Mode=Cookie`: your first request gets a `uid` cookie (HttpOnly, Secure, SameSite=Lax, one year) and your first document appears when you upload a CV — not before. There is no password, no account recovery, and no link to share; lose the cookie and you're a new user. Everything you create — profile, scores, packs, the board — is filtered by that id, and the job pool underneath is the one thing everybody shares. Quotas keep the AI spend bounded (3 résumé packs per user per day). [Details](docs/multi-user.md)
+[**nextrole.cloud**](https://nextrole.cloud) runs the same image as the private instance against its own database, with `Identity:Mode=Cookie`: your first request gets a `uid` cookie (HttpOnly, Secure, SameSite=Lax, one year) and your first document appears when you upload a CV — not before. There is no password, no account recovery, and no link to share; lose the cookie and you're a new user. Everything you create — profile, scores, packs, the board — is filtered by that id, and the job pool underneath is the one thing everybody shares. [Details](docs/multi-user.md)
+
+**Know what is and isn't capped before you expose an instance.** Résumé packs are limited to 3 per user per day. Scoring is not: a scan is bounded at 50 jobs, but nothing limits how many scans one visitor runs, and a cookie costs nothing to replace. Measured over 199 real scored jobs, one job is about $0.011 and a full scan about $0.57 — so **a spend limit on your Anthropic key is the control that actually bounds the bill**. Give a public instance its own key in its own workspace: scoring is browser-driven and carries no `X-Source` header, so it spends the default key, and exhausting that one stops the daily ingest and the mailbot with it.
 
 `DemoMode=true` is the other way to expose an instance publicly: seeded fictional data, live AI scoring and reads, and every write blocked, with the controls that would write disabled — reseeded from `dotnet run --project server/api/src/Seeder`, safe to re-run any time. Use it when you want a public instance nobody can change. [Details](docs/demo-mode.md) · [Hosting your own](docs/hosting-a-public-demo.md)
 
@@ -140,6 +143,18 @@ Running services individually ([.NET 10 SDK](https://dotnet.microsoft.com/downlo
 cd client && bunx vitest run
 ```
 
+**Architecture** — xUnit. Asserts that per-user scoping cannot be bypassed: repositories never see a raw Mongo collection, and there is no member anywhere that hands one back. The multi-user guarantee is this suite, not a convention:
+
+```bash
+dotnet test server/api/tests/ArchitectureTests -c Release
+```
+
+**Scraper** — pytest, including a check that every call the scraper makes into the API says which user it is for. A call that forgets does not fail; the API mints a fresh user and files the write where nobody will find it:
+
+```bash
+cd server/scraper && ./.venv/Scripts/python.exe -m pytest
+```
+
 **End-to-end** — Playwright (in `/e2e`):
 
 ```bash
@@ -159,7 +174,8 @@ Each service has its own GitHub Actions workflow with **path-based triggers** �
 | `api.yml` | `server/api/**` | Docker image → `ghcr.io` | SSH → Hetzner VPS |
 | `scraper.yml` | `server/scraper/**` | Docker image → `ghcr.io` | SSH → Hetzner VPS |
 | `mailbot.yml` | `server/mailbot/**` | Docker image → `ghcr.io` | SSH → Hetzner VPS (cron profile) |
-| `frontend.yml` | `client/**` | Docker image → `ghcr.io` | SSH → Hetzner VPS |
+| `frontend.yml` | `client/**` | Docker image → `ghcr.io` | SSH → Hetzner VPS (public) |
+| `frontend-private.yml` | `client/**` | Docker image → `ghcr.io` | SSH → Hetzner VPS (Basic-Auth build) |
 
 Each pipeline logs into GHCR, builds the service's Dockerfile, tags `:latest`, then SSHes into the VPS and runs `docker compose pull` + `docker compose up -d --force-recreate` for that service. The public instance (`nextrole.cloud`), the Basic-Auth-gated private frontend, and the private API all run as separate Compose services on the same box, **differing only in environment variables** — identity mode included. Note that `Identity:FixedUserId` is set once per deployment and can't be changed afterwards without a second migration (`deploy/README.md`).
 

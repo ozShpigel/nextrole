@@ -17,7 +17,7 @@ interfaces:
 data_owned: []
 deps_internal: ["server/api (email parsing, tracker writes)"]
 deps_external: ["Gmail API (gmail.readonly)", "Google OAuth"]
-tests_hint: []
+tests_hint: ["server/mailbot/tests/MailbotTests/**"]
 runbook: "docs/mailbot.md"
 ---
 
@@ -61,6 +61,7 @@ No inbound interface. It is invoked, it runs, it exits.
 - **One reference date per run.** The whole run shares a fixed reference date so every email gets a byte-identical system prompt and the prompt cache actually hits.
 - **Matching is company + title.** Exact → substring → token overlap, falling back to the first company match with a logged warning. Company names are matched on `CoreCompany` — a trailing `" - <location>"` is stripped — so `--company "Applied Materials"` resolves the stored `"Applied Materials - Israel"`.
 - **Body extraction concatenates all text parts** (every `text/plain` plus HTML-stripped `text/html`, capped at 50K chars), because dates and interviewer names often live inside an ATS or calendar HTML card rather than the first part.
+- **A failed parse is not a quiet answer.** `HttpEmailParser` returns null only for a 204 ("not job-related"); every other outcome — a non-success status, an unreadable body, an unreachable API — throws `EmailParseException`, which `ProcessEmailsAsync` records in `result.Errors`. `Success` is then `Errors.Count == 0`, so the process exit code reflects it. All three used to collapse to null, and null means "skip": a parse endpoint failing for days produced runs logging `Success: true` with no errors, while the affected emails aged out of the lookback window and were lost for good.
 - **It skips cleanly with no credentials.** No `Gmail:CredentialsPath` → exit without error, so a deployment without Gmail configured is not a failing cron job.
 
 ## Where things live
@@ -169,7 +170,18 @@ One run is bounded by the number of tracked companies and the lookback window; t
 
 ## Testing
 
-No automated test project. Verification is manual and safe by construction:
+```bash
+dotnet test server/mailbot/tests/MailbotTests -c Release
+```
+
+`HttpEmailParserTests` pins the distinction this component got wrong for a
+long time: a 204 means "not job-related" and returns null, while any other
+failure throws `EmailParseException` so the per-email handler records it and the
+run's exit code stops lying. The tests live inside the project directory, so
+`Mailbot.csproj` excludes `tests/**` from its own compile glob — without that,
+the SDK sweeps the test sources into the executable and the Docker publish fails.
+
+Beyond the parser, verification is still manual and safe by construction:
 
 ```bash
 # Dry-ish run against a real non-demo tracker; reconcile-only, writes only on change

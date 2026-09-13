@@ -43,6 +43,22 @@ jobs:
       - name: Test
         run: dotnet test server/api/tests/ArchitectureTests -c Release --no-restore --nologo
 
+  mailbot:
+    name: Mailbot — parser tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Restore
+        run: dotnet restore server/mailbot/tests/MailbotTests
+      # Covers the distinction the mailbot got wrong for a long time: "this
+      # email is not job-related" (204) versus "the API could not be asked"
+      # (anything else). Collapsing them lost real interview mail silently.
+      - name: Test
+        run: dotnet test server/mailbot/tests/MailbotTests -c Release --no-restore --nologo
+
   scraper:
     name: Scraper — pytest
     runs-on: ubuntu-latest

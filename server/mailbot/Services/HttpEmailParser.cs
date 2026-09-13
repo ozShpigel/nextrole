@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Mailbot.Models;
@@ -21,12 +22,18 @@ public sealed class HttpEmailParser : IEmailParser
         _logger = logger;
     }
 
+    /// <summary>
+    /// Returns the parsed update, or null when the API says this email is not
+    /// job-related (204). Throws <see cref="EmailParseException"/> when it could
+    /// not answer — see that type for why the two must not share a return value.
+    /// </summary>
     public async Task<EmailUpdate?> ParseEmailAsync(
         EmailMessage email,
         List<string> knownCompanies,
         DateTime? referenceDateOverride = null,
         CancellationToken ct = default)
     {
+        HttpResponseMessage response;
         try
         {
             var request = new
@@ -38,28 +45,66 @@ public sealed class HttpEmailParser : IEmailParser
                 receivedAt = referenceDateOverride ?? email.ReceivedAt
             };
 
-            using var response = await _http.PostAsJsonAsync("/api/emails/parse", request, ct);
+            response = await _http.PostAsJsonAsync("/api/emails/parse", request, ct);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            // A cancelled run is not a parse failure. Let it through untouched so
+            // it is never recorded as an error against this email.
+            throw;
+        }
+        catch (Exception ex)
+        {
+            throw new EmailParseException(
+                $"Could not reach the parse API for '{email.Subject}': {ex.Message}", ex);
+        }
 
-            if (response.StatusCode == System.Net.HttpStatusCode.NoContent)
+        using (response)
+        {
+            if (response.StatusCode == HttpStatusCode.NoContent)
             {
+                // The one legitimate null: the model read it and it is not about a
+                // job application.
                 _logger.LogInformation("Email not relevant: {Subject}", email.Subject);
                 return null;
             }
 
             if (!response.IsSuccessStatusCode)
             {
-                _logger.LogWarning("Email parse API returned {Status} for: {Subject}", response.StatusCode, email.Subject);
-                return null;
+                throw new EmailParseException(
+                    $"Parse API returned {(int)response.StatusCode} ({response.StatusCode}) "
+                    + $"for '{email.Subject}'.");
             }
 
-            var update = await response.Content.ReadFromJsonAsync<EmailUpdate>(JsonOptions, ct);
-            _logger.LogInformation("Parsed email from {Company}: {Type}", update?.Company, update?.UpdateType);
+            EmailUpdate? update;
+            try
+            {
+                update = await response.Content.ReadFromJsonAsync<EmailUpdate>(JsonOptions, ct);
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                throw new EmailParseException(
+                    $"Parse API returned {(int)response.StatusCode} for '{email.Subject}' "
+                    + $"but the body could not be read: {ex.Message}", ex);
+            }
+
+            if (update is null)
+            {
+                // "Not relevant" is 204 by contract (EmailParseEndpoints returns
+                // NoContent for it), so a success status carrying no body is a
+                // fault rather than an answer -- and silently treating it as "not
+                // relevant" is exactly the conflation this class no longer makes.
+                throw new EmailParseException(
+                    $"Parse API returned {(int)response.StatusCode} with no body for "
+                    + $"'{email.Subject}'.");
+            }
+
+            _logger.LogInformation("Parsed email from {Company}: {Type}", update.Company, update.UpdateType);
             return update;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error parsing email via API: {Subject}", email.Subject);
-            return null;
         }
     }
 }

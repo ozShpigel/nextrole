@@ -762,6 +762,15 @@ export default function SearchPage() {
               <p className={EMPTY_STATE}>
                 Couldn’t score the job pool: {(poolScan.error as Error).message}
               </p>
+            ) : scan?.scanInProgress ? (
+              /* A scan for this user is already running (another tab, or a
+                 refresh part-way through one). Without this branch the zero
+                 counts fall through to "nothing lines up with your profile",
+                 which tells someone their profile matches nothing while it is
+                 actively being scored. */
+              <p className={EMPTY_STATE}>
+                Already scoring the job pool in another tab — matches will appear here as they land.
+              </p>
             ) : scan && scan.alreadyScored + scan.scored === 0 ? (
               <p className={EMPTY_STATE}>
                 No matches yet — nothing in the pool of {scan.poolSize} open role{scan.poolSize === 1 ? '' : 's'} lines up with your profile.

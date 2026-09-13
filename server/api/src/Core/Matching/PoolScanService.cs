@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Text.Json;
 using ApplicationTracker.Core.Models;
 using ApplicationTracker.Core.Profile;
@@ -23,7 +24,12 @@ public interface IPoolScanService
 /// "Only what is new" is decided by the absence of a jobScores row rather than
 /// by a last-visited timestamp. It is the same answer for the common case and
 /// a better one for the rest: it also picks up a job that started matching
-/// after a profile edit, and it cannot double-charge if two tabs scan at once.
+/// after a profile edit, and a scan cut short still keeps every row it paid for.
+///
+/// On its own that does NOT stop two overlapping scans paying twice for the
+/// same job: the exclusion set is read before any batch has written, so both
+/// read it identically and take the same candidates. The per-user gate at the
+/// top of ScanAsync is what prevents that.
 /// </remarks>
 public sealed class PoolScanService : IPoolScanService
 {
@@ -44,6 +50,10 @@ public sealed class PoolScanService : IPoolScanService
     private const int MaxConcurrentBatches = 5;
 
     private static readonly JsonSerializerOptions CamelCase = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+
+    // One scan per user at a time -- see ScanAsync. Static because the service
+    // is registered Scoped, so a per-instance field would gate nothing.
+    private static readonly ConcurrentDictionary<Guid, SemaphoreSlim> ScanGates = new();
 
     private readonly IProfileProvider _profiles;
     private readonly IPoolJobRepository _pool;
@@ -66,6 +76,47 @@ public sealed class PoolScanService : IPoolScanService
     }
 
     public async Task<PoolScanResult> ScanAsync(Guid userId, CancellationToken ct = default)
+    {
+        // The exclusion set below is read once, before any batch has written its
+        // rows, so two scans for one user that overlap -- two tabs, or a refresh
+        // part-way through a scan that runs for minutes -- read an identical set,
+        // take the same candidates, and pay Claude twice for them. The stored
+        // rows still come out right (JobScore's _id is deterministic, so the
+        // second write overwrites the first); the spend does not.
+        //
+        // WaitAsync(0) rather than queueing: a scan is minutes long, and holding
+        // the second request open behind it would hit nginx's proxy_read_timeout.
+        // The caller is told a scan is running and can read the rows it writes.
+        //
+        // Per-process, which matches the deployment (one API container per
+        // instance). A multi-instance deployment would need the claim to live in
+        // Mongo instead, the way UserQuotaRepository claims a pack allowance.
+        // Gates are kept once created rather than removed when idle: a
+        // SemaphoreSlim per user ever seen is small, and removing one safely
+        // would need a second lock to close the create/dispose race.
+        var gate = ScanGates.GetOrAdd(userId, _ => new SemaphoreSlim(1, 1));
+        if (!await gate.WaitAsync(0, ct))
+        {
+            _logger.LogInformation(
+                "Pool scan for {UserId}: one is already running, not starting a second", userId);
+            return new PoolScanResult
+            {
+                ScanInProgress = true,
+                PoolSize = await _pool.CountActiveAsync(ct),
+            };
+        }
+
+        try
+        {
+            return await ScanCoreAsync(userId, ct);
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
+    private async Task<PoolScanResult> ScanCoreAsync(Guid userId, CancellationToken ct)
     {
         var profileDoc = await _profiles.GetProfileDocumentAsync(userId, ct);
         var structured = profileDoc.Structured;
@@ -204,4 +255,8 @@ public sealed record PoolScanResult
     // off it without offering a no-op.
     public bool Capped { get; init; }
     public bool ProfileMissing { get; init; }
+    // A scan for this user was already running, so this request scored nothing
+    // rather than paying a second time for the same jobs. Not an error: the
+    // scan in flight is writing rows the caller can read.
+    public bool ScanInProgress { get; init; }
 }

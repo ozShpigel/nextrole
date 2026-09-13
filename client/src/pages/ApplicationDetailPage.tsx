@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { useApplicationDetail } from '../lib/queries';
+import { useApplicationDetail, useDemoMode, DEMO_DISABLED_TITLE } from '../lib/queries';
 import { useGeneratePack, useTranslateMatchAnalysis, useTranslateCompanySummary, useTranslateWhyWorkHere } from '../lib/mutations';
 import { StatusBadge } from '../components/Status';
 import CollapsibleSection from '../components/CollapsibleSection';
@@ -270,9 +270,28 @@ function useHebrewDisplay(
 ) {
   const [hebrew, setHebrew] = useState<string | null>(initialHebrew);
   const [translating, setTranslating] = useState(false);
+  // The english text a translate call has already been spent on. Set BEFORE
+  // the call and deliberately NOT cleared when it fails.
+  //
+  // Without it this effect retried itself forever on the failure path, with no
+  // user action and a billed Claude call each time round: `translating` is one
+  // of its own dependencies, so `.finally()` setting it back to false re-ran
+  // the effect, and on failure `hebrew` was still null, so the guard above
+  // passed again. Success terminated it (hebrew became truthy); failure did
+  // not. alert() being synchronous only paced the loop to one call per
+  // dismissed dialog -- across three independent fields, and on the read-only
+  // demo a 403 alone was enough to drive it.
+  //
+  // This is the codebase's known mutation-in-effect bug with a different
+  // trigger: not StrictMode, but a guard that resets itself on the error path.
+  // Keyed on the source text so regenerated English may legitimately be
+  // translated again.
+  const attemptedFor = useRef<string | null>(null);
 
   useEffect(() => {
     if (lang !== 'he' || !english || hebrew || translating) return;
+    if (attemptedFor.current === english) return;
+    attemptedFor.current = english;
     setTranslating(true);
     translate()
       .then(setHebrew)
@@ -285,7 +304,12 @@ function useHebrewDisplay(
     display: lang === 'he' && hebrew ? hebrew : english,
     hasHebrew: !!hebrew,
     translating,
-    resetHebrew: () => setHebrew(null),
+    // Clears the attempt guard too, so this keeps meaning "forget the
+    // translation and allow another" rather than silently doing half of that.
+    resetHebrew: () => {
+      attemptedFor.current = null;
+      setHebrew(null);
+    },
   };
 }
 
@@ -301,6 +325,13 @@ function AnalysisSection(
   // Hebrew only actually applies once a translation exists — 'he' selected
   // with no cached translation yet (mid-request) still shows/labels English.
   const activeLang: 'en' | 'he' = lang === 'he' && hasHebrew ? 'he' : 'en';
+  // All three translate endpoints persist onto the Application, so all three
+  // 403 in demo (Program.cs's allowlist says so explicitly). Blocking the
+  // toggle that starts them beats letting the request fail and explaining it
+  // in an alert -- every sibling page disables rather than errors. A
+  // translation that already exists is a plain read, so it stays available.
+  const demoMode = useDemoMode();
+  const translateBlocked = demoMode && !hasHebrew;
 
   return (
     <AnalysisCard
@@ -317,7 +348,8 @@ function AnalysisSection(
           </button>
           <button
             type="button" role="tab" aria-selected={lang === 'he'}
-            disabled={translating}
+            disabled={translating || translateBlocked}
+            title={translateBlocked ? DEMO_DISABLED_TITLE : undefined}
             onClick={() => setLang('he')}
             className={lang === 'he' ? LANG_TAB_ACTIVE : LANG_TAB_INACTIVE}
           >

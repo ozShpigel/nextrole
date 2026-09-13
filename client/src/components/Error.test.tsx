@@ -1,7 +1,11 @@
+import type React from "react";
 import { render, screen } from "@testing-library/react";
 import { ErrorBoundary } from "./Error";
 
-function ThrowingComponent() {
+// Annotated because the body only throws: TypeScript infers `never`, and React
+// 19's JSX.ElementType rejects that as a component. A function that always
+// throws satisfies any declared return type, so this is a types-only change.
+function ThrowingComponent(): React.ReactElement {
   throw new Error("Test error");
 }
 

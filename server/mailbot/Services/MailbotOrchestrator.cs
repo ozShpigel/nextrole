@@ -135,7 +135,12 @@ public sealed class MailbotOrchestrator
                 emails, companies, activeApps, result, ct, referenceDateOverride: DateTime.UtcNow);
             result.EmailsParsed = parsed;
             result.ApplicationsUpdated = updated;
-            result.Success = true;
+            // Per-email failures are recorded in Errors by ProcessEmailsAsync, but
+            // Success used to be set true regardless -- so the process exited 0 and
+            // whatever runs this on a timer saw a clean run while real emails were
+            // being dropped. The exit code is the only signal a cron gets; it has
+            // to mean something.
+            result.Success = result.Errors.Count == 0;
 
             _logger.LogInformation(
                 "=== Sync Complete === Checked: {Checked}, Parsed: {Parsed}, Updated: {Updated}",
@@ -222,7 +227,12 @@ public sealed class MailbotOrchestrator
             var (parsed, updated) = await ProcessEmailsAsync(emails, companyNames, candidates, result, ct);
             result.EmailsParsed = parsed;
             result.ApplicationsUpdated = updated;
-            result.Success = true;
+            // Per-email failures are recorded in Errors by ProcessEmailsAsync, but
+            // Success used to be set true regardless -- so the process exited 0 and
+            // whatever runs this on a timer saw a clean run while real emails were
+            // being dropped. The exit code is the only signal a cron gets; it has
+            // to mean something.
+            result.Success = result.Errors.Count == 0;
 
             _logger.LogInformation(
                 "=== Re-sync complete === Company: {Company}, Emails: {Checked}, Parsed: {Parsed}, Updated: {Updated}",

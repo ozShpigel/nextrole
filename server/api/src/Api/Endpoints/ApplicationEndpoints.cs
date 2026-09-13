@@ -436,7 +436,8 @@ public static class ApplicationEndpoints
             return Results.Ok(new { company_summary = summary });
         })
         .WithName("GenerateCompanySummary")
-        .WithSummary("Generate AI company summary");
+        .WithSummary("Generate AI company summary")
+        .RequireRateLimiting("enrich");
 
         app.MapPost("/api/applications/{id:guid}/why-work-here", async (
             Guid id,
@@ -460,7 +461,8 @@ public static class ApplicationEndpoints
             return Results.Ok(new { why_work_here = answer });
         })
         .WithName("GenerateWhyWorkHere")
-        .WithSummary("Generate a personalized 'why work here' interview answer");
+        .WithSummary("Generate a personalized 'why work here' interview answer")
+        .RequireRateLimiting("enrich");
 
         app.MapPost("/api/applications/{id:guid}/translate-analysis", async (
             Guid id,

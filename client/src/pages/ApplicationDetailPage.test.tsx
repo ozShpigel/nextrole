@@ -1,4 +1,5 @@
 import { screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { renderWithRouter } from '../test/render';
 import { api, matchApi } from '../lib/api';
 import ApplicationDetail from './ApplicationDetailPage';
@@ -21,7 +22,9 @@ vi.mock('../components/CollapsibleSection', () => ({
   default: ({ title, children }: any) => <div data-testid="collapsible">{title}{children}</div>,
 }));
 vi.mock('../components/AnalysisCard', () => ({
-  default: () => <div data-testid="analysis-card" />,
+  // headerAction carries the EN/HE language toggle. The stub used to drop it,
+  // which made the translate path unreachable from this file.
+  default: ({ headerAction }: any) => <div data-testid="analysis-card">{headerAction}</div>,
   edVerdictColor: () => 'var(--ed-ink-faint)',
 }));
 vi.mock('../components/Notes', () => ({
@@ -255,6 +258,65 @@ describe('ApplicationDetailPage', () => {
 
     await waitFor(() => {
       expect(screen.getByText('Company raises $50M Series B')).toBeInTheDocument();
+    });
+  });
+
+  describe('Hebrew translation', () => {
+    const interviewing = {
+      ...mockDetailData,
+      application: {
+        ...mockApplication,
+        status: 'PhoneScreen',
+        matchAnalysis: '{"overallScore":85}',
+        matchAnalysisHebrew: null,
+      },
+    };
+
+    function translateCalls() {
+      return vi.mocked(api).mock.calls.filter(([path]) => String(path).includes('translate-analysis'));
+    }
+
+    it('spends exactly one translate call when the request fails', async () => {
+      // The failure path used to re-arm itself: `translating` is one of the
+      // effect's own dependencies, so .finally() setting it false re-ran the
+      // effect, and with `hebrew` still null the guard passed again -- a billed
+      // Claude call per dismissed alert, forever, with no user action.
+      const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {});
+      vi.mocked(api).mockImplementation((path: string) =>
+        String(path).includes('translate-analysis')
+          ? Promise.reject(new Error('boom'))
+          : Promise.resolve(interviewing),
+      );
+
+      renderWithRouter(<ApplicationDetail />);
+      await screen.findByTestId('analysis-card');
+
+      await userEvent.click(screen.getByRole('tab', { name: /translate to hebrew/i }));
+      await waitFor(() => expect(alertSpy).toHaveBeenCalled());
+
+      // Let any re-armed attempt land before counting.
+      await new Promise((r) => setTimeout(r, 50));
+      expect(translateCalls()).toHaveLength(1);
+
+      alertSpy.mockRestore();
+    });
+
+    it('does not offer the toggle on the read-only demo', async () => {
+      // All three translate endpoints persist onto the Application, so all
+      // three 403 in demo. Disable rather than fail and explain.
+      vi.mocked(api).mockImplementation((path: string) =>
+        String(path).includes('/config')
+          ? Promise.resolve({ demoMode: true })
+          : Promise.resolve(interviewing),
+      );
+
+      renderWithRouter(<ApplicationDetail />);
+      await screen.findByTestId('analysis-card');
+
+      const tab = await screen.findByRole('tab', { name: /translate to hebrew/i });
+      await waitFor(() => expect(tab).toBeDisabled());
+      expect(tab).toHaveAttribute('title', 'Disabled in the read-only demo');
+      expect(translateCalls()).toHaveLength(0);
     });
   });
 });

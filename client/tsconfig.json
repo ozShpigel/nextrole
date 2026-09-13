@@ -11,6 +11,10 @@
     "moduleDetection": "force",
     "noEmit": true,
     "jsx": "react-jsx",
+    // vite.config.js sets `globals: true`, so describe/it/expect/vi are ambient
+    // in tests. Without declaring them here, `tsc --noEmit` reported 743 phantom
+    // errors and nobody ran it -- the whole suite typechecked as broken.
+    "types": ["vitest/globals", "node", "@testing-library/jest-dom"],
     "strict": true,
     "noUnusedLocals": false,
     "noUnusedParameters": false,

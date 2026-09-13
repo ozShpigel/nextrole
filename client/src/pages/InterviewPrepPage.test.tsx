@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderWithRouter } from '../test/render';
 import { matchApi, api } from '../lib/api';
@@ -8,6 +8,15 @@ vi.mock('../lib/api', () => ({
   matchApi: vi.fn(),
   api: vi.fn(),
 }));
+
+/* QaCardGrid rows are COLLAPSED by default since the 2026-09-06 rewrite
+   ("Rewrite Prep question view from carousel to a searchable list"): the
+   question is always rendered, the answer and its Edit action only once the row
+   is expanded. These tests predated that and asserted the old always-open
+   carousel, so they had been failing on main for eight days -- nothing runs
+   this suite. Expand by the row's accessible name, never by walking the DOM:
+   markup gets restyled, the name does not. */
+const FIRST_QUESTION = /where do you see yourself in 5 years\?/i;
 
 const mockPrepResponse = {
   qa_rubric: [
@@ -32,8 +41,11 @@ describe('InterviewPrepPage', () => {
       expect(screen.getByText('Interview Questions')).toBeInTheDocument();
     });
 
-    // Single-card view: only the first entry is visible up front.
     expect(screen.getByText('Where do you see yourself in 5 years?')).toBeInTheDocument();
+    // Collapsed: the answer is not in the document until the row is opened.
+    expect(screen.queryByText('Growing.')).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: FIRST_QUESTION }));
     expect(screen.getByText('Growing.')).toBeInTheDocument();
   });
 
@@ -66,6 +78,7 @@ describe('InterviewPrepPage', () => {
     renderWithRouter(<InterviewPrepPage />);
     await screen.findByText('Where do you see yourself in 5 years?');
 
+    await user.click(screen.getByRole('button', { name: FIRST_QUESTION }));
     await user.click(screen.getByRole('button', { name: /edit/i }));
     const answerBox = screen.getByLabelText('Answer');
     await user.type(answerBox, ' Extra edit.');
@@ -94,8 +107,8 @@ describe('InterviewPrepPage', () => {
     // Save is hidden behind the dirty check until an edit lands.
     expect(screen.getByRole('button', { name: /save interview questions/i })).toBeDisabled();
 
-    const card = screen.getByText('Where do you see yourself in 5 years?').closest('div')!.parentElement!;
-    await userEvent.click(within(card).getByRole('button', { name: /edit/i }));
+    await userEvent.click(screen.getByRole('button', { name: FIRST_QUESTION }));
+    await userEvent.click(screen.getByRole('button', { name: /edit/i }));
     await userEvent.type(screen.getByRole('textbox', { name: 'Answer' }), ' And mentoring.');
 
     const save = screen.getByRole('button', { name: /save interview questions/i });

@@ -7,6 +7,14 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <!-- tests/ sits inside this project's directory, so the SDK's default glob
+       would compile the test sources into the mailbot executable itself (and
+       fail, since xunit is referenced only by the test project). -->
+  <ItemGroup>
+    <Compile Remove="tests/**" />
+    <None Remove="tests/**" />
+  </ItemGroup>
+
   <ItemGroup>
 <PackageReference Include="Google.Apis.Auth" Version="1.73.0" />
     <PackageReference Include="Google.Apis.Gmail.v1" Version="1.73.0.4029" />

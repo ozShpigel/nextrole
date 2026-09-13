@@ -192,6 +192,9 @@ export interface PoolScanResult {
   capped: boolean;
   // No profile yet - nothing was scored and nothing was spent.
   profileMissing: boolean;
+  // A scan for this user was already running, so this request scored nothing
+  // rather than paying Claude a second time for the same jobs. Not an error.
+  scanInProgress: boolean;
 }
 
 export interface ScoredJobsQuery {

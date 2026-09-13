@@ -446,8 +446,25 @@ async def save_job(job_id: str, user_id: str = Depends(current_user_id)):
     if await pool_state.is_saved(db, user_id, job_id):
         return {"status": "already_saved"}
 
-    match_analysis = doc.get("match_analysis")
-    analysis_json = json.dumps(match_analysis, ensure_ascii=False) if match_analysis else None
+    # The score is this user's, and it does not live on the pool document.
+    # Ingest stopped scoring when the pool became shared (docs/job-pool.md), so
+    # discovered_jobs.score / .verdict / .match_analysis are permanently None on
+    # every job either ingest path writes. Reading them here silently dropped
+    # the verdict the user was looking at when they clicked Add: the tracked
+    # application arrived with matchScore, matchVerdict and matchAnalysis all
+    # null, which is also the breakdown the Active board promises to show.
+    #
+    # Source them from the same jobScores row the Matches list renders from.
+    # A missing row means this job was never scored for this user (Add is
+    # reachable from a listing that only shows scored jobs, so this is the
+    # unusual path, not the normal one) -- save it unscored rather than refuse.
+    score_row = await db.jobScores.find_one(
+        {"UserId": user_id, "JobId": job_id},
+        {"Score": 1, "Verdict": 1, "MatchAnalysis": 1},
+    ) or {}
+    # Already a JSON string on JobScore, unlike the BSON document the pool used
+    # to hold -- json.dumps here would double-encode it into a quoted blob.
+    analysis_json = score_row.get("MatchAnalysis")
 
     app_id = await tracker_client.save_to_tracker(
         settings=settings,
@@ -455,14 +472,16 @@ async def save_job(job_id: str, user_id: str = Depends(current_user_id)):
         title=doc["title"],
         company=doc["company"],
         description=doc.get("description"),
-        score=doc.get("score"),
-        verdict=doc.get("verdict"),
+        score=score_row.get("Score"),
+        verdict=score_row.get("Verdict"),
         analysis_json=analysis_json,
         job_url=doc.get("job_url"),
-        analyst_snapshot_input=doc.get("analyst_snapshot_input"),
-        analyst_snapshot_output=doc.get("analyst_snapshot_output"),
-        evaluator_snapshot_input=doc.get("evaluator_snapshot_input"),
-        evaluator_snapshot_output=doc.get("evaluator_snapshot_output"),
+        # The four raw Claude call snapshots are deliberately not passed. They
+        # were written by ingest-time scoring, which no longer exists, and
+        # JobScore has no field for them, so there is nothing per-user left to
+        # recover -- passing doc.get(...) only made four always-null arguments
+        # look like real ones. import_jobs still passes real snapshots; it
+        # scores inline in the same request.
         company_news=doc.get("company_news"),
         glassdoor_data=doc.get("glassdoor_data"),
         company_logo=await _resolve_company_logo(doc.get("company"), doc.get("company_logo")),

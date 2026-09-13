@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { MetaballVisual } from '../components/MetaballVisual';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Check } from 'lucide-react';
 import { discoveryApi, matchApi } from '../lib/api';
@@ -81,29 +82,69 @@ const VENN_OFFSETS: [number, number][] = [[-1, 0.6], [0, -1], [1, 0.6]];
 const SPREAD = 34;   // % translate of a circle still waiting on its milestone
 const WOBBLE = 2.4;  // % of idle drift — liveness, not progress
 
-function VennVisual({ merged, finished, t }: { merged: number; finished: boolean; t: number }) {
-  // Decided once, here, and used for BOTH the rendering and the test hook
-  // below. Computing them separately is how a check ends up measuring the
-  // intent instead of the outcome: an earlier version reported `merged` on the
-  // element while each circle decided its own position, so reintroducing a
-  // time-based merge left the attribute — and the test reading it — untouched.
+// The hero. Raymarched metaballs when the device can draw them, the flat
+// circles below when it cannot — same three hues, same three milestones, so
+// the fallback is a plainer telling of the same story rather than a different
+// one.
+function ProcessingVisual({ merged, finished, t }: { merged: number; finished: boolean; t: number }) {
+  // Decided once, here, and handed to whichever renderer runs — and it is the
+  // same array the test hook counts. Computing them separately is how a check
+  // ends up measuring the intent instead of the outcome: an earlier version
+  // reported `merged` on the element while each circle decided its own
+  // position, so reintroducing a time-based merge left the attribute — and the
+  // test reading it — untouched.
   const settled = VENN_COLORS.map((_, i) => i < merged);
   const settledCount = settled.filter(Boolean).length;
-  const glowOpacity = 0.1 + (settledCount / VENN_COLORS.length) * 0.35;
+  const [webglFailed, setWebglFailed] = useState(false);
+  // jsdom has no WebGL, so the suite always exercises the fallback. The shader
+  // path is verified in a browser instead — noted rather than hidden.
+  const useWebgl = !webglFailed && !prefersReducedMotion();
 
   return (
     <div
       className="relative w-[220px] h-[220px] mb-14"
       style={{ isolation: 'isolate' }}
       aria-hidden="true"
-      // How many circles have merged, which is by construction how many
+      // How many spheres have merged, which is by construction how many
       // milestones have landed. Exposed so a test can assert the rule this
       // component exists to keep — that the end state is caused by the work
       // and never by elapsed time — directly, instead of inferring it from
       // whichever label happens to be on screen.
       data-testid="venn"
       data-merged={settledCount}
+      data-renderer={useWebgl ? 'metaball' : 'flat'}
     >
+      {useWebgl ? (
+        <MetaballVisual settled={settled} finished={finished} onUnsupported={() => setWebglFailed(true)} />
+      ) : (
+        <FlatVenn settled={settled} t={t} />
+      )}
+      {finished && (
+        <div className="absolute inset-0 flex items-center justify-center animate-in zoom-in-50 fade-in duration-500">
+          <div className="w-11 h-11 rounded-full bg-[var(--ed-paper)] flex items-center justify-center shadow-lg">
+            <Check size={20} className="text-[var(--ed-ink)]" strokeWidth={3} aria-hidden="true" />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Someone who has asked for less motion gets the flat version, which moves
+// only when a milestone lands.
+function prefersReducedMotion(): boolean {
+  return typeof window !== 'undefined'
+    && typeof window.matchMedia === 'function'
+    && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
+function FlatVenn({ settled, t }: { settled: boolean[]; t: number }) {
+  const settledCount = settled.filter(Boolean).length;
+  const glowOpacity = 0.1 + (settledCount / VENN_COLORS.length) * 0.35;
+  const still = prefersReducedMotion();
+
+  return (
+    <>
       {/* Blurred bloom behind the circles, intensifying as they converge —
           isolate above keeps this and the screen-blend circles from blending
           with anything behind the component (nav, grain texture). Kept tightly
@@ -120,7 +161,7 @@ function VennVisual({ merged, finished, t }: { merged: number; finished: boolean
         // reads as one deliberate event. The inner one is the idle drift, and
         // it has NO transition: sharing one transform would let the 900ms
         // easing swallow the drift and smear the milestone into it.
-        const wobble = settled[i] ? 0 : WOBBLE * Math.sin(t / 760 + i * 2.1);
+        const wobble = settled[i] || still ? 0 : WOBBLE * Math.sin(t / 760 + i * 2.1);
         return (
           <div
             key={color}
@@ -142,14 +183,7 @@ function VennVisual({ merged, finished, t }: { merged: number; finished: boolean
           </div>
         );
       })}
-      {finished && (
-        <div className="absolute inset-0 flex items-center justify-center animate-in zoom-in-50 fade-in duration-500">
-          <div className="w-11 h-11 rounded-full bg-[var(--ed-paper)] flex items-center justify-center shadow-lg">
-            <Check size={20} className="text-[var(--ed-ink)]" strokeWidth={3} aria-hidden="true" />
-          </div>
-        </div>
-      )}
-    </div>
+    </>
   );
 }
 
@@ -325,7 +359,7 @@ export default function ProcessingPage() {
         {/* Kept on the error path too, frozen at the milestone the upload
             reached. Swapping to a bare error card would hide how far it got,
             and a visual that never completed is the honest record of that. */}
-        <VennVisual merged={error ? stage : finished ? STAGES.length : stage} finished={finished} t={t} />
+        <ProcessingVisual merged={error ? stage : finished ? STAGES.length : stage} finished={finished} t={t} />
 
         <div className="w-full flex flex-col items-center">
           <h1

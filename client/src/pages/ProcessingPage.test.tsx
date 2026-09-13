@@ -97,8 +97,14 @@ describe('ProcessingPage', () => {
   // set from resolved milestones only, so asserting on it tests the rule
   // rather than whichever label is on screen.
   it('merges one circle per resolved milestone, and not before', async () => {
-    let resolveParse: ((v: unknown) => void) | null = null;
-    let resolveSave: ((v: unknown) => void) | null = null;
+    // Definite-assignment: both are assigned by the Promise executors below,
+    // which run synchronously on construction. TypeScript cannot see that
+    // through a callback and would otherwise narrow them to their initializer
+    // at the call sites. Calling them unguarded is also better than `?.`: if
+    // one were somehow unset the test should fail loudly, not silently skip
+    // the resolve and time out somewhere less obvious.
+    let resolveParse!: (v: unknown) => void;
+    let resolveSave!: (v: unknown) => void;
     mockRoutes({
       'POST /profile/normalize-file': new Promise((r) => { resolveParse = r; }),
       'GET /profile': { structured: {}, updated_at: null },
@@ -115,11 +121,11 @@ describe('ProcessingPage', () => {
     );
     expect(screen.getByTestId('venn')).toHaveAttribute('data-merged', '0');
 
-    resolveParse?.({ fullName: 'Parsed Name' });
+    resolveParse({ fullName: 'Parsed Name' });
     // Parsed, but the save is still pending: one circle in.
     await waitFor(() => expect(screen.getByTestId('venn')).toHaveAttribute('data-merged', '1'));
 
-    resolveSave?.({ structured: { fullName: 'Parsed Name' }, updated_at: null });
+    resolveSave({ structured: { fullName: 'Parsed Name' }, updated_at: null });
     // Saved. The third circle waits on the scan, which has scored nothing yet.
     await waitFor(() => expect(screen.getByTestId('venn')).toHaveAttribute('data-merged', '2'));
     expect(screen.queryByText("You're all set")).not.toBeInTheDocument();

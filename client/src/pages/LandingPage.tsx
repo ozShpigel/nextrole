@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Upload } from 'lucide-react';
-import { useDemoMode } from '../lib/queries';
+import { useDemoMode, useHasProfile } from '../lib/queries';
 import { FakeFileDialog } from '../components/FakeFileDialog';
 
 // Company marks for the "Companies like these" marquee — simplified but
@@ -156,6 +156,7 @@ function LogoMarquee() {
 export default function Landing() {
   const navigate = useNavigate();
   const demoMode = useDemoMode();
+  const hasProfile = useHasProfile();
   const [loaded, setLoaded] = useState<boolean>(false);
   const [showFakeDialog, setShowFakeDialog] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -241,13 +242,19 @@ export default function Landing() {
               onCancel={() => setShowFakeDialog(false)}
             />
           )}
-          <Link
-            to="/search"
-            className="inline-flex items-center gap-2 text-[0.74rem] font-semibold uppercase tracking-[0.1em] text-[var(--ed-ink-soft)] transition-colors hover:text-[var(--ed-ink)]"
-          >
-            Browse your matches
-            <span aria-hidden="true">&rarr;</span>
-          </Link>
+          {/* "Your matches" is a promise nobody without a CV can be shown:
+              Matches has nothing to list until a profile exists to score
+              against, and OnboardingGate sends them straight back here
+              anyway. For a returning visitor it is the fastest route in. */}
+          {hasProfile && (
+            <Link
+              to="/search"
+              className="inline-flex items-center gap-2 text-[0.74rem] font-semibold uppercase tracking-[0.1em] text-[var(--ed-ink-soft)] transition-colors hover:text-[var(--ed-ink)]"
+            >
+              Browse your matches
+              <span aria-hidden="true">&rarr;</span>
+            </Link>
+          )}
         </div>
 
         {/* Company marks cycling independently per slot — illustrative

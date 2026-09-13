@@ -75,6 +75,24 @@ export function useDemoMode(): boolean {
 
 export const DEMO_DISABLED_TITLE = 'Disabled in the read-only demo';
 
+// Has this visitor uploaded a CV yet? One definition, because three places
+// now branch on it — the onboarding gate that redirects, the nav that hides
+// its links, and the landing page that hides "Browse your matches" — and
+// three copies of "what counts as a profile" would drift.
+//
+// `undefined` while either query is still loading or has errored, so callers
+// can tell "no profile" from "don't know yet" and neither flashes a nav in and
+// out on first paint nor locks a real user out on a transient blip. Everything
+// here fails OPEN on that distinction: only a confirmed, loaded empty state
+// counts as a new visitor.
+export function useHasProfile(): boolean | undefined {
+  const profileQuery = useProfile();
+  const resumeQuery = useResumeFile();
+  if (profileQuery.isLoading || resumeQuery.isLoading) return undefined;
+  if (profileQuery.isError || resumeQuery.isError) return undefined;
+  return !!resumeQuery.data || !!profileQuery.data?.content?.trim();
+}
+
 // staleTime on both: the App-level onboarding gate calls these on every
 // route, not just Settings, so without one they'd refetch far more often
 // than profile/résumé data (which only changes on an explicit edit) needs.

@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef, useLayoutEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { createPortal } from 'react-dom';
 import { X, SlidersHorizontal, Plus, Check, Search } from 'lucide-react';
@@ -485,8 +486,15 @@ export default function SearchPage() {
   // Skipped on the read-only demo: scanning persists scores, so it would 403
   // on every open and surface as a scoring error over a board that is in fact
   // fully populated from seeded data.
+  //
+  // Also skipped when ProcessingPage sends us here straight after an upload:
+  // it started a scan of its own and waited for its first results, and that
+  // scan is still running. A second one would exclude everything the first has
+  // already scored and take the NEXT fifty candidates instead — an entire
+  // extra scan's spend on a board the user has not looked at yet.
   const demoMode = useDemoMode();
-  const poolScan = usePoolScan(!demoMode);
+  const scanAlreadyRunning = !!(useLocation().state as { scanning?: boolean } | null)?.scanning;
+  const poolScan = usePoolScan(!demoMode && !scanAlreadyRunning);
   const scan = poolScan.data;
   const scanning = poolScan.isFetching;
 

@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { Navigate, NavLink, Outlet, useLocation, useNavigationType } from 'react-router-dom';
 import { Search, Kanban, Mail, GraduationCap, User } from 'lucide-react';
-import { useProfile, useResumeFile } from './lib/queries';
+import { useHasProfile, useProfile, useResumeFile } from './lib/queries';
 import { BrandMark } from './components/BrandMark';
 
 // Routes exempt from the onboarding redirect: "/" is the onboarding screen
@@ -19,15 +19,16 @@ function OnboardingGate() {
   const { pathname } = useLocation();
   const profileQuery = useProfile();
   const resumeQuery = useResumeFile();
+  const hasProfile = useHasProfile();
 
   if (ONBOARDING_EXEMPT_PATHS.has(pathname)) return <Outlet />;
-  if (profileQuery.isLoading || resumeQuery.isLoading) return null;
-  // Fail OPEN on error — a transient cold-start/network blip on either query
-  // must never lock a real user out of the app by misreading "errored" as
+  // undefined is "still loading" OR "errored" — useHasProfile collapses both,
+  // and they differ here. Fail OPEN on the error: a transient cold-start or
+  // network blip must never lock a real user out by misreading "errored" as
   // "no profile". Only a confirmed, successfully-loaded empty state redirects.
-  if (profileQuery.isError || resumeQuery.isError) return <Outlet />;
-
-  const hasProfile = !!resumeQuery.data || !!profileQuery.data?.content?.trim();
+  if (hasProfile === undefined) {
+    return profileQuery.isLoading || resumeQuery.isLoading ? null : <Outlet />;
+  }
   if (!hasProfile) return <Navigate to="/" replace />;
 
   return <Outlet />;
@@ -57,7 +58,8 @@ const mobileNavLinkClass = ({ isActive }: { isActive: boolean }): string =>
 // Fixed to the viewport, so App's caller pads the content column to match
 // its height (including the iOS home-indicator safe area) — see MOBILE_NAV_
 // SPACER below.
-function MobileNav() {
+function MobileNav({ hasProfile }: { hasProfile: boolean | undefined }) {
+  if (!hasProfile) return null;
   return (
     <nav
       aria-label="Primary"
@@ -98,6 +100,13 @@ function ScrollToTop() {
 }
 
 export default function App() {
+  // Every link in the nav leads somewhere a visitor without a CV cannot use —
+  // OnboardingGate bounces them straight back to "/" from all five. Showing
+  // the links anyway advertises five dead ends. They appear the moment a
+  // profile exists, which is the moment they mean something. `undefined`
+  // (still loading) hides them too, so they arrive once instead of flashing
+  // in and out on first paint.
+  const hasProfile = useHasProfile();
   return (
     <div className="relative">
       <nav data-app-nav className="bg-background/80 backdrop-blur-[20px] border-b border-border sticky top-0 z-50">
@@ -112,18 +121,20 @@ export default function App() {
               tight on a narrow desktop window. Hidden below md: — that width
               can't fit all five links, so MobileNav (a fixed bottom bar)
               takes over navigation there instead. */}
-          <div className="ed-scroll hidden md:flex items-center gap-0 min-w-0 overflow-x-auto">
-            {NAV_LINKS.map(({ to, label }) => (
-              <NavLink key={to} to={to} className={navLinkClass}>{label}</NavLink>
-            ))}
-          </div>
+          {hasProfile && (
+            <div className="ed-scroll hidden md:flex items-center gap-0 min-w-0 overflow-x-auto">
+              {NAV_LINKS.map(({ to, label }) => (
+                <NavLink key={to} to={to} className={navLinkClass}>{label}</NavLink>
+              ))}
+            </div>
+          )}
         </div>
       </nav>
       <ScrollToTop />
-      <div className={MOBILE_NAV_SPACER}>
+      <div className={hasProfile ? MOBILE_NAV_SPACER : undefined}>
         <OnboardingGate />
       </div>
-      <MobileNav />
+      <MobileNav hasProfile={hasProfile} />
     </div>
   );
 }

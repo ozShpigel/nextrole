@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Check } from 'lucide-react';
-import { matchApi } from '../lib/api';
+import { discoveryApi, matchApi } from '../lib/api';
 import { useNormalizeProfileFile, useSaveProfile } from '../lib/mutations';
+import { useHasProfile } from '../lib/queries';
 import { hydrateProfile, mergeNormalizedProfile } from '../lib/profile';
 import type { NormalizedProfile, ProfileResponse } from '../lib/types';
 
@@ -20,19 +21,44 @@ import type { NormalizedProfile, ProfileResponse } from '../lib/types';
 // Now each of the three circles belongs to one real milestone of the upload
 // chain, and only that milestone moves it:
 //
-//   1. normalize-file returns  — the long one, Claude reading the PDF
-//   2. the current profile is fetched and merged
-//   3. the merged profile is saved
+//   1. normalize-file returns   — the long one, Claude reading the PDF
+//   2. the merged profile is saved
+//   3. the first scores land    — the pool scanned against that profile
 //
 // Nothing can finish early because there is no elapsed-time path to the end
 // state. Between milestones the waiting circles drift on a slow sine so the
 // page is visibly alive, which is deliberately NOT progress: progress only
 // ever moves when something actually completed.
+//
+// The third milestone is why this page waits as long as it does on a first
+// upload. Handing a new visitor an empty Matches tab and letting them discover
+// the scan themselves is a worse first minute than a page that says what it is
+// doing — so the scan is started here and the redirect waits for it to produce
+// something. A scan scores five batches concurrently, so the first round lands
+// ~25 jobs at once (~80s measured); the rest arrive behind "Score more".
 const STAGES = [
   { label: 'Reading your résumé', sub: 'Parsing structure, dates, and roles' },
-  { label: 'Extracting your experience', sub: 'Skills, seniority, and domains' },
-  { label: 'Saving your profile', sub: 'Mapping your skills against open roles' },
+  { label: 'Saving your profile', sub: 'Skills, seniority, and domains' },
+  { label: 'Finding your matches', sub: 'Scoring open roles against your profile' },
 ] as const;
+
+// How often to ask whether the scan has produced anything yet. The work takes
+// ~80s to first results, so this is not a hot loop.
+const MATCH_POLL_MS = 4000;
+
+// Does this user have any scored job yet? Asked of the same endpoint the
+// Matches page reads, so "there is something to show" here means exactly what
+// it will mean a second later on arrival. limit=1 because the count is all
+// that matters; a scan failure reads as "nothing yet" and the poll continues
+// until the caller's own timeout ends it.
+async function hasAnyMatch(): Promise<boolean> {
+  try {
+    const res = await discoveryApi('/jobs?limit=1&days_back=60') as { total?: number };
+    return (res?.total ?? 0) > 0;
+  } catch {
+    return false;
+  }
+}
 
 // A response that arrives in 300ms must not flash the whole state in and out.
 const MIN_DISPLAY_MS = 1100;
@@ -149,6 +175,14 @@ export default function ProcessingPage() {
   const rafRef = useRef<number | null>(null);
   // The upload must run once per file, not once per effect invocation.
   const uploadedRef = useRef<File | null>(null);
+  // Whether this visitor already had matches when they arrived, captured once:
+  // the upload saves a profile part-way through, so reading it live would flip
+  // a first-time visitor into a returning one mid-animation.
+  const hasProfile = useHasProfile();
+  const hadProfileAtMount = useRef<boolean | null>(null);
+  if (hadProfileAtMount.current === null && hasProfile !== undefined) {
+    hadProfileAtMount.current = hasProfile;
+  }
 
   // The real upload — parse the handed-off file, merge into the current
   // profile, and save. Each await is a stage: setStage after it resolves and
@@ -186,9 +220,26 @@ export default function ProcessingPage() {
         const profileRes = await matchApi('/profile') as ProfileResponse;
         const current = hydrateProfile(profileRes?.structured);
         const merged = mergeNormalizedProfile(current, normalized);
+        await saveProfileMutation.mutateAsync(merged as unknown as Record<string, unknown>);
         setStage(2);
 
-        await saveProfileMutation.mutateAsync(merged as unknown as Record<string, unknown>);
+        // Scoring the pool takes minutes and resolves long after the first
+        // results are worth looking at, so this does not await it. It polls
+        // for what the scan writes instead: rows land per batch, and the
+        // first batch is enough to redirect on.
+        //
+        // The scan is deliberately NOT awaited for a second reason — if this
+        // request is interrupted the scoring carries on server-side, and the
+        // rows already written are kept.
+        void matchApi('/pool-scan', { method: 'POST' }).catch(() => {
+          // A failed scan is not a failed upload. The profile is saved, and
+          // Matches will try again on arrival; falling into the error state
+          // here would throw away work that succeeded.
+        });
+
+        while (!(await hasAnyMatch())) {
+          await new Promise((r) => setTimeout(r, MATCH_POLL_MS));
+        }
         setStage(3);
       } catch (e) {
         // The circles stay wherever the failure caught them — an upload that
@@ -240,7 +291,16 @@ export default function ProcessingPage() {
 
   useEffect(() => {
     if (!finished) return;
-    const handoff = setTimeout(() => navigate(DEST, { replace: true }), HOLD_MS);
+    // `scanning` tells Matches that a scan for this user is already in flight
+    // — the one started above, which keeps going after the redirect until all
+    // fifty are scored. Without it Matches fires its own on mount, and since a
+    // scan excludes what is already scored, the second one would take the NEXT
+    // fifty candidates: a whole extra scan's spend, for a user who has not
+    // looked at the first twenty-five yet.
+    const handoff = setTimeout(
+      () => navigate(DEST, { replace: true, state: { scanning: true } }),
+      HOLD_MS,
+    );
     return () => clearTimeout(handoff);
   }, [finished, navigate]);
 
@@ -301,13 +361,20 @@ export default function ProcessingPage() {
               Back to Home
             </button>
           ) : (
-            <button
-              type="button"
-              onClick={() => navigate(DEST, { replace: true })}
-              className="mt-10 text-[0.81rem] text-[var(--ed-ink-faint)] hover:text-[var(--ed-ink-soft)] transition-colors"
-            >
-              Skip &rarr;
-            </button>
+            // Hidden on a first upload, because there is nowhere useful to skip
+            // TO: Matches is empty until this scan lands, so the escape hatch
+            // leads to a blank screen and reads as the product being broken.
+            // Someone who already has matches can leave whenever they like —
+            // re-uploading is an edit, not an introduction.
+            hadProfileAtMount.current === true && (
+              <button
+                type="button"
+                onClick={() => navigate(DEST, { replace: true, state: { scanning: true } })}
+                className="mt-10 text-[0.81rem] text-[var(--ed-ink-faint)] hover:text-[var(--ed-ink-soft)] transition-colors"
+              >
+                Skip &rarr;
+              </button>
+            )
           )}
         </div>
       </div>

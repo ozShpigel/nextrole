@@ -4,13 +4,20 @@ import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import userEvent from '@testing-library/user-event';
 import { renderWithRouter } from '../test/render';
-import { matchApi } from '../lib/api';
+import { discoveryApi, matchApi } from '../lib/api';
 import ProcessingPage from './ProcessingPage';
 
 vi.mock('../lib/api', async () => {
   const actual = await vi.importActual<typeof import('../lib/api')>('../lib/api');
-  return { ...actual, matchApi: vi.fn() };
+  return { ...actual, matchApi: vi.fn(), discoveryApi: vi.fn() };
 });
+
+// The third milestone polls this until the scan it started has written
+// something. `total: 0` keeps the page waiting, which is what most of these
+// tests want to observe.
+function mockMatchCount(total: number) {
+  vi.mocked(discoveryApi).mockResolvedValue({ jobs: [], total });
+}
 
 function mockRoutes(routes: Record<string, unknown>) {
   vi.mocked(matchApi).mockImplementation((path: string, options?: { method?: string }) => {
@@ -45,6 +52,7 @@ function renderWithFile(file: File | null) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockMatchCount(0);
 });
 
 describe('ProcessingPage', () => {
@@ -54,12 +62,28 @@ describe('ProcessingPage', () => {
     expect(screen.getByText('Parsing structure, dates, and roles')).toBeInTheDocument();
   });
 
-  it('Skip navigates straight to Matches without waiting for the canned steps', async () => {
-    const user = userEvent.setup();
+  // A first upload has nowhere useful to skip TO: Matches is empty until the
+  // scan this page started lands, so the escape hatch would drop a new visitor
+  // on a blank screen and read as the product being broken.
+  it('offers no Skip on a first upload', async () => {
+    mockRoutes({
+      'GET /profile': { content: '', structured: {} },
+      'GET /profile/resume-file': Object.assign(new Error('not found'), { status: 404 }),
+    });
+    renderWithRouter(<ProcessingPage />);
+    await waitFor(() => expect(vi.mocked(matchApi)).toHaveBeenCalledWith('/profile'));
+    expect(screen.queryByRole('button', { name: /skip/i })).not.toBeInTheDocument();
+  });
+
+  it('offers Skip to someone who already has matches', async () => {
+    mockRoutes({
+      'GET /profile': { content: '<professional_profile>…', structured: {} },
+      'GET /profile/resume-file': { fileName: 'cv.pdf' },
+    });
     renderWithRouter(<ProcessingPage />);
 
-    await user.click(screen.getByRole('button', { name: /skip/i }));
-
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: /skip/i }));
     expect(window.location.pathname).toBe('/search');
   });
 
@@ -92,17 +116,21 @@ describe('ProcessingPage', () => {
     expect(screen.getByTestId('venn')).toHaveAttribute('data-merged', '0');
 
     resolveParse?.({ fullName: 'Parsed Name' });
-    // The parse and the profile fetch resolve back to back, so this settles at
-    // two: the save is still pending.
+    // Parsed, but the save is still pending: one circle in.
+    await waitFor(() => expect(screen.getByTestId('venn')).toHaveAttribute('data-merged', '1'));
+
+    resolveSave?.({ structured: { fullName: 'Parsed Name' }, updated_at: null });
+    // Saved. The third circle waits on the scan, which has scored nothing yet.
     await waitFor(() => expect(screen.getByTestId('venn')).toHaveAttribute('data-merged', '2'));
     expect(screen.queryByText("You're all set")).not.toBeInTheDocument();
 
-    resolveSave?.({ structured: { fullName: 'Parsed Name' }, updated_at: null });
-    await waitFor(() => expect(screen.getByTestId('venn')).toHaveAttribute('data-merged', '3'));
+    // The scan produces its first results.
+    mockMatchCount(25);
+    await waitFor(() => expect(screen.getByTestId('venn')).toHaveAttribute('data-merged', '3'), { timeout: 8000 });
     // Past findByText's 1s default on purpose: MIN_DISPLAY_MS holds the end
     // state back so a fast response cannot flash in and out.
     expect(await screen.findByText("You're all set", {}, { timeout: 3000 })).toBeInTheDocument();
-  });
+  }, 20000);
 
   it('cannot reach the end state on elapsed time alone', async () => {
     // The regression itself. Real time, deliberately longer than both the old
@@ -111,8 +139,10 @@ describe('ProcessingPage', () => {
     mockRoutes({
       'POST /profile/normalize-file': { fullName: 'Parsed Name' },
       'GET /profile': { structured: {}, updated_at: null },
-      'PUT /profile': new Promise(() => {}), // never resolves
+      'PUT /profile': { structured: { fullName: 'Parsed Name' }, updated_at: null },
+      'POST /pool-scan': new Promise(() => {}), // scan never returns
     });
+    mockMatchCount(0); // and never scores anything
     renderWithFile(new File(['resume bytes'], 'resume.pdf', { type: 'application/pdf' }));
 
     await waitFor(() => expect(screen.getByTestId('venn')).toHaveAttribute('data-merged', '2'));
@@ -121,7 +151,7 @@ describe('ProcessingPage', () => {
     expect(screen.getByTestId('venn')).toHaveAttribute('data-merged', '2');
     expect(screen.queryByText("You're all set")).not.toBeInTheDocument();
     // Still on a waiting label rather than the payoff.
-    expect(screen.getByText('Saving your profile')).toBeInTheDocument();
+    expect(screen.getByText('Finding your matches')).toBeInTheDocument();
   }, 12000);
 
   it('shows an inline error and does not navigate when the real upload fails', async () => {

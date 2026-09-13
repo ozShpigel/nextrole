@@ -1,13 +1,29 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderWithRouter } from "../test/render";
-import { api } from "../lib/api";
+import { api, matchApi } from "../lib/api";
 import Landing from "./LandingPage";
 
 vi.mock("../lib/api", async () => {
   const actual = await vi.importActual<typeof import("../lib/api")>("../lib/api");
-  return { ...actual, api: vi.fn() };
+  return { ...actual, api: vi.fn(), matchApi: vi.fn() };
 });
+
+// Whether this visitor has uploaded a CV, as useHasProfile reads it: the
+// profile's rendered content, or a stored résumé file.
+function mockProfile(hasProfile: boolean) {
+  vi.mocked(matchApi).mockImplementation((path: string) => {
+    if (path === "/profile") {
+      return Promise.resolve(hasProfile ? { content: "<professional_profile>…", structured: {} } : { content: "", structured: {} });
+    }
+    if (path === "/profile/resume-file") {
+      return hasProfile
+        ? Promise.resolve({ fileName: "cv.pdf" })
+        : Promise.reject(Object.assign(new Error("not found"), { status: 404 }));
+    }
+    return Promise.reject(new Error(`Unmocked matchApi() call: ${path}`));
+  });
+}
 
 function mockRoutes(routes: Record<string, unknown>) {
   vi.mocked(api).mockImplementation((path: string) =>
@@ -29,11 +45,26 @@ describe("LandingPage", () => {
     expect(screen.getByText("Role")).toBeInTheDocument();
   });
 
-  it("renders the résumé upload CTA and the matches link", () => {
+  it("renders the résumé upload CTA", () => {
+    mockProfile(false);
     renderWithRouter(<Landing />);
     expect(screen.getByRole("button", { name: /upload your résumé/i })).toBeInTheDocument();
+  });
 
-    const matchesLink = screen.getByRole("link", { name: /browse your matches/i });
+  // "Browse your matches" is a promise nobody without a CV can be shown —
+  // Matches has nothing to list until a profile exists to score against, and
+  // the onboarding gate bounces them back here anyway.
+  it("hides the matches link until a CV has been uploaded", async () => {
+    mockProfile(false);
+    renderWithRouter(<Landing />);
+    await waitFor(() => expect(vi.mocked(matchApi)).toHaveBeenCalledWith("/profile"));
+    expect(screen.queryByRole("link", { name: /browse your matches/i })).not.toBeInTheDocument();
+  });
+
+  it("shows the matches link once a profile exists", async () => {
+    mockProfile(true);
+    renderWithRouter(<Landing />);
+    const matchesLink = await screen.findByRole("link", { name: /browse your matches/i });
     expect(matchesLink).toHaveAttribute("href", "/search");
   });
 

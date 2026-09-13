@@ -85,12 +85,28 @@ export const DEMO_DISABLED_TITLE = 'Disabled in the read-only demo';
 // out on first paint nor locks a real user out on a transient blip. Everything
 // here fails OPEN on that distinction: only a confirmed, loaded empty state
 // counts as a new visitor.
+//
+// Read from `structured`, NOT from `content`. `content` is the rendered,
+// prompt-facing string, and rendering an empty profile still produces the
+// wrapper — a brand-new visitor gets back a 47-character
+// <professional_profile> element with two blank lines inside it, whose
+// .trim() is perfectly truthy. The check this replaced tested exactly that, so every
+// visitor looked like a returning one: the nav offered five links that bounce,
+// and the onboarding redirect never fired at all.
+//
+// Experience-or-skills is the server's own test for the same question
+// (PoolScanService: "no profile, nothing to score against"), so the client and
+// the scan agree on who is new rather than each deciding for itself.
 export function useHasProfile(): boolean | undefined {
   const profileQuery = useProfile();
   const resumeQuery = useResumeFile();
   if (profileQuery.isLoading || resumeQuery.isLoading) return undefined;
   if (profileQuery.isError || resumeQuery.isError) return undefined;
-  return !!resumeQuery.data || !!profileQuery.data?.content?.trim();
+  // An uploaded résumé counts on its own: they have onboarded even if the
+  // parse came back thin.
+  if (resumeQuery.data) return true;
+  const structured = profileQuery.data?.structured;
+  return !!(structured?.experience?.length || structured?.skills?.length);
 }
 
 // staleTime on both: the App-level onboarding gate calls these on every

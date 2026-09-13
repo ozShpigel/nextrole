@@ -83,14 +83,17 @@ cluster storage, which matters on the M0 free tier.
   resolve sibling container names.
 - Frontend API URLs are Vite build-time variables. They must be unset in
   GitHub Actions variables so the code falls back to relative paths.
-- Cron schedules are UTC. Three cron-profile services, staggered so they do
-  not contend for the API's `discovery` rate-limit bucket. The host crontab is
-  the source of truth for the invocation form — match the `ingest` line that is
-  already installed rather than the shape below, which is illustrative:
+- Schedules are UTC, and live in `deploy/systemd/` — **not** in anyone's
+  crontab, which holds only the 5-minutely service health check. Three
+  one-shot timers, staggered so the two ingests do not contend for the API's
+  `discovery` rate-limit bucket (20/min, shared):
 
-      0  5 * * *  cd /srv/nextrole && docker compose --profile cron run --rm ingest
-      30 5 * * *  cd /srv/nextrole && docker compose --profile cron run --rm demo-pool-ingest   # new
-      0  6 * * *  cd /srv/nextrole && docker compose --profile cron run --rm mailbot
+      nextrole-mailbot.timer            02:00
+      nextrole-ingest.timer             05:00   private, criteria-driven
+      nextrole-demo-pool-ingest.timer   05:30   public, shared pool
+
+  `Persistent=true` on all three: a timer whose window was missed because the
+  box was down fires once on the next boot rather than skipping the day.
 
 - **`demo-pool-ingest` is what makes the public instance usable.** It fills the
   shared job pool the per-user scan matches against; without it a visitor
@@ -138,6 +141,14 @@ copy it manually:
 
     scp deploy/compose.yml root@<host>:/srv/nextrole/
     scp deploy/monitoring/*.yml root@<host>:/srv/nextrole/monitoring/
+    scp deploy/systemd/* root@<host>:/etc/systemd/system/
+
+A new or changed unit needs systemd told about it — copying the file is not
+enough:
+
+    systemctl daemon-reload
+    systemctl enable --now nextrole-demo-pool-ingest.timer
+    systemctl list-timers 'nextrole-*'          # NEXT/LEFT columns confirm it is armed
 
 To check for drift:
 

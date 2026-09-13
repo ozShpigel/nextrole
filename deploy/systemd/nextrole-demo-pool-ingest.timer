@@ -1,0 +1,7 @@
+[Timer]
+# 30 minutes after nextrole-ingest, so the two runs do not contend for the
+# API's `discovery` rate-limit bucket (20/min, shared).
+OnCalendar=*-*-* 05:30:00 UTC
+Persistent=true
+[Install]
+WantedBy=timers.target

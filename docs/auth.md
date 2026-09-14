@@ -322,6 +322,39 @@ stayed green while every merge silently created duplicate rows. A classification
 test that checks "handled" rather than "handled correctly" is worse than no
 test, because it manufactures confidence.
 
+### Contested rows change silently — decided, not overlooked
+
+The notice covers **parked singletons**. It says nothing about the other thing a
+merge does: on a contested composite row it **changes data that already
+existed**.
+
+- A contested `jobScore` is *overwritten* when the incoming one is newer. In the
+  first real run against restored data, an account's score of 61 became 7.
+- A contested `poolJobState` is *unioned*, so a flag the account had set to
+  false can become true.
+
+Both were verified correct against real data, and neither is reported to anyone.
+
+**Position: acceptable, and deliberately not surfaced.** Both rows describe the
+same person, who performed both actions; the newer score is the better answer to
+"what is this job worth to me", and the union is the honest reading of "I saved
+this" plus "I dismissed this". Reporting it would mean telling someone that
+signing in changed numbers they never looked at, which is noise, not
+transparency.
+
+What made the parked singleton different is that a parked CV is a thing the user
+*deliberately created and expects to see*. A score they never saw is not.
+
+**The gap worth closing instead: there is no audit trail.** `userMerges` records
+how many documents moved per collection, not which ones were contested or what
+they held before. So a merge that did something surprising cannot be
+reconstructed afterwards. Recording the contested keys (and the losing values)
+on the journal costs little, keeps it out of the user's way, and is the thing
+that would actually help if someone ever asks why a score changed.
+
+Not built. Revisit before this runs against real anonymous sessions in
+production.
+
 ### Order
 
 1. **Fast path** — source has no data, skip everything. The common case.
@@ -468,6 +501,9 @@ Per the standing rule that a rule with no check behind it is not a rule:
   With server-side sessions the question sharpens: sign-out deletes the session,
   and the next request mints a new anonymous one, so "the pre-link anonymous id"
   is only reachable if we deliberately keep it — which is a reason not to.
+- Should a contested merge be reported, or at least audited? Current position is
+  no to the first and yes to the second — see "Contested rows change silently".
+  Not built.
 - Account deletion. There is no such path today because there are no accounts;
   once there are, there needs to be one. It now also has to delete sessions and
   the `googleIdentity` link, not just the data.

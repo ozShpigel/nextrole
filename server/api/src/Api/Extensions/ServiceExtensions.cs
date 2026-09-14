@@ -27,6 +27,18 @@ public static class ServiceExtensions
         services.AddSingleton<IdentityResolver>();
         services.AddScoped<IUserContext, HttpUserContext>();
 
+        // Optional Google sign-in (docs/auth.md). Absent credentials leave it
+        // simply unavailable — /api/auth/* 404s and the client hides the link —
+        // rather than failing startup, matching how Gmail degrades in the
+        // mailbot.
+        services.Configure<GoogleAuthOptions>(configuration.GetSection(GoogleAuthOptions.SectionName));
+        services.AddSingleton(sp => sp.GetRequiredService<IOptions<GoogleAuthOptions>>().Value);
+        services.AddScoped<IGoogleIdentityRepository>(sp =>
+            new GoogleIdentityRepository(sp.GetRequiredService<IMongoCollection<GoogleIdentity>>()));
+        services.AddScoped<IUserDataPresence, ResumeFileUserDataPresence>();
+        services.AddScoped<GoogleSignInResolver>();
+        services.AddHttpClient();
+
         // Repositories
         services.AddScoped<IApplicationRepository>(sp =>
         {

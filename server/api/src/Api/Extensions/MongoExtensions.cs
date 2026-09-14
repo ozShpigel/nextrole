@@ -40,6 +40,8 @@ public static class MongoExtensions
             sp.GetRequiredService<IMongoDatabase>().GetCollection<InterviewInsight>("interviewInsights"));
         services.AddSingleton(sp =>
             sp.GetRequiredService<IMongoDatabase>().GetCollection<UserQuota>("userQuotas"));
+        services.AddSingleton(sp =>
+            sp.GetRequiredService<IMongoDatabase>().GetCollection<GoogleIdentity>("googleIdentity"));
 
         // Shared-pool state, like discovered_jobs: the role list the daily
         // run searches, grown and pruned by who is using the product.

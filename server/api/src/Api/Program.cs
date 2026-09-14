@@ -160,6 +160,19 @@ await UserScopeMigrationInitializer.MigrateOrThrowAsync(
     identity.LegacyOwnerUserId,
     startupLogger);
 
+// FATAL, unlike the index block below. Every index down there is deduplication:
+// lose one and you get duplicate rows and a cleanup job. This one is half of a
+// security guard. GoogleIdentityRepository.TryLinkAsync arbitrates the
+// first-sign-in race by catching a duplicate-key rejection, and _id uniqueness
+// only covers one side of it — without uniq_googlesub, two concurrent sign-ins
+// with the SAME Google account link it to two different userIds, and which
+// account that person lands in afterwards is arbitrary. An API that cannot
+// enforce that must not serve requests, because the failure is silent and the
+// damage is to who owns what.
+await new GoogleIdentityRepository(
+    app.Services.GetRequiredService<IMongoCollection<GoogleIdentity>>())
+    .EnsureIndexesAsync();
+
 try
 {
     await ApplicationIndexInitializer.EnsureIndexesAsync(
@@ -378,6 +391,7 @@ if (app.Environment.IsDevelopment())
 
 app.UseUserIdentityCookie();
 
+app.MapAuthEndpoints();
 app.MapApplicationEndpoints();
 app.MapInterviewEndpoints();
 app.MapInterviewInsightsEndpoints();

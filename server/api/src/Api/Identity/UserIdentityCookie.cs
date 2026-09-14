@@ -39,22 +39,34 @@ public static class UserIdentityCookieExtensions
                 // Resolve (rather than minting here) so the id handed to this
                 // request's handlers is the same one being written to the cookie.
                 var userId = resolver.Resolve(ctx);
-
-                ctx.Response.Cookies.Append(resolver.CookieName, userId.ToString(), new CookieOptions
-                {
-                    HttpOnly = true,                                  // never read by JS; there is no client-side use for it
-                    Secure = true,                                    // browsers still accept Secure cookies over http://localhost
-                    SameSite = SameSiteMode.Lax,
-                    Expires = DateTimeOffset.UtcNow.AddYears(1),
-                    Path = "/",
-                    // No Domain: host-only, scoped to the site the browser asked
-                    // for. nginx proxies the API under that same host, so the
-                    // cookie comes back on every later call to either service.
-                    IsEssential = true,
-                });
+                Append(ctx, resolver.CookieName, userId);
             }
 
             await next();
+        });
+    }
+
+    /// <summary>
+    /// Writes the <c>uid</c> cookie. Shared by the first-visit middleware above
+    /// and by Google sign-in, which re-points an existing browser at a
+    /// different userId — two copies of these options would drift, and a
+    /// sign-in that wrote a subtly different cookie (a shorter life, a
+    /// narrower path) would look like it worked and then quietly log the user
+    /// back out.
+    /// </summary>
+    public static void Append(HttpContext ctx, string cookieName, Guid userId)
+    {
+        ctx.Response.Cookies.Append(cookieName, userId.ToString(), new CookieOptions
+        {
+            HttpOnly = true,                                  // never read by JS; there is no client-side use for it
+            Secure = true,                                    // browsers still accept Secure cookies over http://localhost
+            SameSite = SameSiteMode.Lax,
+            Expires = DateTimeOffset.UtcNow.AddYears(1),
+            Path = "/",
+            // No Domain: host-only, scoped to the site the browser asked
+            // for. nginx proxies the API under that same host, so the
+            // cookie comes back on every later call to either service.
+            IsEssential = true,
         });
     }
 }

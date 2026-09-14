@@ -21,6 +21,12 @@ public sealed record UserNotices
     public List<UserNotice> Notices { get; init; } = [];
 }
 
+// [BsonNoId] because the driver's Id convention applies to nested types too:
+// without it this Id serialises as `_id` INSIDE the array element. That
+// round-trips correctly and PullFilter renders the same field, so nothing
+// breaks — but anyone querying `Notices.Id` by hand gets nothing back and
+// concludes the id was never stored. It is a trap with no upside.
+[BsonNoId]
 public sealed record UserNotice
 {
     // Client-visible id, used to dismiss.

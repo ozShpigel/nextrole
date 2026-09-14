@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, discoveryApi, matchApi } from './api';
 import type {
   ProfileResponse,
@@ -71,6 +71,34 @@ export function useConfig() {
 // DEMO_DISABLED_TITLE instead of failing with a 403 alert after the click.
 export function useDemoMode(): boolean {
   return useConfig().data?.demoMode ?? false;
+}
+
+export interface Notice {
+  id: string;
+  kind: string;
+  data: Record<string, string>;
+  createdAt: string;
+}
+
+// Things that happened to the account while the user was not looking. Read on
+// every page load by the app shell, not by one page: the only notice today is
+// raised during a sign-in redirect, so there is no page alive to receive a
+// toast, and the whole point is that someone who does not know to look still
+// finds out.
+export function useNotices() {
+  return useQuery<Notice[]>({
+    queryKey: ['notices'],
+    queryFn: () => api('/notices'),
+    retry: false,
+  });
+}
+
+export function useDismissNotice() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api(`/notices/${id}`, { method: 'DELETE' }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['notices'] }),
+  });
 }
 
 // Google sign-in status. `available` is false whenever sign-in cannot work on

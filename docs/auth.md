@@ -5,8 +5,8 @@
 | Phase | State |
 |---|---|
 | 1 — Google sign-in | **Built**, not deployed. Verified end to end against a restored copy of real data. |
-| 1.5 — server-side sessions | **Agreed design**, not built. This is what makes public exposure safe. |
-| 1.6 — anonymous merge on sign-in | **Agreed design**, not built. |
+| 1.5 — server-side sessions | **Built**, not deployed. This is what makes public exposure safe. |
+| 1.6 — anonymous merge on sign-in | **Built**, not deployed. |
 | 2 — email sign-in, passkeys | Design only. |
 
 Nothing here runs in production: `nextrole.cloud` and `private.nextrole.cloud`
@@ -99,14 +99,17 @@ their current cookie is user **B**:
 
 | B's state | What happens |
 |---|---|
-| No profile (never uploaded a CV) | Silently adopt A. B owned nothing; nothing is lost. |
-| Has a profile | **Ask.** "Continue as *A* (your saved account), or keep this session's data?" |
+| Owns nothing | Adopt A. Nothing to move. |
+| Owns something | Adopt A, and **merge B into it** (Phase 1.6). Nothing is lost, so nothing is asked. |
 | B already linked to a *different* Google account | Refuse, and say so. Two accounts are being conflated. |
 
-Silent merge and silent discard both destroy somebody's work. There is no
-correct default for the second row, so it is a prompt, not a rule — the resolver
-returns `NeedsChoice` and writes nothing. All three rows are asserted in
-`GoogleSignInResolverTests`.
+The middle row used to be a prompt, on the reasoning that silent merge and
+silent discard both destroy somebody's work. That holds for a *discard* — it
+does not hold once the data is genuinely merged. See "`NeedsChoice` is retired".
+
+The resolver reports the merge rather than performing it, so it stays free of
+I/O and the rules remain testable without a database. All three rows are
+asserted in `GoogleSignInResolverTests`.
 
 ### The one-shot claim (`Google:ClaimUserId`)
 
@@ -136,7 +139,7 @@ The auth endpoints are **not** added to the `Program.cs` allowlist, and the
 landing-page link is already hidden when `demoMode` is true. A read-only demo
 with a fixed persona has nothing to sign into.
 
-## Phase 1.5 — server-side sessions (agreed, not yet built)
+## Phase 1.5 — server-side sessions
 
 This is what makes `nextrole.cloud` safe to expose publicly. **Optional sign-in
 does not fix it**: anonymous visitors still get a cookie, so the cookie remains
@@ -208,7 +211,7 @@ Time-limited to **three months**, then the grace path is removed. Low stakes on
 today's `nextrole.cloud` — it is the demo — but it has to be deliberate rather
 than discovered.
 
-## Phase 1.6 — merging an anonymous account on sign-in (agreed, not yet built)
+## Phase 1.6 — merging an anonymous account on sign-in
 
 Someone uploads a CV and gets matches before signing in. On sign-in:
 
@@ -217,26 +220,59 @@ Someone uploads a CV and gets matches before signing in. On sign-in:
 - **Already linked to a different userId** — the anonymous account's documents
   are reassigned to the linked one, and the anonymous userId is retired.
 
-### What `NeedsChoice` becomes
+### `NeedsChoice` is retired
 
-Phase 1 prompts whenever the session holds data. That was right when one side's
-data would be lost; merging loses nothing, so prompting there is friction for no
+Phase 1 prompted whenever the session held data. That was right when one side's
+data would be lost; merging loses nothing, so prompting became friction for no
 benefit.
 
-**Narrowed: `NeedsChoice` is raised only when a singleton exists on both sides.**
-If only one side has a profile, no prompt. Either way the losing document is
-**parked, not deleted** — the same posture as `UserIds.OrphanedLegacyData` and
-the pool's inactive listings.
+It was briefly going to survive, narrowed to the case where a singleton exists
+on both sides. What killed it was the cost: the conflict is discovered *during*
+the callback, so the browser is still the anonymous session when the question is
+asked — meaning a second signed pending-merge flow, consumed by its own
+endpoint, plus client UI, all to ask a question most people would click through.
 
-The reason the prompt survives at all: silently keeping the signed-in account's
-profile means someone uploads a CV, signs in, and their CV appears not to have
-been read.
+**So: merge everything, the signed-in account keeps its singleton, the anonymous
+one is parked, and the user is told afterwards.** Parked means left in place
+under the retired userId — the same posture as `UserIds.OrphanedLegacyData` and
+the pool's inactive listings. Nothing is deleted.
+
+The concern the prompt existed to address is real and is handled instead by the
+notice below: silently keeping the account's profile means someone uploads a CV,
+signs in, and their CV appears not to have been read.
+
+### The notice is the load-bearing half
+
+A parked document nobody is told about is **silent loss with extra steps**. So
+the requirement is that the notice *shows* — visible on the next load, not
+findable by someone who already knows to look.
+
+That rules out a toast: the merge happens during the sign-in redirect, so the
+page that would show one is the page being navigated away from. It also rules
+out `localStorage`: a notice must survive the reload, and must not reappear on
+another device after being dismissed.
+
+So notices are server-side (`userNotices`, `_id = userId`), read by the app
+shell on every page load, and dismissed server-side. The server records *what
+happened*; the client owns the wording, so copy stays where the design tokens
+are. The notice carries the retired userId, which is what makes "parked"
+recoverable rather than a nicer word for deleted.
+
+**Not built: restoring a parked document.** The notice says it has not been
+deleted and to ask for it. A one-click restore is the obvious next step and is
+deliberately not in this pass.
 
 ### Three shapes, not one
 
-**(a) `UserId` field — plain `updateMany`.** The nine `IUserOwned` types:
-`applications`, `interviews`, `notes`, `statusUpdates`, `messages`,
-`matchSnapshots`, `resumePacks`, `mockInterviewSessions`, `jobScores`.
+**(a) `UserId` field — plain `updateMany`.** `applications`, `interviews`,
+`notes`, `statusUpdates`, `messages`, `matchSnapshots`, `resumePacks`,
+`mockInterviewSessions`.
+
+`matchSnapshots` belongs here and is safe: its `_id` is a SHA-256 of content
+only, with no userId in it, so an update cannot collide.
+
+**`jobScores` does NOT belong here**, though it was listed here when this
+document was first written. Its `_id` is `"{userId}:{jobId}"` — see (c).
 
 **(b) `_id = userId` singletons — copy-then-delete.** `profile` and `resumeFile`
 live in **`jobmatch`**, a different database; `interviewInsights` in
@@ -246,20 +282,45 @@ copy-then-delete, and both sides may already hold one.
 **(c) The traps.**
 
 - `search_criteria` — `user_id`, **snake_case**. This one has bitten before.
-- `poolJobState` — worse: `_id` is the composite `f"{user_id}:{job_id}"`, so the
-  userId sits **inside the immutable primary key**. An `updateMany` on its
-  `UserId` field updates the field and leaves `_id` still naming the old user.
-  Every row needs re-keying, with a possible collision where both users hold
-  state for the same job.
+- `jobScores` and `poolJobState` — `_id` is `"{userId}:{jobId}"`, so the userId
+  sits **inside the immutable primary key**. An `updateMany` on the `UserId`
+  field updates the field and leaves `_id` still naming the old user. Every row
+  needs re-keying, with a possible collision where both users hold a row for
+  the same job.
+
+  Getting this wrong does not look like a failure. `JobScore`'s own comment
+  says the key exists "so an upsert cannot create two rows for the same pair" —
+  leave it stale and the next upsert, computing the key from the *new* userId,
+  inserts a second row. `poolJobState` is worse still: its bulk reads go
+  through the `UserId` field while its writes upsert on `_id`, so a stale row
+  keeps answering queries after a later write has superseded it, and a job can
+  read as dismissed after being un-dismissed.
+
+  **Collision rules.** `poolJobState` takes the union of the two booleans —
+  safe because they are independent and both can already be true at once
+  (`clear_saved` sets `SavedToTracker` false without touching `Dismissed`), so
+  it reaches no state ordinary use cannot. `jobScores` keeps the newer
+  `ScoredAt`: a score is a point-in-time opinion computed against a profile, and
+  the older one would serve a stale verdict.
 - `userQuotas` — **deliberately not merged.** `_id = userId` holding today's
   pack count; merging it would let someone reset their daily allowance by
   signing in. It is a rate limit, not user data.
 
 Shape (a) is the only one a C# architecture test can enumerate, and (c) lives in
 Python where reflection cannot see it. A missed collection orphans data
-silently, so: **a test that enumerates every `IUserOwned` type and fails if the
-merge does not cover it, plus an explicit hand-maintained list for the Python
-and singleton cases carrying a comment saying why it cannot be derived.**
+silently, so there are two guards, and the second is the one that matters:
+
+1. **Enumeration** — every `IUserOwned` type must appear in the classification,
+   which catches "somebody added a collection".
+2. **A post-condition pass** (`FindLeaksAsync`) at the end of every merge,
+   asserting nothing still names the retired user **by field or by `_id`
+   prefix**, which catches "somebody classified one wrong".
+
+The second exists because the first would have passed on the broken version.
+`jobScores` was *handled* — incorrectly — and an enumeration test would have
+stayed green while every merge silently created duplicate rows. A classification
+test that checks "handled" rather than "handled correctly" is worse than no
+test, because it manufactures confidence.
 
 ### Order
 
@@ -268,8 +329,9 @@ and singleton cases carrying a comment saying why it cannot be derived.**
    The same atomic-claim pattern as `TryLinkAsync`.
 3. **(a)** — `updateMany({UserId: from}, {$set: {UserId: to}})`.
 4. **(c)** — snake_case field; re-key `poolJobState` row by row.
-5. **(b)** — singletons; `NeedsChoice` if both sides hold one, else move,
-   parking the loser.
+5. **(b)** — singletons; move when only one side holds one, otherwise the
+   signed-in account keeps its own and the anonymous document is parked and
+   reported.
 6. **Sessions** — `updateMany({UserId: from}, {$set: {UserId: to}})`, repointing
    the user's *other* devices. Only possible because sessions are server-side; a
    self-describing cookie could never be repointed.

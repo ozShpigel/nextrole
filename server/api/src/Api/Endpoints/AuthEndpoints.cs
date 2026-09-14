@@ -3,7 +3,9 @@ using System.Text;
 using System.Text.Json;
 using ApplicationTracker.Api.Identity;
 using ApplicationTracker.Core.Identity;
+using ApplicationTracker.Core.Models;
 using ApplicationTracker.Core.Repositories;
+using ApplicationTracker.Infrastructure.Repositories;
 using Google.Apis.Auth;
 using Microsoft.Extensions.Options;
 
@@ -77,6 +79,8 @@ public static class AuthEndpoints
             IUserContext user,
             GoogleSignInResolver signIn,
             SessionIdentityResolver sessions,
+            UserMergeService merges,
+            IUserNoticeRepository notices,
             IHttpClientFactory httpFactory,
             ILoggerFactory logFactory,
             CancellationToken ct) =>
@@ -126,6 +130,30 @@ public static class AuthEndpoints
             {
                 case GoogleSignInOutcome.SignedIn:
                 case GoogleSignInOutcome.Claimed:
+                    // Bring the anonymous session's work across before issuing
+                    // the new session — the merge repoints sessions too, and
+                    // doing it after would move the one we just created.
+                    if (result.MergeFromUserId is Guid mergeFrom)
+                    {
+                        var outcome = await merges.MergeAsync(mergeFrom, result.UserId, ct);
+
+                        // A parked document nobody is told about is silent loss
+                        // with extra steps, so this is recorded server-side and
+                        // shown on the next load rather than left to be found.
+                        if (outcome.ParkedSingletons.Count > 0)
+                        {
+                            await notices.AddAsync(result.UserId, new UserNotice
+                            {
+                                Kind = NoticeKinds.SingletonParked,
+                                Data = new Dictionary<string, string>
+                                {
+                                    ["parked"] = string.Join(",", outcome.ParkedSingletons),
+                                    ["retiredUserId"] = mergeFrom.ToString(),
+                                },
+                            }, ct);
+                        }
+                    }
+
                     // A NEW session for the account just proved. Never reuse
                     // the anonymous token: a token that survives a privilege
                     // change is a session-fixation bug — anyone who knew the
@@ -138,12 +166,6 @@ public static class AuthEndpoints
                             "ClaimUserId consumed: Google account now owns pre-auth user {UserId}. "
                             + "This path is now closed permanently.", result.UserId);
                     return Results.Redirect(o.PostSignInRedirect);
-
-                case GoogleSignInOutcome.NeedsChoice:
-                    // Nothing written. The client asks which account to keep;
-                    // resolving it is a separate deliberate action.
-                    return Results.Redirect(
-                        QueryHelpers.Add(o.PostSignInRedirect, new() { ["signin"] = "choose" }));
 
                 default:
                     log.LogInformation("Google sign-in refused: {Reason}", result.Reason);

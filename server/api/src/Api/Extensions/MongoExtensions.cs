@@ -48,6 +48,9 @@ public static class MongoExtensions
         services.AddSingleton(sp =>
             sp.GetRequiredService<IMongoDatabase>().GetCollection<UserSession>("sessions"));
 
+        services.AddSingleton(sp =>
+            sp.GetRequiredService<IMongoDatabase>().GetCollection<UserNotices>("userNotices"));
+
         // Shared-pool state, like discovered_jobs: the role list the daily
         // run searches, grown and pruned by who is using the product.
         services.AddSingleton(sp =>

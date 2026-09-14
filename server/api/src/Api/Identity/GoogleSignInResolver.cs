@@ -13,38 +13,24 @@ public enum GoogleSignInOutcome
     // userId named by GoogleAuthOptions.ClaimUserId.
     Claimed,
 
-    // This Google account owns a different account, and the caller's current
-    // session has data of its own. Both choices destroy something, so the user
-    // has to pick. Nothing is written.
-    NeedsChoice,
-
     // The caller's session is already linked to a different Google account.
     // Nothing is written.
     Refused,
 }
 
+/// <param name="MergeFromUserId">
+/// Set when the caller arrived holding a different (anonymous) account, whose
+/// documents should be moved onto <paramref name="UserId"/> before the session
+/// is issued. Null when there is nothing to move.
+///
+/// The merge is not attempted here: this type stays free of I/O so the sign-in
+/// rules remain testable without a database. The caller runs it.
+/// </param>
 public sealed record GoogleSignInResult(
     GoogleSignInOutcome Outcome,
     Guid UserId,
-    Guid? OtherUserId = null,
+    Guid? MergeFromUserId = null,
     string? Reason = null);
-
-// Does this user own anything worth losing? Deliberately narrow: a stored
-// résumé is what the client already treats as "onboarded" (useHasProfile), and
-// it is the first document any user writes.
-public interface IUserDataPresence
-{
-    Task<bool> HasDataAsync(Guid userId, CancellationToken ct = default);
-}
-
-public sealed class ResumeFileUserDataPresence : IUserDataPresence
-{
-    private readonly IResumeFileRepository _resumes;
-    public ResumeFileUserDataPresence(IResumeFileRepository resumes) => _resumes = resumes;
-
-    public async Task<bool> HasDataAsync(Guid userId, CancellationToken ct = default) =>
-        await _resumes.GetAsync(userId, ct) is not null;
-}
 
 /// <summary>
 /// Decides which userId a completed Google sign-in resolves to. Pure decision
@@ -54,16 +40,13 @@ public sealed class ResumeFileUserDataPresence : IUserDataPresence
 public sealed class GoogleSignInResolver
 {
     private readonly IGoogleIdentityRepository _identities;
-    private readonly IUserDataPresence _presence;
     private readonly GoogleAuthOptions _options;
 
     public GoogleSignInResolver(
         IGoogleIdentityRepository identities,
-        IUserDataPresence presence,
         GoogleAuthOptions options)
     {
         _identities = identities;
-        _presence = presence;
         _options = options;
     }
 
@@ -81,15 +64,13 @@ public sealed class GoogleSignInResolver
             if (linked.Id == cookieUserId)
                 return new GoogleSignInResult(GoogleSignInOutcome.SignedIn, cookieUserId);
 
-            // Their account is elsewhere. Adopting it abandons whatever this
-            // session holds, so it is only automatic when this session holds
-            // nothing.
-            if (await _presence.HasDataAsync(cookieUserId, ct))
-                return new GoogleSignInResult(
-                    GoogleSignInOutcome.NeedsChoice, cookieUserId, linked.Id,
-                    "This session has its own data. Continue as the saved account, or keep this session?");
-
-            return new GoogleSignInResult(GoogleSignInOutcome.SignedIn, linked.Id);
+            // Their account is elsewhere. Adopt it, and bring whatever this
+            // session accumulated along — someone who uploaded a CV and got
+            // matches before signing in should not have to choose which half
+            // to keep. Anything that genuinely collides (the one-per-user
+            // documents) is parked rather than destroyed, and reported.
+            return new GoogleSignInResult(
+                GoogleSignInOutcome.SignedIn, linked.Id, MergeFromUserId: cookieUserId);
         }
 
         // 2. This Google account is new to us. Is the current session already

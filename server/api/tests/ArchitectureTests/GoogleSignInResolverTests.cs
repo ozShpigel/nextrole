@@ -20,15 +20,9 @@ public class GoogleSignInResolverTests
     private static readonly Guid Bob = Guid.Parse("22222222-2222-2222-2222-222222222222");
     private static readonly Guid Carol = Guid.Parse("33333333-3333-3333-3333-333333333333");
 
-    private sealed class Presence(params Guid[] withData) : IUserDataPresence
-    {
-        public Task<bool> HasDataAsync(Guid userId, CancellationToken ct = default) =>
-            Task.FromResult(withData.Contains(userId));
-    }
-
     private static GoogleSignInResolver Build(
-        FakeIdentities repo, IUserDataPresence presence, Guid? claimTarget = null) =>
-        new(repo, presence, new GoogleAuthOptions
+        FakeIdentities repo, Guid? claimTarget = null) =>
+        new(repo, new GoogleAuthOptions
         {
             ClientId = "id",
             ClientSecret = "secret",
@@ -44,7 +38,7 @@ public class GoogleSignInResolverTests
         repo.Rows.Add(new GoogleIdentity { Id = Alice, GoogleSub = "sub-alice" });
 
         // Bob's cookie is brand new and owns nothing.
-        var result = await Build(repo, new Presence()).ResolveAsync(Bob, "sub-alice", "a@x.com");
+        var result = await Build(repo).ResolveAsync(Bob, "sub-alice", "a@x.com");
 
         Assert.Equal(GoogleSignInOutcome.SignedIn, result.Outcome);
         Assert.Equal(Alice, result.UserId);
@@ -52,16 +46,20 @@ public class GoogleSignInResolverTests
     }
 
     [Fact]
-    public async Task Known_account_but_the_session_has_data_asks_instead_of_choosing()
+    public async Task Known_account_brings_the_anonymous_session_along_instead_of_asking()
     {
+        // Prompting only made sense while one side'''s data would be lost.
+        // Merging loses nothing, so the question was friction: the caller is
+        // told what to move and does it.
         var repo = new FakeIdentities();
         repo.Rows.Add(new GoogleIdentity { Id = Alice, GoogleSub = "sub-alice" });
 
-        var result = await Build(repo, new Presence(Bob)).ResolveAsync(Bob, "sub-alice", "a@x.com");
+        var result = await Build(repo).ResolveAsync(Bob, "sub-alice", "a@x.com");
 
-        Assert.Equal(GoogleSignInOutcome.NeedsChoice, result.Outcome);
-        Assert.Equal(Alice, result.OtherUserId);
-        Assert.Single(repo.Rows); // nothing written either way
+        Assert.Equal(GoogleSignInOutcome.SignedIn, result.Outcome);
+        Assert.Equal(Alice, result.UserId);
+        Assert.Equal(Bob, result.MergeFromUserId);
+        Assert.Single(repo.Rows); // no new link written
     }
 
     [Fact]
@@ -70,7 +68,7 @@ public class GoogleSignInResolverTests
         var repo = new FakeIdentities();
         repo.Rows.Add(new GoogleIdentity { Id = Bob, GoogleSub = "sub-bob" });
 
-        var result = await Build(repo, new Presence(Bob)).ResolveAsync(Bob, "sub-carol", "c@x.com");
+        var result = await Build(repo).ResolveAsync(Bob, "sub-carol", "c@x.com");
 
         Assert.Equal(GoogleSignInOutcome.Refused, result.Outcome);
         Assert.Single(repo.Rows);
@@ -82,7 +80,7 @@ public class GoogleSignInResolverTests
         var repo = new FakeIdentities();
         repo.Rows.Add(new GoogleIdentity { Id = Alice, GoogleSub = "sub-alice" });
 
-        var result = await Build(repo, new Presence(Alice)).ResolveAsync(Alice, "sub-alice", "a@x.com");
+        var result = await Build(repo).ResolveAsync(Alice, "sub-alice", "a@x.com");
 
         Assert.Equal(GoogleSignInOutcome.SignedIn, result.Outcome);
         Assert.Equal(Alice, result.UserId);
@@ -94,7 +92,7 @@ public class GoogleSignInResolverTests
     {
         var repo = new FakeIdentities();
 
-        var result = await Build(repo, new Presence()).ResolveAsync(Bob, "sub-bob", "b@x.com");
+        var result = await Build(repo).ResolveAsync(Bob, "sub-bob", "b@x.com");
 
         Assert.Equal(GoogleSignInOutcome.SignedIn, result.Outcome);
         Assert.Equal(Bob, result.UserId);
@@ -108,7 +106,7 @@ public class GoogleSignInResolverTests
     {
         var repo = new FakeIdentities();
 
-        var result = await Build(repo, new Presence(), claimTarget: Alice)
+        var result = await Build(repo, claimTarget: Alice)
             .ResolveAsync(Bob, "sub-mine", "me@x.com");
 
         Assert.Equal(GoogleSignInOutcome.Claimed, result.Outcome);
@@ -124,7 +122,7 @@ public class GoogleSignInResolverTests
         // ClaimUserId set — the realistic state, since nobody goes back to
         // unset it — must not re-arm anything.
         var repo = new FakeIdentities();
-        var resolver = Build(repo, new Presence(), claimTarget: Alice);
+        var resolver = Build(repo, claimTarget: Alice);
 
         var first = await resolver.ResolveAsync(Bob, "sub-mine", "me@x.com");
         Assert.Equal(GoogleSignInOutcome.Claimed, first.Outcome);
@@ -144,7 +142,7 @@ public class GoogleSignInResolverTests
         var repo = new FakeIdentities();
         repo.Rows.Add(new GoogleIdentity { Id = Alice, GoogleSub = "sub-alice" });
 
-        var result = await Build(repo, new Presence(), claimTarget: Alice)
+        var result = await Build(repo, claimTarget: Alice)
             .ResolveAsync(Bob, "sub-stranger", "s@x.com");
 
         Assert.Equal(GoogleSignInOutcome.SignedIn, result.Outcome);
@@ -159,7 +157,7 @@ public class GoogleSignInResolverTests
         // not error and not silently share Alice's.
         var repo = new RacingIdentities(Alice);
 
-        var result = await Build(repo, new Presence(), claimTarget: Alice)
+        var result = await Build(repo, claimTarget: Alice)
             .ResolveAsync(Bob, "sub-bob", "b@x.com");
 
         Assert.Equal(GoogleSignInOutcome.SignedIn, result.Outcome);

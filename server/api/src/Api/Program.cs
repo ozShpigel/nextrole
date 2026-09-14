@@ -400,6 +400,7 @@ if (app.Environment.IsDevelopment())
 app.UseUserIdentityCookie();
 
 app.MapAuthEndpoints();
+app.MapNoticeEndpoints();
 app.MapApplicationEndpoints();
 app.MapInterviewEndpoints();
 app.MapInterviewInsightsEndpoints();

@@ -33,6 +33,21 @@ public static class ServiceExtensions
             new UserSessionRepository(sp.GetRequiredService<IMongoCollection<UserSession>>()));
         services.AddScoped<SessionIdentityResolver>();
 
+        services.AddScoped<IUserNoticeRepository>(sp =>
+            new UserNoticeRepository(sp.GetRequiredService<IMongoCollection<UserNotices>>()));
+
+        // Spans both databases: the singletons it moves live in jobmatch while
+        // everything else is in job-tracker (docs/auth.md, Phase 1.6).
+        services.AddScoped(sp =>
+        {
+            var client = sp.GetRequiredService<IMongoClient>();
+            var profileDb = configuration["MongoDB:ProfileDatabase"] ?? configuration["MongoDB:Database"] ?? "jobmatch";
+            return new UserMergeService(
+                sp.GetRequiredService<IMongoDatabase>(),
+                client.GetDatabase(profileDb),
+                sp.GetRequiredService<ILogger<UserMergeService>>());
+        });
+
         // Optional Google sign-in (docs/auth.md). Absent credentials leave it
         // simply unavailable — /api/auth/* 404s and the client hides the link —
         // rather than failing startup, matching how Gmail degrades in the
@@ -41,7 +56,6 @@ public static class ServiceExtensions
         services.AddSingleton(sp => sp.GetRequiredService<IOptions<GoogleAuthOptions>>().Value);
         services.AddScoped<IGoogleIdentityRepository>(sp =>
             new GoogleIdentityRepository(sp.GetRequiredService<IMongoCollection<GoogleIdentity>>()));
-        services.AddScoped<IUserDataPresence, ResumeFileUserDataPresence>();
         services.AddScoped<GoogleSignInResolver>();
         services.AddHttpClient();
 

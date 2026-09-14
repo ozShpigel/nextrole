@@ -26,12 +26,6 @@ namespace ApplicationTracker.Api.Endpoints;
 /// </remarks>
 public static class AuthEndpoints
 {
-    // Holds the CSRF state and the PKCE verifier between /start and /callback.
-    // SameSite=Lax rather than Strict: the callback arrives as a cross-site
-    // top-level redirect from Google, and Strict would withhold the cookie.
-    private const string FlowCookie = "nr_oauth";
-    private static readonly TimeSpan FlowLifetime = TimeSpan.FromMinutes(10);
-
     public static void MapAuthEndpoints(this WebApplication app)
     {
         var group = app.MapGroup("/api/auth");
@@ -49,19 +43,7 @@ public static class AuthEndpoints
             if (resolver.Mode != IdentityMode.Cookie)
                 return Results.NotFound(new { error = "Sign-in is not available on this instance." });
 
-            var state = RandomToken();
-            var verifier = RandomToken();
-            var challenge = Base64Url(SHA256.HashData(Encoding.ASCII.GetBytes(verifier)));
-
-            http.Response.Cookies.Append(FlowCookie, $"{state}.{verifier}", new CookieOptions
-            {
-                HttpOnly = true,
-                Secure = true,
-                SameSite = SameSiteMode.Lax,
-                Expires = DateTimeOffset.UtcNow.Add(FlowLifetime),
-                Path = "/api/auth",
-                IsEssential = true,
-            });
+            var flow = OAuthFlow.Begin(new HttpFlowCookieStore(http));
 
             var url = QueryHelpers.Add("https://accounts.google.com/o/oauth2/v2/auth", new()
             {
@@ -74,8 +56,8 @@ public static class AuthEndpoints
                 // for it would show a first-time visitor a mailbox-access
                 // consent screen before they have seen the product.
                 ["scope"] = "openid email profile",
-                ["state"] = state,
-                ["code_challenge"] = challenge,
+                ["state"] = flow.State,
+                ["code_challenge"] = flow.CodeChallenge,
                 ["code_challenge_method"] = "S256",
                 // Sign-in only: no refresh token is wanted or stored, so no
                 // access_type=offline and no prompt=consent.
@@ -102,26 +84,23 @@ public static class AuthEndpoints
             var o = opts.Value;
             if (!o.Enabled) return Results.NotFound(new { error = "Google sign-in is not configured." });
 
-            // Consume the flow cookie whatever happens next — it is single-use.
-            var flow = http.Request.Cookies[FlowCookie];
-            http.Response.Cookies.Delete(FlowCookie, new CookieOptions { Path = "/api/auth" });
+            // Consume before anything else: single-use, whatever happens next.
+            // A replayed callback finds no cookie and dies at the null check.
+            var flow = OAuthFlow.Consume(new HttpFlowCookieStore(http));
 
             if (!string.IsNullOrEmpty(error))
                 return Fail(o, "cancelled");
 
-            if (string.IsNullOrEmpty(code) || string.IsNullOrEmpty(state) || string.IsNullOrEmpty(flow))
+            if (string.IsNullOrEmpty(code) || flow is null)
                 return Fail(o, "invalid_request");
 
-            var parts = flow.Split('.', 2);
-            // Fixed-time compare: state is a CSRF token, and a timing oracle on
-            // it is a (small) way to forge one.
-            if (parts.Length != 2 || !FixedTimeEquals(parts[0], state))
+            if (!OAuthFlow.StateMatches(flow, state))
                 return Fail(o, "state_mismatch");
 
             GoogleJsonWebSignature.Payload payload;
             try
             {
-                var idToken = await ExchangeCodeAsync(httpFactory, o, code, parts[1], ct);
+                var idToken = await ExchangeCodeAsync(httpFactory, o, code, flow.Verifier, ct);
                 if (idToken is null) return Fail(o, "token_exchange_failed");
 
                 // Signature + iss + aud + exp, by the Google library. Never
@@ -215,15 +194,6 @@ public static class AuthEndpoints
         using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct));
         return doc.RootElement.TryGetProperty("id_token", out var t) ? t.GetString() : null;
     }
-
-    private static string RandomToken() => Base64Url(RandomNumberGenerator.GetBytes(32));
-
-    private static string Base64Url(byte[] bytes) =>
-        Convert.ToBase64String(bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_');
-
-    private static bool FixedTimeEquals(string a, string b) =>
-        CryptographicOperations.FixedTimeEquals(
-            Encoding.UTF8.GetBytes(a), Encoding.UTF8.GetBytes(b));
 
     // Small local helper so the file does not depend on WebUtilities just for
     // this; the values are all URL-unsafe until escaped.

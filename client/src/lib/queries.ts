@@ -73,6 +73,20 @@ export function useDemoMode(): boolean {
   return useConfig().data?.demoMode ?? false;
 }
 
+// Google sign-in status. `available` is false whenever sign-in cannot work on
+// this instance — no OAuth credentials configured, or Fixed identity mode,
+// where the user comes from configuration and no cookie is ever issued. The
+// client has no other way to tell those deployments apart, and offering a
+// sign-in link that 404s is worse than offering none.
+export function useAuthStatus() {
+  return useQuery<{ signedIn: boolean; email: string | null; available: boolean }>({
+    queryKey: ['auth', 'me'],
+    queryFn: () => api('/auth/me'),
+    staleTime: Infinity,
+    retry: false,
+  });
+}
+
 export const DEMO_DISABLED_TITLE = 'Disabled in the read-only demo';
 
 // Has this visitor uploaded a CV yet? One definition, because three places

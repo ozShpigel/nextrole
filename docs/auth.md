@@ -1,15 +1,21 @@
 # Authentication
 
-**Status: Phase 1 built, not yet deployed.** Google sign-in works end to end —
-`/api/auth/*`, the `googleIdentity` store, the collision rules and the one-shot
-claim, verified against a restored copy of real data. Phase 2 (email sign-in,
-passkeys, session management) is still design. Nothing here runs in production
-yet: `nextrole.cloud` and `private.nextrole.cloud` are unchanged.
+**Status by phase:**
+
+| Phase | State |
+|---|---|
+| 1 — Google sign-in | **Built**, not deployed. Verified end to end against a restored copy of real data. |
+| 1.5 — server-side sessions | **Agreed design**, not built. This is what makes public exposure safe. |
+| 1.6 — anonymous merge on sign-in | **Agreed design**, not built. |
+| 2 — email sign-in, passkeys | Design only. |
+
+Nothing here runs in production: `nextrole.cloud` and `private.nextrole.cloud`
+are both unchanged.
 
 ## Where this started
 
-In production there is still no authentication, deliberately. A visitor is identified by the `uid`
-cookie and nothing else — no login, no password, no recovery, no account. The
+In production there is still no authentication, deliberately. A visitor is
+identified by the `uid` cookie and nothing else — no login, no password, no recovery, no account. The
 full reasoning is in `docs/multi-user.md`; the short version is that it was the
 right trade for a personal-scale tool, and it is why user scoping had to be made
 structural (`UserScopedCollection`) rather than diligent: there is no auth layer
@@ -60,29 +66,6 @@ library permanently. Not worth it for a login button.
 `Fixed` mode (`private.nextrole.cloud`) has no cookie and one configured user,
 so authentication no-ops there exactly as `UseUserIdentityCookie` already does.
 The two deployments keep differing by configuration only.
-
-## The session cookie has to change
-
-Today `uid` is an **unsigned bearer token with a one-year expiry**. Anyone who
-obtains that Guid has permanent, unrevokable access to the account. That is
-documented and accepted right now — it is httpOnly, Secure, SameSite=Lax,
-host-only, and there is nothing behind it but your own job list.
-
-The moment accounts exist, it stops being acceptable: an account implies the
-ability to sign out, to revoke a session, and to have a stolen value expire.
-
-So `uid` becomes a **signed, server-side session** that resolves to the Guid,
-rather than being the Guid. `IdentityResolver.Resolve` gains a session lookup
-ahead of the raw-cookie path; its "mint a fresh id" behaviour for a visitor with
-no session stays exactly as it is, because an anonymous visitor is still a
-first-class case.
-
-**The scraper reads this cookie too** (`app/identity.py`), and it is Python. So
-the session format has to be verifiable from both languages — a signed token the
-scraper can validate against a shared secret, or a session id it resolves
-through the API. An ASP.NET Data Protection–encrypted auth cookie is *not* an
-option: the scraper cannot read it. This constraint rules out several otherwise
-reasonable designs, so decide it before writing code.
 
 ## Phase 1 — Google sign-in as recovery
 
@@ -153,9 +136,187 @@ The auth endpoints are **not** added to the `Program.cs` allowlist, and the
 landing-page link is already hidden when `demoMode` is true. A read-only demo
 with a fixed persona has nothing to sign into.
 
+## Phase 1.5 — server-side sessions (agreed, not yet built)
+
+This is what makes `nextrole.cloud` safe to expose publicly. **Optional sign-in
+does not fix it**: anonymous visitors still get a cookie, so the cookie remains
+the identity mechanism for most traffic.
+
+Today `uid` is an **unsigned bearer token with a one-year expiry**. On a public
+site that means anyone can set it to a known userId and read that person's
+entire history. It is tolerable today only because the private instance sits
+behind Basic Auth and nothing real lives on the public one.
+
+### The sessions collection
+
+`uid` stops carrying a userId and carries an opaque token instead;
+`IdentityResolver` looks the token up rather than trusting what the browser
+sent.
+
+`sessions`, in `job-tracker`:
+
+| Field | |
+|---|---|
+| `_id` | 32 CSPRNG bytes, base64url. 256 bits, no structure, never a userId |
+| `UserId` | who the token resolves to |
+| `IssuedAt` / `ExpiresAt` / `LastSeenAt` | lifetime and coarse audit |
+
+**No client IP.** It is personal data on a site with no privacy policy, and it
+is not load-bearing for anything here.
+
+- TTL index on `ExpiresAt` (`expireAfterSeconds: 0`) — the precedent is
+  `matchSnapshots` (90d) and the scraper's `discovered_jobs` (60d).
+- **The TTL is cleanup, not correctness.** Mongo's TTL monitor runs roughly
+  every 60 seconds, so an expired session lingers. `ExpiresAt > now` belongs in
+  the *query*, or an expired session stays usable for up to a minute.
+- Sliding expiry, throttled: only rewrite `ExpiresAt` when it is more than a day
+  stale, otherwise every request becomes a write.
+- Anonymous visitors still get a session, bound to a freshly generated userId
+  they cannot name. Nothing else about anonymous use changes.
+- Sign-out deletes the document. "Sign out everywhere" — delete every session
+  for a userId — becomes possible for the first time.
+- `Fixed` mode is untouched: configured Guid, no cookie, no session. The
+  offline CLIs (demo seeder, `eval-verdict`/`eval-advisor`) keep working.
+
+### The scraper resolves sessions from Mongo
+
+`server/scraper/app/identity.py` parses the `uid` cookie as a UUID. An opaque
+token makes `_parse()` return `None`, `resolve()` mints a fresh random id, and
+**every scraper write files under a phantom user** — the orphaned-write failure
+described in `docs/multi-user.md`, but silent and across all scraper traffic.
+
+**Decided: the scraper reads `sessions` from Mongo directly.** It already shares
+nine collections with the API, so this is the existing coupling rather than a
+new one. An API call per scraper request would make the API a hard dependency of
+the scraper's request path; a stateless signed token gives up instant
+revocation, which is most of the point.
+
+Two consequences:
+
+- **The session schema is a cross-language contract.** Neither side changes it
+  alone. That is why it is written down here rather than only in C#.
+- `tests/test_identity_forwarding.py` already walks the AST; it gains a guard
+  that the scraper never parses the identity cookie as a UUID again.
+
+### Cutover
+
+Every existing visitor holds `uid=<guid>`. On deploy those become unresolvable
+and every anonymous account is orphaned. So: **a cookie that parses as a Guid
+mints a session bound to that same userId and replaces the cookie.**
+
+Time-limited to **three months**, then the grace path is removed. Low stakes on
+today's `nextrole.cloud` — it is the demo — but it has to be deliberate rather
+than discovered.
+
+## Phase 1.6 — merging an anonymous account on sign-in (agreed, not yet built)
+
+Someone uploads a CV and gets matches before signing in. On sign-in:
+
+- **Google account not linked yet** — their current anonymous userId becomes the
+  linked one. Nothing moves.
+- **Already linked to a different userId** — the anonymous account's documents
+  are reassigned to the linked one, and the anonymous userId is retired.
+
+### What `NeedsChoice` becomes
+
+Phase 1 prompts whenever the session holds data. That was right when one side's
+data would be lost; merging loses nothing, so prompting there is friction for no
+benefit.
+
+**Narrowed: `NeedsChoice` is raised only when a singleton exists on both sides.**
+If only one side has a profile, no prompt. Either way the losing document is
+**parked, not deleted** — the same posture as `UserIds.OrphanedLegacyData` and
+the pool's inactive listings.
+
+The reason the prompt survives at all: silently keeping the signed-in account's
+profile means someone uploads a CV, signs in, and their CV appears not to have
+been read.
+
+### Three shapes, not one
+
+**(a) `UserId` field — plain `updateMany`.** The nine `IUserOwned` types:
+`applications`, `interviews`, `notes`, `statusUpdates`, `messages`,
+`matchSnapshots`, `resumePacks`, `mockInterviewSessions`, `jobScores`.
+
+**(b) `_id = userId` singletons — copy-then-delete.** `profile` and `resumeFile`
+live in **`jobmatch`**, a different database; `interviewInsights` in
+`job-tracker`. `_id` is immutable, so these follow `RekeyAsync`'s
+copy-then-delete, and both sides may already hold one.
+
+**(c) The traps.**
+
+- `search_criteria` — `user_id`, **snake_case**. This one has bitten before.
+- `poolJobState` — worse: `_id` is the composite `f"{user_id}:{job_id}"`, so the
+  userId sits **inside the immutable primary key**. An `updateMany` on its
+  `UserId` field updates the field and leaves `_id` still naming the old user.
+  Every row needs re-keying, with a possible collision where both users hold
+  state for the same job.
+- `userQuotas` — **deliberately not merged.** `_id = userId` holding today's
+  pack count; merging it would let someone reset their daily allowance by
+  signing in. It is a rate limit, not user data.
+
+Shape (a) is the only one a C# architecture test can enumerate, and (c) lives in
+Python where reflection cannot see it. A missed collection orphans data
+silently, so: **a test that enumerates every `IUserOwned` type and fails if the
+merge does not cover it, plus an explicit hand-maintained list for the Python
+and singleton cases carrying a comment saying why it cannot be derived.**
+
+### Order
+
+1. **Fast path** — source has no data, skip everything. The common case.
+2. **Journal** — insert `userMerges` with `_id = fromUserId`, insert-if-absent.
+   The same atomic-claim pattern as `TryLinkAsync`.
+3. **(a)** — `updateMany({UserId: from}, {$set: {UserId: to}})`.
+4. **(c)** — snake_case field; re-key `poolJobState` row by row.
+5. **(b)** — singletons; `NeedsChoice` if both sides hold one, else move,
+   parking the loser.
+6. **Sessions** — `updateMany({UserId: from}, {$set: {UserId: to}})`, repointing
+   the user's *other* devices. Only possible because sessions are server-side; a
+   self-describing cookie could never be repointed.
+7. **Journal completion** — `CompletedAt` and per-collection counts.
+
+### Partial failure: idempotent forward-only, no transaction
+
+The load-bearing property is that `updateMany({UserId: from}, …)` is idempotent
+**by construction** — once it runs, nothing matches `from`, so re-running is a
+no-op. Partial failure means some steps are done; re-running finishes the job.
+
+Atlas is a replica set and cross-database transactions would work there. We are
+not using one, for two reasons:
+
+- **A design that resumes after a process death beats one that only rolls
+  back.** An interrupted transaction unwinds; this finishes. An OOM-killed
+  process is the realistic failure here, not a logical error.
+- The local Mongo container is standalone, so a transaction-dependent path could
+  not be tested outside production. A failure path that only exists in
+  production is not one to trust.
+
+Worst case mid-flight is a few seconds of a partly-moved account. Nothing is
+unrecoverable.
+
+### Idempotent on a double sign-in
+
+Three independent levels:
+
+1. **Journal `_id = fromUserId`**, insert-if-absent — one winner per source
+   user; the loser reads the journal rather than racing.
+2. **Every operation is idempotent**, so even if both ran they converge.
+3. **The fast path** short-circuits the second attempt once the source is empty.
+
+A concurrent second callback whose journal insert fails reads it: if
+`CompletedAt` is set, just repoint the session; if not, the other is in flight
+and proceeding is safe because of (2). Two sign-ins from *different* anonymous
+sessions into the same account are independent merges and compose.
+
+### Orthogonal to `ClaimUserId`
+
+The Phase 1 claim path is unchanged. It is the one-time production migration for
+data that predates logins; this is the ongoing case for visitors who start
+anonymously.
+
 ## Phase 2 — real accounts
 
-Email sign-in, passkeys, additional providers, session management. The point of
+Email sign-in, passkeys, additional providers. (Session management moved to Phase 1.5 — it is a prerequisite for public exposure, not a later nicety.) The point of
 Phase 1's shape is that this is additive: each new method is one more way to
 arrive at a Guid, and nothing below the resolver is touched again.
 
@@ -237,9 +398,17 @@ Per the standing rule that a rule with no check behind it is not a rule:
 
 ## Open questions
 
-- Session format both C# and Python can verify (see above) — shared-secret signed
-  token, or a lookup through the API?
+- **Settled** — session format. Opaque token, server-side lookup, scraper reads
+  `sessions` from Mongo. See Phase 1.5.
+- **Settled** — `NeedsChoice` narrows to singleton-on-both-sides. See Phase 1.6.
 - Does signing out clear `uid` entirely (becoming a new anonymous visitor) or
   return to the pre-link anonymous id? The first is simpler and probably right.
+  With server-side sessions the question sharpens: sign-out deletes the session,
+  and the next request mints a new anonymous one, so "the pre-link anonymous id"
+  is only reachable if we deliberately keep it — which is a reason not to.
 - Account deletion. There is no such path today because there are no accounts;
-  once there are, there needs to be one.
+  once there are, there needs to be one. It now also has to delete sessions and
+  the `googleIdentity` link, not just the data.
+- Whether an anonymous session should expire sooner than a signed-in one. A
+  year is a long life for a token nobody can revoke by signing out, because an
+  anonymous visitor never signs out.

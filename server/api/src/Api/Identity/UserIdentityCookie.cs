@@ -1,24 +1,24 @@
+using ApplicationTracker.Api.Identity;
+
 namespace ApplicationTracker.Api.Identity;
 
 /// <summary>
-/// Issues the <c>uid</c> cookie on the first request from a visitor who does
-/// not already have one.
+/// Resolves the <c>uid</c> cookie to a userId once per request, and issues a
+/// cookie when the visitor needs one.
 /// </summary>
 /// <remarks>
-/// Unconditional, not tied to CV upload: every request that arrives without a
-/// usable cookie leaves with one. That removes any "has this visitor uploaded
-/// yet" branch from the rest of the system — by the time anything cares who the
-/// user is, the answer already exists.
+/// This is the ONLY place a userId is decided in Cookie mode.
+/// <see cref="IdentityResolver.Resolve"/> reads what this parks and throws if
+/// it finds nothing, so a request that bypasses this middleware fails loudly
+/// instead of quietly filing data under an id nobody holds.
 ///
-/// Minting an id creates no documents. A bot or a bounce takes a cookie away
-/// and leaves nothing behind; the first row for a user is written when they
-/// upload a CV.
+/// The cookie carries an opaque session token, never a userId — see
+/// docs/auth.md. Before sessions it carried the userId in the clear, which
+/// meant anyone could set it to somebody else's id and read their account.
 ///
-/// The API is the ONLY issuer. The scraper reads the same cookie (both services
-/// sit behind the client's nginx on one origin, so the browser sends it to
-/// both) but never sets one: two services minting concurrently on a first page
-/// load would race, and the loser's id — possibly the one a CV was just
-/// uploaded under — would be overwritten in the browser.
+/// Runs unconditionally, so by the time anything cares who the user is, the
+/// answer exists. A visitor who writes nothing leaves only a session document
+/// behind, which the TTL collects.
 ///
 /// No-ops entirely in Fixed mode, where identity comes from configuration and
 /// there is nothing to persist in a browser.
@@ -32,31 +32,40 @@ public static class UserIdentityCookieExtensions
 
         return app.Use(async (ctx, next) =>
         {
-            // A preflight carries no cookies and its response is not the one the
-            // browser stores them from.
-            if (!HttpMethods.IsOptions(ctx.Request.Method) && !resolver.TryReadCookie(ctx, out _))
+            // A preflight carries no cookies and its response is not the one
+            // the browser stores them from. Resolving here would mint a
+            // throwaway session per preflight.
+            if (HttpMethods.IsOptions(ctx.Request.Method))
             {
-                // Resolve (rather than minting here) so the id handed to this
-                // request's handlers is the same one being written to the cookie.
-                var userId = resolver.Resolve(ctx);
-                Append(ctx, resolver.CookieName, userId);
+                await next();
+                return;
             }
+
+            var sessions = ctx.RequestServices.GetRequiredService<SessionIdentityResolver>();
+            var resolved = await sessions.ResolveAsync(resolver.ReadCookie(ctx), ctx.RequestAborted);
+
+            IdentityResolver.Park(ctx, resolved.UserId);
+
+            // Only when the browser needs one: a new visitor, or a legacy
+            // cookie being upgraded. An already-good session is not rewritten
+            // on every request.
+            if (resolved.TokenToIssue is not null)
+                Append(ctx, resolver.CookieName, resolved.TokenToIssue);
 
             await next();
         });
     }
 
     /// <summary>
-    /// Writes the <c>uid</c> cookie. Shared by the first-visit middleware above
-    /// and by Google sign-in, which re-points an existing browser at a
-    /// different userId — two copies of these options would drift, and a
-    /// sign-in that wrote a subtly different cookie (a shorter life, a
-    /// narrower path) would look like it worked and then quietly log the user
-    /// back out.
+    /// Writes the <c>uid</c> cookie. Shared by this middleware and by Google
+    /// sign-in, which re-points an existing browser at a different session —
+    /// two copies of these options would drift, and a sign-in that wrote a
+    /// subtly different cookie (a shorter life, a narrower path) would look
+    /// like it worked and then quietly log the user back out.
     /// </summary>
-    public static void Append(HttpContext ctx, string cookieName, Guid userId)
+    public static void Append(HttpContext ctx, string cookieName, string sessionToken)
     {
-        ctx.Response.Cookies.Append(cookieName, userId.ToString(), new CookieOptions
+        ctx.Response.Cookies.Append(cookieName, sessionToken, new CookieOptions
         {
             HttpOnly = true,                                  // never read by JS; there is no client-side use for it
             Secure = true,                                    // browsers still accept Secure cookies over http://localhost
@@ -69,4 +78,10 @@ public static class UserIdentityCookieExtensions
             IsEssential = true,
         });
     }
+
+    /// <summary>Drops the cookie. The session document is deleted separately —
+    /// clearing only the cookie would leave a live token that still resolves
+    /// if anyone kept a copy.</summary>
+    public static void Clear(HttpContext ctx, string cookieName) =>
+        ctx.Response.Cookies.Delete(cookieName, new CookieOptions { Path = "/" });
 }

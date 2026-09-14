@@ -27,6 +27,12 @@ public static class ServiceExtensions
         services.AddSingleton<IdentityResolver>();
         services.AddScoped<IUserContext, HttpUserContext>();
 
+        // Sessions: the cookie carries an opaque token, and this is what turns
+        // it into a userId (docs/auth.md, Phase 1.5).
+        services.AddScoped<IUserSessionRepository>(sp =>
+            new UserSessionRepository(sp.GetRequiredService<IMongoCollection<UserSession>>()));
+        services.AddScoped<SessionIdentityResolver>();
+
         // Optional Google sign-in (docs/auth.md). Absent credentials leave it
         // simply unavailable — /api/auth/* 404s and the client hides the link —
         // rather than failing startup, matching how Gmail degrades in the

@@ -76,6 +76,7 @@ public static class AuthEndpoints
             IdentityResolver resolver,
             IUserContext user,
             GoogleSignInResolver signIn,
+            SessionIdentityResolver sessions,
             IHttpClientFactory httpFactory,
             ILoggerFactory logFactory,
             CancellationToken ct) =>
@@ -125,7 +126,13 @@ public static class AuthEndpoints
             {
                 case GoogleSignInOutcome.SignedIn:
                 case GoogleSignInOutcome.Claimed:
-                    UserIdentityCookieExtensions.Append(http, resolver.CookieName, result.UserId);
+                    // A NEW session for the account just proved. Never reuse
+                    // the anonymous token: a token that survives a privilege
+                    // change is a session-fixation bug — anyone who knew the
+                    // pre-sign-in value would hold a session for the account
+                    // it became.
+                    var signedInToken = await sessions.IssueAsync(result.UserId, ct);
+                    UserIdentityCookieExtensions.Append(http, resolver.CookieName, signedInToken);
                     if (result.Outcome == GoogleSignInOutcome.Claimed)
                         log.LogWarning(
                             "ClaimUserId consumed: Google account now owns pre-auth user {UserId}. "
@@ -144,12 +151,25 @@ public static class AuthEndpoints
             }
         });
 
-        group.MapPost("/signout", (HttpContext http, IdentityResolver resolver) =>
+        group.MapPost("/signout", async (
+            HttpContext http,
+            IdentityResolver resolver,
+            IUserSessionRepository sessionStore,
+            CancellationToken ct) =>
         {
+            // Delete the session server-side, not just the cookie. Clearing
+            // the cookie alone leaves a live token: anyone holding a copy —
+            // a logged proxy, a shared machine, a synced browser profile —
+            // could still present it. This is the whole reason sessions are
+            // server-side.
+            var token = resolver.ReadCookie(http);
+            if (!string.IsNullOrEmpty(token)) await sessionStore.DeleteAsync(token, ct);
+
+            UserIdentityCookieExtensions.Clear(http, resolver.CookieName);
+
             // Drops the session, not the account. The next request mints a
-            // fresh anonymous id exactly as it would for a new visitor; signing
-            // in again returns them to their linked account.
-            http.Response.Cookies.Delete(resolver.CookieName, new CookieOptions { Path = "/" });
+            // fresh anonymous identity exactly as it would for a new visitor;
+            // signing in again returns them to their linked account.
             return Results.NoContent();
         });
 

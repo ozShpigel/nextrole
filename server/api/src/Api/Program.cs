@@ -173,6 +173,14 @@ await new GoogleIdentityRepository(
     app.Services.GetRequiredService<IMongoCollection<GoogleIdentity>>())
     .EnsureIndexesAsync();
 
+// Also fatal. The TTL is only cleanup — expiry is enforced in the query — but
+// idx_userid is what sign-out-everywhere and the merge repoint rely on, and an
+// unindexed collection scan over sessions on every merge is not something to
+// discover in production.
+await new UserSessionRepository(
+    app.Services.GetRequiredService<IMongoCollection<UserSession>>())
+    .EnsureIndexesAsync();
+
 try
 {
     await ApplicationIndexInitializer.EnsureIndexesAsync(

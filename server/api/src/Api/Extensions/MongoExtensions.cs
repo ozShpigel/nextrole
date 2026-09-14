@@ -43,6 +43,11 @@ public static class MongoExtensions
         services.AddSingleton(sp =>
             sp.GetRequiredService<IMongoDatabase>().GetCollection<GoogleIdentity>("googleIdentity"));
 
+        // Keyed by an opaque token, not a userId — it is looked up before we
+        // know who the user is. Read by the scraper too (docs/auth.md).
+        services.AddSingleton(sp =>
+            sp.GetRequiredService<IMongoDatabase>().GetCollection<UserSession>("sessions"));
+
         // Shared-pool state, like discovered_jobs: the role list the daily
         // run searches, grown and pruned by who is using the product.
         services.AddSingleton(sp =>

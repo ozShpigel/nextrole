@@ -8,13 +8,27 @@ Two modes:
   fixed  — private instance, single user, id from IDENTITY_FIXED_USER_ID
   cookie — multi-user instance, id from the `uid` cookie
 
-As on the API side, an absent cookie mints a fresh id rather than falling back
-to some shared account. Minting creates no document: the first row for a user
-appears only when they actually write something.
+The cookie carries an OPAQUE SESSION TOKEN, not a userId (docs/auth.md,
+Phase 1.5). This module resolves it by reading the `sessions` collection
+directly: an API call per request would make the API a hard dependency of this
+service's request path, and this service already shares nine collections with
+it.
+
+That makes the session document a CROSS-LANGUAGE CONTRACT — its field names and
+semantics are fixed by Core/Models/UserSession.cs and are not changeable from
+one side alone.
+
+Unlike the API, this service NEVER mints an identity. The API is the only
+cookie issuer, so a minted id here could never be written back to the browser:
+it would be a phantom user, the request would succeed, and the row would be
+invisible to everyone (the failure described in docs/multi-user.md). An
+unresolvable cookie is a 401 instead — loud and recoverable beats silent and
+permanent.
 """
 
 import logging
 import uuid
+from datetime import datetime, timezone
 
 from fastapi import HTTPException, Request
 
@@ -68,15 +82,53 @@ def instance_user_id(settings: Settings) -> str:
     )
 
 
-def resolve(settings: Settings, request: Request) -> str:
+async def resolve(settings: Settings, request: Request, db) -> str:
+    """Resolve the request's user. Async because a session lookup is a query.
+
+    The API mirror is SessionIdentityResolver.ResolveAsync; keep the two in
+    step.
+    """
     if settings.identity_mode == "fixed":
         fixed = _parse(settings.identity_fixed_user_id)
         if not fixed:
             raise HTTPException(500, "Identity is not configured on this instance")
         return fixed
 
-    from_cookie = _parse(request.cookies.get(settings.identity_cookie_name))
-    return from_cookie or str(uuid.uuid4())
+    if db is None:
+        raise HTTPException(503, "Identity store is unavailable")
+
+    token = request.cookies.get(settings.identity_cookie_name)
+    if not token:
+        raise HTTPException(401, "No session")
+
+    # Expiry is part of the QUERY. Mongo's TTL monitor runs on its own schedule
+    # (roughly once a minute), so the collection reliably holds sessions that
+    # are already dead; trusting the index to have swept them would leave a
+    # window where an expired session still resolves.
+    session = await db.sessions.find_one(
+        {"_id": token, "ExpiresAt": {"$gt": datetime.now(timezone.utc)}}
+    )
+    if session:
+        return str(session["UserId"])
+
+    # A pre-sessions cookie: the userId in the clear. Honoured read-only during
+    # the cutover window so a visitor mid-migration is not orphaned — but NOT
+    # upgraded, because the API is the only cookie issuer and two services
+    # minting concurrently would race.
+    legacy = _parse(token)
+    if legacy and settings.accept_legacy_guid_cookie:
+        # Same guard as the API: an account somebody can prove they own is
+        # reachable only by proving it. Otherwise presenting a known userId —
+        # and a ClaimUserId target is typically hand-written and guessable —
+        # would hand over that account.
+        if await db.googleIdentity.find_one({"_id": legacy}):
+            logger.warning(
+                "Rejected a pre-sessions cookie for %s: that account is linked.", legacy
+            )
+            raise HTTPException(401, "Sign in to reach this account")
+        return legacy
+
+    raise HTTPException(401, "No session")
 
 
 def _parse(raw: str | None) -> str | None:

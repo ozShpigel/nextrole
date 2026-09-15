@@ -84,15 +84,22 @@ nothing anywhere logged a problem.
 The rule, and the check behind it:
 
 - `tracker_client._request_with_retry` is the single funnel for every call the
-  scraper makes into the API, and its `user_id` parameter **has no default**.
+  scraper makes into the API, and its `identity` parameter **has no default**.
   Omitting it is a `TypeError` at the call site.
-- A resolved id travels as the `uid` cookie — which names a session rather
-  than carrying the id — so `IdentityResolver` stays the
-  only code that decides who a request is. The scraper never asserts a user
-  any other way.
-- `user_id=None` is how a call says it is genuinely user-independent — title
+- What travels is `RequestIdentity.credential` — **the session token, not the
+  resolved id.** The two are not interchangeable: the API turns a cookie into
+  an owner itself, and one it cannot resolve does not get rejected, it gets a
+  freshly minted user. Forwarding the id therefore looks exactly like working
+  and orphans every write (see below). `IdentityResolver` stays the only code
+  that decides who a request is; the scraper never asserts a user any other way.
+- `identity=None` is how a call says it is genuinely user-independent — title
   triage, seniority classification, job-facts extraction. An explicit `None` is
   a decision; a missing argument is an oversight.
+- A background task has no request and so no token. Under `Fixed` the API reads
+  its user from configuration and ignores the cookie, so an instance identity is
+  sound there; under `Cookie` there is no provable answer, and the honest move
+  is to skip the call rather than send an id that will mint a stranger
+  (`orchestrator._run_identity`).
 - `tests/test_identity_forwarding.py` walks the AST of `app/services/*.py` and
   fails if any `_request_with_retry` call site omits `user_id`, and checks that
   the four job-action endpoints declare the identity dependency. Verified by

@@ -324,6 +324,30 @@ async def _classify_seniority(ctx: _RunContext, relevant_jobs: list[dict]) -> di
     return seniority
 
 
+def _run_identity(ctx: _RunContext) -> identity.RequestIdentity | None:
+    """The identity this run can PROVE to the API, or None.
+
+    A run is a background task: there is no request behind it and so no session
+    token. Under Fixed mode that costs nothing — the API takes its user from
+    configuration and ignores the cookie — so the criteria's owner is a sound
+    answer.
+
+    Under Cookie mode there is no answer. Sending the owner's userId would not
+    be rejected; the API would mint a throwaway identity, and the dedup check
+    would then ask an empty tracker whether it already holds this job and be
+    told no, every time, forever. A skipped check leaves `is_duplicate` false,
+    which is the same answer that lie produces — arrived at honestly, and
+    without a per-job round trip that can only mislead.
+    """
+    if ctx.settings.identity_mode != "fixed":
+        return None
+    # Whose tracker — the owner of the criteria this run is for. An unowned
+    # criteria predates multi-user and is attributed the same way the migration
+    # attributes it.
+    owner = ctx.criteria.user_id or identity.legacy_owner_user_id(ctx.settings)
+    return identity.RequestIdentity(user_id=owner, credential=owner)
+
+
 def _company_profile(job_data: dict, enrichment: _Enrichment) -> dict | None:
     """jobspy's LinkedIn scraper never populates numEmployees (only Indeed
     does) — fill the gap from the DDG-scraped prefetch, but never overwrite a
@@ -454,15 +478,14 @@ async def _extract_and_insert_batch(
 
             # Still a useful flag even though nothing is scored: the UI marks
             # a job the user already tracks.
-            async with dup_sem:
-                # Whose tracker — the owner of the criteria this run is for.
-                # An unowned criteria predates multi-user and is attributed the
-                # same way the migration attributes it.
-                is_dup = await tracker_client.check_duplicate(
-                    ctx.settings, job_data["company"], job_data["title"],
-                    user_id=(ctx.criteria.user_id
-                             or identity.legacy_owner_user_id(ctx.settings)),
-                )
+            is_dup = False
+            dup_identity = _run_identity(ctx)
+            if dup_identity is not None:
+                async with dup_sem:
+                    is_dup = await tracker_client.check_duplicate(
+                        ctx.settings, job_data["company"], job_data["title"],
+                        identity=dup_identity,
+                    )
             if is_dup:
                 run.jobs_skipped_duplicate += 1
 

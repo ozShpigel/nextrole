@@ -199,6 +199,24 @@ public sealed class PoolScanService : IPoolScanService
                 // same facts to ground the rationale against the profile.
                 MustHaveTech = j.MustHaveTech,
                 NiceToHaveTech = j.NiceToHaveTech,
+                // Review evidence the ingest already paid to scrape. Omitting it
+                // left EnforceEvidenceCaps capping Pace & Workload / Long-term
+                // Risk on jobs whose work-life-balance data was sitting unread
+                // on the pool document, and suppressed reviewAdjustment on
+                // every pool-scored job.
+                GlassdoorData = j.GlassdoorData,
+                // Context only — the prompt states company_profile must never
+                // change a numeric score. Cheap (industry + url) and already
+                // loaded for display.
+                CompanyProfile = PoolEnrichment.CompanyProfileFrom(j.CompanyProfile),
+                // CompanyNews is deliberately NOT passed. The batch prompt's
+                // "Ingest-time: omit narrative-only fields entirely" rule drops
+                // companyNewsAnalysis for every job regardless of whether a
+                // <company_news> block was supplied, and news may never change a
+                // numeric score — so forwarding it is measured at +856 input
+                // tokens/job (+9% of per-job scoring cost) for an effect the
+                // prompt forbids. PoolJob still carries it for a caller that
+                // does render the narrative.
                 // The ingest's parse when there is one. Null falls through to
                 // an inline Analyst call for that job only — today's behaviour,
                 // so a cache miss is never worse than no cache.

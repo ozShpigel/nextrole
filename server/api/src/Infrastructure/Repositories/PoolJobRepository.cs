@@ -128,6 +128,8 @@ public sealed class PoolJobRepository : IPoolJobRepository
         FirstSeenAt = d.TryGetValue("first_seen_at", out var f) && f.IsValidDateTime ? f.ToUniversalTime() : null,
         MustHaveTech = ExtractedStrings(d, "must_have_tech"),
         NiceToHaveTech = ExtractedStrings(d, "nice_to_have_tech"),
+        CompanyNews = NewsFrom(d),
+        GlassdoorData = GlassdoorFrom(d),
         Parsed = ParsedFrom(d),
         ParseVersion = Str(d, "parsed_with"),
     };
@@ -156,6 +158,90 @@ public sealed class PoolJobRepository : IPoolJobRepository
     {
         PropertyNameCaseInsensitive = true,
     };
+
+    // company_news: [{title, source, published}], written by the scraper's
+    // news prefetch. Items without a title are dropped rather than passed as
+    // blanks — the prompt treats every entry as a headline.
+    private static List<CompanyNewsItem>? NewsFrom(BsonDocument d)
+    {
+        if (!d.TryGetValue("company_news", out var v) || !v.IsBsonArray) return null;
+        var items = v.AsBsonArray
+            .Where(x => x.IsBsonDocument)
+            .Select(x => x.AsBsonDocument)
+            .Where(x => Str(x, "title") is { Length: > 0 })
+            .Select(x => new CompanyNewsItem
+            {
+                Title = Str(x, "title")!,
+                Source = Str(x, "source"),
+                Published = Str(x, "published"),
+            })
+            .ToList();
+        return items.Count > 0 ? items : null;
+    }
+
+    /// <summary>
+    /// glassdoor_data, but ONLY when it carries something the Evaluator can
+    /// actually reason from.
+    /// </summary>
+    /// <remarks>
+    /// The guard is the point, not a formality. JobMatchService.EnforceEvidenceCaps
+    /// lifts the Pace &amp; Workload / Long-term Risk cap on `glassdoorData is null`
+    /// being false — the reasoning being that a posting silent on pace may still
+    /// have real review evidence reaching the Evaluator separately. Hand it an
+    /// object with no rating, no sub-ratings, no recommend-percent and no
+    /// snippets and that reasoning inverts: the cap lifts and nothing replaces
+    /// it, so scores rise on the strength of a field's mere existence.
+    ///
+    /// No such document exists today (measured: 22 of 22 carry sub-ratings,
+    /// recommend-percent and snippets). This guards the version of
+    /// glassdoor_client that starts writing an empty shell on a miss, which is
+    /// a scraper change nobody would connect to a scoring drift.
+    /// </remarks>
+    private static GlassdoorData? GlassdoorFrom(BsonDocument d)
+    {
+        if (!d.TryGetValue("glassdoor_data", out var v) || !v.IsBsonDocument) return null;
+        var g = v.AsBsonDocument;
+
+        var snippets = g.TryGetValue("snippets", out var s) && s.IsBsonArray
+            ? s.AsBsonArray.Where(x => x.IsString).Select(x => x.AsString).ToList()
+            : null;
+        var subRatings = SubRatingsFrom(g);
+        var recommend = Int(g, "recommendPercent");
+        var rating = Dbl(g, "rating");
+
+        // The guard itself lives in PoolEnrichment so it has a test that runs
+        // in CI — this layer only turns BSON into the record.
+        return PoolEnrichment.EvidenceOrNull(new GlassdoorData
+        {
+            Rating = rating,
+            ReviewCount = Int(g, "reviewCount"),
+            Url = Str(g, "url"),
+            SubRatings = subRatings,
+            RecommendPercent = recommend,
+            Snippets = snippets,
+        });
+    }
+
+    private static GlassdoorSubRatings? SubRatingsFrom(BsonDocument g)
+    {
+        if (!g.TryGetValue("subRatings", out var v) || !v.IsBsonDocument) return null;
+        var s = v.AsBsonDocument;
+        var r = new GlassdoorSubRatings
+        {
+            WorkLifeBalance = Dbl(s, "workLifeBalance"),
+            CultureAndValues = Dbl(s, "cultureAndValues"),
+            CareerOpportunities = Dbl(s, "careerOpportunities"),
+            SeniorManagement = Dbl(s, "seniorManagement"),
+            CompensationAndBenefits = Dbl(s, "compensationAndBenefits"),
+        };
+        return PoolEnrichment.HasAnySubRating(r) ? r : null;
+    }
+
+    private static double? Dbl(BsonDocument d, string field) =>
+        d.TryGetValue(field, out var v) && v.IsNumeric ? v.ToDouble() : null;
+
+    private static int? Int(BsonDocument d, string field) =>
+        d.TryGetValue(field, out var v) && v.IsNumeric ? v.ToInt32() : null;
 
     // extracted.<field> as a string array. Absent on rows that predate the
     // pool's extraction step, and on rows whose extraction was abandoned after

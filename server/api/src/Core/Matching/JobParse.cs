@@ -12,6 +12,12 @@ namespace ApplicationTracker.Core.Matching;
 // across profiles than across repeat runs of the same profile. What varies is
 // sampling, not the candidate.
 //
+// Anything that guards the Analyst's output has to run BEFORE a parse is
+// stored, not after one is read back -- see VerbatimCulturalSignals for the
+// worked example and the general rule. A check that was adequate when its
+// subject was recomputed per user is not automatically adequate once the
+// subject is shared and durable.
+//
 // Which is the whole reason to move it here. Running it per user meant every
 // user re-parsed postings other users had already parsed, at 2.1x the cost of
 // the entire global ingest pipeline, and it meant each user scored against

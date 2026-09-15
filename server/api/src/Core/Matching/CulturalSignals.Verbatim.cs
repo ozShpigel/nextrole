@@ -13,13 +13,24 @@ namespace ApplicationTracker.Core.Matching;
 /// then cites them as evidence for a hard filter the posting never triggered.
 /// </para>
 /// <para>
-/// Lifted out of <see cref="JobMatchService"/> when the Analyst moved to
-/// ingest, because it now has to run in two places and running it in only one
-/// would be worse than not having it. A fabricated signal used to cost one
-/// user one bad score, on a parse thrown away immediately afterwards. A stored
-/// parse is shared and durable: the same fabrication would be handed to every
-/// user who scores that job, for as long as the row lives. The guard has to
-/// run BEFORE the parse is persisted, not after it is read back.
+/// <b>This is the shape of the risk in moving the Analyst to ingest, and the
+/// reason to look for others like it.</b> A per-user artifact's mistakes are
+/// per-user: this guard used to stand between one fabricated signal and one
+/// bad score, on a parse discarded seconds later. A SHARED, DURABLE artifact's
+/// mistakes belong to everybody: the same fabrication, stored, is handed to
+/// every user who scores that job for as long as the row lives, and nothing
+/// downstream can tell it apart from something the posting actually said.
+/// </para>
+/// <para>
+/// So the guard was lifted out of <see cref="JobMatchService"/> and now runs in
+/// both places, and it runs BEFORE a parse is persisted rather than after one
+/// is read back. Running it in only one place would be worse than not having
+/// it at all, because the cached path is the one where a mistake compounds.
+/// </para>
+/// <para>
+/// When adding anything else to the stored parse, ask the same question: what
+/// did this check cost when it was wrong once per user, and what does it cost
+/// now that being wrong once is being wrong for everyone?
 /// </para>
 /// </remarks>
 public static class VerbatimCulturalSignals

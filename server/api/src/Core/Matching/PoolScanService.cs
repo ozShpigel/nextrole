@@ -243,7 +243,7 @@ public sealed class PoolScanService : IPoolScanService
                     Score = r.OverallScore,
                     Verdict = r.Verdict,
                     ShouldApply = r.Recommendation?.ShouldApply,
-                    MatchAnalysis = JsonSerializer.Serialize(r, CamelCase),
+                    MatchAnalysis = JsonSerializer.Serialize(WithoutSnapshots(r), CamelCase),
                 }
                 // A job the model did not return a result for still gets a row,
                 // carrying the reason. Without it the next visit would re-send
@@ -265,6 +265,39 @@ public sealed class PoolScanService : IPoolScanService
             return 0;
         }
     }
+
+    /// <summary>
+    /// The response minus the four raw Claude call transcripts.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Those four fields were 88% of this collection by size, and stored 4.7x
+    /// over: every row in a batch carried its own copy of the SAME shared
+    /// request and response text, and the Evaluator's request embeds the full
+    /// 27,595-character system prompt. Measured on the live collection, a
+    /// jobScores row averaged 135 KB, of which roughly 119 KB was transcript.
+    /// </para>
+    /// <para>
+    /// They are debugging artifacts and nothing renders them — the client
+    /// declares the fields on its Application type and never reads them. They
+    /// now go to matchSnapshots, which is content-addressed (so a batch stores
+    /// one copy, not five) and TTL'd at 90 days. Retention is therefore no
+    /// longer permanent, which is the point: permanent retention of debugging
+    /// artifacts is how this collection got to 88%.
+    /// </para>
+    /// <para>
+    /// Import Job has done exactly this since it shipped (main.py strips the
+    /// same four keys before storing analysis_json and passes the transcripts
+    /// separately) — the scan was the path that never caught up.
+    /// </para>
+    /// </remarks>
+    private static MatchResponse WithoutSnapshots(MatchResponse r) => r with
+    {
+        AnalystSnapshotInput = null,
+        AnalystSnapshotOutput = null,
+        EvaluatorSnapshotInput = null,
+        EvaluatorSnapshotOutput = null,
+    };
 
     private static IEnumerable<List<T>> Chunk<T>(List<T> items, int size)
     {

@@ -112,16 +112,42 @@ public sealed class JobMatchService : IJobMatchService
         var structured = profileDoc.Structured;
         var redFlags = structured.RedFlags;
 
-        // Analyst pass: ONE shared call parses every job in the batch — same
-        // shared-system-prompt-cost saving the Evaluator batch call already
-        // gets. Title/Company caller overrides are applied here, after
-        // parsing, same as the single-job path (ParseAsync) — never sent to
-        // the model itself.
-        var (parseResults, analystSnap) = await _claudeClient.ParseJobDescriptionBatchAsync(request.Jobs, cancellationToken);
-        var parsedById = parseResults.ToDictionary(r => r.Id, r => r.Parsed);
+        // Analyst pass, for whatever still needs one. A caller that supplies
+        // MatchBatchItem.Parsed has a stored parse from the ingest, and the
+        // Analyst reads only the posting — no profile reaches it — so
+        // re-parsing would spend a call to recompute an identical result.
+        //
+        // Partitioned rather than all-or-nothing because a mixed batch is the
+        // normal case during rollout and whenever an ingest parse failed: the
+        // pool may know about four of five jobs in a batch.
+        var needParsing = request.Jobs.Where(j => j.Parsed is null).ToList();
+
+        ClaudeCallSnapshot? analystSnap = null;
+        var parsedById = new Dictionary<string, ParsedJob>();
+        if (needParsing.Count > 0)
+        {
+            var (parseResults, snap) = await _claudeClient.ParseJobDescriptionBatchAsync(needParsing, cancellationToken);
+            analystSnap = snap;
+            foreach (var r in parseResults) parsedById[r.Id] = r.Parsed;
+            _logger.LogInformation(
+                "Analyst pass: parsed {Parsed} of {Total} jobs ({Cached} supplied by the pool)",
+                needParsing.Count, request.Jobs.Count, request.Jobs.Count - needParsing.Count);
+        }
+        else
+        {
+            _logger.LogInformation(
+                "Analyst pass skipped: all {Total} jobs supplied a stored parse", request.Jobs.Count);
+        }
 
         var parsed = request.Jobs.Select(item =>
         {
+            // A stored parse has already been through the verbatim guard and
+            // the title/company overrides at ingest — repeating them would be
+            // harmless but would imply the stored value could not be trusted,
+            // which is exactly the property the cache depends on.
+            if (item.Parsed is { } cached)
+                return (Item: item, ParsedJob: cached);
+
             var verified = EnforceCulturalSignalsVerbatim(parsedById[item.Id], item.JobDescription);
             var parsedJob = verified with
             {
@@ -157,8 +183,11 @@ public sealed class JobMatchService : IJobMatchService
                 // call — every job's snapshots are the same shared
                 // request/response, honestly reflecting that this job wasn't
                 // parsed or scored in isolation.
-                AnalystSnapshotInput = analystSnap.Input,
-                AnalystSnapshotOutput = analystSnap.Output,
+                // Null on a job whose parse came from the pool: there was no
+                // Analyst call for this batch to snapshot. The stored parse is
+                // the artifact, and it lives on the pool document.
+                AnalystSnapshotInput = analystSnap?.Input,
+                AnalystSnapshotOutput = analystSnap?.Output,
                 EvaluatorSnapshotInput = evalSnap.Input,
                 EvaluatorSnapshotOutput = evalSnap.Output,
             };
@@ -191,50 +220,17 @@ public sealed class JobMatchService : IJobMatchService
         return (parsedJob, snap);
     }
 
-    // The Analyst's field note for culturalSignals instructs "verbatim...
-    // capture exact text" (PromptSeeds.cs), but it doesn't reliably hold — the
-    // model sometimes copies its own field-note examples ("wear many hats",
-    // "fast-paced") into the output as if they'd been extracted from the
-    // posting, and the Evaluator then cites them as evidence for a hard
-    // filter the posting never actually triggered. Runs on the Analyst's raw
-    // output before it reaches the Evaluator — unlike Correct()'s other
-    // Enforce* methods, which all run on the Evaluator's output instead.
-    private ParsedJob EnforceCulturalSignalsVerbatim(ParsedJob parsedJob, string jobDescription)
-    {
-        var normalizedJd = NormalizeWhitespace(jobDescription);
+    // Moved to VerbatimCulturalSignals when the Analyst moved to ingest: the
+    // guard now has to run before a parse is STORED as well as here, and a
+    // fabricated signal in a stored parse is handed to every user rather than
+    // to one. Kept as a thin wrapper so the logging stays attached to this
+    // service's logger.
+    private ParsedJob EnforceCulturalSignalsVerbatim(ParsedJob parsedJob, string jobDescription) =>
+        VerbatimCulturalSignals.Enforce(parsedJob, jobDescription, (signal, category) =>
+            _logger.LogWarning(
+                "Fabricated cultural signal dropped: signal={Signal} category={Category}",
+                signal, category));
 
-        string[] Filter(string[] signals, string category)
-        {
-            return signals.Where(signal =>
-            {
-                var found = normalizedJd.Contains(NormalizeWhitespace(signal), StringComparison.OrdinalIgnoreCase);
-                if (!found)
-                {
-                    _logger.LogWarning(
-                        "Fabricated cultural signal dropped: signal={Signal} category={Category}",
-                        signal, category);
-                }
-                return found;
-            }).ToArray();
-        }
-
-        var negative = Filter(parsedJob.CulturalSignals.Negative, "negative");
-        var positive = Filter(parsedJob.CulturalSignals.Positive, "positive");
-        var neutral = Filter(parsedJob.CulturalSignals.Neutral, "neutral");
-
-        if (negative.Length == parsedJob.CulturalSignals.Negative.Length
-            && positive.Length == parsedJob.CulturalSignals.Positive.Length
-            && neutral.Length == parsedJob.CulturalSignals.Neutral.Length)
-            return parsedJob;
-
-        return parsedJob with
-        {
-            CulturalSignals = parsedJob.CulturalSignals with { Negative = negative, Positive = positive, Neutral = neutral }
-        };
-    }
-
-    private static string NormalizeWhitespace(string s) =>
-        string.Join(' ', s.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
 
     // Re-derive verdict from the numeric score (authoritative bands) and recompute
     // shouldApply from the save threshold — the AI's own verdict/flag are advisory.
@@ -656,7 +652,7 @@ public sealed class JobMatchService : IJobMatchService
             var supported = b.Filter switch
             {
                 var f when RedFlagFilters.Contains(f) => redFlags.Any(flag =>
-                    NormalizeWhitespace(b.Reason).Contains(NormalizeWhitespace(flag), StringComparison.OrdinalIgnoreCase)),
+                    VerbatimCulturalSignals.NormalizeWhitespace(b.Reason).Contains(VerbatimCulturalSignals.NormalizeWhitespace(flag), StringComparison.OrdinalIgnoreCase)),
                 var f when CulturalSignalFilters.Contains(f) => parsedJob.CulturalSignals.Negative.Length > 0,
                 _ => true,
             };

@@ -200,6 +200,65 @@ async def score_job_batch(settings: Settings, jobs: list[dict], *, identity: Req
 
 
 
+async def parse_jobs(settings: Settings, jobs: list[dict]) -> tuple[dict[str, dict], str | None]:
+    """One batched Analyst call: the structured read of each posting the
+    Evaluator scores against.
+
+    User-independent by construction -- the prompt takes no profile and the
+    user message carries only the job id and its description -- which is the
+    entire reason this belongs at ingest. Run per user it recomputed, for every
+    user, a result that cannot differ between them, at 2.1x the cost of the
+    whole global pipeline.
+
+    Returns ({job_id: ParsedJob dict}, parse_version), or ({}, None) on any
+    failure. The caller must treat a missing entry as "parse still owed" and
+    keep the job: the per-user scan falls back to parsing inline, so a failure
+    here costs what today already costs, never a posting.
+
+    Correlates by jobId, not list position -- same version-mismatch rationale
+    as triage_titles.
+    """
+    if not jobs:
+        return {}, None
+    items = [
+        {
+            "jobId": j["id"],
+            "title": j.get("title") or "",
+            "company": j.get("company"),
+            "description": j.get("description"),
+        }
+        for j in jobs
+    ]
+    resp = await _request_with_retry(
+        "POST",
+        f"{settings.api_base_url}/api/match/job-parse",
+        settings=settings,
+        timeout=240.0,
+        operation="job-parse",
+        identity=None,  # the Analyst reads the posting, never a candidate
+        retry_on_timeout=False,
+        json={"jobs": items},
+    )
+    if resp is None or resp.status_code != 200:
+        logger.warning(
+            "Job parse failed (%s) -- jobs stored unparsed; the per-user scan "
+            "will parse them inline until a later run backfills",
+            resp.status_code if resp is not None else "no response",
+        )
+        return {}, None
+    try:
+        body = resp.json() or {}
+        results = body.get("results") or []
+        version = body.get("parseVersion")
+    except Exception as e:
+        logger.warning("Job-parse response unparseable (%s) -- jobs stored unparsed", e)
+        return {}, None
+
+    parsed = {r["jobId"]: r["parsed"] for r in results if r.get("jobId") and r.get("parsed")}
+    logger.info("Job parse: %d/%d jobs parsed at version %s", len(parsed), len(jobs), version)
+    return parsed, version
+
+
 async def extract_job_facts(settings: Settings, jobs: list[dict]) -> dict[str, dict] | None:
     """One batched Haiku call: read each posting's stated requirements
     (required years, must/nice-to-have tech, seniority, domain, location).

@@ -305,6 +305,47 @@ public static class MatchEndpoints
         .WithName("ExtractJobFacts")
         .WithSummary("Extract stated requirements from scraped postings (user-independent, once per job)");
 
+        // Ingest-time Analyst pass for the shared pool — sibling of job-facts
+        // above, and deliberately the same shape: no user identity, "discovery"
+        // bucket, batched, and the result is stored on the pool document by the
+        // scraper rather than per user.
+        //
+        // This is the whole point of the move. The Analyst reads only the
+        // posting (BuildAnalysisBatchPrompt takes no profile), so parsing it
+        // per user meant paying 2.1x the entire global ingest pipeline to
+        // recompute, for each user, something that cannot differ between them.
+        app.MapPost("/api/match/job-parse", async (
+            [FromBody] JobParseRequest request,
+            ApplicationTracker.Core.AI.IClaudeClient claude,
+            ILogger<Program> logger,
+            CancellationToken ct) =>
+        {
+            if (request?.Jobs is null || request.Jobs.Count == 0)
+                return Results.BadRequest(new { error = "at least one job is required" });
+            // Lower than job-facts' 200: a parse emits a full ParsedJob per job
+            // (~712 output tokens measured), so the response, not the request,
+            // is what bounds a batch here.
+            if (request.Jobs.Count > 25)
+                return Results.BadRequest(new { error = "too many jobs (max 25)" });
+            if (request.Jobs.Any(j => string.IsNullOrWhiteSpace(j.JobId)))
+                return Results.BadRequest(new { error = "jobId is required for every job (scraper/API version mismatch)" });
+            if (request.Jobs.Any(j => (j.Description?.Length ?? 0) > 50_000))
+                return Results.BadRequest(new { error = "a description exceeds maximum length of 50,000 characters" });
+
+            try
+            {
+                return Results.Ok(await claude.ParseJobsForPoolAsync(request, ct));
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Error parsing pool jobs");
+                return Results.Problem(detail: "An error occurred while parsing jobs", statusCode: 500);
+            }
+        })
+        .RequireRateLimiting("discovery")
+        .WithName("ParsePoolJobs")
+        .WithSummary("Parse postings for the shared pool (user-independent, once per job)");
+
         // Narrative enrichment: on-demand upgrade of a scored job's narrative
         // fields (honestAssessment/recommendation/companyNewsAnalysis/
         // employeeReviewsAnalysis) from ingest-time terse to full detail —

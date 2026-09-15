@@ -742,6 +742,55 @@ public sealed class ClaudeClient : IClaudeClient
         return new JobFactsResponse { Results = results };
     }
 
+    public string ParseVersion =>
+        ParseVersioning.Compute(AnalystPrompt, _scoring.AnalystBatch.Model, _scoring.AnalystBatch.Temperature);
+
+    public async Task<JobParseResponse> ParseJobsForPoolAsync(
+        JobParseRequest request, CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Parsing {Count} pool jobs (ingest-time Analyst)", request.Jobs.Count);
+
+        // Reuses the existing batch parse rather than a parallel implementation:
+        // the per-user scan and the ingest must never drift on the extraction
+        // schema, and the surest way to guarantee that is one call site.
+        var items = request.Jobs
+            .Select(j => new MatchBatchItem
+            {
+                Id = j.JobId,
+                JobDescription = j.Description ?? "",
+                Title = j.Title,
+                Company = j.Company,
+            })
+            .ToList();
+
+        var (results, _) = await ParseJobDescriptionBatchAsync(items, cancellationToken);
+
+        // Title/Company overrides are applied the same way the scan applied
+        // them — after parsing, never sent to the model.
+        var byId = request.Jobs.ToDictionary(j => j.JobId);
+        var parsed = results.Select(r =>
+        {
+            var item = byId[r.Id];
+            var verified = VerbatimCulturalSignals.Enforce(
+                r.Parsed, item.Description ?? "", (signal, category) => _logger.LogWarning(
+                    "Fabricated cultural signal dropped before storing a shared parse: "
+                    + "signal={Signal} category={Category} jobId={JobId}", signal, category, r.Id));
+            return new JobParseResult
+            {
+                JobId = r.Id,
+                Parsed = verified with
+                {
+                    JobTitle = !string.IsNullOrWhiteSpace(item.Title) ? item.Title! : verified.JobTitle,
+                    Company = !string.IsNullOrWhiteSpace(item.Company) ? item.Company : verified.Company,
+                },
+            };
+        }).ToList();
+
+        _logger.LogInformation("Pool parse completed: {Count} results at version {Version}",
+            parsed.Count, ParseVersion);
+        return new JobParseResponse { Results = parsed, ParseVersion = ParseVersion };
+    }
+
     public async Task<RoleClassificationResponse> ClassifyRoleAsync(
         RoleClassificationRequest request, CancellationToken cancellationToken = default)
     {

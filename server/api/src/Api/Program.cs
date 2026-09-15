@@ -289,7 +289,7 @@ if (demoMode)
         "/api/match", "/api/match/title-triage", "/api/match/seniority-classify",
         // Pool extraction: ephemeral analysis over scraped text, no persistence
         // and no user data read -- the same class as the two calls beside it.
-        "/api/match/job-facts",
+        "/api/match/job-facts", "/api/match/job-parse",
         "/api/match/discovery-score-batch", "/api/match/enrich-narrative",
         // normalize-file removed — it now persists the uploaded ResumeFile, so
         // it must 403 in demo like every other write; normalize (paste-text)

@@ -104,6 +104,60 @@ The run reports `jobs_extracted` against `jobs_new`, plus
 `jobs_extract_retried` and `jobs_extract_abandoned`, so a silently-failing
 extractor does not look like a normal run.
 
+## The Analyst read, stored once
+
+A pool document also carries `parsed` — the Analyst's structured read of the
+posting, the document the Evaluator actually scores against. It used to be
+computed inside the per-user scan, once per user per job.
+
+It never belonged there. `BuildAnalysisBatchPrompt` takes no profile and the
+user message carries only the job id and its description, so the result cannot
+differ between users — verified as well as argued: the same posting under two
+very different profiles produced **byte-identical requests**, and the outputs
+differed *less* across profiles than across repeat runs of the same profile.
+What varies is sampling, not the candidate. Meanwhile it cost **2.1x the entire
+global ingest pipeline**, per user, forever, and it never cached: its ~810-token
+system prompt sits below Haiku's 2,048-token minimum cacheable prefix, so every
+one of those input tokens was billed at full price on every call.
+
+Three fields come with it:
+
+| field | meaning |
+|---|---|
+| `parsed` | the `ParsedJob` document |
+| `parsed_with` | stamp of the prompt+model+temperature that produced it |
+| `parse_coverage` | the quality cross-check below, or null when not measurable |
+
+**A different `parsed_with` means stale, not wrong.** Nothing re-parses on sight
+of one: a prompt edit would otherwise become an immediate re-parse of the whole
+pool. The parse is still used; the backfill replaces it in its own time.
+
+**A missing parse is never a reason to hide a job.** The per-user scan parses
+inline for exactly the jobs that lack one — which is what it did for every job
+before this existed, so a cache miss is never worse than no cache.
+
+### Freezing removes a dice roll, and makes one permanent
+
+The Analyst is not deterministic even at temperature 0. Measured across five
+runs of one posting: `domainContext`, `processSignals`, `responsibilities` and
+`technicalRequirements` each produced **four distinct values**, and downstream
+scores swung 33-45. Storing one read removes that per-user variance — and makes
+whichever read you got everyone's.
+
+So `parse_coverage` checks it, at write time. `job-facts` read the same posting
+under a different prompt; coverage is the share of the requirements *it* found
+that the parse mentions anywhere the Evaluator can see. Measured across 61
+production jobs: median 1.00, mean 0.96, and **nothing between 0.33 and 0.67** —
+the threshold sits in that gap rather than at a number someone picked.
+
+It flags; it never blocks. A posting is worth more than our confidence about it.
+
+**This is why `job-facts` and the Analyst stay two calls.** Merging them saves
+one copy of the JD, about $0.0007 a job, and destroys the only independent read
+of a parse that is now shared and durable. That trade was cheap when every user
+parsed for themselves and threw the result away; it is not cheap when one bad
+parse is handed to everyone for the life of the row.
+
 ## What a pool document must never hold
 
 Only what is true of the posting for everyone. A pool row is shared, so any

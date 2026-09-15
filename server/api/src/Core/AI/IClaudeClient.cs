@@ -58,6 +58,14 @@ public interface IClaudeClient
     // for every user. Batched and chunked like the two calls above.
     Task<JobFactsResponse> ExtractJobFactsAsync(JobFactsRequest request, CancellationToken cancellationToken = default);
 
+    // Ingest-time Analyst pass for the shared pool: the same batched parse the
+    // per-user scan used to run, moved to where it belongs — once per job,
+    // for everybody. Takes no identity; there is no profile in the prompt.
+    Task<JobParseResponse> ParseJobsForPoolAsync(JobParseRequest request, CancellationToken cancellationToken = default);
+
+    // The stamp the parses above are produced under — see ParseVersioning.
+    string ParseVersion { get; }
+
     // Role canonicalisation for the shared pool daily search: which single
     // search term covers this candidate work. Prefers a role already being
     // searched; invents one only when none fits. See PoolRoleService.

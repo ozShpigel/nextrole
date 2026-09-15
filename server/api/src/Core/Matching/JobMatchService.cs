@@ -576,12 +576,20 @@ public sealed class JobMatchService : IJobMatchService
         // capped in the "mid" range (see the technical cap above for why not
         // the "unclear" ceiling, and for the same 35-point-max rounding
         // reason: 12+7=19/35=54.3%, not 12+8=20/35=57.14%, which rounds into
-        // high). Conditional on glassdoorData also being absent — the
+        // high). Conditional on there being no PACE evidence elsewhere — the
         // Analyst only reads the job description, so a JD silent on pace can
-        // still be paired with real Glassdoor evidence reaching the
-        // Evaluator separately; capping here would discard that evidence
-        // rather than a genuine absence of it.
-        if (parsedJob.PaceSignals.Length == 0 && glassdoorData is null)
+        // still be paired with real review evidence reaching the Evaluator
+        // separately; capping here would discard that evidence rather than a
+        // genuine absence of it.
+        //
+        // The test was `glassdoorData is null`, which is not the same question:
+        // a payload carrying only a career-opportunities rating would lift a
+        // PACE ceiling, i.e. the hatch firing on evidence that says nothing
+        // about what it is excusing. PaceEvidence.In asks whether the payload
+        // speaks to hours or load at all. Measured before the change: every
+        // live payload with any evidence also has a work-life-balance
+        // sub-rating, so this narrows the rule without moving today's scores.
+        if (parsedJob.PaceSignals.Length == 0 && !PaceEvidence.In(glassdoorData))
         {
             var (components, capped) = CapNamedComponents(
                 r.Breakdown.SustainabilityPaceFit.Components, "SustainabilityPaceFit",

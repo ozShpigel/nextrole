@@ -84,4 +84,20 @@ class DiscoveredJob(BaseModel):
     # not. At MAX_EXTRACT_ATTEMPTS the job is left unextracted for good rather
     # than billing a Claude call a day for a posting nothing can parse.
     extract_attempts: int = 0
+
+    # The ingest's Analyst read of this posting: the structured document the
+    # Evaluator scores against, computed once for everybody instead of once per
+    # user. Null means the per-user scan parses it inline (a job predating this,
+    # or one whose ingest parse failed) -- never a reason to hide the job.
+    parsed: dict | None = None
+    parsed_at: datetime | None = None
+    # Stamp of the prompt+model+temperature that produced `parsed`. A different
+    # value means STALE, not wrong: the parse is still used and the backfill
+    # replaces it in its own time. See ParseVersioning on the API side.
+    parsed_with: str | None = None
+    # Share of job-facts' must-have technologies the parse mentions anywhere the
+    # Evaluator can see (app/services/parse_quality.py). None when not
+    # measurable -- no parse, or the posting states no required tech. Low values
+    # mark a parse that missed stated requirements; stored, not blocked.
+    parse_coverage: float | None = None
     discovered_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

@@ -128,6 +128,33 @@ public sealed class PoolJobRepository : IPoolJobRepository
         FirstSeenAt = d.TryGetValue("first_seen_at", out var f) && f.IsValidDateTime ? f.ToUniversalTime() : null,
         MustHaveTech = ExtractedStrings(d, "must_have_tech"),
         NiceToHaveTech = ExtractedStrings(d, "nice_to_have_tech"),
+        Parsed = ParsedFrom(d),
+        ParseVersion = Str(d, "parsed_with"),
+    };
+
+    // The ingest's stored Analyst read. Deserialized through the same JSON
+    // contract the model produces, so the stored shape and the live shape
+    // cannot drift: if ParsedJob changes incompatibly, this returns null and
+    // the scan parses inline rather than scoring against a half-read job.
+    private static ParsedJob? ParsedFrom(BsonDocument d)
+    {
+        if (!d.TryGetValue("parsed", out var v) || !v.IsBsonDocument) return null;
+        try
+        {
+            return System.Text.Json.JsonSerializer.Deserialize<ParsedJob>(
+                v.AsBsonDocument.ToJson(), ParsedJson);
+        }
+        catch (Exception)
+        {
+            // A stored parse we cannot read is the same as no stored parse.
+            // Never throw here: that would take down a scan over a cache miss.
+            return null;
+        }
+    }
+
+    private static readonly System.Text.Json.JsonSerializerOptions ParsedJson = new()
+    {
+        PropertyNameCaseInsensitive = true,
     };
 
     // extracted.<field> as a string array. Absent on rows that predate the

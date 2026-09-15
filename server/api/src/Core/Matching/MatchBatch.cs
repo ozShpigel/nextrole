@@ -41,6 +41,12 @@ public sealed record MatchBatchItem
     // where JobMatchService falls back to the Analyst's own reading.
     public string[]? MustHaveTech { get; init; }
     public string[]? NiceToHaveTech { get; init; }
+    // The pool's stored Analyst read of this posting, when there is one. The
+    // Analyst takes no profile, so its output cannot differ between users —
+    // supplying it here skips a call that would recompute an identical result.
+    // Null means "parse it": a job that predates the cache, or whose ingest
+    // parse failed. Mixed batches are normal and handled per item.
+    public ParsedJob? Parsed { get; init; }
 }
 
 public sealed record MatchBatchResponse

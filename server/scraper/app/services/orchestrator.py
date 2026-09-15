@@ -10,7 +10,7 @@ from app.config import Settings
 from app.models.discovered_job import DiscoveredJob
 from app.models.discovery_run import DiscoveryRun
 from app.models.search_criteria import SearchCriteria
-from app.services import company_size_client, glassdoor_client, match_client, news_client, pool, scraper, tracker_client
+from app.services import company_size_client, glassdoor_client, match_client, news_client, parse_quality, pool, scraper, tracker_client
 
 logger = logging.getLogger(__name__)
 
@@ -126,8 +126,11 @@ async def run_discovery(db: AsyncIOMotorDatabase, settings: Settings, criteria_i
         # paying for one on every job and then overwriting almost all of them.
         facts = await _extract_facts(ctx, relevant_jobs)
         seniority = await _classify_seniority(ctx, relevant_jobs, facts)
+        # The Analyst read, once per job rather than once per user (docs/job-pool.md).
+        parsed, parse_version = await _parse_jobs(ctx, relevant_jobs)
 
-        await _store_jobs(ctx, relevant_jobs, triaged_out_jobs, triage, seniority, enrichment, facts)
+        await _store_jobs(ctx, relevant_jobs, triaged_out_jobs, triage, seniority,
+                          enrichment, facts, parsed, parse_version)
         await _mark_completed(ctx)
 
     except Exception as e:
@@ -328,6 +331,36 @@ async def _extract_facts(ctx: _RunContext, relevant_jobs: list[dict]) -> dict:
     return facts
 
 
+async def _parse_jobs(ctx: _RunContext, relevant_jobs: list[dict]) -> tuple[dict, str | None]:
+    """Analyst-read every job that survived triage, chunked like the extraction."""
+    if not relevant_jobs:
+        return {}, None
+    chunks = [relevant_jobs[i:i + pool.PARSE_CHUNK_SIZE]
+              for i in range(0, len(relevant_jobs), pool.PARSE_CHUNK_SIZE)]
+    sem = asyncio.Semaphore(MAX_CONCURRENT_SCORE_BATCHES)
+    version: str | None = None
+
+    async def one(chunk: list[dict]) -> dict:
+        nonlocal version
+        async with sem:
+            got, v = await match_client.parse_jobs(ctx.settings, chunk)
+            if v:
+                version = v
+            return got
+
+    out: dict = {}
+    for part in await asyncio.gather(*[one(c) for c in chunks]):
+        out.update(part)
+    ctx.run.jobs_parsed = len(out)
+    if len(out) != len(relevant_jobs):
+        logger.warning(
+            "Run %s: %d of %d jobs stored unparsed — the per-user scan parses "
+            "those inline until a later run backfills them",
+            ctx.run.id, len(relevant_jobs) - len(out), len(relevant_jobs),
+        )
+    return out, version
+
+
 def _needs_a_band(job: dict, facts: dict) -> bool:
     """A job whose extraction did not yield a seniority — the only kind that
     still needs a classify call."""
@@ -458,6 +491,8 @@ async def _store_jobs(
     seniority: dict,
     enrichment: _Enrichment,
     facts: dict,
+    parsed: dict,
+    parse_version: str | None,
 ) -> None:
     """Persist every scraped job: the triaged-out ones as flagged records, the
     rest with their stated requirements extracted. Both fan out concurrently,
@@ -476,7 +511,7 @@ async def _store_jobs(
     await asyncio.gather(
         *[_insert_triaged_out(ctx, job_data, triage, seniority) for job_data in triaged_out_jobs],
         *[
-            _insert_batch(ctx, chunk, seniority, enrichment, facts, dup_sem)
+            _insert_batch(ctx, chunk, seniority, enrichment, facts, parsed, parse_version, dup_sem)
             for chunk in chunks
         ],
     )
@@ -502,6 +537,8 @@ async def _insert_batch(
     seniority: dict,
     enrichment: _Enrichment,
     facts: dict,
+    parsed: dict,
+    parse_version: str | None,
     dup_sem: asyncio.Semaphore,
 ) -> None:
     """Store a batch of scraped jobs in the shared pool.
@@ -555,6 +592,10 @@ async def _insert_batch(
                 extracted=job_facts,
                 extracted_at=now if job_facts else None,
                 extract_attempts=1,
+                parsed=parsed.get(job_id),
+                parsed_at=now if parsed.get(job_id) else None,
+                parsed_with=parse_version if parsed.get(job_id) else None,
+                parse_coverage=parse_quality.check(job_id, parsed.get(job_id), job_facts),
                 company_news=enrichment.news.get(key) or None,
                 glassdoor_data=enrichment.glassdoor.get(key),
             )

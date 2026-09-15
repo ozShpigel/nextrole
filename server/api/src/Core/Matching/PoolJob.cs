@@ -21,4 +21,10 @@ public sealed record PoolJob
     // against the profile instead of trusting the model's account of them.
     public string[] MustHaveTech { get; init; } = [];
     public string[] NiceToHaveTech { get; init; } = [];
+    // The ingest's stored Analyst read, and the stamp it was produced under.
+    // Null Parsed means the scan must parse inline — see PoolScanService.
+    // A ParseVersion that differs from the current one is STALE, not wrong:
+    // it is still used, and the ingest backfill replaces it in its own time.
+    public ParsedJob? Parsed { get; init; }
+    public string? ParseVersion { get; init; }
 }

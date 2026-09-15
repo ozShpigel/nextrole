@@ -26,12 +26,16 @@ from app.config import Settings
 from app.models.discovered_job import DiscoveredJob
 from app.models.discovery_run import DiscoveryRun
 from app.models.search_criteria import SearchCriteria
-from app.services import match_client, scraper
+from app.services import match_client, parse_quality, scraper
 
 logger = logging.getLogger(__name__)
 
 # Extraction is one Haiku call per chunk; the API caps a request at 200 jobs.
 EXTRACT_CHUNK_SIZE = 25
+# Smaller than the extraction chunk: a ParsedJob is a whole structured document
+# per job (~712 output tokens at the median, p99 far higher), where a facts row
+# is ~140. The response, not the request, is what bounds this batch.
+PARSE_CHUNK_SIZE = 5
 MAX_CONCURRENT_EXTRACT_CHUNKS = 2
 # A posting whose facts could not be read is retried on later runs, but not
 # forever: a permanently unparseable one would otherwise cost a Claude call a
@@ -165,6 +169,10 @@ async def _upsert(
         return set(by_key)
 
     facts = await _extract_facts(settings, new_jobs)
+    # The Analyst read, computed once here instead of once per user. Failure is
+    # not fatal: the job is stored unparsed and the per-user scan parses it
+    # inline, which is exactly what happened before this existed.
+    parsed_by_id, parse_version = await _parse_jobs(settings, new_jobs)
 
     docs = []
     for job in new_jobs:
@@ -197,6 +205,11 @@ async def _upsert(
             extracted=job_facts,
             extracted_at=now if job_facts else None,
             extract_attempts=1,
+            parsed=parsed_by_id.get(job["id"]),
+            parsed_at=now if parsed_by_id.get(job["id"]) else None,
+            parsed_with=parse_version if parsed_by_id.get(job["id"]) else None,
+            parse_coverage=parse_quality.check(
+                job["id"], parsed_by_id.get(job["id"]), job_facts),
         ).model_dump())
 
     # ordered=False so one duplicate key (a concurrent run, a pool_key that
@@ -236,6 +249,32 @@ async def _extract_facts(settings: Settings, new_jobs: list[dict]) -> dict[str, 
     for result in await asyncio.gather(*[one(c) for c in chunks]):
         facts.update(result)
     return facts
+
+
+async def _parse_jobs(settings: Settings, new_jobs: list[dict]) -> tuple[dict, str | None]:
+    """Analyst-read every job entering the pool, chunked like the extraction.
+
+    Same chunk size as the per-user scan used, because that is the size the
+    output budget was measured against: a ParsedJob runs ~712 output tokens at
+    the median with a long right tail, and a truncated chunk is deterministic —
+    retrying the same items at the same size truncates again.
+    """
+    chunks = [new_jobs[i:i + PARSE_CHUNK_SIZE] for i in range(0, len(new_jobs), PARSE_CHUNK_SIZE)]
+    sem = asyncio.Semaphore(MAX_CONCURRENT_EXTRACT_CHUNKS)
+    version: str | None = None
+
+    async def one(chunk: list[dict]) -> dict:
+        nonlocal version
+        async with sem:
+            parsed, v = await match_client.parse_jobs(settings, chunk)
+            if v:
+                version = v
+            return parsed
+
+    out: dict = {}
+    for part in await asyncio.gather(*[one(c) for c in chunks]):
+        out.update(part)
+    return out, version
 
 
 async def _retry_missing_facts(

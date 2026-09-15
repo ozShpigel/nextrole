@@ -47,6 +47,9 @@ class DiscoveryRun(BaseModel):
     # it ever collapses, extraction has regressed and the cost comes straight
     # back.
     seniority_from_facts: int = 0
+    # Jobs whose Analyst read was computed and stored at ingest. The gap between
+    # this and jobs_new is what the per-user scan still has to parse inline.
+    jobs_parsed: int = 0
     # Historic — auto-save from the pre-RAG batch-scoring era was retired;
     # kept so pre-migration run rows still render. Not written by the current
     # flow (saving to the Tracker is always an explicit user action).

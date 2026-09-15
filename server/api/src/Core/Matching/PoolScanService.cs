@@ -59,6 +59,7 @@ public sealed class PoolScanService : IPoolScanService
     private readonly IPoolJobRepository _pool;
     private readonly IJobScoreRepository _scores;
     private readonly IJobMatchService _matcher;
+    private readonly IMatchSnapshotRepository _snapshots;
     private readonly ILogger<PoolScanService> _logger;
 
     public PoolScanService(
@@ -66,12 +67,14 @@ public sealed class PoolScanService : IPoolScanService
         IPoolJobRepository pool,
         IJobScoreRepository scores,
         IJobMatchService matcher,
+        IMatchSnapshotRepository snapshots,
         ILogger<PoolScanService> logger)
     {
         _profiles = profiles;
         _pool = pool;
         _scores = scores;
         _matcher = matcher;
+        _snapshots = snapshots;
         _logger = logger;
     }
 
@@ -196,6 +199,10 @@ public sealed class PoolScanService : IPoolScanService
                 // same facts to ground the rationale against the profile.
                 MustHaveTech = j.MustHaveTech,
                 NiceToHaveTech = j.NiceToHaveTech,
+                // The ingest's parse when there is one. Null falls through to
+                // an inline Analyst call for that job only — today's behaviour,
+                // so a cache miss is never worse than no cache.
+                Parsed = j.Parsed,
             }).ToList(),
         };
 
@@ -203,6 +210,31 @@ public sealed class PoolScanService : IPoolScanService
         {
             var response = await _matcher.AnalyzeMatchBatchAsync(userId, request, ct);
             var byId = response.Results.ToDictionary(r => r.Id, r => r.Response);
+
+            // Persist the batch's raw call text ONCE, content-addressed, before
+            // building the rows. matchSnapshots was written only from the Add
+            // path, so a job that was scored and never added — 98% of them —
+            // had no debugging trail outside the copy embedded in every
+            // jobScores row. Keying by content hash means the five rows of a
+            // batch collapse to one stored document instead of five copies of
+            // the same text.
+            //
+            // Best-effort: a snapshot is a debugging artifact and must never
+            // cost a scan the scores it already paid for.
+            var first = response.Results.Count > 0 ? response.Results[0].Response : null;
+            if (first is not null)
+            {
+                try
+                {
+                    await _snapshots.UpsertAsync(
+                        userId, first.AnalystSnapshotInput, first.AnalystSnapshotOutput,
+                        first.EvaluatorSnapshotInput, first.EvaluatorSnapshotOutput, ct);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Pool scan: storing the batch snapshot failed for {UserId}", userId);
+                }
+            }
 
             var rows = batch.Select(j => byId.TryGetValue(j.Id, out var r)
                 ? new JobScore

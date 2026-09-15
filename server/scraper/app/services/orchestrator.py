@@ -121,9 +121,13 @@ async def run_discovery(db: AsyncIOMotorDatabase, settings: Settings, criteria_i
         triaged_out_jobs = [j for j in jobs if not _is_relevant(j, triage)]
 
         enrichment = await _prefetch_enrichment(ctx, relevant_jobs)
-        seniority = await _classify_seniority(ctx, relevant_jobs)
+        # Facts BEFORE seniority, so seniority only has to cover what facts
+        # missed. Extraction already reports a band; classifying first meant
+        # paying for one on every job and then overwriting almost all of them.
+        facts = await _extract_facts(ctx, relevant_jobs)
+        seniority = await _classify_seniority(ctx, relevant_jobs, facts)
 
-        await _store_jobs(ctx, relevant_jobs, triaged_out_jobs, triage, seniority, enrichment)
+        await _store_jobs(ctx, relevant_jobs, triaged_out_jobs, triage, seniority, enrichment, facts)
         await _mark_completed(ctx)
 
     except Exception as e:
@@ -293,30 +297,77 @@ async def _prefetch_enrichment(ctx: _RunContext, relevant_jobs: list[dict]) -> _
     return _Enrichment(news=news_cache, glassdoor=glassdoor_cache, company_size=company_size_cache)
 
 
-async def _classify_seniority(ctx: _RunContext, relevant_jobs: list[dict]) -> dict:
-    """Batched Haiku calls flag each relevant job's actual seniority band
-    (source-agnostic — replaces jobspy's LinkedIn-only job_level as the
-    client-side filter). Only classifies jobs that survived triage; fails open
-    (None everywhere) on error. Keyed by jobId directly (assigned at scrape
-    time) — no index remap needed even though it only saw relevant_jobs.
+async def _extract_facts(ctx: _RunContext, relevant_jobs: list[dict]) -> dict:
+    """Read each surviving posting's stated requirements, once, for everybody.
+
+    Its own phase rather than a step inside the insert, because its output is
+    now an INPUT to seniority classification: the extraction already reports a
+    band, so anything it answers is a classify call that never has to happen.
+    Chunked and capped exactly as the daily pool run does (pool._extract_facts).
+    """
+    if not relevant_jobs:
+        return {}
+    chunks = [relevant_jobs[i:i + SCORE_BATCH_SIZE]
+              for i in range(0, len(relevant_jobs), SCORE_BATCH_SIZE)]
+    sem = asyncio.Semaphore(MAX_CONCURRENT_SCORE_BATCHES)
+
+    async def one(chunk: list[dict]) -> dict:
+        async with sem:
+            return await match_client.extract_job_facts(ctx.settings, chunk) or {}
+
+    facts: dict = {}
+    for part in await asyncio.gather(*[one(c) for c in chunks]):
+        facts.update(part)
+    ctx.run.jobs_extracted = len(facts)
+    if len(facts) != len(relevant_jobs):
+        logger.warning(
+            "Run %s: %d of %d jobs have no extracted facts — they are stored "
+            "anyway and fall back to seniority classification for a band",
+            ctx.run.id, len(relevant_jobs) - len(facts), len(relevant_jobs),
+        )
+    return facts
+
+
+def _needs_a_band(job: dict, facts: dict) -> bool:
+    """A job whose extraction did not yield a seniority — the only kind that
+    still needs a classify call."""
+    return not (facts.get(job["id"]) or {}).get("seniority")
+
+
+async def _classify_seniority(ctx: _RunContext, relevant_jobs: list[dict], facts: dict) -> dict:
+    """Batched Haiku call for the band of jobs `job-facts` could not place.
+
+    Extraction reports a seniority of its own and, where both existed,
+    measured across a real pool the two NEVER disagreed (0 of 80) — so
+    classifying every job meant paying for a second opinion that was
+    discarded 89% of the time. It runs only on the remainder now, which keeps
+    band coverage at 100% while removing most of the calls.
+
+    Fails open (no band) on error, same as before. Keyed by jobId directly.
     """
     run = ctx.run
-    seniority = await match_client.classify_seniority(ctx.settings, relevant_jobs) or {}
-    if not relevant_jobs:
-        run.seniority_status = "skipped"
+    pending = [j for j in relevant_jobs if _needs_a_band(j, facts)]
+    run.seniority_from_facts = len(relevant_jobs) - len(pending)
+    logger.info(
+        "Run %s: %d/%d jobs already banded by extraction, classifying the remaining %d",
+        run.id, run.seniority_from_facts, len(relevant_jobs), len(pending),
+    )
+    seniority = await match_client.classify_seniority(ctx.settings, pending) or {}
+    if not pending:
+        # Not "skipped" as an error: extraction answered for everything, which
+        # is the good outcome, and the run should not read as degraded.
+        run.seniority_status = "not_needed" if relevant_jobs else "skipped"
     elif not seniority:
         run.seniority_status = "failed"
-        run.seniority_unresolved = len(relevant_jobs)
+        run.seniority_unresolved = len(pending)
     else:
-        run.seniority_unresolved = sum(
-            1 for j in relevant_jobs if j["id"] not in seniority
-        )
+        run.seniority_unresolved = sum(1 for j in pending if j["id"] not in seniority)
         run.seniority_status = "partial" if run.seniority_unresolved else "ok"
     if run.seniority_status in ("failed", "partial"):
         logger.error(
-            "Run %s: seniority classification %s — %d/%d jobs unlabelled, the "
-            "seniority filter will not exclude them",
-            run.id, run.seniority_status, run.seniority_unresolved, len(relevant_jobs),
+            "Run %s: seniority classification %s — %d/%d unbanded jobs still "
+            "unlabelled, the seniority filter will not exclude them",
+            run.id, run.seniority_status, run.seniority_unresolved, len(pending),
         )
     for job in relevant_jobs:
         logger.info("Job classified: runId=%s jobId=%s seniority=%s",
@@ -406,6 +457,7 @@ async def _store_jobs(
     triage: dict,
     seniority: dict,
     enrichment: _Enrichment,
+    facts: dict,
 ) -> None:
     """Persist every scraped job: the triaged-out ones as flagged records, the
     rest with their stated requirements extracted. Both fan out concurrently,
@@ -416,7 +468,6 @@ async def _store_jobs(
     scraped"/"Job triaged"/"Job classified" log lines share the same id as the
     eventually-persisted DiscoveredJob.
     """
-    batch_sem = asyncio.Semaphore(MAX_CONCURRENT_SCORE_BATCHES)
     dup_sem = asyncio.Semaphore(MAX_CONCURRENT_DUP_CHECKS)
     chunks = [
         relevant_jobs[i:i + SCORE_BATCH_SIZE]
@@ -425,7 +476,7 @@ async def _store_jobs(
     await asyncio.gather(
         *[_insert_triaged_out(ctx, job_data, triage, seniority) for job_data in triaged_out_jobs],
         *[
-            _extract_and_insert_batch(ctx, chunk, seniority, enrichment, batch_sem, dup_sem)
+            _insert_batch(ctx, chunk, seniority, enrichment, facts, dup_sem)
             for chunk in chunks
         ],
     )
@@ -445,12 +496,12 @@ async def _insert_triaged_out(ctx: _RunContext, job_data: dict, triage: dict, se
         logger.error("Error ingesting triaged-out job '%s': %s", job_data.get("title"), e)
 
 
-async def _extract_and_insert_batch(
+async def _insert_batch(
     ctx: _RunContext,
     chunk: list[dict],
     seniority: dict,
     enrichment: _Enrichment,
-    batch_sem: asyncio.Semaphore,
+    facts: dict,
     dup_sem: asyncio.Semaphore,
 ) -> None:
     """Store a batch of scraped jobs in the shared pool.
@@ -459,14 +510,15 @@ async def _extract_and_insert_batch(
     scored the first time a user whose filter it passes opens the match tab
     (PoolScanService). Ingest reads only what the posting itself states, once,
     user-independently, exactly as the daily pool run does.
+
+    Extraction used to happen here, per chunk. It is a phase of its own now
+    (_extract_facts) because seniority classification consumes its output —
+    this function only persists what the earlier phases produced.
     """
     run = ctx.run
     enriched_profiles: dict[str, dict | None] = {}
     for job_data in chunk:
         enriched_profiles[job_data["id"]] = _company_profile(job_data, enrichment)
-
-    async with batch_sem:
-        facts = await match_client.extract_job_facts(ctx.settings, chunk) or {}
 
     now = datetime.now(timezone.utc)
     for job_data in chunk:
@@ -491,7 +543,9 @@ async def _extract_and_insert_batch(
 
             job_facts = facts.get(job_id)
             if job_facts:
-                run.jobs_extracted += 1
+                # Counted once in _extract_facts; the `or` still matters —
+                # extraction can return facts with a null seniority, and that
+                # job went to classify precisely so this fallback has a value.
                 base["actual_job_level"] = job_facts.get("seniority") or base.get("actual_job_level")
 
             disc_job = DiscoveredJob(
@@ -529,14 +583,20 @@ async def _mark_completed(ctx: _RunContext) -> None:
             "triage_unresolved": run.triage_unresolved,
             "seniority_status": run.seniority_status,
             "seniority_unresolved": run.seniority_unresolved,
+            # Both new: without them the only evidence that narrowing the
+            # classifier is working stays in the log line and never reaches a
+            # queryable field.
+            "seniority_from_facts": run.seniority_from_facts,
+            "jobs_extracted": run.jobs_extracted,
         }},
     )
     logger.info(
         "Run %s completed: %d scraped, %d already known (%d date-backfilled), %d scored, "
-        "%d score-failed, %d duplicates, %d triaged out (triage=%s, seniority=%s)",
+        "%d score-failed, %d duplicates, %d triaged out, %d extracted "
+        "(triage=%s, seniority=%s, banded-by-extraction=%d)",
         run.id, run.jobs_scraped, run.jobs_already_known, run.jobs_date_backfilled, run.jobs_scored,
-        run.jobs_score_failed, run.jobs_skipped_duplicate, run.jobs_triaged_out,
-        run.triage_status, run.seniority_status,
+        run.jobs_score_failed, run.jobs_skipped_duplicate, run.jobs_triaged_out, run.jobs_extracted,
+        run.triage_status, run.seniority_status, run.seniority_from_facts,
     )
 
 

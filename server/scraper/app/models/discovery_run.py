@@ -36,8 +36,17 @@ class DiscoveryRun(BaseModel):
     # every run still reported "completed".
     triage_status: str = "skipped"
     triage_unresolved: int = 0  # titles sent that came back without a verdict
+    # "not_needed" means extraction banded every job and no classify call was
+    # made — the good outcome, deliberately distinct from "skipped" (nothing to
+    # do) and from "failed", so a run that stopped calling the classifier does
+    # not read as a run whose classifier broke.
     seniority_status: str = "skipped"
     seniority_unresolved: int = 0
+    # How many bands came from job-facts rather than a classify call. This is
+    # the number that says whether narrowing the classifier is paying off; if
+    # it ever collapses, extraction has regressed and the cost comes straight
+    # back.
+    seniority_from_facts: int = 0
     # Historic — auto-save from the pre-RAG batch-scoring era was retired;
     # kept so pre-migration run rows still render. Not written by the current
     # flow (saving to the Tracker is always an explicit user action).

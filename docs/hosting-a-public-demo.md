@@ -9,7 +9,16 @@
 
 ## The idea
 
-NextRole is single-tenant with no auth — it's meant to run as *your* private tool.
+> **Superseded.** This describes the seeded read-only demo, which is retired —
+> no such instance runs, and the `DemoMode` apparatus is scheduled for removal.
+> Kept until that removal happens. For how the public instance actually works,
+> see `docs/auth.md`.
+
+NextRole *was* single-tenant with no auth when this was written — meant to run
+as *your* private tool. It is now multi-user with optional Google sign-in, so
+the premise below no longer holds: there is no second deployment, and real data
+sits behind a real login rather than behind a separate instance.
+
 To put a copy online safely, you run **the same image a second time** with a
 different configuration: a read-only instance pointed at a **separate database of
 fictional data**. Nothing is forked; the only difference is environment variables.

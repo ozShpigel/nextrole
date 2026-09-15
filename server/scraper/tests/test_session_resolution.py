@@ -111,7 +111,11 @@ def _settings(**kw) -> Settings:
 async def test_a_live_session_resolves_to_its_user():
     db = _FakeDb(session={"_id": "tok", "UserId": "abc", "ExpiresAt": datetime.now(timezone.utc) + timedelta(days=1)})
 
-    assert await identity.resolve(_settings(), _FakeRequest("tok"), db) == "abc"
+    resolved = await identity.resolve(_settings(), _FakeRequest("tok"), db)
+    assert resolved.user_id == "abc"
+    # The token, not the id it resolved to: it is what the API can resolve,
+    # and forwarding the id instead is what orphaned every Add.
+    assert resolved.credential == "tok"
 
 
 @pytest.mark.asyncio
@@ -134,7 +138,10 @@ async def test_a_pre_sessions_cookie_still_resolves_during_the_cutover():
 
     resolved = await identity.resolve(_settings(), _FakeRequest(legacy), _FakeDb())
 
-    assert resolved == legacy
+    assert resolved.user_id == legacy
+    # Replayed verbatim, so the API applies the same cutover rule to the same
+    # cookie rather than being handed a value it has to re-derive.
+    assert resolved.credential == legacy
 
 
 @pytest.mark.asyncio
@@ -170,4 +177,7 @@ async def test_fixed_mode_is_untouched_by_sessions():
     s = Settings(identity_mode="fixed", identity_fixed_user_id=fixed)
 
     # No db needed at all: identity comes from configuration.
-    assert await identity.resolve(s, _FakeRequest(), None) == fixed
+    resolved = await identity.resolve(s, _FakeRequest(), None)
+    assert resolved.user_id == fixed
+    # Fixed mode ignores the cookie API-side, so the credential is the id.
+    assert resolved.credential == fixed

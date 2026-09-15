@@ -172,10 +172,19 @@ app.add_middleware(
 
 # Resolved once per request, the same way the API resolves it. Endpoints take
 # the id as a parameter so a criteria query cannot be written without one.
-async def current_user_id(request: Request) -> str:
+#
+# Two dependencies, one resolution. A handler that only queries Mongo wants the
+# id; a handler that calls the API needs the credential too, because the API
+# will not accept an id (see identity.RequestIdentity). Depend on
+# `current_identity` whenever the handler makes an outbound user-scoped call.
+async def current_identity(request: Request) -> identity.RequestIdentity:
     # Async because resolution is now a session lookup (docs/auth.md). FastAPI
     # awaits async dependencies transparently, so no handler signature changes.
     return await identity.resolve(settings, request, db)
+
+
+async def current_user_id(request: Request) -> str:
+    return (await identity.resolve(settings, request, db)).user_id
 
 
 # ---------------------------------------------------------------------------
@@ -444,14 +453,17 @@ async def _resolve_company_logo(company: str | None, own_logo: str | None) -> st
 
 
 @app.post("/api/discovery/jobs/{job_id}/save")
-async def save_job(job_id: str, user_id: str = Depends(current_user_id)):
+async def save_job(job_id: str, ident: identity.RequestIdentity = Depends(current_identity)):
     """Add a pool job to this user's tracker.
 
-    The identity has to travel with the outbound call: the API resolves the
-    owner from the uid cookie, and a server-to-server POST that omits it does
-    not fail — it files the application under a freshly minted id, which is
-    a row no one can ever see again.
+    The identity has to travel with the outbound call, and it has to be the
+    CREDENTIAL rather than the resolved id: the API turns the uid cookie into
+    an owner itself, and a server-to-server POST carrying anything it cannot
+    resolve does not fail — it files the application under a freshly minted id,
+    which is a row no one can ever see again. That is what a raw userId became
+    once the cookie started carrying a session token.
     """
+    user_id = ident.user_id
     doc = await db.discovered_jobs.find_one({"id": job_id})
     if not doc:
         raise HTTPException(404, "Job not found")
@@ -480,7 +492,7 @@ async def save_job(job_id: str, user_id: str = Depends(current_user_id)):
 
     app_id = await tracker_client.save_to_tracker(
         settings=settings,
-        user_id=user_id,
+        identity=ident,
         title=doc["title"],
         company=doc["company"],
         description=doc.get("description"),
@@ -548,7 +560,7 @@ MAX_IMPORT_URLS = 5  # matches the Evaluator batch cap (see match_client.score_j
 
 
 @app.post("/api/discovery/jobs/import")
-async def import_jobs(request: ImportJobsRequest, user_id: str = Depends(current_user_id)):
+async def import_jobs(request: ImportJobsRequest, ident: identity.RequestIdentity = Depends(current_identity)):
     """The "Import Job" button on Active — one or more LinkedIn job URLs
     found outside of discovery. Fetches each directly (no search), scores
     them in one batch call, and saves straight to the tracker at
@@ -591,7 +603,7 @@ async def import_jobs(request: ImportJobsRequest, user_id: str = Depends(current
         ]
         # Scored against this user's profile, and saved to this user's
         # tracker — both need the identity forwarded, not just the save.
-        scores = await match_client.score_job_batch(settings, batch_items, user_id=user_id)
+        scores = await match_client.score_job_batch(settings, batch_items, identity=ident)
 
         for i, (url, job) in enumerate(fetched):
             match_response = (scores or {}).get(str(i))
@@ -613,7 +625,7 @@ async def import_jobs(request: ImportJobsRequest, user_id: str = Depends(current
 
             saved = await tracker_client.save_to_tracker(
                 settings=settings,
-                user_id=user_id,
+                identity=ident,
                 title=job["title"],
                 company=job["company"],
                 description=job["description"],

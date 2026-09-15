@@ -26,6 +26,7 @@ os.environ.setdefault("IDENTITY_MODE", "fixed")
 os.environ.setdefault("IDENTITY_FIXED_USER_ID", "11111111-1111-1111-1111-111111111111")
 
 from app import main  # noqa: E402
+from app.identity import RequestIdentity  # noqa: E402
 
 
 class _FakeCollection:
@@ -64,6 +65,11 @@ SCORE_ROW = {
     "MatchAnalysis": ANALYSIS,
 }
 
+# A resolved request: the id this service queries with, and the session token
+# it must replay onward. Deliberately different values -- a test that used the
+# same string for both would pass while the wrong one shipped.
+IDENT = RequestIdentity(user_id="user-a", credential="sess-token-a")
+
 
 @pytest.fixture
 def saved(monkeypatch):
@@ -95,7 +101,7 @@ def saved(monkeypatch):
 async def test_score_comes_from_this_users_jobScores_row(monkeypatch, saved):
     monkeypatch.setattr(main, "db", _FakeDb(POOL_DOC, SCORE_ROW))
 
-    result = await main.save_job("job-1", user_id="user-a")
+    result = await main.save_job("job-1", ident=IDENT)
 
     assert result == {"status": "saved"}
     # The whole point: the pool document carries none of these.
@@ -110,7 +116,7 @@ async def test_analysis_is_passed_through_not_re_encoded(monkeypatch, saved):
     # the client cannot parse.
     monkeypatch.setattr(main, "db", _FakeDb(POOL_DOC, SCORE_ROW))
 
-    await main.save_job("job-1", user_id="user-a")
+    await main.save_job("job-1", ident=IDENT)
 
     assert saved["analysis_json"] == ANALYSIS
     assert json.loads(saved["analysis_json"])["overallScore"] == 91
@@ -123,10 +129,13 @@ async def test_the_row_is_looked_up_for_this_user_and_this_job(monkeypatch, save
     db = _FakeDb(POOL_DOC, SCORE_ROW)
     monkeypatch.setattr(main, "db", db)
 
-    await main.save_job("job-1", user_id="user-a")
+    await main.save_job("job-1", ident=IDENT)
 
     assert db.jobScores.queries == [{"UserId": "user-a", "JobId": "job-1"}]
-    assert saved["user_id"] == "user-a"
+    # The CREDENTIAL travels to the API, not the id. Forwarding the id is what
+    # made every Add land under a user nobody is.
+    assert saved["identity"] == IDENT
+    assert saved["identity"].credential == "sess-token-a"
 
 
 @pytest.mark.asyncio
@@ -136,7 +145,7 @@ async def test_a_stale_score_on_the_pool_document_is_never_used(monkeypatch, sav
     stale = {**POOL_DOC, "score": 42, "verdict": "NO", "match_analysis": {"overallScore": 42}}
     monkeypatch.setattr(main, "db", _FakeDb(stale, SCORE_ROW))
 
-    await main.save_job("job-1", user_id="user-a")
+    await main.save_job("job-1", ident=IDENT)
 
     assert saved["score"] == 91
     assert saved["verdict"] == "STRONG_YES"
@@ -149,7 +158,7 @@ async def test_an_unscored_job_still_saves(monkeypatch, saved):
     # the unusual path -- but losing the add would be worse than saving it bare.
     monkeypatch.setattr(main, "db", _FakeDb(POOL_DOC, None))
 
-    result = await main.save_job("job-1", user_id="user-a")
+    result = await main.save_job("job-1", ident=IDENT)
 
     assert result == {"status": "saved"}
     assert saved["score"] is None

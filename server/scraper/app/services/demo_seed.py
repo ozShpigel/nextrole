@@ -229,7 +229,7 @@ async def seed_demo_jobs(db: AsyncIOMotorDatabase, settings: Settings) -> dict:
             for p in chunk
         ]
         batch_scores = await match_client.score_job_batch(
-            settings, items, user_id=identity.instance_user_id(settings))
+            settings, items, identity=identity.instance_identity(settings))
         if batch_scores:
             scores.update(batch_scores)
         else:

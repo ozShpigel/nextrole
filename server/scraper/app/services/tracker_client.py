@@ -5,6 +5,7 @@ import logging
 import httpx
 
 from app.config import Settings
+from app.identity import RequestIdentity
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +35,7 @@ async def _request_with_retry(
     settings: Settings,
     timeout: float,
     operation: str,
-    user_id: str | None,
+    identity: RequestIdentity | None,
     retry_on_timeout: bool = True,
     **request_kwargs,
 ) -> httpx.Response | None:
@@ -43,23 +44,32 @@ async def _request_with_retry(
     Returns the final Response (whether success or non-transient error), or None if
     all retries were exhausted by transport exceptions.
 
-    `user_id` has no default on purpose. Every call into the API either acts on
-    behalf of one user or is user-independent, and the caller is the only code
-    that knows which — so it has to say. Pass the resolved id and it travels as
-    the uid cookie, letting the API's IdentityResolver stay the single
-    authority on who a request is; pass None only for calls that read or write
-    nothing user-scoped (health, title triage, seniority, job-facts
-    extraction). Omitting it is a TypeError, which is the point: a
+    `identity` has no default on purpose. Every call into the API either acts
+    on behalf of one user or is user-independent, and the caller is the only
+    code that knows which — so it has to say. Pass the RequestIdentity and its
+    CREDENTIAL travels as the uid cookie, letting the API's IdentityResolver
+    stay the single authority on who a request is; pass None only for calls
+    that read or write nothing user-scoped (health, title triage, seniority,
+    job-facts extraction). Omitting it is a TypeError, which is the point: a
     user-scoped call that forgets identity does not fail, it silently files
     the write under a freshly minted id nobody will ever be again.
+
+    It must be the credential, not the userId. This sent `user_id` until the
+    sessions cutover, when the uid cookie stopped being a userId and became an
+    opaque token. A raw Guid then stopped resolving — and because the API
+    answers an unusable cookie by minting a fresh identity rather than by
+    failing, every "Add" from Matches returned 201 and filed the application
+    under a user nobody is. Linked accounts were hit first and hardest: the
+    API's grace path for pre-sessions cookies refuses them outright
+    (SessionIdentity.cs), so signing in with Google was what broke Add.
 
     Set `retry_on_timeout=False` for long LLM-backed calls where a timeout almost
     certainly means the downstream op is too slow — retrying just wedges the caller
     for another full timeout window each attempt.
     """
-    if user_id:
+    if identity is not None:
         cookies = dict(request_kwargs.pop("cookies", None) or {})
-        cookies[settings.identity_cookie_name] = user_id
+        cookies[settings.identity_cookie_name] = identity.credential
         request_kwargs["cookies"] = cookies
     headers = request_kwargs.pop("headers", None) or {}
     if settings.api_key:
@@ -133,12 +143,14 @@ async def check_api_reachable(settings: Settings) -> bool:
     resp = await _request_with_retry(
         "GET", f"{settings.api_base_url}/health",
         settings=settings, timeout=10.0, operation="health check",
-        user_id=None,  # liveness only — reads nothing owned by anyone
+        identity=None,  # liveness only — reads nothing owned by anyone
     )
     return resp is not None and resp.status_code == 200
 
 
-async def check_duplicate(settings: Settings, company: str, job_title: str, *, user_id: str) -> bool:
+async def check_duplicate(
+    settings: Settings, company: str, job_title: str, *, identity: RequestIdentity
+) -> bool:
     """Does this user already track an application for this company + title?
 
     Per user, not global: two people can both be applying to the same job, and
@@ -150,7 +162,7 @@ async def check_duplicate(settings: Settings, company: str, job_title: str, *, u
         settings=settings,
         timeout=10.0,
         operation="dedup check",
-        user_id=user_id,
+        identity=identity,
         params={"company": company, "jobTitle": job_title},
     )
     if resp is None:
@@ -170,7 +182,7 @@ async def check_duplicate(settings: Settings, company: str, job_title: str, *, u
 async def save_to_tracker(
     settings: Settings,
     *,
-    user_id: str,
+    identity: RequestIdentity,
     title: str,
     company: str,
     description: str | None,
@@ -213,7 +225,7 @@ async def save_to_tracker(
         settings=settings,
         timeout=15.0,
         operation="save",
-        user_id=user_id,
+        identity=identity,
         json=payload,
     )
     if resp is None:

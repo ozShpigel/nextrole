@@ -1,6 +1,7 @@
 import logging
 
 from app.config import Settings
+from app.identity import RequestIdentity
 from app.services.tracker_client import _request_with_retry
 
 logger = logging.getLogger(__name__)
@@ -35,7 +36,7 @@ async def triage_titles(
         settings=settings,
         timeout=120.0,
         operation="title-triage",
-        user_id=None,  # judges a title against the search, not against anyone
+        identity=None,  # judges a title against the search, not against anyone
         retry_on_timeout=False,
         json={"searchIntent": search_intent, "titles": titles},
     )
@@ -87,7 +88,7 @@ async def classify_seniority(settings: Settings, jobs: list[dict]) -> dict[str, 
         settings=settings,
         timeout=120.0,
         operation="seniority-classify",
-        user_id=None,  # a band is a property of the posting
+        identity=None,  # a band is a property of the posting
         retry_on_timeout=False,
         json={"jobs": items},
     )
@@ -110,7 +111,7 @@ async def classify_seniority(settings: Settings, jobs: list[dict]) -> dict[str, 
     return levels
 
 
-async def score_job(settings: Settings, job_description: str, *, user_id: str,
+async def score_job(settings: Settings, job_description: str, *, identity: RequestIdentity,
                     profile: dict | None = None) -> dict | None:
     """One Analyst+Evaluator call pair against a single job description —
     the same path the manual "Score a Job" page uses (`POST /api/match`,
@@ -120,7 +121,7 @@ async def score_job(settings: Settings, job_description: str, *, user_id: str,
     of whatever is currently stored server-side (see MatchRequest.Profile) —
     used by the golden-set eval to score against a frozen profile.
 
-    `user_id` decides whose stored profile the API scores against when
+    `identity` decides whose stored profile the API scores against when
     `profile` is not supplied, so it is required even here.
 
     Returns the raw MatchResponse dict, or None on any failure.
@@ -136,7 +137,7 @@ async def score_job(settings: Settings, job_description: str, *, user_id: str,
         settings=settings,
         timeout=180.0,
         operation="score-job",
-        user_id=user_id,
+        identity=identity,
         retry_on_timeout=False,
         json=payload,
     )
@@ -147,7 +148,7 @@ async def score_job(settings: Settings, job_description: str, *, user_id: str,
     return None
 
 
-async def score_job_batch(settings: Settings, jobs: list[dict], *, user_id: str,
+async def score_job_batch(settings: Settings, jobs: list[dict], *, identity: RequestIdentity,
                           run_id: str | None = None) -> dict[str, dict] | None:
     """Scores up to 5 jobs in ONE Evaluator call — the primary ingest-time
     scoring path (`POST /api/match/discovery-score-batch`). Each job is still
@@ -161,7 +162,7 @@ async def score_job_batch(settings: Settings, jobs: list[dict], *, user_id: str,
     non-discovery callers like Import Job) — carried through to the API's
     "Job scored" log line so a job can be traced end-to-end in Loki.
 
-    `user_id` is whose profile these jobs are scored against. A score is an
+    `identity` is whose profile these jobs are scored against. A score is an
     opinion about one candidate, so there is no user-independent version of
     this call.
 
@@ -181,7 +182,7 @@ async def score_job_batch(settings: Settings, jobs: list[dict], *, user_id: str,
         settings=settings,
         timeout=240.0,
         operation="discovery-score-batch",
-        user_id=user_id,
+        identity=identity,
         retry_on_timeout=False,
         json=payload,
     )
@@ -232,7 +233,7 @@ async def extract_job_facts(settings: Settings, jobs: list[dict]) -> dict[str, d
         settings=settings,
         timeout=180.0,
         operation="job-facts",
-        user_id=None,  # what the posting asks for, read once for everybody
+        identity=None,  # what the posting asks for, read once for everybody
         retry_on_timeout=False,
         json={"jobs": items},
     )

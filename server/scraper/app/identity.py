@@ -24,10 +24,18 @@ it would be a phantom user, the request would succeed, and the row would be
 invisible to everyone (the failure described in docs/multi-user.md). An
 unresolvable cookie is a 401 instead — loud and recoverable beats silent and
 permanent.
+
+Resolution therefore yields TWO things, not one: the userId this service uses
+for its own queries, and the CREDENTIAL to replay on calls out to the API.
+They are not interchangeable. Sending the userId where the API expects a
+session token is not rejected — the API mints a fresh id and files the write
+under it — so a resolved id that arrives at the API without the token it came
+from is exactly the orphaning this module exists to prevent.
 """
 
 import logging
 import uuid
+from dataclasses import dataclass
 from datetime import datetime, timezone
 
 from fastapi import HTTPException, Request
@@ -39,6 +47,25 @@ logger = logging.getLogger(__name__)
 # Owner of record for search criteria written before multi-user, on an instance
 # with no configured single user. Matches Core.Identity.UserIds.OrphanedLegacyData.
 ORPHANED_LEGACY_DATA = "00000000-0000-0000-0000-000000000001"
+
+
+@dataclass(frozen=True)
+class RequestIdentity:
+    """Who a request is, and what proves it to the API.
+
+    `user_id` is for this service's own Mongo queries. `credential` is what
+    goes in the uid cookie on the way out, and on a cookie instance it is the
+    SESSION TOKEN, never the userId — the API resolves the token itself and
+    stays the single authority on identity.
+
+    Keeping them in one object is the point. They were one value before
+    sessions, when the cookie was the userId; splitting them into two loose
+    arguments would let a call site forward the wrong one, which is precisely
+    the bug that shipped (see tracker_client._request_with_retry).
+    """
+
+    user_id: str
+    credential: str
 
 
 def validate(settings: Settings) -> None:
@@ -82,8 +109,19 @@ def instance_user_id(settings: Settings) -> str:
     )
 
 
-async def resolve(settings: Settings, request: Request, db) -> str:
-    """Resolve the request's user. Async because a session lookup is a query.
+def instance_identity(settings: Settings) -> RequestIdentity:
+    """Identity for work with no HTTP request behind it — see instance_user_id.
+
+    Fixed mode only, which is what makes the credential sound: the API ignores
+    the cookie entirely in Fixed mode and reads its own configuration, so there
+    is no session to forward and none is needed.
+    """
+    fixed = instance_user_id(settings)
+    return RequestIdentity(user_id=fixed, credential=fixed)
+
+
+async def resolve(settings: Settings, request: Request, db) -> RequestIdentity:
+    """Resolve the request's user AND the credential that proves it onward.
 
     The API mirror is SessionIdentityResolver.ResolveAsync; keep the two in
     step.
@@ -92,7 +130,9 @@ async def resolve(settings: Settings, request: Request, db) -> str:
         fixed = _parse(settings.identity_fixed_user_id)
         if not fixed:
             raise HTTPException(500, "Identity is not configured on this instance")
-        return fixed
+        # The API ignores the cookie under Fixed mode, so the credential is
+        # only ever read by a human in a log. The id is the honest value.
+        return RequestIdentity(user_id=fixed, credential=fixed)
 
     if db is None:
         raise HTTPException(503, "Identity store is unavailable")
@@ -109,7 +149,9 @@ async def resolve(settings: Settings, request: Request, db) -> str:
         {"_id": token, "ExpiresAt": {"$gt": datetime.now(timezone.utc)}}
     )
     if session:
-        return str(session["UserId"])
+        # The TOKEN travels onward, not the id it resolved to. The API is the
+        # only thing allowed to turn one into the other.
+        return RequestIdentity(user_id=str(session["UserId"]), credential=token)
 
     # A pre-sessions cookie: the userId in the clear. Honoured read-only during
     # the cutover window so a visitor mid-migration is not orphaned — but NOT
@@ -126,7 +168,10 @@ async def resolve(settings: Settings, request: Request, db) -> str:
                 "Rejected a pre-sessions cookie for %s: that account is linked.", legacy
             )
             raise HTTPException(401, "Sign in to reach this account")
-        return legacy
+        # Replay the same legacy cookie: the API runs this identical guard and
+        # will honour it for the same unlinked account, for as long as the
+        # cutover window stays open on both sides.
+        return RequestIdentity(user_id=legacy, credential=token)
 
     raise HTTPException(401, "No session")
 

@@ -56,8 +56,9 @@ async def test_run_eval_happy_path(monkeypatch):
         "g-02": {"verdict": "MAYBE", "overallScore": 55},  # wrong band -> fail
     }
 
-    async def fake_score_job(settings, jd_text, *, user_id, profile=None):
-        assert user_id == _EVAL_USER, "the eval must score against the configured user"
+    async def fake_score_job(settings, jd_text, *, identity, profile=None):
+        assert identity.user_id == _EVAL_USER, (
+            "the eval must score against the configured user")
         case_id = next(c["id"] for c in cases if c["jdText"] == jd_text)
         return responses[case_id]
 
@@ -79,7 +80,7 @@ async def test_run_eval_raises_instead_of_recording_a_partial_result(monkeypatch
     cases = [_case("g-01", "strong"), _case("g-02", "reject")]
     call_count = {"n": 0}
 
-    async def flaky_score_job(settings, jd_text, *, user_id, profile=None):
+    async def flaky_score_job(settings, jd_text, *, identity, profile=None):
         call_count["n"] += 1
         if call_count["n"] == 1:
             return {"verdict": "STRONG_YES", "overallScore": 90}

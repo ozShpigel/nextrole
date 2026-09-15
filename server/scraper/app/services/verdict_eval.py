@@ -64,7 +64,7 @@ async def run_eval(settings: Settings, cases: list[dict] | None = None) -> list[
         if i > 0:
             await asyncio.sleep(PACING_SECONDS)
         response = await match_client.score_job(
-            settings, case["jdText"], user_id=identity.instance_user_id(settings))
+            settings, case["jdText"], identity=identity.instance_identity(settings))
         if response is None:
             raise RuntimeError(
                 f"eval-verdict: API call failed for case '{case['id']}' — "

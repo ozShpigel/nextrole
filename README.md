@@ -22,11 +22,11 @@ NextRole keeps three things: your profile, your own scores for the jobs it has s
 
 **A typical morning takes five minutes**: open Matches, scan what came in overnight, add what looks good, glance at replies. The board is already up to date.
 
-> **Multi-user, no login** — a `uid` cookie is your identity: upload a CV and you're in. No password, no account, no recovery. Two deployments run from one image and differ **only by configuration** — `private.nextrole.cloud` serves a single configured user, `nextrole.cloud` serves many.
+> **Multi-user, sign-in optional** — upload a CV and you're in: no account needed. A session cookie is your identity, and signing in with Google is how you get back to that identity from another browser or after clearing cookies. There is no password and nothing to fill in. [Details](docs/auth.md)
 
 > **Cost**: Claude (Anthropic) is pay-as-you-go — running your own instance has an ongoing cost proportional to how much you scrape, not a one-time fee. MongoDB Atlas's free tier is enough to get started.
 
-> **Try it live**: [nextrole.cloud](https://nextrole.cloud) is the open instance — no signup, no login; drop in a CV and the shared job pool gets scored for you. A read-only seeded demo is also a supported configuration if you want to host a public instance over fictional data. See [Public instance](#public-instance).
+> **Try it live**: [nextrole.cloud](https://nextrole.cloud) — drop in a CV and the shared job pool gets scored for you. No signup required; sign in with Google only if you want to reach the same account from somewhere else. See [Public instance](#public-instance).
 
 ### Contents
 
@@ -110,11 +110,65 @@ Keeps your tracker up to date without you lifting a finger. A one-shot cron proc
 
 ## Public instance
 
-[**nextrole.cloud**](https://nextrole.cloud) runs the same image as the private instance against its own database, with `Identity:Mode=Cookie`: your first request gets a `uid` cookie (HttpOnly, Secure, SameSite=Lax, one year) and your first document appears when you upload a CV — not before. There is no password, no account recovery, and no link to share; lose the cookie and you're a new user. Everything you create — profile, scores, packs, the board — is filtered by that id, and the job pool underneath is the one thing everybody shares. [Details](docs/multi-user.md)
+[**nextrole.cloud**](https://nextrole.cloud) is the instance. It runs with
+`Identity:Mode=Cookie`: your first request gets a `uid` cookie (HttpOnly,
+Secure, SameSite=Lax, one year) and your first document appears when you upload
+a CV — not before. Everything you create — profile, scores, packs, the board —
+is filtered by your id, and the job pool underneath is the one thing everybody
+shares. [Details](docs/multi-user.md)
 
-**Know what is and isn't capped before you expose an instance.** Résumé packs are limited to 3 per user per day. Scoring is not: a scan is bounded at 50 jobs, but nothing limits how many scans one visitor runs, and a cookie costs nothing to replace. Measured over 199 real scored jobs, one job is about $0.011 and a full scan about $0.57 — so **a spend limit on your Anthropic key is the control that actually bounds the bill**. Give a public instance its own key in its own workspace: scoring is browser-driven and carries no `X-Source` header, so it spends the default key, and exhausting that one stops the daily ingest and the mailbot with it.
+**The cookie carries an opaque session token, not your user id.** It used to
+carry the id in the clear, which made it a bearer token: anyone who set it to
+somebody else's id had their account. The token now means nothing until the
+`sessions` collection says who it belongs to, sign-out deletes it server-side,
+and presenting a user id gets you an empty account. [Details](docs/auth.md)
 
-`DemoMode=true` is the other way to expose an instance publicly: seeded fictional data, live AI scoring and reads, and every write blocked, with the controls that would write disabled — reseeded from `dotnet run --project server/api/src/Seeder`, safe to re-run any time. Use it when you want a public instance nobody can change. [Details](docs/demo-mode.md) · [Hosting your own](docs/hosting-a-public-demo.md)
+**Signing in is optional and is about recovery, not access.** Without it, losing
+the cookie loses the account — there is no password to reset and nothing to
+recover. Signing in with Google links your account to one Google identity so you
+can reach it from another browser or device. Anything you did anonymously comes
+with you when you sign in; nothing is discarded, and anything that genuinely
+collides is kept rather than overwritten, and you are told about it.
+
+**Know what is and isn't capped before you expose an instance.** Résumé packs
+are limited to 3 per user per day. Scoring is not: a scan is bounded at 50 jobs,
+but nothing limits how many scans one visitor runs, and signing up costs
+nothing. Measured over 199 real scored jobs, one job is about $0.011 and a full
+scan about $0.57 — so **a spend limit on your Anthropic key is the control that
+actually bounds the bill**. Give a public instance its own key in its own
+workspace: scoring is browser-driven and carries no `X-Source` header, so it
+spends the default key, and exhausting that one stops the daily ingest and the
+mailbot with it.
+
+### `private.nextrole.cloud` is being retired
+
+Before sign-in existed, the only way to keep real data private was a second
+deployment behind HTTP Basic Auth, running the same image with
+`Identity:Mode=Fixed` — one configured user, no cookie. Sessions and sign-in
+replaced the reason for it: the public instance now holds the real data behind a
+real login.
+
+It is still running as a fallback while the new setup proves itself, and comes
+down once it has. `Fixed` mode itself stays supported — it is what the offline
+CLIs (the eval harnesses) use, and what a genuinely single-user self-hosted
+instance would run.
+
+### `DemoMode` is retired and is being removed
+
+`DemoMode=true` served a seeded, read-only public instance over fictional data.
+That instance no longer exists and will not return.
+
+**The apparatus is still in the repo** — the flag, the allowlist middleware in
+`Program.cs` / `main.py`, the Seeder project, `docs/demo-mode.md`, and the
+`demo-pool-ingest` cron — because removing it is teardown work that has not
+happened yet. **Do not read `DemoMode=true` as a supported path.** It is not
+being maintained, nothing runs it, and it is scheduled for deletion. If you want
+a public instance nobody can change, this is not the mechanism to reach for.
+
+One naming wrinkle worth knowing if you read the compose file: the services that
+serve nextrole.cloud are still called `demo-api`, `demo-scraper` and
+`demo-client`. They were repurposed rather than renamed, because renaming means
+rewiring the routing in front of them. The names are wrong; the wiring is right.
 
 ---
 

@@ -234,9 +234,11 @@ if (builder.Configuration.GetValue<bool>("DemoMode"))
 app.UseCors();
 app.UseRateLimiter();
 
-// Optional shared-secret gate for a privately *hosted* instance (no auth otherwise —
-// single-tenant by design): when ApiKey is set, every request must carry a matching
-// X-Api-Key header. The demo and local instances leave it unset. /health stays open
+// Optional shared-secret gate for a privately *hosted* instance: when ApiKey is
+// set, every request must carry a matching X-Api-Key header. Predates sign-in,
+// and is a gate on the whole instance rather than a per-user one — it was how a
+// Fixed-mode deployment kept strangers out when there was no login at all. The
+// public instance leaves it unset; it authenticates users instead (docs/auth.md). /health stays open
 // for external uptime/health checks (nothing in this repo's deploy config wires one
 // up automatically today, but gating it behind the key would break one if added);
 // /api/config only reveals demoMode.

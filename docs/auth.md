@@ -371,7 +371,9 @@ copy-then-delete, and both sides may already hold one.
   keeps answering queries after a later write has superseded it, and a job can
   read as dismissed after being un-dismissed.
 
-  **Collision rules.** `poolJobState` takes the union of the two booleans —
+  **Collision rules** — deliberate, and deliberately not reported to the user;
+  the reasoning is in "Contested rows change silently" below.
+  `poolJobState` takes the union of the two booleans —
   safe because they are independent and both can already be true at once
   (`clear_saved` sets `SavedToTracker` false without touching `Dismissed`), so
   it reaches no state ordinary use cannot. `jobScores` keeps the newer
@@ -417,8 +419,18 @@ this" plus "I dismissed this". Reporting it would mean telling someone that
 signing in changed numbers they never looked at, which is noise, not
 transparency.
 
-What made the parked singleton different is that a parked CV is a thing the user
-*deliberately created and expects to see*. A score they never saw is not.
+**The notice is reserved for parked singletons, and the line is not arbitrary.**
+A parked CV is user-authored content that still exists but has become invisible:
+not being told means never knowing to look for it. Neither overwrite is in that
+class. A `jobScore` is model-derived rather than authored, and the newer one is
+better-informed — it was computed against a more recent profile. A union loses
+nothing at all; both actions survive.
+
+There is a second cost to reporting them. A banner that announces non-events
+teaches the reader to dismiss banners, which weakens the one notice that
+actually matters. Spending the user's attention on "a number you never saw is
+now a different number" makes "your CV is not the one you just uploaded" easier
+to miss.
 
 **The gap worth closing instead: there is no audit trail.** `userMerges` records
 how many documents moved per collection, not which ones were contested or what

@@ -29,6 +29,11 @@ class Settings(BaseSettings):
     identity_mode: str = "fixed"
     identity_fixed_user_id: str = ""
     identity_cookie_name: str = "uid"
+    # Cutover: honour a pre-sessions cookie (the bare userId) read-only, so a
+    # visitor mid-migration is not orphaned. Mirrors the API's
+    # IdentityOptions.AcceptLegacyGuidCookie and must be turned off in step
+    # with it (docs/auth.md, Phase 1.5).
+    accept_legacy_guid_cookie: bool = True
     # Path to the shared pool role list (app/../config/roles.json by default).
     roles_config_path: str = ""
     # Public demo instance: block all writes (criteria/run/job mutations) so

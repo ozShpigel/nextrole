@@ -6,7 +6,7 @@ value**, not by a branch, a project, or a duplicated service:
 | Deployment | `Identity:Mode` | Where the userId comes from |
 |---|---|---|
 | `private.nextrole.cloud` | `Fixed` | `Identity:FixedUserId` — the single user this instance serves |
-| `nextrole.cloud` | `Cookie` | the `uid` cookie |
+| `nextrole.cloud` | `Cookie` | the session the `uid` cookie names |
 
 Resolution is the only code that knows which one it is. Query, scoring and pack
 code receive a plain `Guid` and cannot tell the difference — there is no
@@ -86,7 +86,8 @@ The rule, and the check behind it:
 - `tracker_client._request_with_retry` is the single funnel for every call the
   scraper makes into the API, and its `user_id` parameter **has no default**.
   Omitting it is a `TypeError` at the call site.
-- A resolved id travels as the `uid` cookie, so `IdentityResolver` stays the
+- A resolved id travels as the `uid` cookie — which names a session rather
+  than carrying the id — so `IdentityResolver` stays the
   only code that decides who a request is. The scraper never asserts a user
   any other way.
 - `user_id=None` is how a call says it is genuinely user-independent — title
@@ -169,31 +170,58 @@ isolation.
 
 ## Issuing the cookie
 
-`UseUserIdentityCookie` sets `uid` on the first request from any visitor who
-does not already have one — unconditionally, not on CV upload. That is what
-removes the "has this visitor uploaded yet" branch from everything downstream:
-by the time any code cares who the user is, the answer exists.
+`UseUserIdentityCookie` resolves identity on every request and sets `uid` for
+any visitor who does not already have a usable session — unconditionally, not on
+CV upload. That is what removes the "has this visitor uploaded yet" branch from
+everything downstream: by the time any code cares who the user is, the answer
+exists.
 
 ```
-Set-Cookie: uid=<guid>; expires=<+1 year>; path=/; secure; samesite=lax; httponly
+Set-Cookie: uid=<opaque session token>; expires=<+1 year>; path=/; secure; samesite=lax; httponly
 ```
+
+**The cookie carries an opaque session token, not a userId.** It used to carry
+the userId in the clear, which made it an unsigned bearer token: anyone who set
+`uid` to a known id had permanent, unrevokable access to that account. That was
+tolerable while the private instance sat behind Basic Auth and nothing real
+lived on the public one; it is not compatible with exposing `nextrole.cloud`.
+The token is 32 CSPRNG bytes and resolves through the `sessions` collection —
+full design in `docs/auth.md`, Phase 1.5.
 
 No `Domain`, so the cookie is host-only and scoped to the site the browser
-actually asked for. There is no login, no recovery, and the id is never shown
-to the user or readable from JS.
+actually asked for. The token is never shown to the user or readable from JS.
 
-Minting an id still creates nothing. A bot or a bounce takes a cookie and
-leaves no rows behind; the first document for a user is the résumé file written
-by their CV upload.
+Minting an identity creates a session document and nothing else. A bot or a
+bounce takes a cookie and leaves no user data behind; the first real document
+for a user is the résumé file written by their CV upload, and the TTL collects
+the session.
+
+**`IdentityResolver` no longer mints.** It returns the id the middleware parked
+for this request and throws otherwise. Minting anywhere else is the orphaned
+-write failure described above — the request succeeds, the row is filed under an
+id nobody holds, and nothing logs a problem. With sessions there is also nowhere
+to put such an id: no session document exists for it, so the browser could never
+return to it.
 
 **The API is the only issuer.** The scraper reads the same cookie — both sit
-behind the client's nginx on one origin, so the browser sends it to both — but
-never sets one. Two services minting concurrently on a first page load would
-race, and the loser's id, possibly the one a CV had just been uploaded under,
-would be overwritten in the browser.
+behind the client's nginx on one origin, so the browser sends it to both — and
+resolves it against the same `sessions` collection, but never sets one. Two
+services minting concurrently on a first page load would race, and the loser's
+id, possibly the one a CV had just been uploaded under, would be overwritten in
+the browser. Where the API mints for an unknown cookie, the scraper returns
+**401**: it cannot write a cookie back, so an id invented there could only ever
+be a phantom user.
 
-In `Fixed` mode no cookie is issued at all: identity comes from configuration
-and there is nothing to persist in a browser.
+This makes the session document a **cross-language contract**
+(`Core/Models/UserSession.cs`), and it adds a deployment invariant the two
+services did not previously have: **they must agree on the database name**, not
+just the connection string. `MongoDB:DatabaseName` and `MONGODB_DATABASE_NAME`
+pointing at different databases means every scraper request 401s — or resolves
+against the wrong instance's sessions.
+
+In `Fixed` mode no cookie is issued and no session is created at all: identity
+comes from configuration. The offline CLIs (demo seeder, the golden-set eval
+harnesses) depend on that path.
 
 ### Origins
 

@@ -39,36 +39,44 @@ public sealed class IdentityResolver
     public Guid LegacyOwnerUserId =>
         _options.Mode == IdentityMode.Fixed ? _fixedUserId : UserIds.OrphanedLegacyData;
 
-    // Lets the cookie middleware tell "this visitor already has an id" from
-    // "we just minted one", which is the difference between leaving the
-    // response alone and attaching a Set-Cookie.
-    public bool TryReadCookie(HttpContext? http, out Guid userId)
-    {
-        var raw = http?.Request.Cookies[_options.CookieName];
-        if (Guid.TryParse(raw, out userId) && userId != Guid.Empty) return true;
-        userId = Guid.Empty;
-        return false;
-    }
+    // The raw cookie value, for the middleware to hand to
+    // SessionIdentityResolver. Deliberately NOT parsed here any more: the
+    // cookie is an opaque token now, and the only code allowed to decide what
+    // it means is the session lookup.
+    public string? ReadCookie(HttpContext? http) =>
+        http?.Request.Cookies[_options.CookieName];
+
+    // Parks the resolved id for the rest of the request so every read inside
+    // one request agrees, and so Resolve stays synchronous for the 61 handlers
+    // that take IUserContext.
+    public static void Park(HttpContext http, Guid userId) =>
+        http.Items[HttpContextItemKey] = userId;
 
     public Guid Resolve(HttpContext? http)
     {
         if (_options.Mode == IdentityMode.Fixed) return _fixedUserId;
 
-        if (TryReadCookie(http, out var fromCookie)) return fromCookie;
+        if (http is not null
+            && http.Items.TryGetValue(HttpContextItemKey, out var parked)
+            && parked is Guid resolved)
+            return resolved;
 
-        // No usable cookie: this visitor is new to us, so they get a fresh id.
-        // Minting it does NOT create any document — a bot or a bounce leaves
-        // nothing behind; the first row appears only when a CV is uploaded.
-        // UserIdentityCookie attaches the Set-Cookie that makes this id stick
-        // beyond the current request.
-        if (http is null) return Guid.NewGuid();
-
-        if (http.Items.TryGetValue(HttpContextItemKey, out var parked) && parked is Guid existing)
-            return existing;
-
-        var minted = Guid.NewGuid();
-        http.Items[HttpContextItemKey] = minted;
-        return minted;
+        // Previously this minted a fresh id here. It must not any more.
+        //
+        // Minting outside the middleware is exactly the orphaned-write failure
+        // in docs/multi-user.md: the request succeeds, the row is filed under
+        // an id nobody will ever hold, and nothing logs a problem. With
+        // sessions there is also nowhere to put such an id — no session
+        // document exists for it, so the browser could never come back to it.
+        //
+        // If this throws, identity middleware did not run for this request, or
+        // something is reading IUserContext outside a request. Both are bugs,
+        // and both are far cheaper to find as a 500 than as data filed under a
+        // phantom user.
+        throw new InvalidOperationException(
+            "Identity has not been resolved for this request. UseUserIdentityCookie must run "
+            + "before anything reads IUserContext.UserId, and background work must take an "
+            + "explicit userId rather than resolving one.");
     }
 }
 

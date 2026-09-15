@@ -45,7 +45,17 @@ db = None
 async def lifespan(app: FastAPI):
     global db_client, db
     logger.info("Connecting to MongoDB...")
-    db_client = AsyncIOMotorClient(settings.mongodb_connection_string, tlsCAFile=certifi.where())
+    # tlsCAFile IMPLIES tls=True in PyMongo, so passing it unconditionally makes
+    # a plain mongodb://localhost connection fail the handshake — which is what
+    # a local Mongo container is. Atlas (mongodb+srv://) needs the CA bundle;
+    # nothing else here does.
+    conn = settings.mongodb_connection_string
+    tls_opts = (
+        {"tlsCAFile": certifi.where()}
+        if conn.startswith("mongodb+srv://") or "tls=true" in conn.lower() or "ssl=true" in conn.lower()
+        else {}
+    )
+    db_client = AsyncIOMotorClient(conn, **tls_opts)
     db = db_client[settings.mongodb_database_name]
     logger.info("Connected to database: %s", settings.mongodb_database_name)
 
@@ -162,8 +172,10 @@ app.add_middleware(
 
 # Resolved once per request, the same way the API resolves it. Endpoints take
 # the id as a parameter so a criteria query cannot be written without one.
-def current_user_id(request: Request) -> str:
-    return identity.resolve(settings, request)
+async def current_user_id(request: Request) -> str:
+    # Async because resolution is now a session lookup (docs/auth.md). FastAPI
+    # awaits async dependencies transparently, so no handler signature changes.
+    return await identity.resolve(settings, request, db)
 
 
 # ---------------------------------------------------------------------------

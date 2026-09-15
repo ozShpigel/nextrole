@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { Navigate, NavLink, Outlet, useLocation, useNavigationType } from 'react-router-dom';
 import { Search, Kanban, Mail, GraduationCap, User } from 'lucide-react';
 import { useHasProfile, useProfile, useResumeFile } from './lib/queries';
+import { NoticeBanner } from './components/NoticeBanner';
 import { BrandMark } from './components/BrandMark';
 
 // Routes exempt from the onboarding redirect: "/" is the onboarding screen
@@ -130,6 +131,10 @@ export default function App() {
           )}
         </div>
       </nav>
+      {/* Directly under the nav and above every page, so an account-level
+          notice is seen rather than found. Renders nothing when there are
+          none. */}
+      <NoticeBanner />
       <ScrollToTop />
       <div className={hasProfile ? MOBILE_NAV_SPACER : undefined}>
         <OnboardingGate />

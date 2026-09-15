@@ -4,6 +4,7 @@ using System.Text.Json.Serialization;
 using ApplicationTracker.Api;
 using ApplicationTracker.Api.Endpoints;
 using ApplicationTracker.Api.Identity;
+using Microsoft.Extensions.Options;
 using ApplicationTracker.Api.Extensions;
 using ApplicationTracker.Core.Models;
 using ApplicationTracker.Infrastructure.Pdf;
@@ -159,6 +160,33 @@ await UserScopeMigrationInitializer.MigrateOrThrowAsync(
     builder.Configuration["MongoDB:ProfileDatabase"] ?? builder.Configuration["MongoDB:Database"] ?? "jobmatch",
     identity.LegacyOwnerUserId,
     startupLogger);
+
+// FATAL, unlike the index block below. Every index down there is deduplication:
+// lose one and you get duplicate rows and a cleanup job. This one is half of a
+// security guard. GoogleIdentityRepository.TryLinkAsync arbitrates the
+// first-sign-in race by catching a duplicate-key rejection, and _id uniqueness
+// only covers one side of it — without uniq_googlesub, two concurrent sign-ins
+// with the SAME Google account link it to two different userIds, and which
+// account that person lands in afterwards is arbitrary. An API that cannot
+// enforce that must not serve requests, because the failure is silent and the
+// damage is to who owns what.
+// Fatal: a half-configured claim is a configuration mistake, and the dangerous
+// half (ClaimUserId with no ClaimEmail) would arm an account takeover for
+// whoever signs in first. Same posture as IdentityResolver refusing a Fixed
+// instance with no FixedUserId.
+app.Services.GetRequiredService<IOptions<GoogleAuthOptions>>().Value.Validate();
+
+await new GoogleIdentityRepository(
+    app.Services.GetRequiredService<IMongoCollection<GoogleIdentity>>())
+    .EnsureIndexesAsync();
+
+// Also fatal. The TTL is only cleanup — expiry is enforced in the query — but
+// idx_userid is what sign-out-everywhere and the merge repoint rely on, and an
+// unindexed collection scan over sessions on every merge is not something to
+// discover in production.
+await new UserSessionRepository(
+    app.Services.GetRequiredService<IMongoCollection<UserSession>>())
+    .EnsureIndexesAsync();
 
 try
 {
@@ -378,6 +406,8 @@ if (app.Environment.IsDevelopment())
 
 app.UseUserIdentityCookie();
 
+app.MapAuthEndpoints();
+app.MapNoticeEndpoints();
 app.MapApplicationEndpoints();
 app.MapInterviewEndpoints();
 app.MapInterviewInsightsEndpoints();

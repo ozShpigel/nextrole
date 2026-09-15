@@ -119,12 +119,13 @@ public static class AuthEndpoints
                 return Fail(o, "verification_failed");
             }
 
-            // Google sets this false for unverified addresses on some account
-            // types. We only display the email, but an unverified one should
-            // not be shown as though it were confirmed.
-            var email = payload.EmailVerified == true ? payload.Email ?? "" : "";
-
-            var result = await signIn.ResolveAsync(user.UserId, payload.Subject, email, ct);
+            // The verification flag travels separately rather than being baked
+            // into a blanked email: the claim is pinned to a verified address,
+            // and that decision must not be able to drift if this call site
+            // ever starts passing the raw value through. The resolver decides
+            // what to store and what to match.
+            var result = await signIn.ResolveAsync(
+                user.UserId, payload.Subject, payload.Email, payload.EmailVerified == true, ct);
 
             switch (result.Outcome)
             {

@@ -1,6 +1,7 @@
 using ApplicationTracker.Api.Identity;
 using ApplicationTracker.Core.Models;
 using ApplicationTracker.Core.Repositories;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace ArchitectureTests;
 
@@ -20,14 +21,22 @@ public class GoogleSignInResolverTests
     private static readonly Guid Bob = Guid.Parse("22222222-2222-2222-2222-222222222222");
     private static readonly Guid Carol = Guid.Parse("33333333-3333-3333-3333-333333333333");
 
+    private const string ClaimOwner = "owner@example.com";
+
     private static GoogleSignInResolver Build(
-        FakeIdentities repo, Guid? claimTarget = null) =>
-        new(repo, new GoogleAuthOptions
-        {
-            ClientId = "id",
-            ClientSecret = "secret",
-            ClaimUserId = claimTarget?.ToString(),
-        });
+        FakeIdentities repo, Guid? claimTarget = null, string? claimEmail = ClaimOwner) =>
+        new(repo,
+            new GoogleAuthOptions
+            {
+                ClientId = "id",
+                ClientSecret = "secret",
+                ClaimUserId = claimTarget?.ToString(),
+                ClaimEmail = claimTarget is null ? null : claimEmail,
+                // The claim needs all three parts to arm. Expiry behaviour is
+                // ClaimExpiryTests; far-future keeps it out of the way here.
+                ClaimExpiresAt = claimTarget is null ? null : "2099-01-01",
+            },
+            NullLogger<GoogleSignInResolver>.Instance);
 
     // ---- Collision table ----------------------------------------------------
 
@@ -38,7 +47,7 @@ public class GoogleSignInResolverTests
         repo.Rows.Add(new GoogleIdentity { Id = Alice, GoogleSub = "sub-alice" });
 
         // Bob's cookie is brand new and owns nothing.
-        var result = await Build(repo).ResolveAsync(Bob, "sub-alice", "a@x.com");
+        var result = await Build(repo).ResolveAsync(Bob, "sub-alice", "a@x.com", true);
 
         Assert.Equal(GoogleSignInOutcome.SignedIn, result.Outcome);
         Assert.Equal(Alice, result.UserId);
@@ -54,7 +63,7 @@ public class GoogleSignInResolverTests
         var repo = new FakeIdentities();
         repo.Rows.Add(new GoogleIdentity { Id = Alice, GoogleSub = "sub-alice" });
 
-        var result = await Build(repo).ResolveAsync(Bob, "sub-alice", "a@x.com");
+        var result = await Build(repo).ResolveAsync(Bob, "sub-alice", "a@x.com", true);
 
         Assert.Equal(GoogleSignInOutcome.SignedIn, result.Outcome);
         Assert.Equal(Alice, result.UserId);
@@ -68,7 +77,7 @@ public class GoogleSignInResolverTests
         var repo = new FakeIdentities();
         repo.Rows.Add(new GoogleIdentity { Id = Bob, GoogleSub = "sub-bob" });
 
-        var result = await Build(repo).ResolveAsync(Bob, "sub-carol", "c@x.com");
+        var result = await Build(repo).ResolveAsync(Bob, "sub-carol", "c@x.com", true);
 
         Assert.Equal(GoogleSignInOutcome.Refused, result.Outcome);
         Assert.Single(repo.Rows);
@@ -80,7 +89,7 @@ public class GoogleSignInResolverTests
         var repo = new FakeIdentities();
         repo.Rows.Add(new GoogleIdentity { Id = Alice, GoogleSub = "sub-alice" });
 
-        var result = await Build(repo).ResolveAsync(Alice, "sub-alice", "a@x.com");
+        var result = await Build(repo).ResolveAsync(Alice, "sub-alice", "a@x.com", true);
 
         Assert.Equal(GoogleSignInOutcome.SignedIn, result.Outcome);
         Assert.Equal(Alice, result.UserId);
@@ -92,7 +101,7 @@ public class GoogleSignInResolverTests
     {
         var repo = new FakeIdentities();
 
-        var result = await Build(repo).ResolveAsync(Bob, "sub-bob", "b@x.com");
+        var result = await Build(repo).ResolveAsync(Bob, "sub-bob", "b@x.com", true);
 
         Assert.Equal(GoogleSignInOutcome.SignedIn, result.Outcome);
         Assert.Equal(Bob, result.UserId);
@@ -107,7 +116,7 @@ public class GoogleSignInResolverTests
         var repo = new FakeIdentities();
 
         var result = await Build(repo, claimTarget: Alice)
-            .ResolveAsync(Bob, "sub-mine", "me@x.com");
+            .ResolveAsync(Bob, "sub-mine", ClaimOwner, true);
 
         Assert.Equal(GoogleSignInOutcome.Claimed, result.Outcome);
         Assert.Equal(Alice, result.UserId);          // adopts the pre-auth data
@@ -124,11 +133,11 @@ public class GoogleSignInResolverTests
         var repo = new FakeIdentities();
         var resolver = Build(repo, claimTarget: Alice);
 
-        var first = await resolver.ResolveAsync(Bob, "sub-mine", "me@x.com");
+        var first = await resolver.ResolveAsync(Bob, "sub-mine", ClaimOwner, true);
         Assert.Equal(GoogleSignInOutcome.Claimed, first.Outcome);
 
         // A different person signs in afterwards, same configuration.
-        var second = await resolver.ResolveAsync(Carol, "sub-stranger", "s@x.com");
+        var second = await resolver.ResolveAsync(Carol, "sub-stranger", "s@x.com", true);
 
         Assert.Equal(GoogleSignInOutcome.SignedIn, second.Outcome);
         Assert.Equal(Carol, second.UserId);  // their own empty account, NOT Alice's
@@ -143,7 +152,7 @@ public class GoogleSignInResolverTests
         repo.Rows.Add(new GoogleIdentity { Id = Alice, GoogleSub = "sub-alice" });
 
         var result = await Build(repo, claimTarget: Alice)
-            .ResolveAsync(Bob, "sub-stranger", "s@x.com");
+            .ResolveAsync(Bob, "sub-stranger", "s@x.com", true);
 
         Assert.Equal(GoogleSignInOutcome.SignedIn, result.Outcome);
         Assert.Equal(Bob, result.UserId);
@@ -158,7 +167,7 @@ public class GoogleSignInResolverTests
         var repo = new RacingIdentities(Alice);
 
         var result = await Build(repo, claimTarget: Alice)
-            .ResolveAsync(Bob, "sub-bob", "b@x.com");
+            .ResolveAsync(Bob, "sub-bob", "b@x.com", true);
 
         Assert.Equal(GoogleSignInOutcome.SignedIn, result.Outcome);
         Assert.Equal(Bob, result.UserId);

@@ -4,6 +4,7 @@ using System.Text.Json.Serialization;
 using ApplicationTracker.Api;
 using ApplicationTracker.Api.Endpoints;
 using ApplicationTracker.Api.Identity;
+using Microsoft.Extensions.Options;
 using ApplicationTracker.Api.Extensions;
 using ApplicationTracker.Core.Models;
 using ApplicationTracker.Infrastructure.Pdf;
@@ -169,6 +170,12 @@ await UserScopeMigrationInitializer.MigrateOrThrowAsync(
 // account that person lands in afterwards is arbitrary. An API that cannot
 // enforce that must not serve requests, because the failure is silent and the
 // damage is to who owns what.
+// Fatal: a half-configured claim is a configuration mistake, and the dangerous
+// half (ClaimUserId with no ClaimEmail) would arm an account takeover for
+// whoever signs in first. Same posture as IdentityResolver refusing a Fixed
+// instance with no FixedUserId.
+app.Services.GetRequiredService<IOptions<GoogleAuthOptions>>().Value.Validate();
+
 await new GoogleIdentityRepository(
     app.Services.GetRequiredService<IMongoCollection<GoogleIdentity>>())
     .EnsureIndexesAsync();

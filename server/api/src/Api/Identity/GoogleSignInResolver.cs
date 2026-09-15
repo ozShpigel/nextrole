@@ -1,5 +1,6 @@
 using ApplicationTracker.Core.Models;
 using ApplicationTracker.Core.Repositories;
+using Microsoft.Extensions.Logging;
 
 namespace ApplicationTracker.Api.Identity;
 
@@ -41,20 +42,34 @@ public sealed class GoogleSignInResolver
 {
     private readonly IGoogleIdentityRepository _identities;
     private readonly GoogleAuthOptions _options;
+    private readonly ILogger<GoogleSignInResolver> _log;
 
     public GoogleSignInResolver(
         IGoogleIdentityRepository identities,
-        GoogleAuthOptions options)
+        GoogleAuthOptions options,
+        ILogger<GoogleSignInResolver> log)
     {
         _identities = identities;
         _options = options;
+        _log = log;
     }
 
+    /// <param name="emailVerified">
+    /// Google's own verification flag. Taken as a separate argument rather than
+    /// inferred from a blanked email, because the claim decision must not be
+    /// able to drift if a caller later passes the raw address through.
+    /// </param>
     public async Task<GoogleSignInResult> ResolveAsync(
-        Guid cookieUserId, string googleSub, string email, CancellationToken ct = default)
+        Guid cookieUserId, string googleSub, string? email, bool emailVerified,
+        CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(googleSub))
             throw new ArgumentException("googleSub is required", nameof(googleSub));
+
+        // Unverified addresses are not stored and not matched. Google leaves
+        // this false on some account types, and an address nobody proved owning
+        // must not be shown as confirmed, let alone used to take an account.
+        var verifiedEmail = emailVerified ? (email ?? string.Empty).Trim() : string.Empty;
 
         // 1. Does this Google account already own an account here?
         var linked = await _identities.FindByGoogleSubAsync(googleSub, ct);
@@ -89,23 +104,45 @@ public sealed class GoogleSignInResolver
         //    this branch is dead for every later sign-in no matter what
         //    ClaimUserId is set to. Re-arming it means deleting the link on
         //    purpose, which is not something config can do by accident.
-        if (_options.TryGetClaimUserId(out var claimTarget)
+        if (_options.TryGetClaim(DateTime.UtcNow, out var claimTarget, out var claimEmail)
             && claimTarget != cookieUserId
             && await _identities.GetAsync(claimTarget, ct) is null)
         {
-            var claimed = await _identities.TryLinkAsync(new GoogleIdentity
+            //    The claim is armed — and pinned. Only the named Google account
+            //    may take it, so a ClaimUserId left in config is inert to
+            //    everyone else rather than a prize for whoever signs in first.
+            //
+            //    Verification is required, not just a matching string: an
+            //    unverified address is one nobody has proved they own.
+            if (string.Equals(verifiedEmail, claimEmail, StringComparison.OrdinalIgnoreCase))
             {
-                Id = claimTarget,
-                GoogleSub = googleSub,
-                Email = email,
-                ViaClaim = true,
-            }, ct);
+                var claimed = await _identities.TryLinkAsync(new GoogleIdentity
+                {
+                    Id = claimTarget,
+                    GoogleSub = googleSub,
+                    Email = verifiedEmail,
+                    ViaClaim = true,
+                }, ct);
 
-            // Won the race: this Google account now owns the pre-auth data.
-            if (claimed) return new GoogleSignInResult(GoogleSignInOutcome.Claimed, claimTarget);
+                // Won the race: this Google account now owns the pre-auth data.
+                if (claimed) return new GoogleSignInResult(GoogleSignInOutcome.Claimed, claimTarget);
 
-            // Lost it (another sign-in claimed between the read and the insert)
-            // — fall through and be treated as an ordinary first sign-in.
+                // Lost it (another sign-in claimed between the read and the
+                // insert) — falls through to an ordinary first sign-in.
+            }
+            else
+            {
+                // Somebody arrived at an armed claim and was turned away. This
+                // is the one event here worth seeing, so it is never silent.
+                _log.LogWarning(
+                    "Claim for user {ClaimTarget} refused: signer {Signer} does not match the "
+                    + "configured Google:ClaimEmail. Falling back to an ordinary sign-in.",
+                    claimTarget,
+                    verifiedEmail.Length == 0 ? "(unverified or absent email)" : verifiedEmail);
+
+                // They get their own account, which is the right outcome for
+                // someone who is not the named recipient.
+            }
         }
 
         // 4. Ordinary first sign-in: link this Google account to the account
@@ -116,7 +153,7 @@ public sealed class GoogleSignInResolver
         {
             Id = cookieUserId,
             GoogleSub = googleSub,
-            Email = email,
+            Email = verifiedEmail,
         }, ct);
 
         if (ok) return new GoogleSignInResult(GoogleSignInOutcome.SignedIn, cookieUserId);

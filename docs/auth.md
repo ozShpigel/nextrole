@@ -111,20 +111,92 @@ The resolver reports the merge rather than performing it, so it stays free of
 I/O and the rules remain testable without a database. All three rows are
 asserted in `GoogleSignInResolverTests`.
 
-### The one-shot claim (`Google:ClaimUserId`)
+### The one-shot claim
 
 The pre-auth data on an instance belongs to a userId nobody can prove they own,
-because there was never a login. `ClaimUserId` names it: the first Google
-account to sign in adopts that userId instead of the empty one their cookie
-just minted. It is how `private.nextrole.cloud`'s history moves to
-`nextrole.cloud` under a real account.
+because there was never a login. The claim hands it over once: a Google sign-in
+adopts that userId instead of the empty one the visitor's cookie just minted. It
+is how `private.nextrole.cloud`'s history moves to `nextrole.cloud` under a real
+account.
 
-**It cannot be re-armed by configuration.** The claim is gated on the target
-having no `googleIdentity` document — a fact in the database, not a flag. Once
-consumed, the branch is dead however `ClaimUserId` is set, which matters
-because on a public instance this is the switch that would otherwise hand an
-entire job history to whoever signs in next. Nobody goes back to unset a config
-line, so the config must not be what protects it.
+It takes **three configuration values, all of them or none**. Any partial
+combination refuses to start.
+
+| Key | What it answers |
+|---|---|
+| `Google:ClaimUserId` | *which* account is being handed over |
+| `Google:ClaimEmail` | *who* is allowed to take it |
+| `Google:ClaimExpiresAt` | *when* the offer stops existing |
+
+Half a claim is a configuration mistake in both directions, which is why
+startup fails rather than warning. `ClaimUserId` alone is the dangerous half —
+see below. `ClaimEmail` or `ClaimExpiresAt` alone is harmless but means somebody
+configured a migration that can never fire, and may reasonably conclude the
+feature is broken.
+
+#### Why it has to name a person
+
+With `ClaimUserId` alone, **the account goes to whoever signs in first.** On a
+private instance nobody else can reach, that is fine. On a public one it is an
+account takeover waiting for a stranger to be quick, and the value is exactly
+the kind that gets copied into a production env file during a migration and left
+there.
+
+"Remember not to set it in production" is not a control. `ClaimEmail` is:
+only the named Google account may take the claim, so a forgotten `ClaimUserId`
+is inert to everyone except the person it names.
+
+**Verification is checked as a separate flag, not inferred from the address.**
+An email Google has not marked verified is one nobody has proved they own, so
+matching on the string alone would let an impostor assert the owner's address
+and walk off with the history. `GoogleSignInResolver.ResolveAsync` takes
+`emailVerified` as an explicit parameter for that reason — the decision must not
+be able to drift if a caller later starts passing the raw value through.
+
+A refused attempt is **logged with the signer**. Somebody arriving at an armed
+claim and being turned away is the one event here worth seeing.
+
+#### Why it has to expire
+
+A migration hatch that closes only when someone remembers to close it stays open.
+`ClaimExpiresAt` is an absolute UTC instant, and past it the API **refuses to
+start**, naming the three lines to delete. The hatch closes on a date rather than
+on anyone's diligence.
+
+Parsed with `TryParseExact` against explicit ISO formats and `AssumeUniversal`,
+so `2026-10-01`, `…T00:00:00` and `…T00:00:00Z` are the same instant everywhere
+and a bare date means midnight UTC rather than midnight wherever the server
+happens to sit. `01/10/2026` is **rejected outright** rather than meaning January
+in one locale and October in another — this value decides when a takeover window
+closes, so a lenient parse is not a convenience.
+
+Enforced **twice**: at startup, and again on every claim attempt. A container
+that booted before the deadline and is not redeployed for months is precisely
+the case the deadline exists to end, and a startup-only check would leave it
+armed for as long as the process happens to stay up.
+
+#### Rejected: refusing to boot once the target is linked
+
+The obvious companion was a startup check failing when `ClaimUserId` is set and
+the target already has a `googleIdentity` document — forcing removal by making
+the config unable to outlive its use.
+
+**It fails open.** The check reads database state, so deleting that link makes it
+stop failing and the claim silently re-arms. Account deletion is an open
+question in this document, and when it lands it would do exactly that. A guard
+whose behaviour inverts on an unrelated feature nobody would connect to it is
+not a guard.
+
+It also trades an inert config line for an outage: once consumed, the claim is
+already dead by the data gate below, and with the pin it is inert to everyone
+but its owner anyway. A date cannot be un-passed by anything happening in the
+database, which is why the expiry does this job instead.
+
+#### It still cannot be re-armed by configuration
+
+Independently of the three keys, the claim is gated on the target having no
+`googleIdentity` document — a fact in the database, not a flag. Once consumed,
+the branch is dead however the config is set.
 
 Two concurrent first sign-ins can both pass that read, so the insert arbitrates:
 `TryLinkAsync` is insert-if-absent and the loser falls through to an ordinary
@@ -132,6 +204,9 @@ sign-in. That is why `uniq_googlesub` is created in the **fatal** startup block
 rather than the best-effort one — see `Program.cs`. Every other index there is
 deduplication; this one is half of the guard, and `_id` uniqueness only covers
 the other half.
+
+A refused attempt never consumes the claim. Otherwise anyone could disarm the
+migration by signing in once, and it would silently stop working.
 
 ### Demo mode
 
@@ -483,6 +558,10 @@ Per the standing rule that a rule with no check behind it is not a rule:
   (9 tests). Includes the two that matter most: a consumed claim stays dead
   with `ClaimUserId` still set, and a lost claim race falls back to an ordinary
   sign-in rather than sharing an account.
+- **Done** — `ClaimPinTests` and `ClaimExpiryTests`: every partial configuration
+  refuses to start, a stranger arriving first gets their own empty account, an
+  unverified address cannot take the claim even when it matches, and an expired
+  claim is refused both at startup and at runtime.
 - **Done** — `uniq_googlesub` is fatal at startup, so the race guard cannot be
   half-present.
 - **Still owed (Phase 2)** — a test that the session cookie is rejected when its
@@ -506,7 +585,10 @@ Per the standing rule that a rule with no check behind it is not a rule:
   Not built.
 - Account deletion. There is no such path today because there are no accounts;
   once there are, there needs to be one. It now also has to delete sessions and
-  the `googleIdentity` link, not just the data.
+  the `googleIdentity` link, not just the data — and note that deleting a link
+  re-opens the claim's data gate for that userId. That is survivable only
+  because `ClaimExpiresAt` closes the hatch on a date regardless; it is exactly
+  why the startup check reading `googleIdentity` was rejected.
 - Whether an anonymous session should expire sooner than a signed-in one. A
   year is a long life for a token nobody can revoke by signing out, because an
   anonymous visitor never signs out.

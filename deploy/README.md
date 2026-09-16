@@ -108,9 +108,8 @@ cluster storage, which matters on the M0 free tier.
   shared job pool the per-user scan matches against; without it a visitor
   uploads a CV and sees an empty Matches tab, because the candidate filter has
   no extracted requirements to filter on. It needs no identity of its own (the
-  pool is user-independent) and its three API calls are all on the DemoMode
-  allowlist, so it can be scheduled before the instance is flipped to cookie
-  identity. First run costs roughly $0.33 in extraction over ~160 postings;
+  pool is user-independent), so it can be scheduled independently of how the
+  instance resolves users. First run costs roughly $0.33 in extraction over ~160 postings;
   subsequent runs only pay for what is new (`docs/job-pool.md`).
 
 ## Monitoring

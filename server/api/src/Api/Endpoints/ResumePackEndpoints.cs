@@ -61,8 +61,6 @@ public static class ResumePackEndpoints
         .WithSummary("Get the persisted résumé pack for an application, if generated");
 
         // Generates (or regenerates) the tailored résumé content and persists it.
-        // This is a write — not in the demo analysisAllowlist, so it 403s under
-        // DemoMode like every other mutation.
         app.MapPost("/api/applications/{id:guid}/pack", async (
             Guid id,
             IUserContext user,
@@ -164,8 +162,7 @@ public static class ResumePackEndpoints
 
         // Manual edit of an already-generated pack — no AI call, so no rate
         // limit and nothing new to validate (Violations carries over from
-        // whatever the last real generation flagged). A write like every
-        // other pack mutation, so it 403s under DemoMode.
+        // whatever the last real generation flagged).
         app.MapPut("/api/applications/{id:guid}/pack", async (
             Guid id,
             [FromBody] ResumePackUpdateRequest request,

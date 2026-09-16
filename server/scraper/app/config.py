@@ -10,9 +10,9 @@ class Settings(BaseSettings):
     mongodb_database_name: str = "job-tracker"
     api_base_url: str = "http://localhost:5002"
     # Sent as X-Api-Key on every call to api_base_url — required when that API
-    # has its own ApiKey gate set (see Program.cs), e.g. a private scraper
-    # talking to api-private. Empty = no header sent (matches the demo/local
-    # API, which leaves its own ApiKey unset).
+    # has its own ApiKey gate set (see Program.cs). Empty = no header sent,
+    # which is what nextrole.cloud and a local API both do -- they leave their
+    # own ApiKey unset.
     api_key: str = ""
     scoring_delay_seconds: float = 2.0
     # Reserved: shared secret for cron-triggered endpoints (the batch-cycle
@@ -36,9 +36,6 @@ class Settings(BaseSettings):
     accept_legacy_guid_cookie: bool = True
     # Path to the shared pool role list (app/../config/roles.json by default).
     roles_config_path: str = ""
-    # Public demo instance: block all writes (criteria/run/job mutations) so
-    # visitors can't pollute shared data. Off = private instance, full read/write.
-    demo_mode: bool = False
 
     def parsed_cors_origins(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]

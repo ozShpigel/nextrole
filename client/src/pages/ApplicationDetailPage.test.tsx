@@ -301,22 +301,5 @@ describe('ApplicationDetailPage', () => {
       alertSpy.mockRestore();
     });
 
-    it('does not offer the toggle on the read-only demo', async () => {
-      // All three translate endpoints persist onto the Application, so all
-      // three 403 in demo. Disable rather than fail and explain.
-      vi.mocked(api).mockImplementation((path: string) =>
-        String(path).includes('/config')
-          ? Promise.resolve({ demoMode: true })
-          : Promise.resolve(interviewing),
-      );
-
-      renderWithRouter(<ApplicationDetail />);
-      await screen.findByTestId('analysis-card');
-
-      const tab = await screen.findByRole('tab', { name: /translate to hebrew/i });
-      await waitFor(() => expect(tab).toBeDisabled());
-      expect(tab).toHaveAttribute('title', 'Disabled in the read-only demo');
-      expect(translateCalls()).toHaveLength(0);
-    });
   });
 });

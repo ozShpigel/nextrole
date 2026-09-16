@@ -87,14 +87,6 @@ async def lifespan(app: FastAPI):
     await ensure_pool_indexes(db)
     await roles.publish_baseline(db, roles.load(settings.roles_config_path or None))
 
-    # Demo pool freshness: seeded fictional jobs re-enter the Search page's
-    # days-back window on every cold start — which on the free tier happens
-    # whenever a visitor arrives — so demo search always has results. No-op
-    # outside demo mode or before `python -m app.cli seed-demo-jobs` ran.
-    if settings.demo_mode:
-        from app.services import demo_seed
-        await demo_seed.refresh_seed_timestamps(db)
-
     yield
     if db_client:
         db_client.close()
@@ -103,58 +95,6 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Scraper Service", version="0.1.0", lifespan=lifespan)
 
-
-# DEMO_MODE — public demo instance: block every write (criteria/run/job
-# mutations) so visitors can't pollute shared data. GETs (health, list/get
-# runs/jobs/criteria) still work. Off by default. Exact-path allowlist for
-# POSTs that are pure analysis (no persistence) — mirrors the API's
-# analysisAllowlist in Program.cs.
-#
-# /jobs/unsave is here too: the Active board's "Remove" (mark Withdrawn)
-# calls it as a best-effort follow-up to clear saved_to_tracker so the
-# originating Matches card reverts from "Added" back to "Add" — without it
-# Remove still worked but silently left Matches stuck on "Added" forever
-# (the call 403'd and useUpdateAppStatus swallows that failure). Same
-# blast radius as save/dismiss: flips one boolean on an already-seeded
-# discovered_jobs doc, matched by job_url, no new data. /jobs/import
-# (arbitrary URL scraping) stays blocked — no such bound there.
-DEMO_ANALYSIS_ALLOWLIST: set[str] = {"/api/discovery/jobs/unsave"}
-
-# Matches page "Add": the one persisting write allowed in demo, matched by
-# path pattern since the job id is dynamic — mirrors the API's
-# resumePackGeneratePath exception in Program.cs. Bounded to the existing
-# seeded discovery pool (saving an already-scored job). The downstream
-# tracker save this triggers is itself gated on the API side by the
-# X-Source: ingest header this service already attaches to every
-# scraper→API call, so a client can't reach that write directly.
-DEMO_SAVE_JOB_PATTERN = re.compile(r"^/api/discovery/jobs/[0-9a-fA-F-]{36}/save$")
-
-# Matches page "Dismiss": same shape as save — flips one boolean
-# (`dismissed`) on an already-seeded discovered_jobs doc, no new data,
-# fully reversible on the next reseed.
-DEMO_DISMISS_JOB_PATTERN = re.compile(r"^/api/discovery/jobs/[0-9a-fA-F-]{36}/dismiss$")
-# Same shape again: recording that a panel was opened writes one per-user
-# boolean-ish timestamp and touches no real data.
-DEMO_VIEW_JOB_PATTERN = re.compile(r"^/api/discovery/jobs/[0-9a-fA-F-]{36}/view$")
-
-
-@app.middleware("http")
-async def demo_guard(request, call_next):
-    path = request.url.path.rstrip("/")
-    is_allowed_save = request.method == "POST" and DEMO_SAVE_JOB_PATTERN.match(path)
-    is_allowed_dismiss = request.method == "POST" and DEMO_DISMISS_JOB_PATTERN.match(path)
-    is_allowed_view = request.method == "POST" and DEMO_VIEW_JOB_PATTERN.match(path)
-    if (
-        settings.demo_mode
-        and request.method in ("POST", "PUT", "PATCH", "DELETE")
-        and path not in DEMO_ANALYSIS_ALLOWLIST
-        and not is_allowed_save
-        and not is_allowed_dismiss
-        and not is_allowed_view
-    ):
-        from fastapi.responses import JSONResponse
-        return JSONResponse(status_code=403, content={"error": "This is a read-only demo."})
-    return await call_next(request)
 
 # Enable CORS so the frontend can call this service directly from the browser
 # (mirrors the candy-babies pattern). Removing the nginx middleman eliminates

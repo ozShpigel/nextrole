@@ -58,21 +58,6 @@ export function usePoolScan(enabled: boolean) {
   });
 }
 
-// Public client config (e.g. demo mode) — drives the read-only banner.
-export function useConfig() {
-  return useQuery<{ demoMode: boolean }>({
-    queryKey: ['config'],
-    queryFn: () => api('/config'),
-    staleTime: Infinity,
-  });
-}
-
-// True on the read-only demo instance. Mutating buttons render disabled with
-// DEMO_DISABLED_TITLE instead of failing with a 403 alert after the click.
-export function useDemoMode(): boolean {
-  return useConfig().data?.demoMode ?? false;
-}
-
 export interface Notice {
   id: string;
   kind: string;
@@ -115,7 +100,6 @@ export function useAuthStatus() {
   });
 }
 
-export const DEMO_DISABLED_TITLE = 'Disabled in the read-only demo';
 
 // Has this visitor uploaded a CV yet? One definition, because three places
 // now branch on it — the onboarding gate that redirects, the nav that hides

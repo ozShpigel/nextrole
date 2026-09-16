@@ -39,7 +39,7 @@ describe("LandingPage", () => {
     // Tests navigate via the real BrowserRouter (shared jsdom window) —
     // reset the URL so a prior test's navigation doesn't leak into this one.
     window.history.pushState({}, "", "/");
-    mockRoutes({ "/config": { demoMode: false } });
+    mockRoutes({ "/config": {} });
   });
 
   it("renders the page title", () => {
@@ -97,7 +97,7 @@ describe("LandingPage", () => {
   // tell that from the URL — the server says so via /auth/me.
   it("hides Google sign-in when the instance cannot do sign-in", async () => {
     mockRoutes({
-      "/config": { demoMode: false },
+      "/config": {},
       "/auth/me": { signedIn: false, email: null, available: false },
     });
     mockProfile(false);
@@ -106,14 +106,6 @@ describe("LandingPage", () => {
     expect(screen.queryByRole("link", { name: /sign in with google/i })).not.toBeInTheDocument();
   });
 
-  it("hides Google sign-in in demo mode", async () => {
-    mockRoutes({ "/config": { demoMode: true } });
-    mockProfile(false);
-    renderWithRouter(<Landing />);
-    await waitFor(() => expect(api).toHaveBeenCalledWith("/config"));
-    await waitFor(() => expect(vi.mocked(matchApi)).toHaveBeenCalledWith("/profile"));
-    expect(screen.queryByRole("link", { name: /sign in with google/i })).not.toBeInTheDocument();
-  });
 
   it("clicking the CTA opens the file picker synchronously (no navigation first)", async () => {
     // Regression check: opening a file input must happen inside the same
@@ -145,48 +137,8 @@ describe("LandingPage", () => {
     expect(window.location.pathname).toBe("/processing");
   });
 
-  it("in demo mode, clicking the CTA shows a fake file dialog instead of the real picker", async () => {
-    // Real upload is 403'd server-side in DemoMode anyway (it persists a
-    // file) — the demo shows a fake OS file-open dialog with the persona's
-    // résumé instead of the real picker.
-    mockRoutes({ "/config": { demoMode: true } });
-    const user = userEvent.setup();
-    const clickSpy = vi.spyOn(HTMLInputElement.prototype, "click");
-    renderWithRouter(<Landing />);
 
-    await waitFor(() => expect(api).toHaveBeenCalledWith("/config"));
-    await user.click(screen.getByRole("button", { name: /upload your résumé/i }));
 
-    expect(clickSpy).not.toHaveBeenCalled();
-    expect(screen.getByText("Alex_Morgan_Resume.pdf")).toBeInTheDocument();
-    expect(window.location.pathname).toBe("/");
-    clickSpy.mockRestore();
-  });
-
-  it("in demo mode, selecting the fake résumé in the fake dialog goes to the fake processing animation", async () => {
-    mockRoutes({ "/config": { demoMode: true } });
-    const user = userEvent.setup();
-    renderWithRouter(<Landing />);
-
-    await waitFor(() => expect(api).toHaveBeenCalledWith("/config"));
-    await user.click(screen.getByRole("button", { name: /upload your résumé/i }));
-    await user.dblClick(screen.getByText("Alex_Morgan_Resume.pdf"));
-
-    expect(window.location.pathname).toBe("/processing");
-  });
-
-  it("in demo mode, canceling the fake dialog stays on the landing page", async () => {
-    mockRoutes({ "/config": { demoMode: true } });
-    const user = userEvent.setup();
-    renderWithRouter(<Landing />);
-
-    await waitFor(() => expect(api).toHaveBeenCalledWith("/config"));
-    await user.click(screen.getByRole("button", { name: /upload your résumé/i }));
-    await user.click(screen.getByRole("button", { name: /cancel/i }));
-
-    expect(screen.queryByText("Alex_Morgan_Resume.pdf")).not.toBeInTheDocument();
-    expect(window.location.pathname).toBe("/");
-  });
 
   it("renders the footer line with a GitHub link", () => {
     const { container } = renderWithRouter(<Landing />);

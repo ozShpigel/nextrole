@@ -8,8 +8,15 @@ public interface ITrackerApiClient
     Task<List<TrackerApplication>?> GetActiveApplicationsAsync(CancellationToken ct = default);
     /// <summary>All applications including terminal ones (Rejected/Withdrawn/Accepted). Used by re-sync, which may target any application. Null on transport failure.</summary>
     Task<List<TrackerApplication>?> GetAllApplicationsAsync(CancellationToken ct = default);
-    /// <summary>Reads the instance's demoMode flag from GET /api/config. Null if unreachable/unparseable.</summary>
-    Task<bool?> GetDemoModeAsync(CancellationToken ct = default);
+    /// <summary>Reads GET /api/config. Null if unreachable/unparseable.</summary>
+    Task<TrackerConfig?> GetConfigAsync(CancellationToken ct = default);
+    /// <summary>
+    /// Reads GET /api/auth/me, which answers as whoever this client's identity resolves to.
+    /// This is how the mailbot checks that its session token reached the RIGHT account rather
+    /// than merely reaching the API: a missing or dead token still returns 200, describing a
+    /// fresh anonymous user with no applications. Null on transport failure.
+    /// </summary>
+    Task<TrackerIdentity?> GetMeAsync(CancellationToken ct = default);
     Task<bool> UpdateApplicationStatusAsync(Guid appId, string newStatus, string? note = null, CancellationToken ct = default);
     Task<bool> AddInterviewAsync(Guid appId, AddInterviewRequest interview, CancellationToken ct = default);
     /// <summary>Persists a parsed email (upserted server-side by GmailMessageId) so it shows on the client's Messages tab.</summary>
@@ -17,6 +24,13 @@ public interface ITrackerApiClient
     /// <summary>GmailMessageIds already persisted from a prior run — lets the daily sync skip a Claude call on mail it has already parsed. Null on transport failure (caller should treat as "skip nothing" rather than block the run).</summary>
     Task<HashSet<string>?> GetKnownGmailMessageIdsAsync(CancellationToken ct = default);
 }
+
+/// <param name="IdentityMode">"Fixed" or "Cookie". Null on an API too old to report it —
+/// treated as Cookie, because assuming Fixed is the assumption that fails silently.</param>
+public sealed record TrackerConfig(bool DemoMode, string? IdentityMode);
+
+/// <param name="SignedIn">True when the resolved user is linked to a Google account.</param>
+public sealed record TrackerIdentity(bool SignedIn, string? Email, bool Available);
 
 public sealed record AddInterviewRequest
 {

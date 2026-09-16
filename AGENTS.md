@@ -143,17 +143,21 @@ carries the visual weight; typography stays quiet.
 `, which is why Loki and Grafana came up regardless --
   only the shell scripts actually break.
 
-- **The mailbot cannot authenticate against Cookie mode, and fails silently.**
-  It sends `X-Api-Key` (a shared-secret gate that selects no user) and
-  `X-Source`, and no session token. Against the retired Fixed-mode private
-  instance that was fine -- identity came from config. Against `nextrole.cloud`
-  it gets a real 200 describing an empty account, and reports
-  `{"Success":true,"EmailsChecked":0}`: 115 applications in the database, 0
-  seen. `nextrole-mailbot.timer` is stopped deliberately; do not re-arm it. The
-  fix is the scraper's pattern -- present the opaque session token, never the
-  userId -- plus a startup refusal when the tracker reports Cookie mode and no
-  token is set, mirroring `identity.instance_identity` raising rather than
-  guessing.
+- **The mailbot must present a session token, and refuses to run without one.**
+  It sends `X-Api-Key` (a shared-secret *gate* that selects no user) and
+  `X-Source`; neither is an identity. Against the retired Fixed-mode private
+  instance that was enough, because identity came from configuration. Against
+  `nextrole.cloud` it is not: a Cookie-mode API answers an identity it cannot
+  resolve by **minting a fresh anonymous user**, so the sync read an empty
+  account and reported `{"Success":true}` -- 115 applications in the database,
+  0 seen, two throwaway users minted (issue #67). `Tracker__SessionToken` in
+  `.env.mailbot` carries the opaque token (never a userId), provisioned by
+  `deploy/mint-mailbot-session.sh`. `TrackerPreflight` then refuses to start
+  unless `/api/auth/me` confirms *which* account it resolved to -- reaching the
+  API is not reaching the right account, and only the second is worth anything.
+  `/api/config` reports `identityMode` so a service client can tell whether a
+  token is required at all; an unknown value is treated as Cookie, because
+  assuming Fixed is the assumption that fails quietly.
 
 - **The API refuses to start** on a half-configured claim (`Google:ClaimUserId`
   needs `ClaimEmail` and `ClaimExpiresAt`) or an expired one. That is the

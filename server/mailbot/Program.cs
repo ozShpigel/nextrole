@@ -52,7 +52,21 @@ try
     var trackerUrl = builder.Configuration["Tracker:BaseUrl"] ?? "http://localhost:5002";
     // Shared secret for a privately *hosted* tracker (its ApiKey env var). Unset for
     // local/private-network instances that don't gate requests.
+    //
+    // NOTE: this is a GATE, not an identity. It authorizes a request; it selects
+    // no user. Sending it and nothing else against a Cookie-mode instance is
+    // exactly how issue #67 happened.
     var trackerApiKey = builder.Configuration["Tracker:ApiKey"];
+
+    // WHO the mailbot is, against a Cookie-mode tracker. The opaque session
+    // token, never a userId — the same rule the scraper follows: `identity.resolve`
+    // returns both and only the credential goes on the wire. Presenting a userId
+    // gets you an empty account, and for a linked account it is refused outright.
+    //
+    // Provisioned once by deploy/mint-mailbot-session.sh and kept in .env.mailbot.
+    // Sessions slide on use and the mailbot runs daily, so it renews itself.
+    var sessionToken = builder.Configuration["Tracker:SessionToken"];
+    var sessionCookieName = builder.Configuration["Tracker:SessionCookieName"] ?? "uid";
 
     void ConfigureTrackerClient(HttpClient client)
     {
@@ -60,6 +74,8 @@ try
         client.Timeout = TimeSpan.FromSeconds(120);
         if (!string.IsNullOrEmpty(trackerApiKey))
             client.DefaultRequestHeaders.Add("X-Api-Key", trackerApiKey);
+        if (!string.IsNullOrWhiteSpace(sessionToken))
+            client.DefaultRequestHeaders.Add("Cookie", $"{sessionCookieName}={sessionToken}");
         // Lets the API bill mailbot's Claude calls (email parsing) on their own
         // Anthropic API key, separate from ingest scoring — no-op on the CRUD
         // calls this client also makes.
@@ -94,15 +110,20 @@ try
     // fictional seeded data. Unreachable/unknown (null) falls through — the sync
     // itself will surface transport errors.
     var trackerApi = host.Services.GetRequiredService<ITrackerApiClient>();
-    if (await trackerApi.GetDemoModeAsync() == true)
+
+    // May this mailbot sync at all? Decided before a single email is read, and
+    // in TrackerPreflight rather than here so the decision has tests behind it.
+    // See issue #67: without this, a mailbot that cannot be the right user
+    // still runs, reads an empty account and reports success.
+    var preflight = await TrackerPreflight.EvaluateAsync(
+        trackerUrl, await trackerApi.GetConfigAsync(), sessionToken, trackerApi.GetMeAsync);
+
+    if (!preflight.Ok)
     {
         // Direct stderr as well as ILogger: this one-shot exits immediately, and
         // the buffered console logger may not flush in time.
-        logger.LogError("Tracker at {Url} is a DEMO instance — aborting", trackerUrl);
-        Console.Error.WriteLine(
-            $"Tracker at {trackerUrl} reports demoMode=true — its tracker is read-only, " +
-            "so this sync could never write anything. Point Tracker__BaseUrl at the " +
-            "private instance. Aborting.");
+        logger.LogError("Preflight failed ({Code}) against {Url} — aborting", preflight.Code, trackerUrl);
+        Console.Error.WriteLine(preflight.Message + " Aborting.");
         return 1;
     }
 

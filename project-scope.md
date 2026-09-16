@@ -21,8 +21,10 @@ with `dir="auto"`.
 their first request and uploads a CV; that is the whole onboarding. No login, no
 password, no recovery.
 
-**Two deployments, one codebase.** `private.nextrole.cloud` serves a single
-configured user; `nextrole.cloud` serves many. They differ by configuration
+**One deployment, two identity modes.** `nextrole.cloud` serves many users
+(`Identity:Mode=Cookie`). `Fixed` mode serves a single configured user and is
+what the offline eval CLIs run against; it had a hosted instance
+(`private.nextrole.cloud`) until 2026-09-16. The two differ by configuration
 only — see `docs/multi-user.md`.
 
 ## Features

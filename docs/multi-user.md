@@ -1,12 +1,17 @@
 # Multi-user
 
-NextRole runs as two deployments off one codebase. They differ by **one config
-value**, not by a branch, a project, or a duplicated service:
+NextRole runs in one of two identity modes off one codebase. They differ by
+**one config value**, not by a branch, a project, or a duplicated service:
 
-| Deployment | `Identity:Mode` | Where the userId comes from |
+| `Identity:Mode` | Where the userId comes from | Where it runs |
 |---|---|---|
-| `private.nextrole.cloud` | `Fixed` | `Identity:FixedUserId` — the single user this instance serves |
-| `nextrole.cloud` | `Cookie` | the session the `uid` cookie names |
+| `Cookie` | the session the `uid` cookie names | `nextrole.cloud` |
+| `Fixed` | `Identity:FixedUserId` — the single user this instance serves | no hosted instance; the offline eval CLIs and a self-hosted single-user run |
+
+`Fixed` had a hosted instance, `private.nextrole.cloud`, until it was retired on
+2026-09-16 — sign-in replaced the reason for a second deployment. The mode is
+**not** retired: `identity.instance_identity` raises on a Cookie instance rather
+than guessing a user, so the golden-set eval CLIs need a local `Fixed` API.
 
 Resolution is the only code that knows which one it is. Query, scoring and pack
 code receive a plain `Guid` and cannot tell the difference — there is no

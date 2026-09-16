@@ -140,7 +140,7 @@ workspace: scoring is browser-driven and carries no `X-Source` header, so it
 spends the default key, and exhausting that one stops the daily ingest and the
 mailbot with it.
 
-### `private.nextrole.cloud` is being retired
+### `private.nextrole.cloud` has been retired
 
 Before sign-in existed, the only way to keep real data private was a second
 deployment behind HTTP Basic Auth, running the same image with
@@ -148,10 +148,10 @@ deployment behind HTTP Basic Auth, running the same image with
 replaced the reason for it: the public instance now holds the real data behind a
 real login.
 
-It is still running as a fallback while the new setup proves itself, and comes
-down once it has. `Fixed` mode itself stays supported — it is what the offline
-CLIs (the eval harnesses) use, and what a genuinely single-user self-hosted
-instance would run.
+It came down on 2026-09-16, along with the `demo-` prefixed service names it had
+outlived. `Fixed` mode itself stays supported — it is what the offline CLIs (the
+eval harnesses) use, and what a genuinely single-user self-hosted instance would
+run. It simply has no hosted instance any more; run it locally.
 
 ### `DemoMode` is retired and is being removed
 

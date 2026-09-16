@@ -23,7 +23,7 @@ Key conventions to enforce:
 - AI prompts live in `server/api/src/Infrastructure/AI/PromptSeeds.cs`; `scoring_config` + agent prompts are read-only server config (Options pattern, env overrides) — the candidate `StructuredProfile` is the only user-editable input, never hand-edit the rendered `content` string
 - Frontend: TypeScript everywhere, **Bun** (not npm/yarn), shadcn/ui components (`@/components/ui/*`), **Axios** (not fetch), **TanStack React Query** for server state (not useEffect + useState)
 - Never hardcode Tailwind palette colors (emerald/amber/red…) — use design tokens (`--ed-*` in editorial pages, shadcn semantic tokens in portaled dialogs/shared chrome)
-- Mixed Hebrew RTL content (AI summaries, interview text) renders with `dir="rtl"`/`dir="auto"` on those nodes — AI output otherwise defaults to English; Hebrew output is an opt-in flag reserved for the private.nextrole.cloud deployment
+- Mixed Hebrew RTL content (AI summaries, interview text) renders with `dir="rtl"`/`dir="auto"` on those nodes — AI output otherwise defaults to English; Hebrew output is an opt-in flag
 - Single-tenant, no auth by design — `DemoMode=true` 403s writes via an allowlist middleware; new mutating endpoints must be allowlisted in `Program.cs`/`main.py` to work in demo
 - Tests exist: Vitest + Testing Library for client unit/component tests, Playwright for e2e (`/e2e`) — flag missing coverage on new logic, but don't treat pre-existing gaps as critical
 - CI/CD is per-service with path-based triggers (`.github/workflows/api.yml`, `frontend.yml`, `scraper.yml`, `mailbot.yml`); cron-profile services (mailbot, ingest) only get image pulls on push, not auto-restart

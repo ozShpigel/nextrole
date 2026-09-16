@@ -132,14 +132,28 @@ carries the visual weight; typography stays quiet.
   rather than the credential (issue #57).
 - **Scripts scp'd from a Windows working tree need LF.** The repo's blobs are
   LF, but a working-tree file authored on Windows drifts to CRLF, and `scp`
-  copies the working tree -- not the blob. bash then reads `set -euo pipefail`
+  copies the working tree -- not the blob. bash then reads `set -euo pipefail
+`
   and dies on line 2. For `monitoring/check-services.sh` that means **the
   monitor is dead and an outage produces no alert**: a broken monitor and a
   healthy system look identical from outside, so nothing ever reports it.
   `.gitattributes` pins `*.sh`/`*.yml` to `eol=lf`; after copying anything to
   the box, run it once by hand before trusting it. Go's YAML/JSON readers
-  tolerate a trailing ``, which is why Loki and Grafana came up regardless --
+  tolerate a trailing `
+`, which is why Loki and Grafana came up regardless --
   only the shell scripts actually break.
+
+- **The mailbot cannot authenticate against Cookie mode, and fails silently.**
+  It sends `X-Api-Key` (a shared-secret gate that selects no user) and
+  `X-Source`, and no session token. Against the retired Fixed-mode private
+  instance that was fine -- identity came from config. Against `nextrole.cloud`
+  it gets a real 200 describing an empty account, and reports
+  `{"Success":true,"EmailsChecked":0}`: 115 applications in the database, 0
+  seen. `nextrole-mailbot.timer` is stopped deliberately; do not re-arm it. The
+  fix is the scraper's pattern -- present the opaque session token, never the
+  userId -- plus a startup refusal when the tracker reports Cookie mode and no
+  token is set, mirroring `identity.instance_identity` raising rather than
+  guessing.
 
 - **The API refuses to start** on a half-configured claim (`Google:ClaimUserId`
   needs `ClaimEmail` and `ClaimExpiresAt`) or an expired one. That is the

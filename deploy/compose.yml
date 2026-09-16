@@ -69,10 +69,19 @@ services:
     profiles: ["cron"]
     env_file: [.env.mailbot]
     environment:
-      # Unchanged text, changed meaning: `api` used to be the private instance
-      # and is now nextrole.cloud. The mailbot WRITES through this, so verify it
-      # deliberately after any rename (run it once and check statusUpdates grew)
-      # rather than trusting that the line still looks right.
+      # BROKEN AS OF THE TEARDOWN -- DO NOT RE-ARM nextrole-mailbot.timer.
+      #
+      # `api` used to be the PRIVATE instance, which ran Identity:Mode=Fixed:
+      # identity came from configuration, so a client needed to present nothing.
+      # `api` is now nextrole.cloud, which runs Cookie mode -- and the mailbot
+      # sends no session token (TrackerApiClient sets only X-Api-Key, a gate
+      # that selects no user, and X-Source). So GET /api/applications returns an
+      # empty account and the sync reports {"Success":true,"EmailsChecked":0}
+      # having done nothing. Measured: 115 applications in the database, 0 seen.
+      #
+      # Retiring the private stack removed the only API the mailbot could
+      # authenticate against. Fix tracked in the issue; the timer stays stopped
+      # until then, because an absent sync is visible and a nightly no-op is not.
       - Tracker__BaseUrl=http://api:8080
     volumes:
       - ./credentials.json:/app/credentials.json:ro

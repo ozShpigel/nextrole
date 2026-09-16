@@ -67,15 +67,23 @@ OLD_TOKEN=$(grep -m1 '^Tracker__SessionToken=' "$ENV_MAILBOT" | cut -d= -f2- || 
 RESULT=$(docker run --rm -i \
     -e URI="$URI" -e DB="$DB" -e TOKEN="$TOKEN" \
     -e USER_ID="$USER_ID" -e OLD_TOKEN="$OLD_TOKEN" -e DAYS="$LIFETIME_DAYS" \
-    mongo:7 sh -c 'mongosh "$URI" --quiet' <<'JS'
+    mongo:7 sh -c 'mongosh "$URI" --quiet --file /dev/stdin' <<'JS'
 const db  = db.getSiblingDB(process.env.DB);
 const now = new Date();
 
 let userId = process.env.USER_ID;
 if (!userId) {
-  const links = db.googleIdentity.find({}, { _id: 1 }).toArray();
+  const links = db.googleIdentity.find({}, { _id: 1, Email: 1 }).toArray();
   if (links.length !== 1) {
-    print("FAIL: googleIdentity has " + links.length + " rows; pass the userId explicitly");
+    // Auto-picking here would be the one mistake that is invisible afterwards:
+    // the mailbot would file one mailbox's mail into another account's tracker
+    // and nothing downstream would look wrong. So list and stop.
+    print("FAIL: googleIdentity has " + links.length + " linked accounts. Pass one explicitly:");
+    links.forEach(function (l) {
+      const n = db.getCollection("applications").countDocuments({ UserId: l._id });
+      print("   " + l._id + "  " + (l.Email || "(no email)") + "  " + n + " applications");
+    });
+    print("   ./mint-mailbot-session.sh <userId>   — pick the one whose mailbox this container reads");
     quit(1);
   }
   userId = links[0]._id;

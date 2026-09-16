@@ -5,3 +5,8 @@ datasources:
     access: proxy
     url: http://loki:3100
     isDefault: true
+    # Pinned, not auto-generated. Every panel in dashboards/*.json references
+    # `"datasource": {"type": "loki", "uid": "loki"}`; without this line Grafana
+    # invents a random uid at first start and those references resolve to
+    # nothing, so the dashboard provisions but each panel renders empty.
+    uid: loki

@@ -1,0 +1,14 @@
+# Shell scripts are scp'd from a Windows working tree straight to the VPS and
+# executed there. A CRLF checkout makes bash read `set -euo pipefail\r` and die
+# on line 2 -- which, for monitoring/check-services.sh, means the monitor is
+# silently dead and an outage produces NO alert. A broken monitor and a healthy
+# system look identical from the outside.
+#
+# core.autocrlf=input already keeps the committed blobs LF; this makes the
+# WORKING TREE LF too, which is what actually gets copied.
+*.sh text eol=lf
+
+# Same reasoning: these are read by Linux daemons, not by an editor on Windows.
+*.yml text eol=lf
+*.yaml text eol=lf
+Caddyfile text eol=lf

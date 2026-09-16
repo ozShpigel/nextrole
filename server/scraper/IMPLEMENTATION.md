@@ -207,6 +207,6 @@ cd server/scraper && ./.venv/Scripts/python.exe -m pytest
 - [`docs/job-pool.md`](../../docs/job-pool.md) — pool identity, presence, fact extraction, role growth, measured size
 - [`docs/multi-user.md`](../../docs/multi-user.md) — the hole `UserScopedCollection` does not cover, and how this service closes it
 - [`docs/scoring-and-search.md`](../../docs/scoring-and-search.md) — what happens to a pool job after ingest
-- [`docs/demo-mode.md`](../../docs/demo-mode.md) · [`docs/hosting-a-public-demo.md`](../../docs/hosting-a-public-demo.md)
+- [`docs/hosting.md`](../../docs/hosting.md)
 - [`server/api/IMPLEMENTATION.md`](../api/IMPLEMENTATION.md) — the endpoints this service calls
 - [`OVERVIEW.md`](../../OVERVIEW.md) · [`AGENTS.md`](../../AGENTS.md)

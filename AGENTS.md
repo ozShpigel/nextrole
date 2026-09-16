@@ -86,7 +86,7 @@ carries the visual weight; typography stays quiet.
 | Mailbot (Gmail sync, parsing rules, resync, OAuth) | `docs/mailbot.md` |
 | Shared job pool: role config, dedupe, expiry, per-job extraction | `docs/job-pool.md` |
 | Multi-user identity, userId scoping, migration | `docs/multi-user.md` |
-| Demo mode, ApiKey gate, seeder | `docs/demo-mode.md` |
+| Hosting: least-privilege Atlas credentials, the ApiKey gate, seeded fictional data | `docs/hosting.md` |
 
 ## Testing
 
@@ -123,7 +123,7 @@ carries the visual weight; typography stays quiet.
   `API_URL`/`SCRAPER_URL` are Docker DNS **service names**, resolved at runtime
   by `client/nginx.conf`, and it is manual config on the box that no `git pull`
   will fix.
-- **Atlas credentials are scoped per database pair** (`docs/hosting-a-public-demo.md`
+- **Atlas credentials are scoped per database pair** (`docs/hosting.md`
   prescribes `readWrite` on exactly two databases, and tells you to verify the
   isolation). **Repointing a database without repointing the credential fails at
   boot**, and the first symptom is misleading: `UserScopeMigrationInitializer`

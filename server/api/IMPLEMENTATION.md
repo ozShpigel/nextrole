@@ -229,6 +229,6 @@ sequenceDiagram
 - [`docs/scoring-and-search.md`](../../docs/scoring-and-search.md) — scoring pipeline, dimensions, verdict bands, claim grounding
 - [`docs/multi-user.md`](../../docs/multi-user.md) — identity modes, scoping, migration
 - [`docs/resume-pack.md`](../../docs/resume-pack.md) · [`docs/tracker.md`](../../docs/tracker.md) · [`docs/interview-prep.md`](../../docs/interview-prep.md)
-- [`docs/demo-mode.md`](../../docs/demo-mode.md) · [`docs/hosting-a-public-demo.md`](../../docs/hosting-a-public-demo.md)
+- [`docs/hosting.md`](../../docs/hosting.md)
 - [`AGENTS.md`](../../AGENTS.md) — hard conventions · [`OVERVIEW.md`](../../OVERVIEW.md) — repo index
 - [`deploy/README.md`](../../deploy/README.md) — deployment and the `Identity:FixedUserId` caveat

@@ -195,6 +195,5 @@ cd e2e && npx playwright test --reporter=line
 - [`docs/design-system.md`](../docs/design-system.md) — theme tokens, page pattern, the portal caveat, RTL
 - [`docs/tracker.md`](../docs/tracker.md) — list projection and the Applications tab buckets
 - [`docs/scoring-and-search.md`](../docs/scoring-and-search.md) — what the Matches page is showing
-- [`docs/demo-mode.md`](../docs/demo-mode.md) — which controls are disabled and why
 - [`server/api/IMPLEMENTATION.md`](../server/api/IMPLEMENTATION.md) · [`server/scraper/IMPLEMENTATION.md`](../server/scraper/IMPLEMENTATION.md)
 - [`OVERVIEW.md`](../OVERVIEW.md) · [`AGENTS.md`](../AGENTS.md) (note: its "Axios (not fetch)" rule predates the current code, which uses a `fetch` wrapper in `src/lib/api.ts`)

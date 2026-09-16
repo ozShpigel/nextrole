@@ -18,7 +18,7 @@ data_owned: []
 deps_internal: ["server/api/src/Core", "server/api/src/Infrastructure"]
 deps_external: ["MongoDB Atlas"]
 tests_hint: []
-runbook: "docs/hosting-a-public-demo.md"
+runbook: "docs/hosting.md"
 ---
 
 # Purpose & responsibilities
@@ -91,7 +91,7 @@ Both `__` and `:` spellings are accepted. No feature flags.
 
 **Internal:** `ApplicationTracker.Core` (models, profile types) and `ApplicationTracker.Infrastructure` (Mongo repositories, `MongoProfileProvider`, QuestPDF font registration). It shares the API's persistence code on purpose — seeded data must be indistinguishable in shape from real data.
 
-**External:** MongoDB Atlas. *Failure modes:* a bad connection string exits 1 with a message; a mid-run failure leaves a partial seed, which is safe to fix by re-running. A least-privilege demo DB user is recommended — see [`docs/hosting-a-public-demo.md`](../../../../docs/hosting-a-public-demo.md).
+**External:** MongoDB Atlas. *Failure modes:* a bad connection string exits 1 with a message; a mid-run failure leaves a partial seed, which is safe to fix by re-running. A least-privilege DB user is recommended — see [`docs/hosting.md`](../../../../docs/hosting.md).
 
 ## Observability & failure modes
 
@@ -125,8 +125,7 @@ No automated tests. Verification is the run itself: point it at a scratch databa
 
 ## Related links
 
-- [`docs/demo-mode.md`](../../../../docs/demo-mode.md) — what demo mode blocks and allows
-- [`docs/hosting-a-public-demo.md`](../../../../docs/hosting-a-public-demo.md) — the full hosting recipe, including a least-privilege DB user
+- [`docs/hosting.md`](../../../../docs/hosting.md) — least-privilege database credentials
 - [`server/api/IMPLEMENTATION.md`](../../IMPLEMENTATION.md) — the allowlist middleware this data is shown behind
 - [`server/api/src/DbCopy/IMPLEMENTATION.md`](../DbCopy/IMPLEMENTATION.md) — the sibling CLI, for rehearsing migrations
 - [`OVERVIEW.md`](../../../../OVERVIEW.md)

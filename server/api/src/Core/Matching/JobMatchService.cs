@@ -166,7 +166,12 @@ public sealed class JobMatchService : IJobMatchService
             CompanyProfile = p.Item.CompanyProfile,
         }).ToList();
 
-        var (batchResults, evalSnap, source) = await _claudeClient.EvaluateMatchBatchAsync(profile, evaluationItems, cancellationToken);
+        var (batchResults, evalSnap, headerSource) = await _claudeClient.EvaluateMatchBatchAsync(profile, evaluationItems, cancellationToken);
+        // Server-set attribution wins over the caller's X-Source header. The
+        // pool scan arrives from a browser, which sends no header at all — so
+        // without this every per-user scan logged source=(null) and the digest,
+        // which filters on source=ingest, matched none of them.
+        var source = request.Source ?? headerSource;
         var responseById = batchResults.ToDictionary(r => r.Id, r => r.Response);
 
         var results = parsed.Select(p =>

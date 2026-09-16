@@ -187,6 +187,10 @@ public sealed class PoolScanService : IPoolScanService
     {
         var request = new MatchBatchRequest
         {
+            // Tags every "Job scored" line this batch produces. Nothing else
+            // identifies the per-user scan: it is browser-driven, so it carries
+            // no X-Source header and logged source=(null) until now.
+            Source = "pool",
             Jobs = batch.Select(j => new MatchBatchItem
             {
                 Id = j.Id,

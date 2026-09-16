@@ -14,3 +14,11 @@ providers:
     allowUiUpdates: false
     options:
       path: /var/lib/grafana/dashboards
+# The dashboard's uid is `ffw59j53b5xj4b` -- Grafana's own auto-generated id,
+# not a name anyone chose. It is deliberate: a dashboard with that uid already
+# existed in the grafana-data volume, and provisioning a SECOND one under a
+# readable uid with the same title failed the save outright ("could not resolve
+# dashboards:uid:nextrole-logs"). Keeping the existing uid makes the repo file
+# adopt that dashboard instead of competing with it, so no dashboard is deleted
+# and the /d/ffw59j53b5xj4b/ URL keeps working. Rename it only by exporting,
+# deleting the old one, and changing the uid in the same step.

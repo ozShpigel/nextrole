@@ -11,6 +11,7 @@ pattern. Run it as a Render Cron Job using the scraper image:
     python -m app.cli eval-verdict        # golden-set Evaluator verdict report
     python -m app.cli eval-subscore       # golden-set Evaluator sub-score report (frozen profile)
     python -m app.cli seed-demo-jobs      # (re)seed the demo search pool
+    python -m app.cli refresh-demo-timestamps  # bump seeded jobs into the Search window
 
 Because nothing is exposed over HTTP, no X-Cron-Key guard is needed and there's
 no free-tier idle-eviction race: the container lives exactly as long as the work.
@@ -103,6 +104,13 @@ async def _seed_demo_jobs():
     await _with_db(_r)
 
 
+async def _refresh_demo_timestamps():
+    async def _r(db, settings):
+        n = await demo_seed.refresh_seed_timestamps(db)
+        logger.info("refresh-demo-timestamps: bumped %d seeded job(s)", n)
+    await _with_db(_r)
+
+
 async def _eval_verdict(runs: int):
     # No Mongo needed — this calls the API directly against the golden set.
     settings = Settings()
@@ -142,6 +150,11 @@ def main():
         "seed-demo-jobs",
         help="(Re)seed the fictional demo search pool: score the curated postings and insert them")
 
+    sub.add_parser(
+        "refresh-demo-timestamps",
+        help="Bump seeded demo jobs' discovered_at to now so they stay inside the Search "
+             "page's days-back window. Run before recording a clip (docs/demos)")
+
     everdict = sub.add_parser(
         "eval-verdict",
         help="Golden-set Evaluator verdict report: does /api/match score known postings correctly?")
@@ -163,6 +176,8 @@ def main():
         asyncio.run(_run_all())
     elif args.command == "seed-demo-jobs":
         asyncio.run(_seed_demo_jobs())
+    elif args.command == "refresh-demo-timestamps":
+        asyncio.run(_refresh_demo_timestamps())
     elif args.command == "eval-verdict":
         asyncio.run(_eval_verdict(args.runs))
     elif args.command == "eval-subscore":

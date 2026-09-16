@@ -2,3 +2,18 @@
 Type=oneshot
 WorkingDirectory=/srv/nextrole
 ExecStart=/usr/bin/docker compose --profile cron run --rm pool-ingest
+# The daily Telegram digest. It hung off nextrole-ingest.service's
+# ExecStartPost, and that unit was deleted in the #59 teardown -- taking the
+# digest's only trigger with it, silently, because a digest that never runs and
+# a digest reporting nothing look identical from the outside.
+#
+# NOTE what this does and does not mean. The digest reports on SCORING, and this
+# ingest does not score (docs/job-pool.md) -- it is only a once-a-day clock.
+# daily-digest.sh therefore reads a 24h window of per-user scan activity rather
+# than "what the run just found". If the digest ever needs to run independently
+# of ingest, give it its own timer; nothing here depends on the coupling.
+#
+# ExecStartPost on a Type=oneshot unit runs only if ExecStart succeeded, so a
+# failed ingest sends no digest at all. check-services.sh is the thing that
+# notices an outage; this is not.
+ExecStartPost=/srv/nextrole/monitoring/daily-digest.sh

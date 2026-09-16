@@ -10,7 +10,13 @@ public enum PreflightCode
     WrongAccount,
 }
 
-public sealed record PreflightVerdict(PreflightCode Code, string Message)
+/// <param name="Account">
+/// Which account the run will act as, when that had to be proved. Null in Fixed
+/// mode, where there is no token and nothing was checked. Carried in the verdict
+/// rather than logged inside the check so the caller cannot forget to say it --
+/// "the guard passed" is not information anyone can act on; "syncing as X" is.
+/// </param>
+public sealed record PreflightVerdict(PreflightCode Code, string Message, string? Account = null)
 {
     public bool Ok => Code == PreflightCode.Proceed;
     public static readonly PreflightVerdict Pass = new(PreflightCode.Proceed, "");
@@ -89,6 +95,6 @@ public static class TrackerPreflight
                 + "minted a throwaway anonymous user for this request. "
                 + "Re-run deploy/mint-mailbot-session.sh.");
 
-        return PreflightVerdict.Pass;
+        return PreflightVerdict.Pass with { Account = me.Email };
     }
 }

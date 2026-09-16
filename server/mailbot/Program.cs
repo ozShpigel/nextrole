@@ -127,6 +127,12 @@ try
         return 1;
     }
 
+    // Says WHICH account, not merely that a check passed. If this names an
+    // account other than the one whose mailbox is mounted at gmail-token.json,
+    // the run is about to file one person's mail into another's tracker.
+    if (preflight.Account is not null)
+        logger.LogInformation("Syncing as {Account}", preflight.Account);
+
     // Modes (re-sync reconciles from full email history; default is the recent-window sync):
     //   default                                  → daily sync: recent mail (Gmail:LookbackDays,
     //                                              default 3d) searched by tracked-company names

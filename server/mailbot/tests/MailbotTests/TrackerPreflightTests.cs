@@ -70,6 +70,18 @@ public class TrackerPreflightTests
     }
 
     [Fact]
+    public async Task CookieMode_WithGoodToken_ReportsWhichAccount()
+    {
+        // The point of the whole guard is that the operator can see WHICH
+        // account a run acted as. A pass that does not say is not enough: it was
+        // dropped once already, in the refactor that created this class.
+        var v = await TrackerPreflight.EvaluateAsync(
+            Url, new TrackerConfig(false, "Cookie"), "a-token", Me(SignedIn));
+
+        Assert.Equal("someone@example.com", v.Account);
+    }
+
+    [Fact]
     public async Task CookieMode_TokenResolvingToAnonymous_Refuses()
     {
         // The exact production failure: the token is dead, so the API minted a

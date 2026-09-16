@@ -159,9 +159,8 @@ instance would run.
 That instance no longer exists and will not return.
 
 **The apparatus is still in the repo** — the flag, the allowlist middleware in
-`Program.cs` / `main.py`, the Seeder project, `docs/demo-mode.md`, and the
-`demo-pool-ingest` cron — because removing it is teardown work that has not
-happened yet. **Do not read `DemoMode=true` as a supported path.** It is not
+`Program.cs` / `main.py`, the Seeder project and `docs/demo-mode.md` — because
+removing it is teardown work that has not happened yet. **Do not read `DemoMode=true` as a supported path.** It is not
 being maintained, nothing runs it, and it is scheduled for deletion. If you want
 a public instance nobody can change, this is not the mechanism to reach for.
 
@@ -228,10 +227,9 @@ Each service has its own GitHub Actions workflow with **path-based triggers** �
 | `api.yml` | `server/api/**` | Docker image → `ghcr.io` | SSH → Hetzner VPS |
 | `scraper.yml` | `server/scraper/**` | Docker image → `ghcr.io` | SSH → Hetzner VPS |
 | `mailbot.yml` | `server/mailbot/**` | Docker image → `ghcr.io` | SSH → Hetzner VPS (cron profile) |
-| `frontend.yml` | `client/**` | Docker image → `ghcr.io` | SSH → Hetzner VPS (public) |
-| `frontend-private.yml` | `client/**` | Docker image → `ghcr.io` | SSH → Hetzner VPS (Basic-Auth build) |
+| `frontend.yml` | `client/**` | Docker image → `ghcr.io` | SSH → Hetzner VPS (`web`) |
 
-Each pipeline logs into GHCR, builds the service's Dockerfile, tags `:latest`, then SSHes into the VPS and runs `docker compose pull` + `docker compose up -d --force-recreate` for that service. The public instance (`nextrole.cloud`), the Basic-Auth-gated private frontend, and the private API all run as separate Compose services on the same box, **differing only in environment variables** — identity mode included. Note that `Identity:FixedUserId` is set once per deployment and can't be changed afterwards without a second migration (`deploy/README.md`).
+Each pipeline logs into GHCR, builds the service's Dockerfile, tags `:latest`, then SSHes into the VPS and runs `docker compose pull` + `docker compose up -d --force-recreate` for that service. `nextrole.cloud` is the only deployment; its `api`, `scraper` and `web` services run on one box. A second stack (`private.nextrole.cloud`, Basic-Auth, `Identity:Mode=Fixed`) ran the same images off different environment variables until it was retired -- the images never differed, and `Fixed` mode is still supported for the eval CLIs and a self-hosted single-user run. Note that `Identity:FixedUserId` is set once per deployment and can't be changed afterwards without a second migration (`deploy/README.md`).
 
 ---
 

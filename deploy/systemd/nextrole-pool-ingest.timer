@@ -1,0 +1,9 @@
+[Timer]
+# 05:30 is a leftover from when this ran 30 minutes after the criteria-driven
+# nextrole-ingest, to keep the two off each other's `discovery` rate-limit
+# bucket. That service is gone; this is the only ingest now, and the time is
+# kept only because nothing depends on changing it.
+OnCalendar=*-*-* 05:30:00 UTC
+Persistent=true
+[Install]
+WantedBy=timers.target

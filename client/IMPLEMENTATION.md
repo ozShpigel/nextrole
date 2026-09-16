@@ -50,7 +50,7 @@ Nav links appear only once a profile exists — `OnboardingGate` bounces every o
 
 **Data access** — [`src/lib/api.ts`](src/lib/api.ts) wraps `fetch` with `credentials: 'include'` (so the `uid` cookie rides along even in a cross-origin deploy), a `/api` or `/api/match` base, and a 403 → "This action is disabled in the read-only demo." translation. `apiUrl()` builds a real href for cases that need one (a PDF `<a download>`). Read hooks live in [`src/lib/queries.ts`](src/lib/queries.ts), writes in [`src/lib/mutations.ts`](src/lib/mutations.ts).
 
-**Reverse proxy** — [`nginx.conf`](nginx.conf) (public) and [`nginx.private.conf`](nginx.private.conf) (Basic-Auth build). Both are **allowlists**: `/api/discovery/**` → scraper, named API paths → API, everything else → the SPA. A new browser-facing endpoint must be added here or it breaks in production while working fine in dev. The public config allowlists `/api/match` sub-paths individually rather than proxying the prefix — a prefix would also expose `title-triage`, `seniority-classify` and `discovery-score-batch`, scraper-internal AI routes with looser input caps, reachable with no auth on a real billed key.
+**Reverse proxy** — [`nginx.conf`](nginx.conf). It is an **allowlist**: `/api/discovery/**` → scraper, named API paths → API, everything else → the SPA. A new browser-facing endpoint must be added here or it breaks in production while working fine in dev. The public config allowlists `/api/match` sub-paths individually rather than proxying the prefix — a prefix would also expose `title-triage`, `seniority-classify` and `discovery-score-batch`, scraper-internal AI routes with looser input caps, reachable with no auth on a real billed key.
 
 **Events / CLI / jobs:** None beyond the package scripts.
 
@@ -80,7 +80,7 @@ Nav links appear only once a profile exists — `OnboardingGate` bounces every o
 | fetch wrapper, query/mutation hooks, types | [`src/lib`](src/lib) |
 | Theme tokens and the editorial layer | [`src/index.css`](src/index.css) |
 | Test setup and render helper | [`src/test`](src/test) |
-| Production image and proxy | [`Dockerfile`](Dockerfile), [`Dockerfile.private`](Dockerfile.private), [`nginx.conf`](nginx.conf), [`nginx.private.conf`](nginx.private.conf) |
+| Production image and proxy | [`Dockerfile`](Dockerfile), [`nginx.conf`](nginx.conf) |
 | Dev server + proxy + vitest config | [`vite.config.js`](vite.config.js) |
 
 ## Control flow (core: opening Matches)
@@ -165,10 +165,10 @@ A pool scan is a long request by design (roughly two rounds of concurrent batche
 
 **Call a new endpoint**
 1. Add the hook in `queries.ts` / `mutations.ts` on top of `api()` / `matchApi()`.
-2. **Add the path to [`nginx.conf`](nginx.conf)** (and check [`nginx.private.conf`](nginx.private.conf), which uses a plain prefix) — the public config allowlists `/api/match` sub-paths one by one on purpose, so a scraper-internal AI route is never reachable unauthenticated; the dev proxy is a prefix match and will hide the omission.
+2. **Add the path to [`nginx.conf`](nginx.conf)** — the config allowlists `/api/match` sub-paths one by one on purpose, so a scraper-internal AI route is never reachable unauthenticated; the dev proxy is a prefix match and will hide the omission.
 3. If it mutates, check the API's demo allowlist and gate the control with `useDemoMode()` rather than letting it 403.
 
-**Rollout/rollback:** a push to `main` under `client/**` triggers both [`frontend.yml`](../.github/workflows/frontend.yml) (public) and [`frontend-private.yml`](../.github/workflows/frontend-private.yml) (Basic-Auth build).
+**Rollout/rollback:** a push to `main` under `client/**` triggers [`frontend.yml`](../.github/workflows/frontend.yml), which builds the image and recreates the `web` service.
 
 ## Testing
 

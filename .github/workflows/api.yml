@@ -39,5 +39,5 @@ jobs:
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           script: |
             cd /srv/nextrole
-            docker compose pull api demo-api
-            docker compose up -d --force-recreate api demo-api    
+            docker compose pull api
+            docker compose up -d --force-recreate api    

@@ -1,0 +1,16 @@
+# Provisions the dashboards in ./dashboards. Before the teardown the only
+# dashboard lived in the grafana-data volume and nowhere else -- losing the
+# volume would have lost it with no copy in the repo.
+apiVersion: 1
+providers:
+  - name: nextrole
+    orgId: 1
+    folder: ''
+    type: file
+    disableDeletion: false
+    # Edits made in the UI are overwritten on restart. That is the point: the
+    # file is the source of truth, so a panel someone fixes by hand and forgets
+    # to commit does not quietly become the only correct copy.
+    allowUiUpdates: false
+    options:
+      path: /var/lib/grafana/dashboards

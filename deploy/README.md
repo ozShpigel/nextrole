@@ -5,8 +5,12 @@ serving two isolated environments from one Docker Compose stack.
 
 | Environment | URL | Auth | Database |
 |---|---|---|---|
-| Demo | `nextrole.cloud` | none | demo DB |
-| Production | `private.nextrole.cloud` | Basic Auth | prod DB |
+| Production | `nextrole.cloud` | optional Google sign-in | `job-tracker` / `jobmatch` |
+
+There used to be two rows here: a seeded read-only demo on `nextrole.cloud` and
+the real tool on `private.nextrole.cloud` behind Basic Auth. Sign-in replaced
+the reason for the split, the demo databases are dropped, and the compose
+services that still carried `demo-` names were renamed to `api`/`scraper`/`web`.
 
 ## Architecture
 
@@ -45,7 +49,7 @@ the old unfiltered index. Full detail: `docs/multi-user.md`, `docs/job-pool.md`.
 
 ### `Identity:FixedUserId` is set once and cannot be changed afterwards
 
-On `private.nextrole.cloud` (`Identity:Mode=Fixed`), this GUID is the answer to
+Under `Identity:Mode=Fixed` (the eval CLIs, or a self-hosted single-user run), this GUID is the answer to
 "who owns all the existing data". The first startup stamps every pre-multi-user
 document with it and re-keys the profile and résumé file onto it.
 
@@ -88,14 +92,19 @@ cluster storage, which matters on the M0 free tier.
   one-shot timers, staggered so the two ingests do not contend for the API's
   `discovery` rate-limit bucket (20/min, shared):
 
-      nextrole-mailbot.timer            02:00
-      nextrole-ingest.timer             05:00   private, criteria-driven
-      nextrole-demo-pool-ingest.timer   05:30   public, shared pool
+      nextrole-mailbot.timer       02:00
+      nextrole-pool-ingest.timer   05:30   the shared pool
 
-  `Persistent=true` on all three: a timer whose window was missed because the
-  box was down fires once on the next boot rather than skipping the day.
+  `Persistent=true` on both: a timer whose window was missed because the box
+  was down fires once on the next boot rather than skipping the day.
 
-- **`demo-pool-ingest` is what makes the public instance usable.** It fills the
+  A third timer, `nextrole-ingest.timer`, ran a criteria-driven scrape at 05:00
+  into the same pool. Three of its four job titles were already in
+  `roles.json`, so `pool_key` deduped the rows while the scrape was paid twice;
+  it was removed at teardown and its one unique title ("AI Engineer") moved
+  into `roles.json`.
+
+- **`pool-ingest` is what makes the instance usable.** It fills the
   shared job pool the per-user scan matches against; without it a visitor
   uploads a CV and sees an empty Matches tab, because the candidate filter has
   no extracted requirements to filter on. It needs no identity of its own (the
@@ -112,12 +121,17 @@ localhost only — reach it over an SSH tunnel:
     ssh -fN nextrole          # requires a Host entry in ~/.ssh/config
     # then open http://localhost:3001
 
-Logs are labelled `env` (prod/demo) and `service` (api, scraper, ingest, caddy, ...).
-Useful queries:
+Logs are labelled `service` (api, scraper, web, caddy, pool-ingest, mailbot, ...)
+and `env`, which is now always `prod`. Filter by `service`:
 
-    {env="prod"} |= "jobId=<uuid>"     # one job's full path through the pipeline
-    {env="prod"} |= "runId=<uuid>"     # everything that happened in one discovery run
-    {service="ingest"} |= "Job skipped"
+    {service="api"} |= "jobId=<uuid>"     # one job's full path through the pipeline
+    {service="api"} |= "runId=<uuid>"     # everything that happened in one discovery run
+    {service="pool-ingest"} |= "Job skipped"
+
+`env` used to distinguish two stacks and got it backwards -- the rule overrode
+it to `demo` for any service matching `demo-.*`, which after the repurposing
+meant PRODUCTION logs were labelled `env=demo`. Anything filtering `env="prod"`
+was reading the private instance (issue #64). The override is gone.
 
 The mailbot's `sleep 20` is deliberate: the container otherwise exits
 in about a second, faster than promtail's container-discovery interval,
@@ -147,7 +161,7 @@ A new or changed unit needs systemd told about it — copying the file is not
 enough:
 
     systemctl daemon-reload
-    systemctl enable --now nextrole-demo-pool-ingest.timer
+    systemctl enable --now nextrole-pool-ingest.timer
     systemctl list-timers 'nextrole-*'          # NEXT/LEFT columns confirm it is armed
 
 To check for drift:
@@ -156,10 +170,10 @@ To check for drift:
 
 **`docker compose pull` alone is not enough.** A running container keeps using its old
 image until recreated. Always follow with `--force-recreate`, and remember that the
-cron-profile containers (`ingest`, `demo-pool-ingest`, `mailbot`) are pulled separately:
+cron-profile containers (`pool-ingest`, `mailbot`) are pulled separately:
 
-    docker compose pull api scraper
-    docker compose up -d --force-recreate api scraper
-    docker compose --profile cron pull ingest demo-pool-ingest mailbot
+    docker compose pull api scraper web
+    docker compose up -d --force-recreate api scraper web
+    docker compose --profile cron pull pool-ingest mailbot
 
 Verify with `docker inspect -f '{{.State.StartedAt}}' nextrole-api-1`.

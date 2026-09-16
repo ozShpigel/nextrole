@@ -7,6 +7,11 @@ services:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - ./data/caddy:/data
 
+  # nextrole.cloud. These three were called demo-api / demo-scraper / demo-client
+  # until the teardown: they began life serving a seeded read-only demo and were
+  # repurposed to serve the real product, so for a while the names said the
+  # opposite of what they were. If you find `demo-` anywhere still, it is a
+  # leftover, not a second deployment.
   api:
     image: ghcr.io/ozshpigel/api:latest
     restart: unless-stopped
@@ -21,60 +26,36 @@ services:
     environment:
       - API_BASE_URL=http://api:8080
 
-  client:
-    image: ghcr.io/ozshpigel/frontend-private:latest
-    restart: unless-stopped
-    env_file: [.env.client]
-    volumes:
-      - ./.htpasswd:/etc/secrets/.htpasswd:ro
-
-  demo-api:
-    image: ghcr.io/ozshpigel/api:latest
-    restart: unless-stopped
-    env_file: [.env.demo-api]
-    environment:
-      - DOTNET_gcServer=0
-
-  demo-scraper:
-    image: ghcr.io/ozshpigel/scraper:latest
-    restart: unless-stopped
-    env_file: [.env.demo-scraper]
-    environment:
-      - API_BASE_URL=http://demo-api:8080
-
-  demo-client:
+  # Not `client`: this repo already uses "client" for the /client directory and
+  # for a half-dozen HTTP clients OF things (TrackerApiClient, tracker_client,
+  # match_client). `web` is the thing a browser connects to, and nothing else.
+  # It also proxies /api/* through to api and scraper — see client/nginx.conf,
+  # which resolves API_URL/SCRAPER_URL from .env.web as Docker DNS names.
+  web:
     image: ghcr.io/ozshpigel/frontend:latest
     restart: unless-stopped
-    env_file: [.env.demo-client]
+    env_file: [.env.web]
 
-  # The private instance's criteria-driven ingest: every is_active
-  # SearchCriteria, scraped for its owner. Scores nothing (Step 5 moved that
-  # to the per-user scan) and is slated for retirement with search_criteria.
-  ingest:
-    image: ghcr.io/ozshpigel/scraper:latest
-    profiles: ["cron"]
-    command: python -m app.cli run-all
-    env_file: [.env.scraper]
-    environment:
-      - API_BASE_URL=http://api:8080
-
-  # The public instance's shared job pool. Reads its role list from
-  # config/roles.json in the image, not from anyone's saved search, and is
-  # what every user of that instance matches against - without it a visitor
-  # can upload a CV and still see an empty Matches tab, because the candidate
-  # filter has no extracted requirements to filter on (docs/job-pool.md).
+  # The shared job pool's daily ingest. Reads its role list from
+  # config/roles.json in the image — not from anyone's saved search — and is
+  # what every user matches against. Without it a visitor can upload a CV and
+  # still see an empty Matches tab, because the candidate filter has no
+  # extracted requirements to filter on (docs/job-pool.md).
   #
-  # Runs against .env.demo-scraper's database and calls the demo API, whose
-  # three ingest endpoints (title-triage, seniority-classify, job-facts) are
-  # all on the DemoMode allowlist - so this works before the instance is
-  # flipped to cookie identity, not after.
-  demo-pool-ingest:
+  # This is now the ONLY ingest. The criteria-driven `run-all` service ran
+  # alongside it until the teardown, 30 minutes earlier, scraping into the same
+  # pool: three of its four job titles were already in roles.json and its
+  # locations sat inside "Israel", so pool_key deduped the rows while the
+  # scrape itself was paid twice. "AI Engineer" was the only coverage it added
+  # and now lives in roles.json. search_criteria rows are untouched in the
+  # database, so restoring it means restoring a cron, not recreating data.
+  pool-ingest:
     image: ghcr.io/ozshpigel/scraper:latest
     profiles: ["cron"]
     command: python -m app.cli run-pool
-    env_file: [.env.demo-scraper]
+    env_file: [.env.scraper]
     environment:
-      - API_BASE_URL=http://demo-api:8080
+      - API_BASE_URL=http://api:8080
 
   mailbot:
     image: ghcr.io/ozshpigel/mailbot:latest
@@ -82,14 +63,19 @@ services:
     profiles: ["cron"]
     env_file: [.env.mailbot]
     environment:
+      # Unchanged text, changed meaning: `api` used to be the private instance
+      # and is now nextrole.cloud. The mailbot WRITES through this, so verify it
+      # deliberately after any rename (run it once and check statusUpdates grew)
+      # rather than trusting that the line still looks right.
       - Tracker__BaseUrl=http://api:8080
     volumes:
       - ./credentials.json:/app/credentials.json:ro
       - ./gmail-token.json:/etc/secrets/gmail-token.json:ro
+
   loki:
     image: grafana/loki:3.0.0
     ports:
-      - "127.0.0.1:3100:3100"    
+      - "127.0.0.1:3100:3100"
     command: -config.file=/etc/loki/config.yml
     volumes:
       - ./monitoring/loki-config.yml:/etc/loki/config.yml:ro
@@ -113,6 +99,11 @@ services:
     volumes:
       - grafana-data:/var/lib/grafana
       - ./monitoring/datasource.yml:/etc/grafana/provisioning/datasources/loki.yml:ro
+      # Dashboards are provisioned from the repo now. The one dashboard that
+      # existed before lived only in the grafana-data volume, so a volume loss
+      # would have taken it with no copy anywhere.
+      - ./monitoring/dashboards.yml:/etc/grafana/provisioning/dashboards/nextrole.yml:ro
+      - ./monitoring/dashboards:/var/lib/grafana/dashboards:ro
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD}
       - GF_USERS_ALLOW_SIGN_UP=false

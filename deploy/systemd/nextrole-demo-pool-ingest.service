@@ -1,4 +1,0 @@
-[Service]
-Type=oneshot
-WorkingDirectory=/srv/nextrole
-ExecStart=/usr/bin/docker compose --profile cron run --rm demo-pool-ingest

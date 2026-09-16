@@ -1,14 +1,19 @@
 {
-  "_comment": "The shared job pool's daily ingest. Roles are configuration, not code: edit this file (or point ROLES_CONFIG_PATH elsewhere) and the next run picks it up. The pool is user-independent - nothing here is derived from anyone's profile.",
+  "_comment": "The shared job pool's daily ingest. Roles are configuration, not code: edit this file (or point ROLES_CONFIG_PATH elsewhere) and the next run picks it up. The pool is user-independent - nothing here is derived from anyone's profile. 'AI Engineer' came from the criteria-driven ingest that the teardown removed -- it was the only title that path covered and this one did not.",
   "roles": [
     "Backend Engineer",
     "Platform Engineer",
+    "AI Engineer",
     "DevOps Engineer",
     "Full Stack Engineer",
     "Software Engineer"
   ],
-  "locations": ["Israel"],
-  "site_names": ["linkedin"],
+  "locations": [
+    "Israel"
+  ],
+  "site_names": [
+    "linkedin"
+  ],
   "results_wanted": 50,
   "hours_old": 72,
   "country": "Israel",

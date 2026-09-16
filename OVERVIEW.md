@@ -87,7 +87,7 @@ Each component carries an `IMPLEMENTATION.md` at its own root path.
 - **HTTP (Scraper):** FastAPI's generated `GET /openapi.json`; routes in [`server/scraper/app/main.py`](server/scraper/app/main.py), all under `/api/discovery/**`.
 - **GraphQL / gRPC / AsyncAPI:** None.
 - **Events / topics:** None — there is no message bus. Cross-service effects are synchronous HTTP calls.
-- **Scheduled jobs:** [`deploy/systemd/nextrole-ingest.timer`](deploy/systemd/nextrole-ingest.timer) (05:00 UTC daily → `docker compose --profile cron run --rm ingest`), [`nextrole-demo-pool-ingest.timer`](deploy/systemd/nextrole-demo-pool-ingest.timer), [`nextrole-mailbot.timer`](deploy/systemd/nextrole-mailbot.timer) (02:00 UTC daily). Container-internal fallback: [`server/mailbot/crontab`](server/mailbot/crontab).
+- **Scheduled jobs:** [`deploy/systemd/nextrole-pool-ingest.timer`](deploy/systemd/nextrole-pool-ingest.timer) (05:30 UTC daily → `docker compose --profile cron run --rm pool-ingest`) and [`nextrole-mailbot.timer`](deploy/systemd/nextrole-mailbot.timer) (02:00 UTC daily). Container-internal fallback: [`server/mailbot/crontab`](server/mailbot/crontab).
 - **CLI:** `python -m app.cli {run,run-pool,run-all,seed-demo-jobs,eval-verdict,eval-subscore}` ([`server/scraper/app/cli.py`](server/scraper/app/cli.py)); `dotnet run --project server/api/src/Seeder`; `dotnet run --project server/api/src/DbCopy -- <src>=<dst>`.
 - **Reverse-proxy route map:** [`client/nginx.conf`](client/nginx.conf) — an explicit path allowlist splitting `/api/**` to the API and `/api/discovery/**` to the scraper.
 

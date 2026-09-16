@@ -200,7 +200,6 @@ Idempotency is the property to check: run twice and confirm the second run write
 ## Related links
 
 - [`docs/mailbot.md`](../../docs/mailbot.md) — parsing rules, matching, re-sync, OAuth lifecycle (note: it states a `LookbackDays` default of 2; the code default is 3)
-- [`docs/demo-mode.md`](../../docs/demo-mode.md) — why it aborts against a demo tracker
 - [`docs/tracker.md`](../../docs/tracker.md) — the statuses it moves an application through
 - [`server/api/IMPLEMENTATION.md`](../api/IMPLEMENTATION.md) — the endpoints it calls
 - [`OVERVIEW.md`](../../OVERVIEW.md) · [`AGENTS.md`](../../AGENTS.md)

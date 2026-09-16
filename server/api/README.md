@@ -25,5 +25,5 @@ project predates the NextRole rename) — not a vendored dependency.
 
 See `docs/scoring-and-search.md`, `docs/design-system.md` (client-facing, but the
 theme spec matters for any endpoint shaping UI-consumed data), `docs/tracker.md`,
-`docs/interview-prep.md`, `docs/mailbot.md`, and `docs/demo-mode.md` in the repo
+`docs/interview-prep.md`, `docs/mailbot.md`, and `docs/hosting.md` in the repo
 root for the feature-level detail — this README is only the map.

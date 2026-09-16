@@ -256,10 +256,15 @@ async def seed_demo_jobs(db: AsyncIOMotorDatabase, settings: Settings) -> dict:
 async def refresh_seed_timestamps(db: AsyncIOMotorDatabase) -> int:
     """Bump seeded jobs' discovered_at to now.
 
-    Called on demo web-service startup: free-tier cold starts happen whenever a
-    visitor arrives, so the seeds re-enter the Search page's days-back window
-    exactly when someone is looking, and the TTL index never purges them.
-    No-op (0) when nothing was seeded.
+    Called explicitly by `python -m app.cli refresh-demo-timestamps`, which
+    docs/demos/record.sh runs before recording a clip: the seeds have to sit
+    inside the Search page's days-back window or the clip records an empty
+    board, and the TTL index would eventually purge them.
+
+    This used to run as a side effect of web-service startup, gated on
+    DEMO_MODE -- a hidden data mutation triggered by an environment variable.
+    It is now a command someone runs on purpose. No-op (0) when nothing was
+    seeded.
     """
     result = await db.discovered_jobs.update_many(
         {SEED_MARKER: True},

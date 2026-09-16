@@ -10,10 +10,7 @@ public static class MessageEndpoints
 {
     public static WebApplication MapMessageEndpoints(this WebApplication app)
     {
-        // Mailbot-only write — a real tracker mutation (like notes/interviews),
-        // not non-persisting analysis, so it stays OUT of the demo allowlist.
-        // The mailbot itself already refuses to run against a demo tracker
-        // (see docs/demo-mode.md's mailbot guard), so this is defense in depth.
+        // Mailbot-only write — a real tracker mutation, like notes/interviews.
         app.MapPost("/api/messages", async (
             [FromBody] TrackedEmail email,
             IUserContext user,

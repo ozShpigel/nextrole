@@ -23,6 +23,13 @@ if [ ! -f "$SPEC" ]; then
   exit 1
 fi
 
+# The seeded jobs have to sit inside the Search page's days-back window or the
+# clip records an empty board. This used to happen invisibly on scraper startup
+# whenever DEMO_MODE=true; it is a command now, so a stale-looking clip has one
+# obvious cause instead of a hidden one. Best-effort: a spec that never touches
+# Matches does not need it, and a missing venv should not block a recording.
+(cd ../../server/scraper && python -m app.cli refresh-demo-timestamps)   || echo "record: could not refresh demo timestamps — Matches/Search clips may look empty" >&2
+
 rm -rf output/test-results
 rm -f "output/${NAME}.timing.json"
 

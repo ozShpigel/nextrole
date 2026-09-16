@@ -31,9 +31,8 @@ docs/demos/
 This is **not** `/e2e`. `/e2e/playwright.config.ts` runs assertions against
 disposable `job-tracker-test`/`jobmatch-test` databases that `global-setup.ts`
 drops on every run. This config instead points the app at a **persistent**
-seeded database (never dropped) so a clip stays reproducible across sessions,
-and sets `DemoMode=true` so the recording matches what a real public-demo
-visitor sees (read-only banner, writes blocked). It reuses `/e2e`'s
+seeded database (never dropped) so a clip stays reproducible across sessions.
+It reuses `/e2e`'s
 `@playwright/test` version but has its own `node_modules` — the two configs
 serve different purposes and shouldn't share a test run.
 
@@ -84,11 +83,15 @@ strong matches, partial matches, culture red flags, and clear mismatches —
 enough for the Evaluator to make real scoring decisions). `MONGODB_CONNECTION_STRING`
 comes from `server/scraper/.env` as usual; only the database name is overridden.
 
-Because the seeded jobs' `discovered_at` needs to stay inside the Search
-page's days-back window, the scraper refreshes it automatically on every
-startup when `DEMO_MODE=true` (`refresh_seed_timestamps`, called from
-`app/main.py`) — which the recording config always sets, so this is
-self-maintaining.
+The seeded jobs' `discovered_at` has to stay inside the Search page's
+days-back window, or a Matches clip records an empty board. `record.sh` runs
+`python -m app.cli refresh-demo-timestamps` before each recording.
+
+This used to happen invisibly on scraper startup whenever `DEMO_MODE=true`.
+It is an explicit command now: a hidden data mutation triggered by an
+environment variable is the kind of thing that is impossible to reason about
+when a clip comes out wrong. If a clip looks empty, run that command and look
+at what it reports.
 
 ## Recording a clip
 
@@ -101,8 +104,7 @@ npx playwright install chromium   # first time only, if not already cached
 
 `record.sh` runs the named spec against `playwright.config.ts`'s `webServer`s
 (API on :5002, scraper on :8000, client on :5173 — all pointed at the
-demo-recording DBs with `DemoMode=true`, mirroring `/e2e`'s `webServer`
-structure), grabs the resulting `.webm` from Playwright's built-in
+demo-recording DBs, mirroring `/e2e`'s `webServer` structure), grabs the resulting `.webm` from Playwright's built-in
 `recordVideo`, and hands it to `render-gif.sh` for a two-pass
 palettegen/paletteuse encode — cropped to the actual content area (fixed
 viewport == recorded video size, so no letterboxing), no caption strip, no

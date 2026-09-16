@@ -10,9 +10,9 @@ import { test, expect } from '@playwright/test';
 // (see docs/demos/README.md). No captions: the README heading is the
 // caption.
 //
-// "Start a practice interview" is disabled in this DemoMode recording config
-// (same read-only gate a real public-demo visitor sees) — this clip stays on
-// the Question Rubric card itself rather than trying to click it.
+// This clip deliberately stays on the Question Rubric card rather than clicking
+// "Start a practice interview": a mock interview is its own feature with its own
+// clip, and following the link here would spend a Claude call per recording.
 test('interview prep filters by topic and steps through prepared questions', async ({ page }) => {
   await page.goto('/interview-prep');
 

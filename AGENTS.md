@@ -130,6 +130,17 @@ carries the visual weight; typography stays quiet.
   issues an unconditional `updateMany` per collection, so it demands write
   privilege even with nothing to migrate and the error names the migration
   rather than the credential (issue #57).
+- **Scripts scp'd from a Windows working tree need LF.** The repo's blobs are
+  LF, but a working-tree file authored on Windows drifts to CRLF, and `scp`
+  copies the working tree -- not the blob. bash then reads `set -euo pipefail`
+  and dies on line 2. For `monitoring/check-services.sh` that means **the
+  monitor is dead and an outage produces no alert**: a broken monitor and a
+  healthy system look identical from outside, so nothing ever reports it.
+  `.gitattributes` pins `*.sh`/`*.yml` to `eol=lf`; after copying anything to
+  the box, run it once by hand before trusting it. Go's YAML/JSON readers
+  tolerate a trailing ``, which is why Loki and Grafana came up regardless --
+  only the shell scripts actually break.
+
 - **The API refuses to start** on a half-configured claim (`Google:ClaimUserId`
   needs `ClaimEmail` and `ClaimExpiresAt`) or an expired one. That is the
   mechanism working, but `restart: unless-stopped` disguises it as a restart

@@ -67,20 +67,29 @@ public sealed class TrackerApiClient : ITrackerApiClient
             ?? new List<TrackerApplication>();
     }
 
-    public async Task<bool?> GetDemoModeAsync(CancellationToken ct = default)
+    public async Task<TrackerConfig?> GetConfigAsync(CancellationToken ct = default)
     {
         using var response = await SendWithRetryAsync(
             () => _http.GetAsync("/api/config", ct),
-            "GetDemoModeAsync",
+            "GetConfigAsync",
             ct);
 
         if (response is null || !response.IsSuccessStatusCode) return null;
 
-        var config = await response.Content.ReadFromJsonAsync<ClientConfig>(cancellationToken: ct);
-        return config?.DemoMode;
+        return await response.Content.ReadFromJsonAsync<TrackerConfig>(cancellationToken: ct);
     }
 
-    private sealed record ClientConfig(bool DemoMode);
+    public async Task<TrackerIdentity?> GetMeAsync(CancellationToken ct = default)
+    {
+        using var response = await SendWithRetryAsync(
+            () => _http.GetAsync("/api/auth/me", ct),
+            "GetMeAsync",
+            ct);
+
+        if (response is null || !response.IsSuccessStatusCode) return null;
+
+        return await response.Content.ReadFromJsonAsync<TrackerIdentity>(cancellationToken: ct);
+    }
 
     public async Task<bool> UpdateApplicationStatusAsync(Guid appId, string newStatus, string? note = null, CancellationToken ct = default)
     {

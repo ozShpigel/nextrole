@@ -241,7 +241,8 @@ app.UseRateLimiter();
 // public instance leaves it unset; it authenticates users instead (docs/auth.md). /health stays open
 // for external uptime/health checks (nothing in this repo's deploy config wires one
 // up automatically today, but gating it behind the key would break one if added);
-// /api/config only reveals demoMode.
+// /api/config only reveals demoMode and identityMode, both of which are
+// observable from the outside anyway.
 var apiKeySecret = builder.Configuration["ApiKey"];
 if (!string.IsNullOrEmpty(apiKeySecret))
 {
@@ -396,9 +397,21 @@ app.MapGet("/health", (ILogger<Program> logger) =>
     .WithSummary("Liveness probe for orchestration and Job Match wake-up checks");
 
 // Lets the client surface a read-only banner without guessing from 403s.
-app.MapGet("/api/config", () => Results.Ok(new { demoMode }))
+//
+// identityMode is here for SERVICE clients, not the browser. A client that must
+// act AS a user has to know whether this instance expects it to present a
+// session token, and before this there was nothing it could ask: the mailbot
+// pointed at a Cookie-mode instance, sent no token, got a fresh empty account
+// and a perfectly ordinary 200, and reported a successful sync of nothing
+// (issue #67). Not a disclosure -- Cookie mode announces itself by setting a
+// uid cookie on every response, and Fixed mode by never doing so.
+app.MapGet("/api/config", (IdentityResolver identity) => Results.Ok(new
+{
+    demoMode,
+    identityMode = identity.Mode.ToString(),
+}))
     .WithName("GetClientConfig")
-    .WithSummary("Public client config (e.g. demo mode)");
+    .WithSummary("Public client config (demo mode, identity mode)");
 
 if (app.Environment.IsDevelopment())
 {

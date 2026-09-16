@@ -133,6 +133,9 @@ DEMO_SAVE_JOB_PATTERN = re.compile(r"^/api/discovery/jobs/[0-9a-fA-F-]{36}/save$
 # (`dismissed`) on an already-seeded discovered_jobs doc, no new data,
 # fully reversible on the next reseed.
 DEMO_DISMISS_JOB_PATTERN = re.compile(r"^/api/discovery/jobs/[0-9a-fA-F-]{36}/dismiss$")
+# Same shape again: recording that a panel was opened writes one per-user
+# boolean-ish timestamp and touches no real data.
+DEMO_VIEW_JOB_PATTERN = re.compile(r"^/api/discovery/jobs/[0-9a-fA-F-]{36}/view$")
 
 
 @app.middleware("http")
@@ -140,12 +143,14 @@ async def demo_guard(request, call_next):
     path = request.url.path.rstrip("/")
     is_allowed_save = request.method == "POST" and DEMO_SAVE_JOB_PATTERN.match(path)
     is_allowed_dismiss = request.method == "POST" and DEMO_DISMISS_JOB_PATTERN.match(path)
+    is_allowed_view = request.method == "POST" and DEMO_VIEW_JOB_PATTERN.match(path)
     if (
         settings.demo_mode
         and request.method in ("POST", "PUT", "PATCH", "DELETE")
         and path not in DEMO_ANALYSIS_ALLOWLIST
         and not is_allowed_save
         and not is_allowed_dismiss
+        and not is_allowed_view
     ):
         from fastapi.responses import JSONResponse
         return JSONResponse(status_code=403, content={"error": "This is a read-only demo."})
@@ -519,6 +524,24 @@ async def save_job(job_id: str, ident: identity.RequestIdentity = Depends(curren
     # interviewing stage (ApplicationEndpoints.EnrichNarrativeOnInterviewingAsync),
     # since most added jobs never reach one.
     return {"status": "saved"}
+
+
+@app.post("/api/discovery/jobs/{job_id}/view", status_code=204)
+async def mark_job_viewed(job_id: str, user_id: str = Depends(current_user_id)):
+    """Record that this user opened this job's detail panel.
+
+    Exists to answer a question nothing could answer before: of the jobs we
+    pay to score, how many does anyone actually look at. Scored-versus-acted-on
+    was the only available proxy and it is a poor one -- across the two real
+    users it reads 86% and 0%.
+
+    Deliberately cheap and deliberately dumb. No existence check on the job: a
+    stale id from an open tab writes one orphan row rather than costing a round
+    trip to Mongo on every selection, and an orphan row is harmless (nothing
+    joins from poolJobState outward). 204 rather than a body, because the
+    client has nothing to do with the answer.
+    """
+    await pool_state.mark_viewed(db, user_id, job_id)
 
 
 @app.post("/api/discovery/jobs/{job_id}/dismiss")

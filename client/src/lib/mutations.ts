@@ -32,6 +32,22 @@ export function useSaveJob() {
   });
 }
 
+// Records the first time this user opened a job's detail panel.
+//
+// No onSuccess invalidation, unlike save/dismiss: a view changes nothing the
+// board renders, and invalidating ['discovery'] on every click would refetch
+// the whole list each time somebody read a job. The write exists to be
+// queried later, not to drive the UI.
+export function useMarkViewed() {
+  return useMutation({
+    mutationFn: (jobId: string) =>
+      discoveryApi(`/jobs/${jobId}/view`, { method: 'POST' }),
+    // Never surface a failure: this is measurement, and losing a row must not
+    // interrupt somebody reading a job.
+    retry: false,
+  });
+}
+
 export function useDismissJob() {
   const queryClient = useQueryClient();
   return useMutation({

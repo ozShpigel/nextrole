@@ -46,6 +46,36 @@ async def mark_dismissed(db: AsyncIOMotorDatabase, user_id: str, job_id: str) ->
     await _set(db, user_id, job_id, {"Dismissed": True})
 
 
+async def mark_viewed(db: AsyncIOMotorDatabase, user_id: str, job_id: str) -> None:
+    """Record the FIRST time this user opened this job's detail panel.
+
+    A view is opening the panel, not the job appearing in a response and not
+    scrolling past it. "Was it in the results" is the number we already have;
+    the question worth spending a field on is whether a score anyone paid for
+    was ever actually looked at.
+
+    First open only, never overwritten -- a pipeline update with $ifNull rather
+    than $setOnInsert, because the row usually already exists (saved/dismissed
+    write it first) and $setOnInsert would then never fire. Idempotent by
+    construction, so the client may call it on every selection without
+    guarding, and a second open cannot rewrite the first timestamp.
+
+    A timestamp rather than a bool or a counter: same storage, and it
+    distinguishes "scored today, opened three weeks later" from "never opened".
+    A counter would invite analysis nobody asked for and make the write
+    non-idempotent.
+    """
+    await db[COLLECTION].update_one(
+        {"_id": _key(user_id, job_id)},
+        [{"$set": {
+            "UserId": user_id,
+            "JobId": job_id,
+            "ViewedAt": {"$ifNull": ["$ViewedAt", datetime.now(timezone.utc)]},
+        }}],
+        upsert=True,
+    )
+
+
 async def clear_saved(db: AsyncIOMotorDatabase, user_id: str, job_ids: list[str]) -> int:
     """Reverse of mark_saved for this user only — the other users who saved the
     same posting keep their own row."""
@@ -73,10 +103,11 @@ async def state_for(
         return {}
     rows = await db[COLLECTION].find(
         {"UserId": user_id, "JobId": {"$in": job_ids}},
-        {"JobId": 1, "Dismissed": 1, "SavedToTracker": 1},
+        {"JobId": 1, "Dismissed": 1, "SavedToTracker": 1, "ViewedAt": 1},
     ).to_list(None)
     return {
         r["JobId"]: {"dismissed": bool(r.get("Dismissed")),
-                     "saved": bool(r.get("SavedToTracker"))}
+                     "saved": bool(r.get("SavedToTracker")),
+                     "viewed": r.get("ViewedAt") is not None}
         for r in rows
     }

@@ -67,6 +67,27 @@ public sealed record ScoreComponent
     public string Name { get; init; } = "";
     public int? Score { get; init; }
     public int? MaxScore { get; init; }
+
+    // DO NOT DROP THIS TO SAVE TOKENS. It looks like the obvious candidate and
+    // it is load-bearing.
+    //
+    // Nothing renders it — AnalysisCard shows each dimension's strengths/gaps
+    // and never touches components[] — and at ~133 tokens/job it is 21% of the
+    // Evaluator's output, so removing it reads like free money. It is instead
+    // ClaimGrounding's largest scan surface (ClaimGrounding.cs, Scan over
+    // AllComponents): the check that catches the Evaluator asserting a
+    // technology as the candidate's with nothing in their profile behind it.
+    //
+    // Measured across all 71 stored production scores: 67 unsupported claims,
+    // 48 of them (72%) caught in this field, 19 in quickHighlights, and
+    // honestAssessment contributes nothing because batch mode omits it
+    // entirely. Dropping Reason would delete 72% of those catches and leave
+    // quickHighlights — 37 tokens of text — as the only surface.
+    //
+    // Note what would NOT have caught this: a golden-set run. The guard is not
+    // a scoring mechanism, so removing its input moves no score. The eval comes
+    // back clean and licenses the change. See AGENTS.md, "Check which path your
+    // instrument exercises".
     public string Reason { get; init; } = "";
 
     // Present only when employee-review evidence moved this component's score.

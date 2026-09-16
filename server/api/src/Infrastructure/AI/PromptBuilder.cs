@@ -179,6 +179,31 @@ Include every job id exactly once, in any order.
     // text used by the single-job path above — deliberately not a separate
     // prompt const, so the two paths can never drift on the actual rubric.
     // Only the delivery shape changes: many jobs in one call instead of one.
+    //
+    // DO NOT ASK FOR MINIFIED JSON. It was measured, and it does not work.
+    //
+    // Output is 83% of this call's cost, and a real response arrives
+    // pretty-printed: 545 lines, 541 of them indented. Instructing the model to
+    // minify DOES work as an instruction — output drops 37% (4,576 -> 2,869
+    // tokens), newlines go to zero — and the result is STRUCTURALLY INVALID
+    // JSON. Three attempts out of three, two different wordings, each failing
+    // at a different offset:
+    //
+    //     ..."Sustainability unclear"]}],"overallScore":26,...
+    //                                  ^ object closed, then a stray bracket
+    //
+    // stop_reason was end_turn and the text closed cleanly, so this is not
+    // truncation — the model loses track of nesting depth once the newlines
+    // that scaffold it are gone. Nothing downstream rescues it either:
+    // ExtractJson's ParseTolerant uses JsonDocument.Parse, which tolerates
+    // duplicate keys but not syntax errors, and its repair pass only strips
+    // blank lines and // comments — both no-ops on a single line.
+    //
+    // The cost is also not where it looks. Removing indentation but keeping one
+    // field per line parses fine and saves 3%; the other 32% is the newlines
+    // themselves, which are exactly what the model is using to count brackets.
+    // Schema depth, not whitespace, is the lever — and that is a real change,
+    // not a prompt line.
     private const string BatchModeAddendum = """
 
 ---

@@ -1,7 +1,7 @@
 import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Sparkles, RefreshCw, ExternalLink, X, Link as LinkIcon, Archive, ChevronDown, Pencil } from 'lucide-react';
-import { useApplications, useDemoMode, DEMO_DISABLED_TITLE } from '../lib/queries';
+import { useApplications } from '../lib/queries';
 import { useGeneratePack, useUpdateAppStatus } from '../lib/mutations';
 import { formatDate, formatTime, daysSince, hasRealJobUrl } from '../lib/format';
 import { CompanyAvatar } from '../components/CompanyAvatar';
@@ -156,7 +156,6 @@ function AppliedCard(
   { app, index, muted, onOpenStatus }:
   { app: Application; index: number; muted?: boolean; onOpenStatus: (app: Application) => void },
 ) {
-  const demoMode = useDemoMode();
   const days = daysSince(app.appliedAt ?? app.updatedAt ?? app.createdAt);
   return (
     <Card app={app} index={index} muted={muted}>
@@ -167,8 +166,7 @@ function AppliedCard(
       )}
       <button
         type="button"
-        disabled={demoMode}
-        title={demoMode ? DEMO_DISABLED_TITLE : "Update status — use if mailbot missed the interview email"}
+        title="Update status — use if mailbot missed the interview email"
         aria-label={`Update status for ${app.company}`}
         className="ml-auto w-6 h-6 flex items-center justify-center text-[var(--ed-ink-faint)] hover:text-[var(--ed-ink)] transition-[color,opacity] disabled:opacity-40 disabled:pointer-events-none opacity-100 md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100"
         onClick={() => onOpenStatus(app)}
@@ -182,7 +180,6 @@ function AppliedCard(
 export default function ActivePage() {
   const navigate = useNavigate();
   const { data: apps = [], isLoading, error } = useApplications();
-  const demoMode = useDemoMode();
   const generatePack = useGeneratePack();
   const updateStatus = useUpdateAppStatus();
   const [showImportModal, setShowImportModal] = useState(false);
@@ -237,8 +234,6 @@ export default function ActivePage() {
     return (
       <button
         type="button"
-        disabled={demoMode}
-        title={demoMode ? DEMO_DISABLED_TITLE : undefined}
         className="text-[13px] font-medium uppercase tracking-[0.06em] text-[var(--ed-ink-faint)] hover:text-[var(--ed-ink)] transition-colors disabled:opacity-50 disabled:pointer-events-none"
         onClick={() => markApplied(appId)}
       >
@@ -278,7 +273,7 @@ export default function ActivePage() {
         return (
           <Column key="added" label="Added" subtitle="Roles you're watching" count={added.length} emptyText="Add jobs from matches to track them here.">
             {added.map((a, i) => (
-              <Card key={a.id} app={a} index={i} dragFrom={demoMode ? undefined : 'added'}>
+              <Card key={a.id} app={a} index={i} dragFrom='added'>
                 <button
                   type="button"
                   disabled={generatePack.isPending && generatePack.variables === a.id}
@@ -307,7 +302,7 @@ export default function ActivePage() {
             onDropApp={(id) => generatePack.mutate(id)}
           >
             {ready.map((a, i) => (
-              <Card key={a.id} app={a} index={i} dragFrom={demoMode ? undefined : 'ready'}>
+              <Card key={a.id} app={a} index={i} dragFrom='ready'>
                 <button type="button" className={`${ED_PRIMARY} px-3 py-[0.4rem]`} onClick={() => navigate(`/tracker/${a.id}/pack`)}>
                   Review
                 </button>
@@ -403,8 +398,7 @@ export default function ActivePage() {
                 )}
                 <button
                   type="button"
-                  disabled={demoMode}
-                  title={demoMode ? DEMO_DISABLED_TITLE : 'Close out — mark Rejected or Withdrawn'}
+                  title='Close out — mark Rejected or Withdrawn'
                   aria-label={`Close out application at ${a.company}`}
                   className="ml-auto w-6 h-6 flex items-center justify-center text-[var(--ed-ink-faint)] hover:text-[var(--ed-no)] transition-[color,opacity] disabled:opacity-40 disabled:pointer-events-none opacity-100 md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100"
                   onClick={() => setStatusTarget({ id: a.id, status: a.status, jobUrl: a.jobUrl })}
@@ -434,8 +428,6 @@ export default function ActivePage() {
             <Link to="/search" className="text-[var(--ed-accent)] cursor-pointer text-[13px] font-medium tracking-[0.02em] inline-flex items-center gap-[0.4rem] transition-all hover:-translate-x-[3px]">&larr; Back to Matches</Link>
             <button
               type="button"
-              disabled={demoMode}
-              title={demoMode ? DEMO_DISABLED_TITLE : undefined}
               className={`${ED_GHOST} px-3 py-[0.4rem] inline-flex items-center gap-[0.35rem]`}
               onClick={() => setShowImportModal(true)}
             >

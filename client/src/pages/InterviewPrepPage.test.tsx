@@ -28,7 +28,7 @@ const mockPrepResponse = {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.mocked(api).mockResolvedValue({ demoMode: false });
+  vi.mocked(api).mockResolvedValue({});
 });
 
 describe('InterviewPrepPage', () => {
@@ -49,23 +49,9 @@ describe('InterviewPrepPage', () => {
     expect(screen.getByText('Growing.')).toBeInTheDocument();
   });
 
-  it('disables Start a practice interview with the demo title under DemoMode', async () => {
-    vi.mocked(api).mockResolvedValue({ demoMode: true });
-    vi.mocked(matchApi).mockResolvedValue(mockPrepResponse);
 
-    renderWithRouter(<InterviewPrepPage />);
-
-    const startButton = await screen.findByRole('button', { name: /start a practice interview/i });
-    expect(startButton).toBeDisabled();
-    expect(startButton).toHaveAttribute('title', 'Disabled in the read-only demo');
-  });
-
-  it('allows saving edited questions under DemoMode — self-healing on reseed', async () => {
-    // PUT /api/match/interview-prep is allowlisted in demo (Program.cs):
-    // it replaces the whole rubric, but UpsertInterviewPrepAsync already
-    // runs unconditionally on every Seeder run, so a demo visitor's edits
-    // don't survive a reseed.
-    vi.mocked(api).mockResolvedValue({ demoMode: true });
+  it('saves edited questions', async () => {
+    vi.mocked(api).mockResolvedValue({});
     vi.mocked(matchApi).mockImplementation((_path: string, opts?: RequestInit) => {
       if (opts?.method === 'PUT') {
         const body = JSON.parse(opts.body as string);

@@ -4,7 +4,6 @@ namespace Mailbot.Services;
 public enum PreflightCode
 {
     Proceed,
-    DemoMode,
     MissingToken,
     IdentityUnreadable,
     WrongAccount,
@@ -63,11 +62,6 @@ public static class TrackerPreflight
         Func<CancellationToken, Task<TrackerIdentity?>> fetchMe,
         CancellationToken ct = default)
     {
-        if (config?.DemoMode == true)
-            return new(PreflightCode.DemoMode,
-                $"Tracker at {trackerUrl} reports demoMode=true — its tracker is read-only, so this "
-                + "sync could never write anything. Point Tracker__BaseUrl at a writable instance.");
-
         if (!RequiresSessionToken(config))
             return PreflightVerdict.Pass;
 

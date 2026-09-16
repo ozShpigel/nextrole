@@ -32,7 +32,7 @@ public class TrackerPreflightTests
     public async Task FixedMode_NeedsNoToken()
     {
         var v = await TrackerPreflight.EvaluateAsync(
-            Url, new TrackerConfig(false, "Fixed"), sessionToken: null, Me(null));
+            Url, new TrackerConfig("Fixed"), sessionToken: null, Me(null));
 
         Assert.True(v.Ok);
     }
@@ -41,7 +41,7 @@ public class TrackerPreflightTests
     public async Task CookieMode_WithNoToken_Refuses()
     {
         var v = await TrackerPreflight.EvaluateAsync(
-            Url, new TrackerConfig(false, "Cookie"), sessionToken: null, Me(SignedIn));
+            Url, new TrackerConfig("Cookie"), sessionToken: null, Me(SignedIn));
 
         Assert.Equal(PreflightCode.MissingToken, v.Code);
     }
@@ -54,7 +54,7 @@ public class TrackerPreflightTests
         var called = false;
 
         await TrackerPreflight.EvaluateAsync(
-            Url, new TrackerConfig(false, "Cookie"), sessionToken: null,
+            Url, new TrackerConfig("Cookie"), sessionToken: null,
             _ => { called = true; return Task.FromResult<TrackerIdentity?>(SignedIn); });
 
         Assert.False(called);
@@ -64,7 +64,7 @@ public class TrackerPreflightTests
     public async Task CookieMode_WithGoodToken_Proceeds()
     {
         var v = await TrackerPreflight.EvaluateAsync(
-            Url, new TrackerConfig(false, "Cookie"), "a-token", Me(SignedIn));
+            Url, new TrackerConfig("Cookie"), "a-token", Me(SignedIn));
 
         Assert.True(v.Ok);
     }
@@ -76,7 +76,7 @@ public class TrackerPreflightTests
         // account a run acted as. A pass that does not say is not enough: it was
         // dropped once already, in the refactor that created this class.
         var v = await TrackerPreflight.EvaluateAsync(
-            Url, new TrackerConfig(false, "Cookie"), "a-token", Me(SignedIn));
+            Url, new TrackerConfig("Cookie"), "a-token", Me(SignedIn));
 
         Assert.Equal("someone@example.com", v.Account);
     }
@@ -87,7 +87,7 @@ public class TrackerPreflightTests
         // The exact production failure: the token is dead, so the API minted a
         // fresh user and answered 200 about an empty account.
         var v = await TrackerPreflight.EvaluateAsync(
-            Url, new TrackerConfig(false, "Cookie"), "an-expired-token", Me(Anonymous));
+            Url, new TrackerConfig("Cookie"), "an-expired-token", Me(Anonymous));
 
         Assert.Equal(PreflightCode.WrongAccount, v.Code);
     }
@@ -96,7 +96,7 @@ public class TrackerPreflightTests
     public async Task CookieMode_WhenIdentityCannotBeRead_Refuses()
     {
         var v = await TrackerPreflight.EvaluateAsync(
-            Url, new TrackerConfig(false, "Cookie"), "a-token", Me(null));
+            Url, new TrackerConfig("Cookie"), "a-token", Me(null));
 
         Assert.Equal(PreflightCode.IdentityUnreadable, v.Code);
     }
@@ -108,7 +108,7 @@ public class TrackerPreflightTests
         // exactly the silent failure this guard exists to stop, so the unknown
         // case must be the strict one.
         var v = await TrackerPreflight.EvaluateAsync(
-            Url, new TrackerConfig(false, null), sessionToken: null, Me(SignedIn));
+            Url, new TrackerConfig(null), sessionToken: null, Me(SignedIn));
 
         Assert.Equal(PreflightCode.MissingToken, v.Code);
     }
@@ -123,19 +123,10 @@ public class TrackerPreflightTests
     }
 
     [Fact]
-    public async Task DemoMode_RefusesEvenWithAGoodToken()
-    {
-        var v = await TrackerPreflight.EvaluateAsync(
-            Url, new TrackerConfig(true, "Cookie"), "a-token", Me(SignedIn));
-
-        Assert.Equal(PreflightCode.DemoMode, v.Code);
-    }
-
-    [Fact]
     public async Task IdentityMode_IsMatchedCaseInsensitively()
     {
         var v = await TrackerPreflight.EvaluateAsync(
-            Url, new TrackerConfig(false, "fixed"), sessionToken: null, Me(null));
+            Url, new TrackerConfig("fixed"), sessionToken: null, Me(null));
 
         Assert.True(v.Ok);
     }

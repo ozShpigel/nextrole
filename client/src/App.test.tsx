@@ -36,7 +36,7 @@ const EMPTY_PROFILE_CONTENT = `<professional_profile>
 
 function mockBackend({ resumeFile, hasProfile }: { resumeFile: boolean; hasProfile: boolean }) {
   vi.mocked(api).mockImplementation((path: string) => {
-    if (path === '/config') return Promise.resolve({ demoMode: false });
+    if (path === '/config') return Promise.resolve({});
     return Promise.reject(new Error(`unexpected api path: ${path}`));
   });
   vi.mocked(matchApi).mockImplementation((path: string) => {
@@ -102,7 +102,7 @@ describe('App onboarding gate', () => {
   });
 
   it('fails open on a query error instead of redirecting a real user home', async () => {
-    vi.mocked(api).mockResolvedValue({ demoMode: false });
+    vi.mocked(api).mockResolvedValue({});
     vi.mocked(matchApi).mockRejectedValue(new Error('502 Bad Gateway'));
     renderAppAt('/search');
 

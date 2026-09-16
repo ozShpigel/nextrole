@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { useApplicationDetail, useDemoMode, DEMO_DISABLED_TITLE } from '../lib/queries';
+import { useApplicationDetail } from '../lib/queries';
 import { useGeneratePack, useTranslateMatchAnalysis, useTranslateCompanySummary, useTranslateWhyWorkHere } from '../lib/mutations';
 import { StatusBadge } from '../components/Status';
 import CollapsibleSection from '../components/CollapsibleSection';
@@ -325,13 +325,6 @@ function AnalysisSection(
   // Hebrew only actually applies once a translation exists — 'he' selected
   // with no cached translation yet (mid-request) still shows/labels English.
   const activeLang: 'en' | 'he' = lang === 'he' && hasHebrew ? 'he' : 'en';
-  // All three translate endpoints persist onto the Application, so all three
-  // 403 in demo (Program.cs's allowlist says so explicitly). Blocking the
-  // toggle that starts them beats letting the request fail and explaining it
-  // in an alert -- every sibling page disables rather than errors. A
-  // translation that already exists is a plain read, so it stays available.
-  const demoMode = useDemoMode();
-  const translateBlocked = demoMode && !hasHebrew;
 
   return (
     <AnalysisCard
@@ -348,8 +341,7 @@ function AnalysisSection(
           </button>
           <button
             type="button" role="tab" aria-selected={lang === 'he'}
-            disabled={translating || translateBlocked}
-            title={translateBlocked ? DEMO_DISABLED_TITLE : undefined}
+            disabled={translating}
             onClick={() => setLang('he')}
             className={lang === 'he' ? LANG_TAB_ACTIVE : LANG_TAB_INACTIVE}
           >

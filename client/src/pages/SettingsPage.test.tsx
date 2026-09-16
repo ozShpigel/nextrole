@@ -65,7 +65,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   // /config goes through api(), not matchApi() — default to non-demo unless
   // a test overrides it.
-  vi.mocked(api).mockResolvedValue({ demoMode: false });
+  vi.mocked(api).mockResolvedValue({});
 });
 
 describe('SettingsPage', () => {
@@ -252,23 +252,6 @@ describe('SettingsPage', () => {
     expect(screen.queryByText('No résumé uploaded yet — use the button above.')).not.toBeInTheDocument();
     // A single-page PDF has nothing to page through — no pager shown.
     expect(screen.queryByText(/page 1 of/i)).not.toBeInTheDocument();
-  });
-
-  it('disables the résumé upload button with the demo title under DemoMode', async () => {
-    const user = userEvent.setup();
-    vi.mocked(api).mockResolvedValue({ demoMode: true });
-    mockRoutes({
-      'GET /profile': mockProfileResponse,
-      'GET /profile/resume-file': NO_RESUME_FILE_ERROR,
-    });
-
-    renderWithRouter(<SettingsPage />);
-    await waitFor(() => expect(screen.getByRole('heading', { name: 'About You' })).toBeInTheDocument());
-    await gotoResumeTab(user);
-
-    const uploadButton = await screen.findByRole('button', { name: /upload résumé/i });
-    expect(uploadButton).toBeDisabled();
-    expect(uploadButton).toHaveAttribute('title', 'Disabled in the read-only demo');
   });
 
   it('shows a custom pager for a multi-page PDF and steps through pages', async () => {

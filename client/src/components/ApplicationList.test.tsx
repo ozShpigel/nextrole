@@ -137,7 +137,7 @@ describe('ApplicationList — résumé pack action (To Apply only)', () => {
   it('shows Generate Pack for a row without a pack, and flips to Review Pack once generated', async () => {
     const user = userEvent.setup();
     mockRoutes({
-      'GET /config': { demoMode: false },
+      'GET /config': {},
       'GET /applications': [toApplyApp],
       'POST /applications/t1/pack': {
         tailoredSummary: 'Tailored summary', experience: [], highlightedSkills: [],
@@ -155,10 +155,10 @@ describe('ApplicationList — résumé pack action (To Apply only)', () => {
     );
   });
 
-  it('allows Generate Pack under DemoMode — the one persisting write the demo permits', async () => {
+  it('generates a résumé pack and swaps the button to Review', async () => {
     const user = userEvent.setup();
     mockRoutes({
-      'GET /config': { demoMode: true },
+      'GET /config': {},
       'GET /applications': [toApplyApp],
       'POST /applications/t1/pack': {
         tailoredSummary: 'Tailored summary', experience: [], highlightedSkills: [],
@@ -180,7 +180,7 @@ describe('ApplicationList — résumé pack action (To Apply only)', () => {
   it('navigates to the dedicated Résumé Pack page when Review Pack is clicked', async () => {
     const user = userEvent.setup();
     mockRoutes({
-      'GET /config': { demoMode: false },
+      'GET /config': {},
       'GET /applications': [{ ...toApplyApp, hasPack: true }],
     });
     renderWithRouter(<ApplicationList />);

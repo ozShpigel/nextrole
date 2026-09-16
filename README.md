@@ -153,16 +153,17 @@ outlived. `Fixed` mode itself stays supported — it is what the offline CLIs (t
 eval harnesses) use, and what a genuinely single-user self-hosted instance would
 run. It simply has no hosted instance any more; run it locally.
 
-### `DemoMode` is retired and is being removed
+### `DemoMode` is gone
 
 `DemoMode=true` served a seeded, read-only public instance over fictional data.
-That instance no longer exists and will not return.
+That instance no longer exists and will not return, so the flag and both
+allowlist middlewares were deleted rather than left as a path nobody exercises.
 
-**The apparatus is still in the repo** — the flag, the allowlist middleware in
-`Program.cs` / `main.py`, the Seeder project and `docs/demo-mode.md` — because
-removing it is teardown work that has not happened yet. **Do not read `DemoMode=true` as a supported path.** It is not
-being maintained, nothing runs it, and it is scheduled for deletion. If you want
-a public instance nobody can change, this is not the mechanism to reach for.
+`server/api/src/Seeder` and `app/services/demo_seed.py` stay: their remaining
+consumer is `docs/demos`, which records the per-feature clips against
+fictional data. Setting `DemoMode=true` now does nothing at all. If you want a
+public instance nobody can change, this is not the mechanism to reach for --
+there isn't one.
 
 One naming wrinkle worth knowing if you read the compose file: the services that
 serve nextrole.cloud are still called `demo-api`, `demo-scraper` and

@@ -27,7 +27,7 @@ public interface ITrackerApiClient
 
 /// <param name="IdentityMode">"Fixed" or "Cookie". Null on an API too old to report it —
 /// treated as Cookie, because assuming Fixed is the assumption that fails silently.</param>
-public sealed record TrackerConfig(bool DemoMode, string? IdentityMode);
+public sealed record TrackerConfig(string? IdentityMode);
 
 /// <param name="SignedIn">True when the resolved user is linked to a Google account.</param>
 public sealed record TrackerIdentity(bool SignedIn, string? Email, bool Available);

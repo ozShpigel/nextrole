@@ -45,9 +45,6 @@ The product's organizing idea is a line between what is true of a *posting* and 
 - **Identity & deployment modes** — `server/api/src/Api/Identity`
   `Identity:Mode` is `Fixed` (one configured user) or `Cookie` (multi-user, id from the `uid` cookie the API issues on a visitor's first request). Everything downstream takes a plain `Guid`. The private and public instances are one image and one codebase differing only by environment file. ([`docs/multi-user.md`](docs/multi-user.md))
 
-- **Demo mode** — `server/api/src/Seeder` + allowlist middleware
-  `DemoMode=true` serves seeded fictional data with live AI reads and every write 403'd through an explicit allowlist, so a public instance can be explored but not changed. ([`docs/demo-mode.md`](docs/demo-mode.md) · [`docs/hosting-a-public-demo.md`](docs/hosting-a-public-demo.md))
-
 ## Tech stack & versions
 
 - **Runtimes:** .NET 10, Python 3.12, Node/Bun (client tooling; **Bun**, not npm/yarn)
@@ -157,7 +154,7 @@ Shapes live in [`server/api/src/Core/Models`](server/api/src/Core/Models) and [`
 ## Security & compliance
 
 - **AuthN:** none, deliberately. A visitor is a `uid` cookie (HttpOnly, Secure, SameSite=Lax, one year) issued only by the API. No login, no recovery, no account. This is why user scoping is structural (`UserScopedCollection`, `ArchitectureTests`) rather than diligent — there is no auth layer standing behind it.
-- **AuthZ:** every user-scoped query ANDs on an explicit `userId`; `_id = userId` for one-per-user documents. The shared pool is the only unscoped data. An optional shared-secret gate (`ApiKey` → `X-Api-Key` header) covers a privately hosted instance; `/health` and `/api/config` stay open. `DemoMode=true` 403s every mutating request not on the allowlist in `Program.cs` / `main.py` — **a new mutating endpoint must be allowlisted there to work in demo.**
+- **AuthZ:** every user-scoped query ANDs on an explicit `userId`; `_id = userId` for one-per-user documents. The shared pool is the only unscoped data. An optional shared-secret gate (`ApiKey` → `X-Api-Key` header) covers a privately hosted instance; `/health` and `/api/config` stay open.
 - **Prompt injection:** trusted instructions go in the system prompt; untrusted external data (job descriptions, scraped titles, raw email bodies) is XML-wrapped in the user message. Job descriptions are capped at 50K chars.
 - **Model-output trust:** a claim about the candidate is checked against the profile server-side (`ClaimGrounding` for scores, `ResumePackValidator` for packs). A consequence's input is never text the model authored.
 - **Rate limits** ([`Program.cs`](server/api/src/Api/Program.cs)): `match` 10/min, `discovery` 20/min, `mock` 40/min, `insights` / `pack` / `translate` 10/min each. Résumé packs are additionally capped at 3 per user per day. **Scoring is not quota-capped** — a spend limit on the Anthropic key is the control that actually bounds the bill on a public instance.
@@ -205,7 +202,7 @@ There is no `docs/ADR/` directory; the decisions below are recorded in prose in 
 
 - Read [`AGENTS.md`](AGENTS.md) first — it holds the hard conventions, several of which are non-obvious (Bun not npm, design tokens not palette colors, never hand-edit the profile `content` string, never fire a mutation from a mount effect without a ref guard).
 - Prefer the component's `IMPLEMENTATION.md` and the matching `docs/*.md` over opening `ClaudeClient.cs` (1.4K lines) or `PromptSeeds.cs` (1.4K lines) whole.
-- For an endpoint change: the route in `server/api/src/Api/Endpoints/**` → the service in `Core/**` → the repository in `Infrastructure/Repositories/**` → the matching test. Add the route to the `DemoMode` allowlist in `Program.cs` if it mutates, and to `client/nginx.conf` if the browser calls it.
+- For an endpoint change: the route in `server/api/src/Api/Endpoints/**` → the service in `Core/**` → the repository in `Infrastructure/Repositories/**` → the matching test. Add the route to `client/nginx.conf` if the browser calls it.
 - For anything touching user data, read [`docs/multi-user.md`](docs/multi-user.md) before writing the query — a missed `userId` is meant to be a compile error, and new code should keep it that way.
 - Avoid `client/dist/**`, `**/bin/**`, `**/obj/**`, `**/node_modules/**`, `**/.venv/**`, `e2e/playwright-report/**`, `e2e/test-results/**`, and `docs/demos/output/*.gif`.
 - Always include the nearest tests when editing: `client/src/**/*.test.tsx`, `server/api/tests/ArchitectureTests/**`, `server/scraper/tests/**`, `e2e/tests/**`.

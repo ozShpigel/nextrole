@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { createPortal } from 'react-dom';
 import { X, SlidersHorizontal, Plus, Check, Search } from 'lucide-react';
-import { useScoredJobs, useDemoMode, usePoolScan } from '../lib/queries';
+import { useScoredJobs, usePoolScan } from '../lib/queries';
 import { useSaveJob, useDismissJob, useMarkViewed } from '../lib/mutations';
 import type { DiscoveredJobSummary } from '../lib/types';
 import { VERDICT_LABELS } from '../lib/scoring';
@@ -483,18 +483,13 @@ export default function SearchPage() {
   //
   // Once per mount, not on every filter change: a scan costs Claude calls,
   // and the filters above are a view over what has already been scored.
-  // Skipped on the read-only demo: scanning persists scores, so it would 403
-  // on every open and surface as a scoring error over a board that is in fact
-  // fully populated from seeded data.
-  //
-  // Also skipped when ProcessingPage sends us here straight after an upload:
+  // Skipped when ProcessingPage sends us here straight after an upload:
   // it started a scan of its own and waited for its first results, and that
   // scan is still running. A second one would exclude everything the first has
   // already scored and take the NEXT fifty candidates instead — an entire
   // extra scan's spend on a board the user has not looked at yet.
-  const demoMode = useDemoMode();
   const scanAlreadyRunning = !!(useLocation().state as { scanning?: boolean } | null)?.scanning;
-  const poolScan = usePoolScan(!demoMode && !scanAlreadyRunning);
+  const poolScan = usePoolScan(!scanAlreadyRunning);
   const scan = poolScan.data;
   const scanning = poolScan.isFetching;
 

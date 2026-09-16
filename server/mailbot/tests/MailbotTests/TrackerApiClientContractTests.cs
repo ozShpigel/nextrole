@@ -44,21 +44,20 @@ public class TrackerApiClientContractTests
     [Fact]
     public async Task Config_DeserializesIdentityMode()
     {
-        // Exactly what Program.cs's /api/config returns: camelCase, both fields.
-        var (client, _) = Build("""{"demoMode":false,"identityMode":"Cookie"}""");
+        // Exactly what Program.cs's /api/config returns.
+        var (client, _) = Build("""{"identityMode":"Cookie"}""");
 
         var config = await client.GetConfigAsync();
 
         Assert.NotNull(config);
-        Assert.False(config!.DemoMode);
-        Assert.Equal("Cookie", config.IdentityMode);
+        Assert.Equal("Cookie", config!.IdentityMode);
         Assert.True(TrackerPreflight.RequiresSessionToken(config));
     }
 
     [Fact]
     public async Task Config_FromFixedInstance_NeedsNoToken()
     {
-        var (client, _) = Build("""{"demoMode":false,"identityMode":"Fixed"}""");
+        var (client, _) = Build("""{"identityMode":"Fixed"}""");
 
         Assert.False(TrackerPreflight.RequiresSessionToken(await client.GetConfigAsync()));
     }
@@ -69,7 +68,7 @@ public class TrackerApiClientContractTests
         // An API deployed before identityMode existed. The field is absent, not
         // null-valued — the deserializer must not choke, and the guard must
         // stay strict rather than defaulting to Fixed.
-        var (client, _) = Build("""{"demoMode":false}""");
+        var (client, _) = Build("{}");
 
         var config = await client.GetConfigAsync();
 

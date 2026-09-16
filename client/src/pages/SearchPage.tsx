@@ -4,7 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { createPortal } from 'react-dom';
 import { X, SlidersHorizontal, Plus, Check, Search } from 'lucide-react';
 import { useScoredJobs, useDemoMode, usePoolScan } from '../lib/queries';
-import { useSaveJob, useDismissJob } from '../lib/mutations';
+import { useSaveJob, useDismissJob, useMarkViewed } from '../lib/mutations';
 import type { DiscoveredJobSummary } from '../lib/types';
 import { VERDICT_LABELS } from '../lib/scoring';
 import { cityOnly, formatPostedAgo, isNew, hasRealJobUrl } from '../lib/format';
@@ -520,6 +520,7 @@ export default function SearchPage() {
 
   const saveJob = useSaveJob();
   const dismissJob = useDismissJob();
+  const markViewed = useMarkViewed();
 
   function toggleLevel(level: string): void {
     setLevels((prev) => {
@@ -546,6 +547,22 @@ export default function SearchPage() {
     } catch (e) {
       alert('Save failed: ' + (e as Error).message);
     }
+  }
+
+  // Opening a job's detail panel is what we count as a "view" — not the job
+  // appearing in a response, and not scrolling past it. "Was it in the
+  // results" is a number we already have; the one worth a field is whether a
+  // score anyone paid for was ever looked at.
+  //
+  // Fire-and-forget, and deliberately unguarded. The server keeps only the
+  // FIRST timestamp ($ifNull, not $set), so re-selecting the same job cannot
+  // rewrite it and a duplicate call is a no-op — which also makes this safe
+  // under StrictMode without the ref guard a mutation would normally need
+  // here. A failure is swallowed: losing a view record must never interrupt
+  // someone reading a job.
+  function handleSelect(jobId: string | null): void {
+    setSelectedId(jobId);
+    if (jobId) void markViewed.mutateAsync(jobId).catch(() => {});
   }
 
   async function handleDismiss(jobId: string): Promise<void> {
@@ -792,7 +809,7 @@ export default function SearchPage() {
                     selected={selectedId === job.id}
                     saved={savedIds.has(job.id) || !!job.saved_to_tracker}
                     dismissed={dismissedIds.has(job.id)}
-                    onSelect={setSelectedId}
+                    onSelect={handleSelect}
                     onSave={handleSave}
                   />
                 ))}
@@ -823,7 +840,7 @@ export default function SearchPage() {
                   index={idx}
                   saved={savedIds.has(job.id) || !!job.saved_to_tracker}
                   dismissed={dismissedIds.has(job.id)}
-                  onSelect={setSelectedId}
+                  onSelect={handleSelect}
                   onSave={handleSave}
                   onDismiss={handleDismiss}
                 />

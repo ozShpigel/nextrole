@@ -1,7 +1,8 @@
+# nextrole.cloud is the only site. private.nextrole.cloud was a second
+# deployment of the same image in Fixed identity mode behind Basic Auth, and it
+# existed because there was no sign-in yet; sessions and Google sign-in replaced
+# the reason for it. Fixed mode itself is NOT retired -- the golden-set eval
+# CLIs depend on it -- it just no longer needs a public hostname.
 nextrole.cloud, www.nextrole.cloud {
-    reverse_proxy demo-client:80
-}
-
-private.nextrole.cloud {
-    reverse_proxy client:80
+    reverse_proxy web:80
 }

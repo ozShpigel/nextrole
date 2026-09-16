@@ -11,6 +11,16 @@ WINDOW_HOURS=1
 END=$(date +%s)000000000
 START=$(( $(date +%s) - WINDOW_HOURS*3600 ))000000000
 
+# `service="api"` reads the same as it always did but now means something
+# different: `api` was the private instance until the teardown and is
+# nextrole.cloud afterwards. This query is correct here for the first time --
+# see issue #64 for how long it was pointed at the wrong stack.
+#
+# SEPARATELY, `source=ingest` is stale and this digest is probably reporting
+# near-zero: ingest stopped scoring when scoring moved to the per-user scan
+# (docs/job-pool.md), so the only thing still tagging X-Source: ingest is
+# Import Job. Left alone deliberately -- changing what a metric measures is
+# not a rename -- but it wants deciding.
 RAW=$(curl -sG "$LOKI/loki/api/v1/query_range" \
   --data-urlencode 'query={service="api"} |= "Job scored" |= "source=ingest"' \
   --data-urlencode "start=$START" \

@@ -13,7 +13,7 @@ interfaces:
   events_out: []
   events_in: []
   cli: ["python -m app.cli run <criteria_id>", "python -m app.cli run-pool", "python -m app.cli run-all", "python -m app.cli seed-demo-jobs", "python -m app.cli eval-verdict", "python -m app.cli eval-subscore"]
-  jobs: ["nextrole-ingest.timer — 05:00 UTC daily", "nextrole-demo-pool-ingest.timer"]
+  jobs: ["nextrole-pool-ingest.timer — 05:30 UTC daily"]
 data_owned: ["discovered_jobs", "discovery_runs", "search_criteria", "poolJobState"]
 deps_internal: ["server/api (all AI, dedupe checks, tracker saves)"]
 deps_external: ["LinkedIn via python-jobspy", "MongoDB Atlas", "DuckDuckGo search (enrichment)", "Glassdoor (enrichment)"]

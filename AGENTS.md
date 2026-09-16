@@ -102,23 +102,27 @@ carries the visual weight; typography stays quiet.
 
 ## Deploying
 
-- **`nextrole.cloud` is production.** It serves the real `job-tracker`/`jobmatch`
-  pair behind Google sign-in. The compose services are still called `demo-api`,
-  `demo-scraper`, `demo-client` — **the names are wrong, not the wiring.** They
-  were not renamed because rewiring Caddy's routing on the same change as a
-  deploy is two risks at once; renaming happens at teardown.
-  `private.nextrole.cloud` still runs the same databases in `Fixed` mode and is
-  deliberately kept as the fallback until then.
+- **`nextrole.cloud` is production, and the only deployment.** It serves the
+  real `job-tracker`/`jobmatch` pair behind optional Google sign-in. The compose
+  services are `api`, `scraper`, `web` — they were called `demo-api`,
+  `demo-scraper`, `demo-client` until the teardown, because they began life
+  serving a seeded read-only demo and were repurposed. If you find `demo-`
+  anywhere, it is a leftover rather than a second deployment.
+  `private.nextrole.cloud` is gone. **`Identity:Mode=Fixed` is not** — the
+  golden-set eval CLIs call `identity.instance_identity`, which raises on a
+  Cookie instance, so they run against a local `dotnet run` in Fixed mode.
 - **Merging to `main` IS the deploy.** Every workflow in `.github/workflows/`
   ends by SSHing to the VPS and running `docker compose pull … && up -d
-  --force-recreate` — and each one recreates **both** stacks (`api demo-api`,
-  `scraper demo-scraper`). There is no separate deploy step to forget, and no
+  --force-recreate`. There is no separate deploy step to forget, and no
   way to merge without shipping. Images are `:latest` built from `main` only, so
   **a branch's images do not exist**: deploying before merging deploys `main`.
 - **Config changes are the only manual step**, and they are where the danger is.
-  Edit `.env.demo-api` *and* `.env.demo-scraper` before recreating either — the
-  scraper resolves sessions out of the API's database, so a window where they
-  disagree means every scraper request 401s.
+  Edit `.env.api` *and* `.env.scraper` before recreating either — the scraper
+  resolves sessions out of the API's database, so a window where they disagree
+  means every scraper request 401s. `.env.web` is the one people forget: its
+  `API_URL`/`SCRAPER_URL` are Docker DNS **service names**, resolved at runtime
+  by `client/nginx.conf`, and it is manual config on the box that no `git pull`
+  will fix.
 - **Atlas credentials are scoped per database pair** (`docs/hosting-a-public-demo.md`
   prescribes `readWrite` on exactly two databases, and tells you to verify the
   isolation). **Repointing a database without repointing the credential fails at
@@ -129,7 +133,7 @@ carries the visual weight; typography stays quiet.
 - **The API refuses to start** on a half-configured claim (`Google:ClaimUserId`
   needs `ClaimEmail` and `ClaimExpiresAt`) or an expired one. That is the
   mechanism working, but `restart: unless-stopped` disguises it as a restart
-  loop — check `docker compose logs demo-api` for `InvalidOperationException`
+  loop — check `docker compose logs api` for `InvalidOperationException`
   before assuming the deploy hung.
 
 ### Verifying a deploy

@@ -47,9 +47,9 @@ by accident.
 
 - **Vector DB / semantic retrieval** — measured: one run over the five baseline roles yields ~167 unique jobs, and the pool reaches roughly 600–2,500 in steady state. A deterministic filter over extracted fields is the right tool at that size; retrieval infrastructure starts earning its keep two orders of magnitude further up. Revisit only if the measured count approaches tens of thousands. (RAG was previously built and removed — it added retrieval-resolution and batch-composition failure modes the product did not need.) Detail: `docs/job-pool.md`.
 - **Real-time scraping of a newly added role** — a CV revealing an uncovered role adds it to the list, but the pool fills on the next daily run rather than immediately. Accepted latency; scraping on demand would put an unbounded, user-triggered cost on a signup.
-- **Gmail OAuth per user** — the mailbot reads one mailbox and runs as the private instance's single user. Multi-user mail would need per-user OAuth, token storage and refresh, which is a larger surface than the feature is worth today.
+- **Gmail OAuth per user** — the mailbot reads one mailbox and writes as a single configured user. Multi-user mail would need per-user OAuth, token storage and refresh, which is a larger surface than the feature is worth today.
 - **Real authentication** — no login, password, or account recovery. Identity is the `uid` cookie: clear it and the data is unreachable. A deliberate trade for a personal-scale tool, and the reason per-user data scoping is enforced structurally rather than by an auth layer.
-- **A demo-persona path for unidentified visitors** — considered and withdrawn. An unidentified visitor is not shown someone else's seeded profile; they upload their own CV. The seeded demo instance remains a separate deployment.
+- **A demo-persona path for unidentified visitors** — considered and withdrawn. An unidentified visitor is not shown someone else's seeded profile; they upload their own CV. (The seeded demo instance this once referred to has been retired.)
 
 ## Out of Scope
 - **Auto-Apply** — automated applications on external platforms (too unreliable across sites)

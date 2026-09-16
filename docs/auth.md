@@ -4,13 +4,13 @@
 
 | Phase | State |
 |---|---|
-| 1 — Google sign-in | **Built**, not deployed. Verified end to end against a restored copy of real data. |
-| 1.5 — server-side sessions | **Built**, not deployed. This is what makes public exposure safe. |
-| 1.6 — anonymous merge on sign-in | **Built**, not deployed. |
+| 1 — Google sign-in | **Deployed** on `nextrole.cloud`. Verified end to end against a restored copy of real data first. |
+| 1.5 — server-side sessions | **Deployed.** This is what makes public exposure safe. |
+| 1.6 — anonymous merge on sign-in | **Deployed.** |
 | 2 — email sign-in, passkeys | Design only. |
 
-Nothing here runs in production: `nextrole.cloud` and `private.nextrole.cloud`
-are both unchanged.
+Phases 1 through 1.6 are live on `nextrole.cloud`. `private.nextrole.cloud` was
+retired on 2026-09-16 — sign-in is what removed the need for it.
 
 ## Where this started
 
@@ -63,9 +63,10 @@ The alternative — letting an auth library's own user id become the primary key
 means migrating three services and an architecture test, and marrying the
 library permanently. Not worth it for a login button.
 
-`Fixed` mode (`private.nextrole.cloud`) has no cookie and one configured user,
-so authentication no-ops there exactly as `UseUserIdentityCookie` already does.
-The two deployments keep differing by configuration only.
+`Fixed` mode has no cookie and one configured user, so authentication no-ops
+there exactly as `UseUserIdentityCookie` already does. The two modes keep
+differing by configuration only. It had a hosted instance
+(`private.nextrole.cloud`) until 2026-09-16 and is still what the eval CLIs run.
 
 ## Phase 1 — Google sign-in as recovery
 
@@ -116,8 +117,9 @@ asserted in `GoogleSignInResolverTests`.
 The pre-auth data on an instance belongs to a userId nobody can prove they own,
 because there was never a login. The claim hands it over once: a Google sign-in
 adopts that userId instead of the empty one the visitor's cookie just minted. It
-is how `private.nextrole.cloud`'s history moves to `nextrole.cloud` under a real
-account.
+is how `private.nextrole.cloud`'s history moved to `nextrole.cloud` under a real
+account — that migration has run (`googleIdentity` records `ViaClaim: true`), and
+the three claim values have since been removed from the environment.
 
 It takes **three configuration values, all of them or none**. Any partial
 combination refuses to start.

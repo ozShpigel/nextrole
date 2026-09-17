@@ -1,9 +1,8 @@
 import asyncio
 import json
 import logging
-import re
 from contextlib import asynccontextmanager
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 import certifi
 from fastapi import Depends, FastAPI, HTTPException, Request
@@ -14,7 +13,7 @@ from pydantic import BaseModel
 from app.config import Settings
 from app import identity, roles
 from app.indexes import ensure_pool_indexes, ensure_ttl_index, ensure_user_scope
-from app.services import match_client, pool_state, scraper, tracker_client
+from app.services import match_client, scraper, tracker_client
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -107,21 +106,17 @@ app.add_middleware(
 )
 
 
-# Resolved once per request, the same way the API resolves it. Endpoints take
-# the id as a parameter so a criteria query cannot be written without one.
+# Resolved once per request, the same way the API resolves it.
 #
-# Two dependencies, one resolution. A handler that only queries Mongo wants the
-# id; a handler that calls the API needs the credential too, because the API
-# will not accept an id (see identity.RequestIdentity). Depend on
-# `current_identity` whenever the handler makes an outbound user-scoped call.
+# One dependency now: the only user-scoped endpoint left is import_jobs, and it
+# calls the API, so it needs the CREDENTIAL rather than the resolved id -- the
+# API will not accept an id (see identity.RequestIdentity). The id-only
+# dependency went with the endpoints that queried Mongo directly, which moved
+# to the API in Phase 1/1b of docs/scraper-slimming.md.
 async def current_identity(request: Request) -> identity.RequestIdentity:
     # Async because resolution is now a session lookup (docs/auth.md). FastAPI
     # awaits async dependencies transparently, so no handler signature changes.
     return await identity.resolve(settings, request, db)
-
-
-async def current_user_id(request: Request) -> str:
-    return (await identity.resolve(settings, request, db)).user_id
 
 
 # ---------------------------------------------------------------------------
@@ -163,126 +158,6 @@ async def get_run(run_id: str):
     doc.pop("_id", None)
     _tag_utc(doc)
     return doc
-
-
-@app.get("/api/discovery/jobs")
-async def list_scored_jobs(
-    min_score: int | None = None,
-    verdict: str | None = None,  # comma-separated, e.g. "STRONG_YES,YES"
-    days_back: int = 14,
-    criteria_id: str | None = None,
-    location: str | None = None,  # free-text substring, case-insensitive
-    q: str | None = None,  # free-text search across title/company/description
-    is_remote: bool | None = None,
-    actual_job_level: str | None = None,  # comma-separated
-    include_dismissed: bool = False,
-    include_saved: bool = True,
-    limit: int = 50,
-    offset: int = 0,
-    user_id: str = Depends(current_user_id),
-):
-    """Cross-run browse: the Matches page's primary data source.
-
-    Scores are PER USER now (docs/scoring-and-search.md). The pool document
-    says what a posting is; this user's `jobScores` row says what it is worth
-    to them, and a pool job with no row for this user has simply never been
-    scored for them yet — the match tab's scan is what creates those rows.
-
-    So the score/verdict filters and the sort run against the user's own rows,
-    not against a shared `score` field that no longer exists on pool documents.
-    The join is done here rather than with $lookup because the sort key lives
-    in the joined collection: a user has at most a few hundred scored jobs, so
-    loading their rows and merging in memory is both simpler and cheaper than
-    an aggregation pipeline that would have to sort after the lookup anyway.
-
-    Defaults exclude triaged-out and dismissed jobs (acted-on) — saved jobs
-    stay visible by default since "already in my Tracker" isn't the same
-    signal as "not interested."
-    """
-    limit = max(1, min(limit, 200))
-    offset = max(0, offset)
-
-    # This user's scores first: they decide which pool jobs are even eligible.
-    score_query: dict = {"UserId": user_id, "Score": {"$ne": None}}
-    if min_score is not None:
-        score_query["Score"]["$gte"] = min_score
-    if verdict:
-        score_query["Verdict"] = {"$in": [v.strip() for v in verdict.split(",") if v.strip()]}
-    score_rows = await db.jobScores.find(
-        score_query, {"JobId": 1, "Score": 1, "Verdict": 1, "ShouldApply": 1, "MatchAnalysis": 1}
-    ).to_list(None)
-    if not score_rows:
-        return {"jobs": [], "total": 0, "limit": limit, "offset": offset}
-    by_job = {r["JobId"]: r for r in score_rows}
-
-    query: dict = {
-        "id": {"$in": list(by_job)},
-        "triaged_out": {"$ne": True},
-    }
-    # Recency still applies, and still means what the control says it means.
-    # Pool jobs date from first_seen_at; rows written before the pool existed
-    # only have discovered_at, so either satisfies it.
-    cutoff = datetime.now(timezone.utc) - timedelta(days=max(1, days_back))
-    query["$and"] = [{"$or": [
-        {"first_seen_at": {"$gte": cutoff}},
-        {"first_seen_at": {"$exists": False}, "discovered_at": {"$gte": cutoff}},
-    ]}]
-    if criteria_id:
-        query["criteria_id"] = criteria_id
-    if location and location.strip():
-        query["location"] = {"$regex": re.escape(location.strip()), "$options": "i"}
-    if q and q.strip():
-        pattern = re.escape(q.strip())
-        query["$and"].append({"$or": [
-            {"title": {"$regex": pattern, "$options": "i"}},
-            {"company": {"$regex": pattern, "$options": "i"}},
-            {"description": {"$regex": pattern, "$options": "i"}},
-        ]})
-    if is_remote is not None:
-        query["is_remote"] = is_remote
-    if actual_job_level:
-        query["actual_job_level"] = {"$in": [lvl.strip() for lvl in actual_job_level.split(",") if lvl.strip()]}
-    # Dismissed/saved are per-user (app/services/pool_state.py), so they are
-    # applied to this user's own rows rather than to the shared pool document
-    # — which also keeps the $in list below smaller.
-    state = await pool_state.state_for(db, user_id, list(by_job))
-    if not include_dismissed:
-        for job_id, st in state.items():
-            if st["dismissed"]:
-                by_job.pop(job_id, None)
-    if not include_saved:
-        for job_id, st in state.items():
-            if st["saved"]:
-                by_job.pop(job_id, None)
-    if not by_job:
-        return {"jobs": [], "total": 0, "limit": limit, "offset": offset}
-    query["id"] = {"$in": list(by_job)}
-
-    docs = await db.discovered_jobs.find(query).to_list(None)
-    for d in docs:
-        d.pop("_id", None)
-        _tag_utc(d)
-        row = by_job.get(d["id"], {})
-        # The per-user verdict, presented under the field names the client has
-        # always read — nothing downstream needs to know the score moved.
-        d["score"] = row.get("Score")
-        d["verdict"] = row.get("Verdict")
-        d["should_apply"] = row.get("ShouldApply")
-        # Same field names the client has always read, filled from this
-        # user's row instead of the shared document.
-        st = state.get(d["id"], {})
-        d["dismissed"] = st.get("dismissed", False)
-        d["saved_to_tracker"] = st.get("saved", False)
-        analysis = row.get("MatchAnalysis")
-        if analysis:
-            try:
-                d["match_analysis"] = json.loads(analysis)
-            except (TypeError, ValueError):
-                d["match_analysis"] = None
-
-    docs.sort(key=lambda d: (d.get("score") or 0), reverse=True)
-    total = len(docs)
-    return {"jobs": docs[offset:offset + limit], "total": total, "limit": limit, "offset": offset}
 
 
 

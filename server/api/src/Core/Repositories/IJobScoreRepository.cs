@@ -13,6 +13,19 @@ public interface IJobScoreRepository
     // a few hundred candidate ids per visit.
     Task<HashSet<string>> GetScoredJobIdsAsync(Guid userId, IEnumerable<string> jobIds, CancellationToken ct = default);
     Task<List<JobScore>> GetByJobIdsAsync(Guid userId, IEnumerable<string> jobIds, CancellationToken ct = default);
+
+    /// <summary>
+    /// This user's rows that carry an actual score, optionally narrowed by a
+    /// floor and a verdict set. The Matches list starts here, because a pool
+    /// job with no row has never been scored for them and must not appear.
+    /// </summary>
+    /// <remarks>
+    /// Rows where scoring failed carry an Error and a null Score. They exist so
+    /// the job is not re-scored on every visit, and they are excluded here —
+    /// a job nobody could score is not a match.
+    /// </remarks>
+    Task<List<JobScore>> GetScoredAsync(
+        Guid userId, int? minScore, IReadOnlyList<string> verdicts, CancellationToken ct = default);
     // Upsert by (userId, jobId) so a re-scan can never double-insert.
     Task UpsertManyAsync(Guid userId, IReadOnlyList<JobScore> scores, CancellationToken ct = default);
 }

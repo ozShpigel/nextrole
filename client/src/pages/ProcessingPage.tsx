@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { MetaballVisual } from '../components/MetaballVisual';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Check } from 'lucide-react';
-import { discoveryApi, matchApi } from '../lib/api';
+import { matchApi, poolApi } from '../lib/api';
 import { useNormalizeProfileFile, useSaveProfile } from '../lib/mutations';
 import { useHasProfile } from '../lib/queries';
 import { hydrateProfile, mergeNormalizedProfile } from '../lib/profile';
@@ -54,7 +54,7 @@ const MATCH_POLL_MS = 4000;
 // until the caller's own timeout ends it.
 async function hasAnyMatch(): Promise<boolean> {
   try {
-    const res = await discoveryApi('/jobs?limit=1&days_back=60') as { total?: number };
+    const res = await poolApi('/jobs?limit=1&days_back=60') as { total?: number };
     return (res?.total ?? 0) > 0;
   } catch {
     return false;

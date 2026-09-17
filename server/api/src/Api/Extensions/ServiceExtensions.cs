@@ -91,6 +91,8 @@ public static class ServiceExtensions
 
         services.AddScoped<IPoolJobStateRepository>(sp =>
             new PoolJobStateRepository(sp.GetRequiredService<UserScopedCollection<PoolJobState>>()));
+
+        services.AddScoped<IPoolBrowseService, PoolBrowseService>();
         services.AddScoped<IUserQuotaRepository>(sp =>
             new UserQuotaRepository(sp.GetRequiredService<IMongoCollection<UserQuota>>()));
         services.AddScoped<IPoolRoleRepository>(sp =>

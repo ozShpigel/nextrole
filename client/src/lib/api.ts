@@ -90,8 +90,8 @@ export async function scraperApi(path: string, options: ApiOptions = {}) {
 // under /api/discovery, because nginx proxies that prefix to the scraper as one
 // block and splitting it by sub-path is how a route goes missing unnoticed.
 //
-// The jobs LIST and /jobs/import are still discoveryApi: the list is Phase 1b,
-// and import needs jobspy, so it stays in Python until the adapter exists.
+// /jobs/import is the last discoveryApi caller: it needs jobspy, so it stays in
+// Python until Phase 3 gives that a service of its own.
 export async function poolApi(path: string, options: ApiOptions = {}) {
   const { headers, ...fetchOptions } = options;
   const url = API_BASE ? `${API_BASE}/api/pool${path}` : `/api/pool${path}`;

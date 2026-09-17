@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { api, discoveryApi, matchApi } from './api';
+import { api, matchApi, poolApi } from './api';
 import type {
   ProfileResponse,
   InterviewPrepResponse,
@@ -28,7 +28,7 @@ export function useScoredJobs(query: ScoredJobsQuery) {
   const qs = params.toString();
   return useQuery<ScoredJobsResponse>({
     queryKey: ['discovery', 'jobs', query],
-    queryFn: () => discoveryApi(`/jobs${qs ? `?${qs}` : ''}`),
+    queryFn: () => poolApi(`/jobs${qs ? `?${qs}` : ''}`),
     staleTime: 30 * 1000,
   });
 }

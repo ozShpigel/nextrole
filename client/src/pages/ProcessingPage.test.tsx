@@ -4,19 +4,19 @@ import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import userEvent from '@testing-library/user-event';
 import { renderWithRouter } from '../test/render';
-import { discoveryApi, matchApi } from '../lib/api';
+import { matchApi, poolApi } from '../lib/api';
 import ProcessingPage from './ProcessingPage';
 
 vi.mock('../lib/api', async () => {
   const actual = await vi.importActual<typeof import('../lib/api')>('../lib/api');
-  return { ...actual, matchApi: vi.fn(), discoveryApi: vi.fn() };
+  return { ...actual, matchApi: vi.fn(), poolApi: vi.fn() };
 });
 
 // The third milestone polls this until the scan it started has written
 // something. `total: 0` keeps the page waiting, which is what most of these
 // tests want to observe.
 function mockMatchCount(total: number) {
-  vi.mocked(discoveryApi).mockResolvedValue({ jobs: [], total });
+  vi.mocked(poolApi).mockResolvedValue({ jobs: [], total });
 }
 
 function mockRoutes(routes: Record<string, unknown>) {

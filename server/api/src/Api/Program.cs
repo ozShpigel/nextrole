@@ -214,6 +214,22 @@ catch (Exception ex)
         + "Fix the cause and restart.");
 }
 
+// The shared pool's indexes. Deliberately OUTSIDE the best-effort try above:
+// the TTL index deletes rows, so a pool left unprotected by it is not a
+// degraded service but a wrong one, and PoolIndexInitializer throws rather than
+// logs for that case. It also refuses a TTL expiry that cannot be applied
+// (issue #68), which is why a value it cannot change stops the API instead of
+// expiring documents on a schedule nobody chose.
+//
+// Moved here from the scraper in Phase 3b of docs/scraper-slimming.md. It runs
+// in the API because the API is always up, while the ingest runs for ten
+// minutes a day -- and the indexes must exist before either writes.
+await PoolIndexInitializer.EnsureAsync(
+    app.Services.GetRequiredService<IMongoCollection<MongoDB.Bson.BsonDocument>>(),
+    app.Services.GetRequiredService<IMongoCollection<PoolJobState>>()
+        .Database.GetCollection<MongoDB.Bson.BsonDocument>("poolJobState"),
+    startupLogger);
+
 app.UseCors();
 app.UseRateLimiter();
 

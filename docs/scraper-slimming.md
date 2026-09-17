@@ -292,10 +292,29 @@ reappears here.
 
 ### Phase 3b — index management → .NET
 
-Still to do. `indexes.py` becomes a `PoolIndexInitializer`, which is the natural
-moment to implement issue #68's option 3: read the TTL index back and refuse to
-start on a mismatch, rather than logging an error nobody reads. `identity.py`
-goes with it — its last caller is `ensure_user_scope`'s legacy owner id.
+**Done.** `PoolIndexInitializer`, running at API startup rather than in
+`PoolIngest`: the API is always up, the ingest runs for ten minutes a day, and
+the indexes must exist before either writes.
+
+**Issue #68 is implemented, option 3.** A TTL expiry that differs from the
+constant and cannot be applied is now a startup refusal, not a logged error.
+Atlas `readWrite` does not include `collMod`, so a changed value silently never
+applied: the index kept the old expiry, an ERROR line was the only trace, and
+pool documents expired on a schedule nobody chose. Today desired and actual
+agree at 60 days, so nothing changes — and the no-op `collMod` that produced
+that error on every boot is gone too, because the initializer now compares
+before asking for the privilege.
+
+**The pool-flag migration is deliberately not ported.** Measured against
+production: 42 documents carry a legacy `saved_to_tracker`/`dismissed` flag and
+**all 42 already have their `poolJobState` row**. It was re-upserting the same
+rows and logging a warning about a migration with nothing left to do — and
+attributing them to the orphaned-legacy-data user, which on a Cookie deployment
+is an id nothing reads. The source fields stay on the documents, so it is still
+reversible.
+
+`identity.py` does **not** go yet: `match_client` and `tracker_client` still
+import `RequestIdentity`, and they live until 3d.
 
 ### Phase 3c — the eval CLIs → .NET
 

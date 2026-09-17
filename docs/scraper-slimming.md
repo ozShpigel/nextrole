@@ -237,6 +237,21 @@ scraper's, rather than being mounted. Baking a default means the box needs no
 hand-placed file — manual state on the box is what no `git pull` fixes, and
 `.env.web` is the standing lesson.
 
+**Two things bit on the first real deploy, both manual state on the box
+rather than code:**
+
+`/srv/nextrole/compose.yml` is not updated by any workflow — the deploy step
+only runs `docker compose pull` and `up -d`. So the repo's new `pool-ingest`
+definition did not reach the machine, and the first "Phase 2" run was the
+Python ingest, logging happily under its old service name. Copy the file to the
+box as part of any compose change; `docker compose --profile cron config
+pool-ingest` is the check that it landed.
+
+`Scraper__BaseUrl` pointed at **8000**, which is the port `AGENTS.md`'s local
+run instructions use. The container's Dockerfile runs uvicorn on **8080**. One
+service, two ports depending on how it is started, and the wrong one surfaces
+as "Connection refused" without naming what was expected.
+
 `nextrole.sln` was rebuilt while adding the project. It had been stale: its
 paths pointed at `API\src\...`, which does not exist, so only `Mailbot`
 resolved and `DbCopy`/`Seeder` were never in it. All nine projects now build

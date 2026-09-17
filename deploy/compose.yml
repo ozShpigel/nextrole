@@ -65,7 +65,11 @@ services:
       # Docker DNS, container to container. No nginx in this path, so the only
       # timeout that applies is the one PoolIngest sets on its HttpClient.
       - Api__BaseUrl=http://api:8080
-      - Scraper__BaseUrl=http://scraper:8000
+      # 8080, not 8000. The container's Dockerfile runs uvicorn on 8080; the
+      # 8000 in AGENTS.md's run instructions is the LOCAL dev port. Same
+      # service, two ports depending on how it was started, and the wrong one
+      # fails as "Connection refused" rather than as anything that names a port.
+      - Scraper__BaseUrl=http://scraper:8080
       # Roles__ConfigPath is left at its default, /app/config/roles.json, which
       # ships in the image. Point it at a mounted file to override the role
       # list without a rebuild.

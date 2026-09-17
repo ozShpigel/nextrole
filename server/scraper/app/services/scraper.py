@@ -7,7 +7,7 @@ from uuid import uuid4
 import pandas as pd
 from jobspy import scrape_jobs
 
-from app.models.search_criteria import SearchCriteria
+from app.models.scrape_spec import ScrapeSpec
 
 logger = logging.getLogger(__name__)
 
@@ -116,7 +116,7 @@ def _correct_is_remote(is_remote: bool | None, title: str, description: str) -> 
     return is_remote
 
 
-def scrape_for_criteria(criteria: SearchCriteria) -> tuple[list[dict], dict]:
+def scrape_for_criteria(criteria: ScrapeSpec) -> tuple[list[dict], dict]:
     """Scrape jobs from configured sites for every (job title × location) pair.
 
     Dedups across pairs via job_url so the same listing appearing in two

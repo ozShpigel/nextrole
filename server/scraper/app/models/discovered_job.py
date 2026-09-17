@@ -28,9 +28,9 @@ class DiscoveredJob(BaseModel):
     company_logo: str | None = None  # jobspy "company_logo" — not always present
     # Company profile fields jobspy captures on every scrape (industry, size,
     # revenue, description, url) — free, no extra HTTP call. jobspy's LinkedIn
-    # scraper never fills numEmployees though (only Indeed does), so relevant
-    # jobs get that one gap backfilled from company_size_client's DDG-based
-    # prefetch (see orchestrator._enrich_company_profile) before scoring.
+    # scraper never fills numEmployees though (only Indeed does), so pool jobs
+    # carry that gap. The DDG-based backfill that used to close it belonged to
+    # the criteria-driven ingest and went with it (docs/scraper-slimming.md).
     company_profile: dict | None = None
     # Per-job Evaluator score, populated by the batched-scoring ingest step.
     # None = not yet scored, scoring failed, or the job was triaged out.

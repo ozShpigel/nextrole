@@ -143,39 +143,23 @@ async def _backfill_ttl_managed(db: AsyncIOMotorDatabase) -> None:
         logger.error("TTL backfill failed — retention has stopped for un-stamped jobs: %s", e)
 
 
-USER_ID_INDEX_NAME = "idx_user_id"
-
-
 _POOL_STATE = "poolJobState"
 
 
 async def ensure_user_scope(db: AsyncIOMotorDatabase, legacy_owner_user_id: str) -> None:
-    """Give every search criteria an owner, and index the field every criteria
-    query now filters on.
-
-    Criteria written before multi-user have no `user_id` and would otherwise
-    belong to nobody. They are stamped with the legacy owner — this instance's
-    own single user when it has one, otherwise a well-known id nothing reads.
-    Nothing is deleted. Idempotent; a second run finds nothing to stamp.
+    """Move the per-user flags off the shared pool document.
 
     The pool documents themselves are deliberately not stamped: the job pool
     is shared across users by design. What *was* wrongly on them is the two
     per-user flags, migrated below.
-    """
-    try:
-        result = await db.search_criteria.update_many(
-            {"user_id": {"$exists": False}},
-            {"$set": {"user_id": legacy_owner_user_id}},
-        )
-        if result.modified_count:
-            logger.warning(
-                "User-scope migration: stamped %d unowned search criteria with user %s",
-                result.modified_count, legacy_owner_user_id,
-            )
-        await db.search_criteria.create_index("user_id", name=USER_ID_INDEX_NAME)
-    except Exception as e:
-        logger.warning("search_criteria user scope ensure failed (continuing): %s", e)
 
+    This used to also stamp and index `search_criteria.user_id`. That
+    collection went with the criteria-driven ingest (docs/scraper-slimming.md,
+    Phase 0) — the documents are left in place, unread, to be dropped in the
+    separate data cleanup. The `idx_user_id` index on it is likewise left
+    alone: nothing queries the collection any more, so dropping it buys
+    nothing and would be one more irreversible act inside a code change.
+    """
     await _migrate_pool_job_flags(db, legacy_owner_user_id)
 
 

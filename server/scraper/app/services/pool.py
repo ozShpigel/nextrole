@@ -25,7 +25,7 @@ from app import roles as roles_config
 from app.config import Settings
 from app.models.discovered_job import DiscoveredJob
 from app.models.discovery_run import DiscoveryRun
-from app.models.search_criteria import SearchCriteria
+from app.models.scrape_spec import ScrapeSpec
 from app.services import match_client, parse_quality, scraper
 
 logger = logging.getLogger(__name__)
@@ -112,8 +112,7 @@ async def _scrape(config: roles_config.RolesConfig, search_roles: list[str]) -> 
     existing path already gets — the pool differs in where the titles come
     from (a config file, not a user's saved search), not in how it scrapes.
     """
-    as_criteria = SearchCriteria(
-        name="Shared job pool",
+    as_criteria = ScrapeSpec(
         job_titles=search_roles,
         locations=config.locations,
         site_names=config.site_names,

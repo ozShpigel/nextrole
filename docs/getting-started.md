@@ -82,7 +82,7 @@ The Mongo connection string and the Anthropic key are read **only** from the env
 | `API_BASE_URL` | no | `http://localhost:5002` | Unified API URL (triage, seniority classification, batched scoring, dedup, save) |
 | `CORS_ORIGINS` | no | `*` | Comma-separated allowed browser origins |
 
-**Scheduled ingest.** Discovery can run daily without the UI: build the scraper image (`server/scraper/Dockerfile`) and run `python -m app.cli run-all` on a schedule (`0 5 * * *` is the reference cadence) — via your host's cron/systemd timer, a container-platform scheduled/cron job, or (for the maintainer's own deployment) a docker-compose cron-profile service on a plain VPS. Give it the scraper env vars above (`CORS_ORIGINS` not needed; point `API_BASE_URL` at your deployed API). `run-all` ingests every criteria with `is_active=true` sequentially, ensures the retention TTL index, and exits non-zero when no criteria are active so failed runs are visible in whatever job history your scheduler keeps.
+**Scheduled ingest.** Discovery can run daily without the UI: build the scraper image (`server/scraper/Dockerfile`) and run `python -m app.cli run-pool` on a schedule (`0 5 * * *` is the reference cadence) — via your host's cron/systemd timer, a container-platform scheduled/cron job, or (for the maintainer's own deployment) a docker-compose cron-profile service on a plain VPS. Give it the scraper env vars above (`CORS_ORIGINS` not needed; point `API_BASE_URL` at your deployed API). `run-pool` scrapes the configured role list (`config/roles.json`), folds the results into the shared pool, ensures the indexes, and exits non-zero on a failed run so it is visible in whatever job history your scheduler keeps.
 
 ### Mailbot (.NET console, optional) & Frontend
 

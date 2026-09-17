@@ -138,11 +138,11 @@ def _mixed_nan_frame():
 
 
 def _scrape_with(monkeypatch, df):
-    from app.models.search_criteria import SearchCriteria
+    from app.models.scrape_spec import ScrapeSpec
     from app.services import scraper as scraper_module
 
     monkeypatch.setattr(scraper_module, "scrape_jobs", lambda **kw: df)
-    criteria = SearchCriteria(name="t", job_titles=["Backend Engineer"], locations=["Tel Aviv"])
+    criteria = ScrapeSpec(job_titles=["Backend Engineer"], locations=["Tel Aviv"])
     jobs, _stats = scraper_module.scrape_for_criteria(criteria)
     return {j["title"]: j for j in jobs}
 

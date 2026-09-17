@@ -12,11 +12,11 @@ interfaces:
   grpc: ""
   events_out: []
   events_in: []
-  cli: ["python -m app.cli run <criteria_id>", "python -m app.cli run-pool", "python -m app.cli run-all", "python -m app.cli seed-demo-jobs", "python -m app.cli eval-verdict", "python -m app.cli eval-subscore"]
+  cli: ["python -m app.cli run-pool", "python -m app.cli eval-verdict", "python -m app.cli eval-subscore"]
   jobs: ["nextrole-pool-ingest.timer — 05:30 UTC daily"]
-data_owned: ["discovered_jobs", "discovery_runs", "search_criteria", "poolJobState"]
+data_owned: ["discovered_jobs", "discovery_runs", "poolJobState"]
 deps_internal: ["server/api (all AI, dedupe checks, tracker saves)"]
-deps_external: ["LinkedIn via python-jobspy", "MongoDB Atlas", "DuckDuckGo search (enrichment)", "Glassdoor (enrichment)"]
+deps_external: ["LinkedIn via python-jobspy", "MongoDB Atlas"]
 tests_hint: ["server/scraper/tests/**"]
 runbook: "deploy/README.md"
 ---
@@ -42,18 +42,17 @@ FastAPI generates the spec at `GET /openapi.json`. Handlers: [`app/main.py`](app
 - `POST /api/discovery/jobs/{job_id}/dismiss`, `POST /api/discovery/jobs/unsave` — per-user state only
 - `POST /api/discovery/jobs/import` — import arbitrary pasted URLs/descriptions
 
-**Legacy criteria-driven discovery** (pre-pool path, still present)
-- `GET|POST /api/discovery/criteria`, `PUT|DELETE /api/discovery/criteria/{id}`
-- `POST /api/discovery/run/{criteria_id}` — 202, runs in a background task
-- `GET /api/discovery/runs`, `GET /api/discovery/runs/{run_id}`, `GET /api/discovery/runs/{run_id}/jobs`, `POST /api/discovery/runs/{run_id}/abort`
+**Run history** (read-only; runs are written by the daily pool ingest)
+- `GET /api/discovery/runs`, `GET /api/discovery/runs/{run_id}`
+
+The criteria CRUD, the per-criteria trigger, the per-run job drill-down and the
+run abort went with the criteria-driven ingest — see `docs/scraper-slimming.md`.
 
 **CLI** — [`app/cli.py`](app/cli.py), the cron entrypoint
 - `run-pool` — **the daily shared-pool ingest**; ensures indexes, scrapes the effective role list, upserts, extracts facts for new rows, ages out absentees
-- `run <criteria_id>` / `run-all` — the legacy criteria path; `run-all` exits non-zero when no criteria are active, so a dead schedule is visible
-- `seed-demo-jobs` — fictional pool rows for a demo instance
 - `eval-verdict`, `eval-subscore` — golden-set matching-quality harnesses
 
-**Outbound calls into the API** — [`app/services/match_client.py`](app/services/match_client.py), [`tracker_client.py`](app/services/tracker_client.py): `POST /api/match/title-triage`, `/seniority-classify`, `/job-facts` (all user-independent, `user_id=None`), `/discovery-score-batch` (legacy), plus `GET /api/applications/exists` and `POST /api/applications` (user-scoped, id required).
+**Outbound calls into the API** — [`app/services/match_client.py`](app/services/match_client.py), [`tracker_client.py`](app/services/tracker_client.py): `POST /api/match/title-triage`, `/seniority-classify`, `/job-facts` (all user-independent, `user_id=None`), `/discovery-score-batch` (import only), plus `GET /api/applications/exists` and `POST /api/applications` (user-scoped, id required).
 
 **Events produced/consumed:** None.
 
@@ -76,7 +75,6 @@ FastAPI generates the spec at `GET /openapi.json`. Handlers: [`app/main.py`](app
 | FastAPI app, routes, demo guard, lifespan | [`app/main.py`](app/main.py) |
 | Cron entrypoint | [`app/cli.py`](app/cli.py) |
 | Shared-pool ingest (scrape → upsert → extract → age out) | [`app/services/pool.py`](app/services/pool.py) |
-| Legacy criteria run | [`app/services/orchestrator.py`](app/services/orchestrator.py) |
 | jobspy wrapper, cleaning, remote correction | [`app/services/scraper.py`](app/services/scraper.py) |
 | Calls into the API (AI) | [`app/services/match_client.py`](app/services/match_client.py) |
 | Calls into the API (tracker) + retry policy | [`app/services/tracker_client.py`](app/services/tracker_client.py) |
@@ -109,9 +107,8 @@ flowchart TD
 
 ## Data & state
 
-- **`discovered_jobs`** (shared) — one document per listing. `pool_key` unique; also indexed for the API's candidate filter. Carries scraped fields, triage outcome, seniority band, and extracted job facts. `ttl_managed: true` on criteria-driven rows only; those expire after 60 days under `ttl_discovered_at_60d_managed`.
+- **`discovered_jobs`** (shared) — one document per listing. `pool_key` unique; also indexed for the API's candidate filter. Carries scraped fields, triage outcome, seniority band, and extracted job facts. `ttl_managed: true` on criteria-driven rows only; those expire after 60 days under `ttl_discovered_at_60d_managed`. Nothing writes `ttl_managed: true` any more — pool rows set it false and age out by `missed_runs` instead.
 - **`discovery_runs`** (shared) — one row per run: counts scraped/new/refreshed/extracted/marked-inactive, status, error.
-- **`search_criteria`** (per user, indexed on `user_id`) — the legacy criteria path.
 - **`poolJobState`** (per user) — `_id = "<userId>:<jobId>"`, holds `dismissed` / `saved_to_tracker`.
 - **Caching / TTLs:** no application cache. The only TTL is the retention index above.
 - **Migrations:** `_backfill_ttl_managed` stamps rows written before the field existed. Index management is idempotent and runs from both the service lifespan and the CLI, so a cron-only deployment still gets it.
@@ -190,7 +187,7 @@ cd server/scraper && ./.venv/Scripts/python.exe -m pytest
 ```
 
 - [`tests/test_identity_forwarding.py`](tests/test_identity_forwarding.py) — the AST walk; the one that makes the multi-user boundary real across HTTP.
-- [`tests/test_scraper.py`](tests/test_scraper.py), [`test_orchestrator.py`](tests/test_orchestrator.py), [`test_criteria_schema.py`](tests/test_criteria_schema.py), [`test_glassdoor_client.py`](tests/test_glassdoor_client.py), [`test_verdict_eval.py`](tests/test_verdict_eval.py), [`test_demo_seed.py`](tests/test_demo_seed.py), [`test_packaging.py`](tests/test_packaging.py).
+- [`tests/test_scraper.py`](tests/test_scraper.py), [`test_glassdoor_client.py`](tests/test_glassdoor_client.py), [`test_verdict_eval.py`](tests/test_verdict_eval.py), [`test_packaging.py`](tests/test_packaging.py).
 - Fixtures in [`tests/fixtures`](tests/fixtures).
 - **Before seeding into any database, call `list_database_names()` and refuse if the target exists** — the seeder deletes and reinserts per user, and its blast radius is bounded only by which database it was pointed at.
 - Running e2e locally: a uvicorn `--reload` reloader can survive a task kill and hold :8000 in *Bound* (not *Listen*) state, which a `-State Listen` port check misses. Kill the python PID directly.

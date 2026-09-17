@@ -31,6 +31,16 @@ jobs:
           file: server/api/Dockerfile
           push: true
           tags: ghcr.io/${{ env.OWNER }}/${{ env.IMAGE_NAME }}:latest
+      # Same source tree, same commit, same workflow. Both images compile Core
+      # and Infrastructure, so they must ship together: two workflows on the
+      # same server/api/** filter could deploy an API on new Core while
+      # pool-ingest still ran the old one, and nothing would report it.
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: server/api/Dockerfile.poolingest
+          push: true
+          tags: ghcr.io/${{ env.OWNER }}/pool-ingest:latest
       - name: Deploy to server
         uses: appleboy/ssh-action@v1
         with:
@@ -40,4 +50,8 @@ jobs:
           script: |
             cd /srv/nextrole
             docker compose pull api
-            docker compose up -d --force-recreate api    
+            docker compose up -d --force-recreate api
+            # pool-ingest is a cron container: nothing is running to recreate.
+            # Pulling is enough — the next timer fire starts a fresh one from
+            # the new image.
+            docker compose --profile cron pull pool-ingest    

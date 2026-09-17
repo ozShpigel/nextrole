@@ -21,6 +21,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Infrastructure\ApplicationTracker.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\Api\ApplicationTracker.Api.csproj" />
+    <ProjectReference Include="..\..\src\PoolIngest\ApplicationTracker.PoolIngest.csproj" />
   </ItemGroup>
 
 </Project>

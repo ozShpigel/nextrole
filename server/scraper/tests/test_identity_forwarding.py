@@ -206,8 +206,12 @@ def test_user_facing_job_actions_resolve_a_user():
     """
     main = (SERVICES.parent / "main.py").read_text(encoding="utf-8")
     tree = ast.parse(main)
-    calls_out = {"save_job", "import_jobs"}
-    local_only = {"dismiss_job", "unsave_job", "list_scored_jobs"}
+    # save/dismiss/view/unsave moved to the API in Phase 1 of
+    # docs/scraper-slimming.md, where UserScopedCollection makes the scoping a
+    # compile error instead of something this test has to watch. What is left
+    # here is import (needs jobspy) and the jobs list (Phase 1b).
+    calls_out = {"import_jobs"}
+    local_only = {"list_scored_jobs"}
     wanted = calls_out | local_only
 
     found = {}

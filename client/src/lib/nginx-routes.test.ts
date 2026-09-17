@@ -42,6 +42,16 @@ function calledPaths(): string[] {
   return [...found];
 }
 
+/** Literal first arguments to poolApi(...), as written in the source. */
+function poolPaths(): string[] {
+  const found = new Set<string>();
+  for (const file of sourceFiles(join(CLIENT, 'src'))) {
+    const text = readFileSync(file, 'utf8');
+    for (const m of text.matchAll(/poolApi\(\s*[`'"]([^`'"]*)/g)) found.add(m[1]);
+  }
+  return [...found];
+}
+
 function allowedPaths(): string[] {
   const conf = readFileSync(join(CLIENT, 'nginx.conf'), 'utf8');
   const m = conf.match(/location ~ \^\/api\/match\(([^)]*)\)\$/);
@@ -62,6 +72,32 @@ describe('nginx.conf proxies what the client calls', () => {
     const called = calledPaths();
     expect(called.length).toBeGreaterThan(3);
     expect(called).toContain('/pool-scan');
+  });
+
+  it('proxies the /api/pool prefix poolApi() uses', () => {
+    // poolApi() went to a prefix of its own rather than staying under
+    // /api/discovery, so it needs a location block of its own. Without one it
+    // falls to the catch-all and every save/dismiss/view/unsave returns a JSON
+    // 404 -- better than the SPA-with-200 that /api/auth once returned, but
+    // still a dead Matches page.
+    const conf = readFileSync(join(CLIENT, 'nginx.conf'), 'utf8');
+    const called = poolPaths();
+
+    expect(called.length, 'poolApi() call sites not found -- the extraction is broken').toBeGreaterThan(2);
+    expect(
+      /location \/api\/pool[\s{]/.test(conf),
+      'client/nginx.conf has no /api/pool block, so these are unroutable: ' + called.join(', '),
+    ).toBe(true);
+  });
+
+  it('sends /api/pool to the API, not the scraper', () => {
+    // The whole reason these moved. Pointing the block at $upstream_scraper
+    // would reach a service that no longer implements them.
+    const conf = readFileSync(join(CLIENT, 'nginx.conf'), 'utf8');
+    const block = conf.match(/location \/api\/pool[\s{][^{]*\{([^}]*)\}/);
+    expect(block, 'no /api/pool location block to check').not.toBeNull();
+    expect(block![1]).toContain('$upstream_api');
+    expect(block![1]).not.toContain('$upstream_scraper');
   });
 
   it('does not allow the scraper-internal AI routes', () => {

@@ -33,6 +33,11 @@ public static class MongoExtensions
         Register<MatchSnapshot>(services, "matchSnapshots");
 
         Register<JobScore>(services, "jobScores");
+        // Per-user state over the shared pool. Written by the scraper since the
+        // pool existed (app/services/pool_state.py); the API took the write path
+        // over in Phase 1 of docs/scraper-slimming.md, so the field names in
+        // PoolJobState are that history, not a fresh design.
+        Register<PoolJobState>(services, "poolJobState");
 
         // One document per user, keyed by _id = userId: no separate userId
         // field, so there is no unscoped query shape to guard against.

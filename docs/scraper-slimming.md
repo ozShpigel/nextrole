@@ -123,24 +123,47 @@ no longer lists the criteria routes; the Matches page is unchanged.
 
 ### Phase 1 — per-user pool state → the API
 
-`save` / `dismiss` / `view` / `unsave` and the jobs list are user-scoped
-request/response endpoints of exactly the shape the API already serves.
+`save` / `dismiss` / `view` / `unsave` are user-scoped request/response
+endpoints of exactly the shape the API already serves. **Done**, except the
+jobs list — see Phase 1b.
 
-- New `IPoolJobStateRepository` over `poolJobState`, on
-  `UserScopedCollection<T>` — which has no overload that omits the userId, so
-  the scoping becomes a compile error rather than a convention. This closes
-  the gap that let `orchestrator.py:149` look a document up with no user
-  filter.
-- New endpoints in `Api`, mirroring the current paths so the client change is
-  a base-URL swap: `client/src/lib/api.ts` `discoveryApi` → `api`, six call
-  sites, all under `lib/`.
-- Add the routes to `client/nginx.conf`. The catch-all JSON 404 is what makes
-  a missed one announce itself — do not remove it.
-- Extend `ArchitectureTests` to cover the new repository.
+- `PoolJobState` + `IPoolJobStateRepository` over `poolJobState`, on
+  `UserScopedCollection<T>`, which has no overload that omits the userId. The
+  field names are copied from `pool_state.py`, not designed: the documents
+  already exist and the two services shared them during the move.
+- `UserScopedCollection.UpdateManyAsync` added. `ClearSaved` needs a bulk write
+  and the absence of that overload would have been the excuse to reach for a
+  raw handle — there isn't one, by design, so the overload is the fix.
+- `ApplicationCreation` extracted. "Add to tracker" used to be an HTTP POST to
+  `/api/applications`, so the three-step create sequence was shared by
+  construction; in-process it needs a shared function or it drifts.
+- `PoolJobApplication.ToApplication` is a pure mapper, so the join that has
+  already gone wrong once (reading the score off the pool document instead of
+  `jobScores`) stays pinned. `PoolJobApplicationTests` ports the scraper's
+  `test_save_job_score.py`, minus its userId-filter assertion — that one became
+  a compile error, which is the better version of it.
 
-**Verify:** `curl -s -o /dev/null -w '%{http_code} %{content_type}\n'` on each
-new route — `200 application/json`, never `200 text/html`. Take the baseline
-*before* deploying.
+**Paths are `/api/pool/*`, not the old `/api/discovery/jobs/*`.** nginx sends
+`/api/discovery` to the scraper as one prefix block. Keeping the paths would
+have meant splitting a single prefix across two upstreams by sub-path: it
+works, since prefix locations match by length, but it puts the routing of a
+user's writes one typo away from the catch-all. `nginx-routes.test.ts` now
+asserts the `/api/pool` block exists *and* points at `$upstream_api`.
+
+`UserMergeServiceTests.Every_user_owned_type_is_classified` failed the moment
+`PoolJobState` appeared, demanding its collection be placed in the merge
+classification. That is the guard working: an unclassified `IUserOwned` type is
+data orphaned on every sign-in, silently.
+
+### Phase 1b — the jobs list
+
+`GET /api/discovery/jobs` stays on the scraper for now. It is a ~120-line join
+across `jobScores`, `discovered_jobs` and `poolJobState` with nine filters, it
+is read-only, and it is the Matches page's only data source — worth moving on
+its own rather than inside a change that also moves four writes.
+
+`POST /api/discovery/jobs/import` stays until Phase 3: it calls jobspy
+directly, so it cannot move until the adapter exists.
 
 ### Phase 2 — the ingest → `PoolIngest`
 

@@ -293,9 +293,7 @@ If employee-review signal is ever wanted again, the answer is a paid API with a
 contract, not scraping at 5.6%. Recorded here so the gap looks like a decision
 rather than an omission.
 
-**Open — `server/api/` as a directory name.** With five projects under it, it
-is the .NET solution rather than the API. `server/dotnet/` would be truer.
-Lower priority than the Python rename, same reasoning.
+**Settled: `server/api/` keeps its name.** It holds five projects and only one of them is the API, so the directory is named after a child rather than the whole — but renaming it would touch every Dockerfile, workflow path filter and doc reference to buy nothing a reader is actually confused by. Recorded as decided so it stops reading as an open item.
 
 ## Phase 0 as built
 

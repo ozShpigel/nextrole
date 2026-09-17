@@ -120,7 +120,7 @@ public sealed class SessionIdentityResolver
     {
         var freshUserId = Guid.NewGuid();
         var freshToken = await IssueAsync(freshUserId, now, lifetime, fromLegacy: false, ct);
-        return new ResolvedIdentity(freshUserId, freshToken);
+        return new ResolvedIdentity(freshUserId, freshToken, Minted: true);
     }
 
     /// <summary>Issues a session for a known userId — also how sign-in
@@ -157,4 +157,12 @@ public sealed class SessionIdentityResolver
 /// cookie being upgraded. Null when the presented session was already good,
 /// so an ordinary request does not rewrite the cookie every time.
 /// </param>
-public readonly record struct ResolvedIdentity(Guid UserId, string? TokenToIssue);
+/// <param name="Minted">
+/// True when this identity is brand new — nobody has ever held it and it owns
+/// no data. That is the right answer for a browser (an unusable cookie should
+/// look like a first visit) and the wrong one for a service client, which only
+/// ever gets here by being misconfigured. Distinct from
+/// <paramref name="TokenToIssue"/>, which is also set when a legacy cookie is
+/// upgraded — that case resolves a real, pre-existing account.
+/// </param>
+public readonly record struct ResolvedIdentity(Guid UserId, string? TokenToIssue, bool Minted = false);

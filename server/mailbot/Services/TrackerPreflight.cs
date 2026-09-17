@@ -73,14 +73,22 @@ public static class TrackerPreflight
 
         var me = await fetchMe(ct);
 
-        // Null is transport failure, not "signed out". Aborting here is stricter
-        // than the old behaviour, which let a run start and fail later with
-        // transport errors — deliberately, because "start and fail" is how a
-        // partial sync happens, and systemd sees a clean failure either way.
+        // Null is any non-success, which is now two different faults with the
+        // same shape: the API unreachable, OR reached and refusing the token.
+        // Since the API started answering a service client's unresolvable
+        // credential with 401 rather than minting one, a stale
+        // Tracker__SessionToken arrives here too — and "could not reach" would
+        // send an operator hunting for a network problem that is not there.
+        //
+        // Aborting either way is right: "start and fail" is how a partial sync
+        // happens, and systemd sees a clean failure from both.
         if (me is null)
             return new(PreflightCode.IdentityUnreadable,
-                $"Could not reach {trackerUrl}/api/auth/me to confirm which account this token "
-                + "resolves to. Aborting rather than syncing as an unknown user.");
+                $"Could not confirm which account this token resolves to at {trackerUrl}/api/auth/me. "
+                + "Either the API is unreachable, or it refused the token (401) — it rejects a "
+                + "service client whose credential does not resolve instead of minting an account. "
+                + "Check the API is up, then re-run deploy/mint-mailbot-session.sh. "
+                + "Aborting rather than syncing as an unknown user.");
 
         if (!me.SignedIn)
             return new(PreflightCode.WrongAccount,

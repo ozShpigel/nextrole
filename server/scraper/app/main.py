@@ -11,7 +11,6 @@ from pydantic import BaseModel
 
 from app.config import Settings
 from app import identity, roles
-from app.indexes import ensure_pool_indexes, ensure_ttl_index, ensure_user_scope
 from app.models.scrape_spec import ScrapeSpec
 from app.services import scraper
 
@@ -73,9 +72,10 @@ async def lifespan(app: FastAPI):
             reconciled.modified_count,
         )
 
-    await ensure_ttl_index(db)
-    await ensure_user_scope(db, identity.legacy_owner_user_id(settings))
-    await ensure_pool_indexes(db)
+    # Index management moved to the API in Phase 3b of
+    # docs/scraper-slimming.md -- PoolIndexInitializer. This service no longer
+    # shapes the collections it writes, which is the step before it stops
+    # holding a database credential at all.
     await roles.publish_baseline(db, roles.load(settings.roles_config_path or None))
 
     yield

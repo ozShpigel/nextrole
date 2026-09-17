@@ -24,7 +24,6 @@ import certifi
 from motor.motor_asyncio import AsyncIOMotorClient
 
 from app.config import Settings
-from app.indexes import ensure_pool_indexes, ensure_ttl_index
 from app import roles
 from app.services import pool, subscore_eval, verdict_eval
 
@@ -47,8 +46,6 @@ async def _run_pool():
     into the pool everyone reads. Not driven by anyone's profile or saved
     search — see docs/job-pool.md."""
     async def _r(db, settings):
-        await ensure_ttl_index(db)
-        await ensure_pool_indexes(db)
         # Keep the classifier view of "already searched" current before the
         # run reads the grown half back out of the same collection.
         await roles.publish_baseline(db, roles.load(settings.roles_config_path or None))

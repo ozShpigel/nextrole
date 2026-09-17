@@ -318,8 +318,28 @@ import `RequestIdentity`, and they live until 3d.
 
 ### Phase 3c — the eval CLIs → .NET
 
-Still to do. `verdict_eval` and `subscore_eval` become a console project
-alongside `PoolIngest`, reading the same golden-set fixtures.
+**Done.** `server/api/src/EvalHarness`, with the fixtures moved alongside it.
+
+```
+dotnet run --project server/api/src/EvalHarness -- verdict [--runs N]
+dotnet run --project server/api/src/EvalHarness -- subscore
+```
+
+**It deliberately has no `ProjectReference`.** Calling the scoring service
+in-process would skip the endpoint, its validation and its serialisation —
+and `AGENTS.md`'s own rule is that an eval must drive the path the change
+lives on, because a clean result from an instrument that cannot see the change
+is worse than no result: it licenses the change. So it measures `POST
+/api/match` over HTTP, as a caller does.
+
+It refuses anything but a Fixed-mode instance, checked via `/api/config`. A
+Cookie-mode API would mint a fresh anonymous user with no profile, and every
+case would score against nothing while still producing numbers. The Python
+achieved this through `identity.instance_identity`, which raised; this asks the
+API what it is, which is the same guard `TrackerPreflight` uses.
+
+These were the last thing keeping the scraper's CLI alive apart from
+`run-pool`, and they never belonged to a scraper in the first place.
 
 ### Phase 3d — strip
 

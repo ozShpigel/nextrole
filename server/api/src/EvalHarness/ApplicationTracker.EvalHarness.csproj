@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>ApplicationTracker.EvalHarness</AssemblyName>
+    <RootNamespace>ApplicationTracker.EvalHarness</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Deliberately no ProjectReference. The evals measure the API over HTTP,
+         exactly as a caller experiences it. Referencing Core and calling the
+         scoring service in process would skip the endpoint, its validation and
+         its serialisation, and AGENTS.md's rule is that an eval must drive the
+         path the change lives on. A clean result from an instrument that cannot
+         see the change is worse than no result: it licenses the change. -->
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.3" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="10.0.3" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.CommandLine" Version="10.0.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="fixtures/**" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

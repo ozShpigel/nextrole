@@ -25,6 +25,58 @@ namespace ApplicationTracker.Api.Identity;
 /// </remarks>
 public static class UserIdentityCookieExtensions
 {
+    /// <summary>
+    /// How a service client announces itself: the scraper sends
+    /// <c>ingest</c>, the mailbot <c>mailbot</c>. A browser never sends it.
+    /// </summary>
+    /// <remarks>
+    /// Untrusted, like any request header — but it can only ever make a request
+    /// stricter, so a browser that sent it would lock itself out rather than
+    /// gain anything. That is the safe direction for a header nobody verifies.
+    /// </remarks>
+    public const string ServiceSourceHeader = "X-Source";
+
+    /// <summary>
+    /// A service client got a freshly minted identity, which means its
+    /// credential did not resolve — an expired, revoked or absent session
+    /// token, or a configuration that never set one.
+    /// </summary>
+    /// <remarks>
+    /// Minting is right for a browser: an unusable cookie should look like a
+    /// first visit. For a service client it is the orphaned-write failure in
+    /// `AGENTS.md`, which has now shipped three times — twice from the scraper
+    /// and once from the mailbot (issue #67, which read an empty account and
+    /// reported <c>{"Success":true}</c> over 115 applications). Each time the
+    /// write returned 2xx and landed under a user nobody holds.
+    ///
+    /// 401 rather than 403: the credential is the problem, and a service client
+    /// can fix it by presenting a valid one. JSON rather than an empty body so
+    /// a caller reading content-type gets an answer it can log, and so this is
+    /// distinguishable from nginx serving the SPA (docs in `AGENTS.md`).
+    ///
+    /// Nothing is parked and the pipeline does not continue, so no handler can
+    /// run with the minted id. The session document the mint already wrote is
+    /// left to its TTL — deleting it here would be a write on an unauthenticated
+    /// path, and an unclaimed session expires on its own.
+    /// </remarks>
+    private static async Task RefuseMintedServiceIdentity(HttpContext ctx, string source)
+    {
+        var log = ctx.RequestServices
+            .GetRequiredService<ILoggerFactory>()
+            .CreateLogger("nextrole.identity");
+
+        log.LogError(
+            "Refused a request from service client {Source} ({Method} {Path}): its credential did "
+            + "not resolve to a session, and minting one would file its writes under a user nobody "
+            + "holds. Check the session token in that service's environment.",
+            source, ctx.Request.Method, ctx.Request.Path);
+
+        ctx.Response.StatusCode = StatusCodes.Status401Unauthorized;
+        ctx.Response.ContentType = "application/json";
+        await ctx.Response.WriteAsync(
+            """{"error":"unresolved_service_identity","detail":"This request carried X-Source but no credential that resolves to a session. Refusing rather than minting a new account: see docs/multi-user.md."}""");
+    }
+
     public static IApplicationBuilder UseUserIdentityCookie(this IApplicationBuilder app)
     {
         var resolver = app.ApplicationServices.GetRequiredService<IdentityResolver>();
@@ -43,6 +95,12 @@ public static class UserIdentityCookieExtensions
 
             var sessions = ctx.RequestServices.GetRequiredService<SessionIdentityResolver>();
             var resolved = await sessions.ResolveAsync(resolver.ReadCookie(ctx), ctx.RequestAborted);
+
+            if (resolved.Minted && ctx.Request.Headers.TryGetValue(ServiceSourceHeader, out var source))
+            {
+                await RefuseMintedServiceIdentity(ctx, source.ToString());
+                return;
+            }
 
             IdentityResolver.Park(ctx, resolved.UserId);
 

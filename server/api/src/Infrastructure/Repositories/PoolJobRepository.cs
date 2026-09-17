@@ -112,6 +112,44 @@ public sealed class PoolJobRepository : IPoolJobRepository
     public Task<long> CountActiveAsync(CancellationToken ct = default) =>
         _jobs.CountDocumentsAsync(ActivePool, cancellationToken: ct);
 
+    public async Task<List<string>> FindIdsByJobUrlAsync(string jobUrl, CancellationToken ct = default)
+    {
+        var docs = await _jobs
+            .Find(Builders<BsonDocument>.Filter.Eq("job_url", jobUrl))
+            .Project(Builders<BsonDocument>.Projection.Include("id"))
+            .ToListAsync(ct);
+
+        return docs
+            .Select(d => d.TryGetValue("id", out var v) && v.IsString ? v.AsString : null)
+            .Where(id => !string.IsNullOrEmpty(id))
+            .Select(id => id!)
+            .ToList();
+    }
+
+    public async Task<string?> FindCompanyLogoAsync(string company, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(company)) return null;
+
+        // Anchored and escaped: an exact company name, matched case-insensitively.
+        // Without the escape a company with a regex metacharacter in its name
+        // ("C++ Systems (Israel)") would either throw or match the wrong rows.
+        var exact = new BsonRegularExpression(
+            $"^{System.Text.RegularExpressions.Regex.Escape(company)}$", "i");
+
+        var doc = await _jobs
+            .Find(Builders<BsonDocument>.Filter.And(
+                Builders<BsonDocument>.Filter.Regex("company", exact),
+                Builders<BsonDocument>.Filter.Ne("company_logo", BsonNull.Value),
+                Builders<BsonDocument>.Filter.Exists("company_logo")))
+            .Sort(Builders<BsonDocument>.Sort.Descending("discovered_at"))
+            .Project(Builders<BsonDocument>.Projection.Include("company_logo"))
+            .FirstOrDefaultAsync(ct);
+
+        return doc is not null && doc.TryGetValue("company_logo", out var logo) && logo.IsString
+            ? logo.AsString
+            : null;
+    }
+
     private static PoolJob ToPoolJob(BsonDocument d) => new()
     {
         Id = Str(d, "id") ?? "",

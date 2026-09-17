@@ -293,6 +293,7 @@ app.MapNoteEndpoints();
 app.MapMessageEndpoints();
 app.MapStatsEndpoints();
 app.MapMatchEndpoints();
+app.MapPoolEndpoints();
 app.MapMockInterviewEndpoints();
 app.MapEmailParseEndpoints();
 

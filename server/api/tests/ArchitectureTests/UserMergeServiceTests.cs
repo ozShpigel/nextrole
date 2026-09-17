@@ -55,6 +55,9 @@ public class UserMergeServiceTests
             ["ResumePack"] = "resumePacks",
             ["MockInterviewSession"] = "mockInterviewSessions",
             ["JobScore"] = "jobScores",
+            // Written by the scraper until Phase 1 moved the write path here;
+            // already in CompositeKeyed, because its _id embeds the userId.
+            ["PoolJobState"] = "poolJobState",
         };
 
         var classified = UserMergeService.FieldOwned

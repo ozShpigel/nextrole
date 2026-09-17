@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { api, matchApi, discoveryApi } from './api';
+import { api, matchApi, discoveryApi, poolApi } from './api';
 import type {
   InterviewPrepHistoryField,
   MockTurn,
@@ -22,7 +22,7 @@ export function useSaveJob() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (jobId: string) =>
-      discoveryApi(`/jobs/${jobId}/save`, { method: 'POST' }),
+      poolApi(`/jobs/${jobId}/save`, { method: 'POST' }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['discovery'] });
       // The save creates a tracker application — without this, a recently
@@ -41,7 +41,7 @@ export function useSaveJob() {
 export function useMarkViewed() {
   return useMutation({
     mutationFn: (jobId: string) =>
-      discoveryApi(`/jobs/${jobId}/view`, { method: 'POST' }),
+      poolApi(`/jobs/${jobId}/view`, { method: 'POST' }),
     // Never surface a failure: this is measurement, and losing a row must not
     // interrupt somebody reading a job.
     retry: false,
@@ -52,7 +52,7 @@ export function useDismissJob() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (jobId: string) =>
-      discoveryApi(`/jobs/${jobId}/dismiss`, { method: 'POST' }),
+      poolApi(`/jobs/${jobId}/dismiss`, { method: 'POST' }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['discovery'] });
     },
@@ -265,7 +265,7 @@ export function useUpdateAppStatus() {
       });
       if (newStatus === 'Withdrawn' && jobUrl) {
         try {
-          await discoveryApi('/jobs/unsave', { method: 'POST', body: JSON.stringify({ job_url: jobUrl }) });
+          await poolApi('/jobs/unsave', { method: 'POST', body: JSON.stringify({ jobUrl }) });
         } catch {
           // Best-effort — the status change already succeeded either way.
         }
@@ -354,7 +354,7 @@ export function useDeleteApplication() {
       await api(`/applications/${id}`, { method: 'DELETE' });
       if (jobUrl) {
         try {
-          await discoveryApi('/jobs/unsave', { method: 'POST', body: JSON.stringify({ job_url: jobUrl }) });
+          await poolApi('/jobs/unsave', { method: 'POST', body: JSON.stringify({ jobUrl }) });
         } catch {
           // Best-effort — the application delete already succeeded either way.
         }

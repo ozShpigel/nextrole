@@ -83,6 +83,35 @@ export async function scraperApi(path: string, options: ApiOptions = {}) {
   return res.json();
 }
 
+// Per-user state over the shared pool: save / dismiss / view / unsave.
+//
+// These are served by the API, not the scraper — they moved in Phase 1 of
+// docs/scraper-slimming.md. They kept a prefix of their own rather than staying
+// under /api/discovery, because nginx proxies that prefix to the scraper as one
+// block and splitting it by sub-path is how a route goes missing unnoticed.
+//
+// The jobs LIST and /jobs/import are still discoveryApi: the list is Phase 1b,
+// and import needs jobspy, so it stays in Python until the adapter exists.
+export async function poolApi(path: string, options: ApiOptions = {}) {
+  const { headers, ...fetchOptions } = options;
+  const url = API_BASE ? `${API_BASE}/api/pool${path}` : `/api/pool${path}`;
+  const res = await fetch(url, {
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json', ...headers },
+    ...fetchOptions,
+  });
+  if (!res.ok && res.status !== 204) {
+    const data = await res.json().catch(() => ({}));
+    const err: ApiError = new Error(
+      res.status === 403 ? DEMO_BLOCKED_MSG : (data.detail || data.error || `HTTP ${res.status}`));
+    err.status = res.status;
+    err.data = data;
+    throw err;
+  }
+  if (res.status === 204) return null;
+  return res.json();
+}
+
 export async function discoveryApi(path: string, options: ApiOptions = {}) {
   const { headers, ...fetchOptions } = options;
   const url = SCRAPER_BASE ? `${SCRAPER_BASE}/api/discovery${path}` : `/api/discovery${path}`;

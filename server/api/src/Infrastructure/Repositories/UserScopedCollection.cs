@@ -82,6 +82,20 @@ public sealed class UserScopedCollection<T> where T : IUserOwned
         UpdateOptions? options = null, CancellationToken ct = default) =>
         _collection.UpdateOneAsync(Scope(userId, Builders<T>.Filter.Where(filter)), update, options, ct);
 
+    public Task<UpdateResult> UpdateOneAsync(
+        Guid userId, FilterDefinition<T> filter, UpdateDefinition<T> update,
+        UpdateOptions? options = null, CancellationToken ct = default) =>
+        _collection.UpdateOneAsync(Scope(userId, filter), update, options, ct);
+
+    // Same scoping as the single-document update. Present so a repository that
+    // needs to touch several of ONE user's rows does not have to reach for a
+    // raw handle — there isn't one, and this is the overload whose absence
+    // would have been the excuse.
+    public Task<UpdateResult> UpdateManyAsync(
+        Guid userId, System.Linq.Expressions.Expression<Func<T, bool>> filter, UpdateDefinition<T> update,
+        UpdateOptions? options = null, CancellationToken ct = default) =>
+        _collection.UpdateManyAsync(Scope(userId, Builders<T>.Filter.Where(filter)), update, options, ct);
+
     public Task<DeleteResult> DeleteOneAsync(
         Guid userId, System.Linq.Expressions.Expression<Func<T, bool>> filter, CancellationToken ct = default) =>
         _collection.DeleteOneAsync(Scope(userId, Builders<T>.Filter.Where(filter)), ct);

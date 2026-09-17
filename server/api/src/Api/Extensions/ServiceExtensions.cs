@@ -88,6 +88,9 @@ public static class ServiceExtensions
             new MatchSnapshotRepository(sp.GetRequiredService<UserScopedCollection<MatchSnapshot>>()));
         services.AddScoped<IJobScoreRepository>(sp =>
             new JobScoreRepository(sp.GetRequiredService<UserScopedCollection<JobScore>>()));
+
+        services.AddScoped<IPoolJobStateRepository>(sp =>
+            new PoolJobStateRepository(sp.GetRequiredService<UserScopedCollection<PoolJobState>>()));
         services.AddScoped<IUserQuotaRepository>(sp =>
             new UserQuotaRepository(sp.GetRequiredService<IMongoCollection<UserQuota>>()));
         services.AddScoped<IPoolRoleRepository>(sp =>

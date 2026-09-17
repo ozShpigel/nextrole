@@ -261,17 +261,53 @@ from the solution.
 first few nights. Nothing invokes it — the compose service runs the .NET image
 — and Phase 3 removes it.
 
-### Phase 3 — strip
+### Phase 3a — import by URL → the API
 
-Python keeps `services/scraper.py`, a thin `main.py`, `config.py`. Delete
-`identity.py`, `indexes.py`, `roles.py`, `match_client.py`,
-`tracker_client.py`, `pool.py`, `pool_state.py`, the models, the CLI.
+**Done.** `POST /api/pool/jobs/import`, the last user-facing route on the
+scraper, and the blocker for everything else in Phase 3: it was what kept
+`identity.py` alive.
 
-`.env.scraper` loses `MONGODB_CONNECTION_STRING` entirely. A service that
-parses hostile HTML stops holding `readWrite` on both production databases.
+Fetching a posting needs jobspy, so the scraper gains `POST /scrape/url` and
+the API calls it. **That makes the dependency bidirectional** — previously the
+scraper called the API and never the reverse. Deliberate, and the direction the
+slimming is heading: Python becomes a library the .NET side calls rather than
+an orchestrator that consumes the API.
 
-`tests/test_identity_forwarding.py` becomes obsolete — there is nothing left
-to forward. Delete it *with* the code it guards, not before.
+Scoring is now in-process (`IJobMatchService.AnalyzeMatchBatchAsync`, the same
+service behind `/api/match/discovery-score-batch`), so the import no longer
+makes two HTTP round trips back into the service it is already running in.
+
+`/scrape/url` answers `{"job": null}` rather than a 404 on a failed fetch. A bad
+link, an expired posting and a changed page structure are ordinary outcomes, not
+faults of that service, and 404 would be ambiguous with a missing route.
+
+**The client no longer calls the scraper at all.** `discoveryApi` and
+`scraperApi` are deleted, along with `SCRAPER_BASE` and `VITE_SCRAPER_URL`. The
+browser's only backend is the API.
+
+`test_identity_forwarding.py`'s endpoint test is inverted: it used to list the
+routes that must take an identity, and now asserts **there are none**. The
+absence is the stronger claim, and it fails the moment a user-scoped endpoint
+reappears here.
+
+### Phase 3b — index management → .NET
+
+Still to do. `indexes.py` becomes a `PoolIndexInitializer`, which is the natural
+moment to implement issue #68's option 3: read the TTL index back and refuse to
+start on a mismatch, rather than logging an error nobody reads. `identity.py`
+goes with it — its last caller is `ensure_user_scope`'s legacy owner id.
+
+### Phase 3c — the eval CLIs → .NET
+
+Still to do. `verdict_eval` and `subscore_eval` become a console project
+alongside `PoolIngest`, reading the same golden-set fixtures.
+
+### Phase 3d — strip
+
+Still to do. Delete `pool.py`, `match_client.py`, `tracker_client.py`,
+`roles.py`, `pool_state.py`, the models and the CLI. `.env.scraper` loses
+`MONGODB_CONNECTION_STRING`, and a service that parses hostile HTML stops
+holding `readWrite` on both production databases.
 
 ### Phase 4 — rename
 

@@ -196,45 +196,35 @@ async def test_resolve_hands_back_the_token_it_was_given():
     assert resolved.credential == token
 
 
-def test_user_facing_job_actions_resolve_a_user():
-    """The endpoints that act for one user take an identity dependency.
+def test_the_scraper_has_no_user_facing_endpoints_left():
+    """Nothing this service serves acts on one user's data.
 
-    Read from source rather than from the app object: what matters is that the
-    signature declares it, which is what a future edit would drop. The two that
-    call out to the API must take the full RequestIdentity — a userId alone
-    cannot be forwarded.
+    The inverse of what this test used to assert. It listed the endpoints that
+    had to take an identity; as of Phase 3 of docs/scraper-slimming.md there are
+    none, because every user-scoped route moved to the API where
+    UserScopedCollection makes the scoping a compile error.
+
+    Asserting the absence is the stronger claim, and it is the one worth
+    keeping: a new endpoint here that resolves a user is a step back toward the
+    orphaned-write failure this file exists for, and this fails the moment one
+    appears.
     """
     main = (SERVICES.parent / "main.py").read_text(encoding="utf-8")
     tree = ast.parse(main)
-    # Everything user-scoped except import moved to the API in Phase 1/1b of
-    # docs/scraper-slimming.md, where UserScopedCollection makes the scoping a
-    # compile error instead of something this test has to watch. import_jobs
-    # stays until Phase 3 because it calls jobspy directly.
-    calls_out = {"import_jobs"}
-    local_only = set()
-    wanted = calls_out | local_only
 
-    found = {}
+    resolves_user = []
     for node in ast.walk(tree):
-        if isinstance(node, (ast.AsyncFunctionDef, ast.FunctionDef)) and node.name in wanted:
-            args = node.args.args + node.args.kwonlyargs
-            found[node.name] = {a.arg: ast.unparse(a.annotation) if a.annotation else ""
-                                for a in args}
+        if not isinstance(node, (ast.AsyncFunctionDef, ast.FunctionDef)):
+            continue
+        args = node.args.args + node.args.kwonlyargs
+        annotations = " ".join(ast.unparse(a.annotation) for a in args if a.annotation)
+        if "RequestIdentity" in annotations or any(a.arg == "user_id" for a in args):
+            resolves_user.append(node.name)
 
-    assert set(found) == wanted, f"endpoints missing from main.py: {wanted - set(found)}"
-
-    unscoped = [n for n in local_only if not set(found[n]) & {"user_id", "ident"}]
-    assert not unscoped, (
-        "these endpoints act on one user's data but resolve no user: "
-        + ", ".join(unscoped))
-
-    bare = [n for n in calls_out
-            if not any("RequestIdentity" in ann for ann in found[n].values())]
-    assert not bare, (
-        "these endpoints call the API on a user's behalf but only resolve a "
-        "userId, which the API cannot resolve back: " + ", ".join(bare))
-
-
+    assert not resolves_user, (
+        "these endpoints resolve a user, which this service no longer does: "
+        + ", ".join(resolves_user)
+    )
 def test_offline_commands_refuse_to_guess_a_user():
     """The seeder and eval CLIs have no request to resolve. On a multi-user
     instance there is no answer, and inventing one would attribute scores to

@@ -1,7 +1,10 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using ApplicationTracker.Core.Identity;
 using ApplicationTracker.Core.Matching;
 using ApplicationTracker.Core.Models;
 using ApplicationTracker.Core.Repositories;
+using ApplicationTracker.Infrastructure.Listings;
 using Microsoft.AspNetCore.Mvc;
 
 namespace ApplicationTracker.Api.Endpoints;
@@ -35,6 +38,25 @@ namespace ApplicationTracker.Api.Endpoints;
 public static class PoolEndpoints
 {
     public sealed record UnsaveRequest(string JobUrl);
+
+    public sealed record ImportRequest(List<string>? Urls);
+
+    /// <summary>Per-URL outcome. snake_case: the client has always read these.</summary>
+    public sealed record ImportResult(
+        [property: JsonPropertyName("url")] string Url,
+        [property: JsonPropertyName("status")] string Status,
+        [property: JsonPropertyName("title")] string? Title,
+        [property: JsonPropertyName("company")] string? Company,
+        [property: JsonPropertyName("score")] int? Score,
+        [property: JsonPropertyName("verdict")] string? Verdict,
+        [property: JsonPropertyName("error")] string? Error);
+
+    // Matches the Evaluator batch cap -- a batch is one call, and five is what
+    // the output budget was measured against.
+    private const int MaxImportUrls = 5;
+
+    private static readonly JsonSerializerOptions CamelCase =
+        new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
     /// <summary>Comma-separated query parameter to a trimmed, non-empty list.</summary>
     private static IReadOnlyList<string> Csv(string? value) =>
@@ -181,6 +203,134 @@ public static class PoolEndpoints
         .WithName("MarkPoolJobViewed")
         .WithSummary("Record that this user opened a pool job")
         .RequireRateLimiting("discovery");
+
+        // ── Import by URL ───────────────────────────────────────────────────
+        app.MapPost("/api/pool/jobs/import", async (
+            [FromBody] ImportRequest request,
+            IUserContext user,
+            IListingsClient listings,
+            IJobMatchService matcher,
+            IPoolJobRepository pool,
+            IApplicationRepository apps,
+            IMatchSnapshotRepository snapshots,
+            IStatusUpdateRepository statusRepo,
+            ILogger<Program> logger,
+            CancellationToken ct) =>
+        {
+            // The "Import Job" button: one or more LinkedIn URLs found outside
+            // discovery. Fetched directly (no search), scored in one batch, and
+            // saved at DecidedToApply so they land in the Added column.
+            var urls = (request.Urls ?? [])
+                .Where(u => !string.IsNullOrWhiteSpace(u))
+                .Select(u => u.Trim())
+                .ToList();
+
+            if (urls.Count == 0)
+                return Results.BadRequest(new { error = "At least one URL is required" });
+            if (urls.Count > MaxImportUrls)
+                return Results.BadRequest(new { error = $"At most {MaxImportUrls} URLs per import" });
+
+            var results = new List<ImportResult>();
+            var fetched = new List<(string Url, FetchedListing Job)>();
+
+            foreach (var url in urls)
+            {
+                var job = await listings.FetchByUrlAsync(url, ct);
+                if (job is null)
+                    results.Add(new ImportResult(url, "failed", null, null, null, null,
+                        "Couldn't fetch this job — check the link, or paste the description instead."));
+                else
+                    fetched.Add((url, job));
+            }
+
+            if (fetched.Count > 0)
+            {
+                // Never raises on a per-job failure — a bad link in a batch of
+                // five must not lose the other four. Same fail-open philosophy
+                // the ingest uses.
+                MatchBatchResponse? scored = null;
+                try
+                {
+                    scored = await matcher.AnalyzeMatchBatchAsync(user.UserId, new MatchBatchRequest
+                    {
+                        Jobs = [.. fetched.Select((f, i) => new MatchBatchItem
+                        {
+                            Id = i.ToString(),
+                            JobDescription = f.Job.Description ?? "",
+                            Title = f.Job.Title,
+                            Company = f.Job.Company,
+                            Location = f.Job.Location,
+                            CompanyProfile = PoolEnrichment.CompanyProfileFrom(f.Job.CompanyProfile),
+                        })],
+                    }, ct);
+                }
+                catch (Exception e)
+                {
+                    logger.LogError(e, "Import scoring failed for {Count} job(s); saving them unscored", fetched.Count);
+                }
+
+                var byId = scored?.Results?.ToDictionary(r => r.Id) ?? [];
+
+                for (var i = 0; i < fetched.Count; i++)
+                {
+                    var (url, job) = fetched[i];
+                    byId.TryGetValue(i.ToString(), out var match);
+
+                    var application = new Application
+                    {
+                        UserId = user.UserId,
+                        JobTitle = job.Title,
+                        Company = job.Company,
+                        Status = ApplicationStatus.DecidedToApply,
+                        JobDescription = job.Description ?? "",
+                        JobUrl = job.JobUrl,
+                        MatchScore = match?.Response.OverallScore,
+                        MatchVerdict = match?.Response.Verdict,
+                        // The snapshots are [BsonIgnore] on Application and
+                        // content-addressed separately, so they must not also be
+                        // embedded in the stored analysis JSON.
+                        MatchAnalysis = match is null
+                            ? null
+                            : JsonSerializer.Serialize(match.Response with
+                              {
+                                  AnalystSnapshotInput = null,
+                                  AnalystSnapshotOutput = null,
+                                  EvaluatorSnapshotInput = null,
+                                  EvaluatorSnapshotOutput = null,
+                              }, CamelCase),
+                        // Unlike the pool save, these snapshots are real: this
+                        // request scored the job inline, so the raw Claude text
+                        // exists and ApplicationCreation content-addresses it.
+                        AnalystSnapshotInput = match?.Response.AnalystSnapshotInput,
+                        AnalystSnapshotOutput = match?.Response.AnalystSnapshotOutput,
+                        EvaluatorSnapshotInput = match?.Response.EvaluatorSnapshotInput,
+                        EvaluatorSnapshotOutput = match?.Response.EvaluatorSnapshotOutput,
+                        CompanyLogo = job.CompanyLogo ?? await pool.FindCompanyLogoAsync(job.Company, ct),
+                    };
+
+                    try
+                    {
+                        await ApplicationCreation.CreateAsync(
+                            user.UserId, application, apps, snapshots, statusRepo, logger, ct);
+
+                        results.Add(new ImportResult(url, "saved", job.Title, job.Company,
+                            application.MatchScore, application.MatchVerdict, null));
+                    }
+                    catch (Exception e)
+                    {
+                        logger.LogError(e, "Import could not save {Title} at {Company}", job.Title, job.Company);
+                        results.Add(new ImportResult(url, "failed", job.Title, job.Company,
+                            application.MatchScore, application.MatchVerdict,
+                            "Scored, but couldn't save it to the tracker."));
+                    }
+                }
+            }
+
+            return Results.Ok(new { results });
+        })
+        .WithName("ImportJobsByUrl")
+        .WithSummary("Fetch one or more postings by URL, score them, and add them to the tracker")
+        .RequireRateLimiting("match");
 
         // ── Undo an add ─────────────────────────────────────────────────────
         app.MapPost("/api/pool/jobs/unsave", async (

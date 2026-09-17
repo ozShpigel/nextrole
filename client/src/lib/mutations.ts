@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { api, matchApi, discoveryApi, poolApi } from './api';
+import { api, matchApi, poolApi } from './api';
 import type {
   InterviewPrepHistoryField,
   MockTurn,
@@ -65,7 +65,7 @@ export function useImportJobs() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (urls: string[]) =>
-      discoveryApi('/jobs/import', {
+      poolApi('/jobs/import', {
         method: 'POST',
         body: JSON.stringify({ urls }),
       }) as Promise<ImportJobsResponse>,

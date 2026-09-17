@@ -12,7 +12,7 @@ interfaces:
   grpc: ""
   events_out: []
   events_in: []
-  cli: ["python -m app.cli run-pool", "python -m app.cli eval-verdict", "python -m app.cli eval-subscore"]
+  cli: ["python -m app.cli run-pool"]
   jobs: ["nextrole-pool-ingest.timer — 05:30 UTC daily"]
 data_owned: ["discovered_jobs", "discovery_runs", "poolJobState"]
 deps_internal: ["server/api (all AI, dedupe checks, tracker saves)"]
@@ -50,7 +50,6 @@ run abort went with the criteria-driven ingest — see `docs/scraper-slimming.md
 
 **CLI** — [`app/cli.py`](app/cli.py), the cron entrypoint
 - `run-pool` — **the daily shared-pool ingest**; ensures indexes, scrapes the effective role list, upserts, extracts facts for new rows, ages out absentees
-- `eval-verdict`, `eval-subscore` — golden-set matching-quality harnesses
 
 **Outbound calls into the API** — [`app/services/match_client.py`](app/services/match_client.py), [`tracker_client.py`](app/services/tracker_client.py): `POST /api/match/title-triage`, `/seniority-classify`, `/job-facts` (all user-independent, `user_id=None`), `/discovery-score-batch` (import only), plus `GET /api/applications/exists` and `POST /api/applications` (user-scoped, id required).
 

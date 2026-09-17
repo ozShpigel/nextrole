@@ -256,7 +256,7 @@ is not load-bearing for anything here.
 - Sign-out deletes the document. "Sign out everywhere" — delete every session
   for a userId — becomes possible for the first time.
 - `Fixed` mode is untouched: configured Guid, no cookie, no session. The
-  offline CLIs (demo seeder, `eval-verdict`/`eval-advisor`) keep working.
+  offline CLIs (the golden-set evals in `server/api/src/EvalHarness`) keep working.
 
 ### The scraper resolves sessions from Mongo
 

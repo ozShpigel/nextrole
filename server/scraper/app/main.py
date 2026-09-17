@@ -13,6 +13,7 @@ from pydantic import BaseModel
 from app.config import Settings
 from app import identity, roles
 from app.indexes import ensure_pool_indexes, ensure_ttl_index, ensure_user_scope
+from app.models.scrape_spec import ScrapeSpec
 from app.services import match_client, scraper, tracker_client
 
 logging.basicConfig(level=logging.INFO)
@@ -130,6 +131,49 @@ async def current_identity(request: Request) -> identity.RequestIdentity:
 @app.get("/api/discovery/health")
 async def health():
     return {"status": "ok", "service": "scraper"}
+
+
+# ---------------------------------------------------------------------------
+# Scrape — the jobspy adapter
+#
+# The one thing in this service that genuinely needs Python. PoolIngest (.NET)
+# calls it; nothing else does, and no browser can reach it — nginx proxies only
+# what the client uses, and this is container-to-container over Docker DNS.
+#
+# Stateless by construction: parameters in, listings out. It touches no
+# database, resolves no identity and makes no decisions. Everything the daily
+# run decides — what is new, what to keep, what to extract, what to age out —
+# lives in PoolIngest (docs/scraper-slimming.md).
+# ---------------------------------------------------------------------------
+
+class ScrapeRequest(BaseModel):
+    job_titles: list[str]
+    locations: list[str] = []
+    site_names: list[str] = ["linkedin"]
+    results_wanted: int = 50
+    hours_old: int = 72
+    country: str = "Israel"
+    is_remote: bool | None = None
+
+
+@app.post("/scrape")
+async def scrape(request: ScrapeRequest):
+    """Run jobspy for every (title x location) pair and return what it found.
+
+    Synchronous library, so it goes to a thread. The pacing inside
+    scrape_for_criteria (8-20s between searches) means a full role list takes
+    minutes -- the caller is a cron process with no user waiting, which is why
+    this may be a plain blocking request rather than a job queue.
+
+    `stats` is the throttling signal: jobspy swallows rate-limit errors, so
+    failed and empty search counts are the only evidence a run was blocked.
+    """
+    spec = ScrapeSpec(**request.model_dump())
+    jobs, stats = await asyncio.get_running_loop().run_in_executor(
+        None, scraper.scrape_for_criteria, spec
+    )
+    logger.info("Scrape returned %d job(s) over %d search(es)", len(jobs), stats["searches_total"])
+    return {"jobs": jobs, "stats": stats}
 
 
 # ---------------------------------------------------------------------------

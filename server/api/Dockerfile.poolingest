@@ -1,0 +1,25 @@
+# The shared pool's daily ingest. A cron container, not a service: it runs,
+# it exits, and its exit code is what the systemd timer sees.
+#
+# Built from the same source tree as the API and by the same workflow, because
+# both compile Core and Infrastructure. Two workflows on the same path filter
+# could deploy an API on new Core while this still ran the old one — invisible
+# skew, in a repo where merging is deploying.
+FROM mcr.microsoft.com/dotnet/sdk:10.0-alpine AS build
+WORKDIR /src
+COPY server/api/ API/
+RUN dotnet publish API/src/PoolIngest/ApplicationTracker.PoolIngest.csproj -c Release -o /app
+
+# runtime, not aspnet: nothing here listens on a port.
+FROM mcr.microsoft.com/dotnet/runtime:10.0-alpine
+WORKDIR /app
+COPY --from=build /app .
+
+# The role list ships with the image, as it did in the scraper's. It is still
+# configuration rather than code -- Roles__ConfigPath points elsewhere when you
+# want it to -- but baking a default means the box needs no hand-placed file.
+# Manual state on the box is what no `git pull` fixes, and .env.web is the
+# standing lesson (AGENTS.md).
+COPY server/scraper/config/roles.json /app/config/roles.json
+
+ENTRYPOINT ["dotnet", "ApplicationTracker.PoolIngest.dll"]

@@ -188,58 +188,63 @@ so Phase 3), the two read-only run-history endpoints, and health.
 
 ### Phase 2 — the ingest → `PoolIngest`
 
-```
-server/api/
-├── Dockerfile              → ApplicationTracker.Api.dll   (image: api)
-├── Dockerfile.poolingest   → PoolIngest.dll               (image: pool-ingest)
-└── src/PoolIngest/
-```
-
-The flow it owns:
+**Done.** `server/api/src/PoolIngest`, a console project beside `DbCopy` and
+`Seeder`, built into its own image by `api.yml` and run by the existing cron
+container.
 
 ```
 PoolIngest
-  ├─ HTTP  → listings   POST /scrape          raw jobs
+  ├─ HTTP  → scraper   POST /scrape          raw listings
   ├─ Mongo → pool_key dedupe, upsert, age-out (shared pool, no userId)
   ├─ HTTP  → api        /api/match/job-facts, /api/match/job-parse
-  └─ Mongo → pool_roles
+  └─ Mongo → pool_roles (read), discovery_runs (write)
 ```
 
-**Claude calls go over HTTP to the API** — decided, not merely preferred. It
-follows the mailbot, which could reference `Core` and deliberately does not:
-one copy of the prompt config, one Anthropic key, one set of rate-limit
-buckets, and `AGENTS.md`'s "all Claude calls live in the API" stays literally
-true. The usual hazard of an HTTP boundary does not apply here — **every
-Claude call the ingest makes is user-independent**, which is exactly the set
-that passes an explicit `None` identity today. `PoolIngest` presents
-`X-Api-Key` and `X-Source`, and needs no session token, because it acts as
-nobody.
+Claude stays behind the API, following the mailbot — which could reference
+`Core` and deliberately does not. One prompt config, one Anthropic key, one set
+of rate-limit buckets. The usual hazard of an HTTP boundary does not apply:
+every call the ingest makes is user-independent, so it presents `X-Api-Key` and
+`X-Source` and **no session token**. It acts as nobody.
 
-`IPoolJobRepository` is documented as read-only from the API's side. Phase 2
-gives the pool a write path; keep it on a separate interface
-(`IPoolJobWriter`) so the API's read-only contract stays honest.
+**`pool_key` was the risk, and it is pinned by fixtures generated from the
+Python itself** rather than from reading it. It is a unique index over ~3,700
+documents: a key that differs by one character makes the whole pool look new,
+so one run would insert a duplicate of every listing, extract facts for all of
+them at a Claude call each, and start ageing out the real rows. `PoolKeyTests`
+asserts the exact strings, including the NUL separator, the 32-char truncation,
+Hebrew inputs, and the one known `casefold`/`ToLowerInvariant` divergence,
+which is asserted as a difference so it stays visible.
 
-CI: **extend `api.yml` to build and push both images in one job.** Two
-workflows on the same `server/api/**` filter could deploy an API on new `Core`
-while `pool-ingest` still runs the old one — invisible skew, in a repo where
-merging is deploying.
+Then verified against production rather than trusted: recomputing the key for
+**all 415 pool documents in .NET reproduced the stored key exactly, 415 of
+415**. The check also settled the fold question empirically — **415 are keyed
+by URL and 0 by hash**, because LinkedIn supplies a URL on every listing, so
+the branch the fold affects has never been taken. Unit tests prove the
+function; only the database proves the match.
 
-Compose, one service changes:
+**`HttpClient`'s 100-second default would have aborted every run.** A scrape of
+a dozen roles paces 8–20s between searches and runs for minutes. No proxy sits
+in this path — it is Docker DNS, container to container — so the timeout set in
+`Program.cs` is the only limit that applies. It is 30 minutes, with the reason
+written next to it.
 
-```yaml
-pool-ingest:
-  image: ghcr.io/ozshpigel/pool-ingest:latest    # was scraper:latest
-  command: dotnet PoolIngest.dll                 # was python -m app.cli run-pool
-  profiles: ["cron"]
-  env_file: [.env.pool-ingest]                   # new: Mongo + API base url
-```
+The document builder writes `BsonDocument` rather than mapping a typed model,
+deliberately: the field names and their casing are history the API already
+reads, and a typed model invites tidying that history into a silent divergence.
 
-`deploy/systemd/nextrole-pool-ingest.service` is untouched — it runs the
-service by name, and `ExecStartPost=daily-digest.sh` stays attached.
+`roles.json` ships **inside** the image with an env override, as it did in the
+scraper's, rather than being mounted. Baking a default means the box needs no
+hand-placed file — manual state on the box is what no `git pull` fixes, and
+`.env.web` is the standing lesson.
 
-**Verify:** run it once by hand (`docker compose --profile cron run --rm
-pool-ingest`) and compare the run record and inserted count against the last
-Python run before trusting the timer.
+`nextrole.sln` was rebuilt while adding the project. It had been stale: its
+paths pointed at `API\src\...`, which does not exist, so only `Mailbot`
+resolved and `DbCopy`/`Seeder` were never in it. All nine projects now build
+from the solution.
+
+**The Python `run-pool` is deliberately left in place** as a fallback for the
+first few nights. Nothing invokes it — the compose service runs the .NET image
+— and Phase 3 removes it.
 
 ### Phase 3 — strip
 

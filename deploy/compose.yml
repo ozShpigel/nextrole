@@ -49,13 +49,26 @@ services:
   # scrape itself was paid twice. "AI Engineer" was the only coverage it added
   # and now lives in roles.json. search_criteria rows are untouched in the
   # database, so restoring it means restoring a cron, not recreating data.
+  #
+  # .NET since Phase 2 of docs/scraper-slimming.md. The scraper still does the
+  # scraping -- this calls its POST /scrape -- but everything the run DECIDES
+  # (what is new, what to keep, what to extract, what to age out) is here, with
+  # the pool's models and Mongo layer in process.
+  #
+  # Its image is built by api.yml alongside the API, from the same commit,
+  # because both compile Core.
   pool-ingest:
-    image: ghcr.io/ozshpigel/scraper:latest
+    image: ghcr.io/ozshpigel/pool-ingest:latest
     profiles: ["cron"]
-    command: python -m app.cli run-pool
-    env_file: [.env.scraper]
+    env_file: [.env.pool-ingest]
     environment:
-      - API_BASE_URL=http://api:8080
+      # Docker DNS, container to container. No nginx in this path, so the only
+      # timeout that applies is the one PoolIngest sets on its HttpClient.
+      - Api__BaseUrl=http://api:8080
+      - Scraper__BaseUrl=http://scraper:8000
+      # Roles__ConfigPath is left at its default, /app/config/roles.json, which
+      # ships in the image. Point it at a mounted file to override the role
+      # list without a rebuild.
 
   mailbot:
     image: ghcr.io/ozshpigel/mailbot:latest

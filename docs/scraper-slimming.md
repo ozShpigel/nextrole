@@ -215,6 +215,13 @@ asserts the exact strings, including the NUL separator, the 32-char truncation,
 Hebrew inputs, and the one known `casefold`/`ToLowerInvariant` divergence,
 which is asserted as a difference so it stays visible.
 
+Then verified against production rather than trusted: recomputing the key for
+**all 415 pool documents in .NET reproduced the stored key exactly, 415 of
+415**. The check also settled the fold question empirically — **415 are keyed
+by URL and 0 by hash**, because LinkedIn supplies a URL on every listing, so
+the branch the fold affects has never been taken. Unit tests prove the
+function; only the database proves the match.
+
 **`HttpClient`'s 100-second default would have aborted every run.** A scrape of
 a dozen roles paces 8–20s between searches and runs for minutes. No proxy sits
 in this path — it is Docker DNS, container to container — so the timeout set in

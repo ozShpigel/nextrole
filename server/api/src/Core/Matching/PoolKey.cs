@@ -23,11 +23,23 @@ namespace ApplicationTracker.Core.Matching;
 /// - The separator is NUL (<c>\0</c>), not a visible character.
 /// - The hash is truncated to 32 hex characters of a SHA-256, lowercase.
 ///
-/// Python used <c>str.casefold()</c>, which is more aggressive than
-/// <c>ToLowerInvariant</c> on a handful of scripts (ß → ss, final sigma). No
-/// company or title in the pool has hit one, and the URL branch covers
-/// essentially every LinkedIn row, so the risk is confined to the fallback.
-/// <see cref="Fold"/> is where a future divergence would be fixed.
+/// Python used <c>str.casefold()</c>; .NET has no equivalent. They solve
+/// different problems — full case folding is built for caseless comparison and
+/// may change length (ß→ss, ﬁ→fi), while <c>ToLowerInvariant</c> is a 1:1
+/// mapping that produces lowercase text. Measured, they disagree on ß, ẞ,
+/// ligatures, Greek final sigma (ς→σ) and Turkish İ, which .NET's invariant
+/// lowercase leaves untouched entirely.
+///
+/// None of that is reachable today, and that is measured rather than assumed:
+/// of 415 pool documents, **415 are keyed by URL and 0 by hash**, because
+/// LinkedIn supplies a URL on every listing. Recomputing all 415 in .NET
+/// reproduced the stored key exactly. The fold only runs on the fallback
+/// branch, which nothing has ever taken.
+///
+/// So this is a latent difference, not a live one. It would surface the first
+/// time a board returns a listing with no URL and a non-ASCII company or
+/// title, and it would show up as one duplicate row rather than as corruption.
+/// <see cref="Fold"/> is where to fix it.
 /// </remarks>
 public static class PoolKey
 {

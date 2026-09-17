@@ -85,14 +85,18 @@ public class PoolKeyTests
     [Fact]
     public void The_one_known_divergence_from_casefold_is_pinned()
     {
-        // Python's casefold() maps ß to "ss"; ToLowerInvariant leaves it alone.
-        // No row in the pool has hit this, and the URL branch covers virtually
-        // every LinkedIn listing, so the fallback is where it could ever bite.
+        // Python's casefold() maps ß to "ss"; ToLowerInvariant leaves it. They
+        // also disagree on ligatures, Greek final sigma and Turkish İ.
         //
-        // Asserting the CURRENT behaviour rather than the Python value: this
-        // test exists to make the divergence visible and deliberate. If a German
-        // company ever lands in the pool without a URL, this is the failure to
-        // read, and PoolKey.Fold is where to fix it.
+        // Unreachable today, and that is measured: of 415 pool documents, 415
+        // are keyed by URL and 0 by hash, and recomputing every one in .NET
+        // reproduced the stored key exactly. The fold only runs on the fallback
+        // branch, which nothing has ever taken.
+        //
+        // Asserting the CURRENT behaviour rather than the Python value, so the
+        // difference is visible and deliberate. If a board ever returns a
+        // listing with no URL and a non-ASCII company, this is the failure to
+        // read and PoolKey.Fold is where to fix it.
         var dotnet = PoolKey.For(null, "Straße GmbH", "Engineer", "2026-09-01");
         const string python = "k:c1b32242865bfc56d110d3c189085737";
 

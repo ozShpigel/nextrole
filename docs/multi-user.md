@@ -106,8 +106,11 @@ The rule, and the check behind it:
   is to skip the call rather than send an id that will mint a stranger
   (this was `orchestrator._run_identity`, removed with the criteria path).
 - `tests/test_identity_forwarding.py` walks the AST of `app/services/*.py` and
-  fails if any `_request_with_retry` call site omits `user_id`, and checks that
-  the four job-action endpoints declare the identity dependency. Verified by
+  fails if any `_request_with_retry` call site omits the `RequestIdentity`. It
+  also asserts `user_id` is **not** a parameter — a bare userId is not a
+  credential the API can resolve, and an earlier version of this test asserted
+  the opposite and stayed green right through the bug. It checks that the four
+  job-action endpoints declare the identity dependency. Verified by
   mutation: reverting any one of the three fixes turns it red.
 
 Work with no request behind it (the demo seeder, the golden-set eval CLIs) has

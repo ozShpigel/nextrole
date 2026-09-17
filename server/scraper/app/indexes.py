@@ -18,8 +18,9 @@ TTL_SECONDS = 60 * 24 * 3600  # 60 days
 # partial index filter cannot say "field is absent": Mongo allows only
 # $exists:true, $eq, $type, comparisons, $and/$or/$in there, and rejects the
 # $not that "$exists: false" desugars to. DiscoveredJob defaults ttl_managed to
-# True and the pool path sets it False; _backfill_ttl_managed below stamps rows
-# written before the field existed.
+# False now that the pool path is its only writer, and the pool path sets it
+# False explicitly too; _backfill_ttl_managed below stamps the criteria-era rows
+# written before the field existed, which are the only ones that still expire.
 TTL_MANAGED_INDEX_NAME = "ttl_discovered_at_60d_managed"
 TTL_PARTIAL_FILTER = {"ttl_managed": True}
 
@@ -174,8 +175,9 @@ async def _migrate_pool_job_flags(db: AsyncIOMotorDatabase, legacy_owner_user_id
     everybody. They now live in `poolJobState`, one row per (user, job) —
     see app/services/pool_state.py.
 
-    Pre-existing true flags are attributed to the legacy owner, matching how
-    the criteria those jobs came from were stamped above. The source fields
+    Pre-existing true flags are attributed to the legacy owner — the same id
+    the criteria those jobs came from used to be stamped with, before that
+    stamping was removed with the criteria path. The source fields
     are left in place: nothing reads them any more, and leaving them makes
     this reversible. Idempotent — upserts by the same (user, job) key.
     """

@@ -44,7 +44,7 @@ from app.config import Settings
 
 logger = logging.getLogger(__name__)
 
-# Owner of record for search criteria written before multi-user, on an instance
+# Owner of record for per-user rows written before multi-user, on an instance
 # with no configured single user. Matches Core.Identity.UserIds.OrphanedLegacyData.
 ORPHANED_LEGACY_DATA = "00000000-0000-0000-0000-000000000001"
 

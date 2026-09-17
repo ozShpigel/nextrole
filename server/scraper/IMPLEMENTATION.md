@@ -107,7 +107,7 @@ flowchart TD
 
 ## Data & state
 
-- **`discovered_jobs`** (shared) — one document per listing. `pool_key` unique; also indexed for the API's candidate filter. Carries scraped fields, triage outcome, seniority band, and extracted job facts. `ttl_managed: true` on criteria-driven rows only; those expire after 60 days under `ttl_discovered_at_60d_managed`. Nothing writes `ttl_managed: true` any more — pool rows set it false and age out by `missed_runs` instead.
+- **`discovered_jobs`** (shared) — one document per listing. `pool_key` unique; also indexed for the API's candidate filter. Carries scraped fields, triage outcome, seniority band, and extracted job facts. `ttl_managed: true` on criteria-driven rows only; those expire after 60 days under `ttl_discovered_at_60d_managed`. Pool rows set it `false` and age out by `missed_runs` instead, never deleted. The one remaining writer of `true` is `_backfill_ttl_managed`, which stamps only rows with no `pool_key` — the criteria-era leftovers, which therefore still expire on their own.
 - **`discovery_runs`** (shared) — one row per run: counts scraped/new/refreshed/extracted/marked-inactive, status, error.
 - **`poolJobState`** (per user) — `_id = "<userId>:<jobId>"`, holds `dismissed` / `saved_to_tracker`.
 - **Caching / TTLs:** no application cache. The only TTL is the retention index above.

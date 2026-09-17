@@ -59,7 +59,13 @@ class DiscoveredJob(BaseModel):
     # Retention marker: criteria-driven jobs are purged by the TTL index after
     # 60 days; shared-pool jobs opt out (pool.py sets this False) because an
     # expired pool listing is marked inactive, never deleted. See indexes.py.
-    ttl_managed: bool = True
+    # Default False since the criteria path went (docs/scraper-slimming.md):
+    # pool rows are the only rows anyone creates now, and a True default means
+    # a construction site that forgets the flag hands a pool job to the 60-day
+    # TTL index -- deleting a listing the pool guarantees to keep and only mark
+    # inactive. `_backfill_ttl_managed` still stamps True, but only on rows with
+    # no pool_key, and it writes to Mongo directly rather than through here.
+    ttl_managed: bool = False
     # ---- Shared pool (docs/job-pool.md) -------------------------------------
     # Stable identity for a listing across runs: the job_url when the board
     # gives one, otherwise a hash of company+title+date_posted. Unique index.

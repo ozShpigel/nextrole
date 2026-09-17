@@ -102,8 +102,21 @@ before this.
 
 **Not touched:** any document in Atlas. The 3,328 orphan pool rows and the
 1,835 stale `score` fields stay where they are — they are invisible to every
-scan already (no `pool_key`). Data cleanup is a separate change, rehearsed
-with `DbCopy` against a clone first.
+scan already (no `pool_key`).
+
+And the orphans need no cleanup at all: every one of them carries
+`ttl_managed: true`, so the 60-day TTL index deletes them on its own. Only the
+pool rows opt out of retention. That leaves the data cleanup with just
+`search_criteria` (3 documents) and, optionally, `$unset` of the stale score
+and snapshot fields to reclaim space — a much smaller job than it first looked,
+and one with no irreversible bulk delete in it.
+
+Before that cleanup runs, **`server/api/src/Seeder/Program.cs:587` must stop
+writing `search_criteria`** — it still creates a criteria document and tags
+seeded jobs with its `criteria_id`, so a reseed would recreate the collection
+after it is dropped. The seeded document also carries no `user_id`, which the
+scraper's startup used to stamp and no longer does, so it is invisible to the
+`UserMergeService.SnakeCaseOwned` re-key that this phase deliberately kept.
 
 **Verify:** `python -m app.cli run-pool` completes; `GET :8000/openapi.json`
 no longer lists the criteria routes; the Matches page is unchanged.

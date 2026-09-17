@@ -1,17 +1,16 @@
 """One-shot CLI entrypoint for cron-driven ingest runs.
 
-Unlike the FastAPI endpoints (which kick work into BackgroundTasks on the
-long-running web service), this runs a discovery ingest (scrape -> triage ->
-score -> store) to completion in its own process and exits — the mailbot
-pattern. Run it as a Render Cron Job using the scraper image:
+Unlike the FastAPI endpoints (which serve requests on the long-running web
+service), this runs the ingest (scrape -> dedupe -> extract facts -> store) to
+completion in its own process and exits — the mailbot pattern. Run it as a cron
+job using the scraper image:
 
     python -m app.cli run-pool            # daily shared-pool ingest (cron)
-    python -m app.cli run-all             # every is_active criteria (cron)
-    python -m app.cli run <criteria_id>   # one specific criteria
     python -m app.cli eval-verdict        # golden-set Evaluator verdict report
     python -m app.cli eval-subscore       # golden-set Evaluator sub-score report (frozen profile)
-    python -m app.cli seed-demo-jobs      # (re)seed the demo search pool
-    python -m app.cli refresh-demo-timestamps  # bump seeded jobs into the Search window
+
+The criteria-driven commands (`run`, `run-all`) and the demo seeders went with
+the criteria path — see docs/scraper-slimming.md.
 
 Because nothing is exposed over HTTP, no X-Cron-Key guard is needed and there's
 no free-tier idle-eviction race: the container lives exactly as long as the work.
@@ -19,7 +18,6 @@ no free-tier idle-eviction race: the container lives exactly as long as the work
 import argparse
 import asyncio
 import logging
-import random
 import sys
 
 import certifi

@@ -40,9 +40,10 @@ Scheduled jobs run as systemd timers rather than always-on containers.
 
 Both services migrate pre-multi-user data on startup, and **both must run**.
 The API stamps `userId` onto the tracker collections and re-keys the
-one-per-user singletons; the scraper rebuilds the retention TTL, stamps
-`search_criteria`, and creates the pool indexes. Each refuses to start if its
-own migration cannot complete — the API because it would otherwise serve a
+one-per-user singletons; the scraper rebuilds the retention TTL,
+migrates the per-user pool flags into `poolJobState`, and creates the pool
+indexes. Only the TTL rebuild is fatal. Each refuses to start if its own
+fatal migration cannot complete — the API because it would otherwise serve a
 view of the database that does not match what is in it, the scraper because
 until its TTL rebuild lands every shared-pool job is a deletion candidate under
 the old unfiltered index. Full detail: `docs/multi-user.md`, `docs/job-pool.md`.

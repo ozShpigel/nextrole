@@ -61,6 +61,18 @@ public static class UserIdentityCookieExtensions
     /// </remarks>
     private static async Task RefuseMintedServiceIdentity(HttpContext ctx, string source)
     {
+        if (ctx.Response.HasStarted)
+        {
+            // The handler already began writing before it asked who the user
+            // was. Nothing can be taken back, so say so loudly rather than
+            // corrupt the response body with an error object.
+            ctx.RequestServices.GetRequiredService<ILoggerFactory>()
+                .CreateLogger("nextrole.identity")
+                .LogError("Service client {Source} needed a user AFTER the response started; "
+                    + "cannot refuse it now ({Method} {Path})", source, ctx.Request.Method, ctx.Request.Path);
+            return;
+        }
+
         var log = ctx.RequestServices
             .GetRequiredService<ILoggerFactory>()
             .CreateLogger("nextrole.identity");
@@ -98,7 +110,15 @@ public static class UserIdentityCookieExtensions
 
             if (resolved.Minted && ctx.Request.Headers.TryGetValue(ServiceSourceHeader, out var source))
             {
-                await RefuseMintedServiceIdentity(ctx, source.ToString());
+                // Recorded, not refused. Whether it is a problem depends on
+                // whether the handler needs a user -- see
+                // ParkUnresolvedServiceIdentity. Refusing here refused the
+                // user-independent calls too, and job-facts/job-parse act as
+                // nobody by design.
+                IdentityResolver.ParkUnresolvedServiceIdentity(ctx, source.ToString());
+
+                try { await next(); }
+                catch (UnresolvedServiceIdentityException e) { await RefuseMintedServiceIdentity(ctx, e.Source); }
                 return;
             }
 

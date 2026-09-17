@@ -8,6 +8,7 @@ using ApplicationTracker.Core.Repositories;
 using ApplicationTracker.Infrastructure.AI;
 using ApplicationTracker.Infrastructure.Pdf;
 using ApplicationTracker.Infrastructure.Profile;
+using ApplicationTracker.Infrastructure.Listings;
 using ApplicationTracker.Infrastructure.Repositories;
 using Microsoft.Extensions.Options;
 using MongoDB.Driver;
@@ -139,6 +140,19 @@ public static class ServiceExtensions
         // IHttpContextAccessor is the standard way to reach that from a singleton.
         services.AddHttpContextAccessor();
         services.AddSingleton<IClaudeClient, ClaudeClient>();
+        // The API's one call into the scraper: fetching a posting by URL needs
+        // jobspy, and jobspy is Python. Nothing else about importing a job does.
+        //
+        // An explicit timeout, not the 100s default: this fetches up to five
+        // LinkedIn pages one after another for a waiting user. Long enough for
+        // that, short enough that a blocked scraper fails the request rather
+        // than holding a browser connection open.
+        services.AddHttpClient<IListingsClient, ListingsClient>(c =>
+        {
+            c.BaseAddress = new Uri(configuration["Scraper:BaseUrl"] ?? "http://scraper:8080");
+            c.Timeout = TimeSpan.FromSeconds(120);
+        });
+
         services.AddScoped<IJobMatchService, JobMatchService>();
         services.AddScoped<IPoolScanService, PoolScanService>();
         services.AddScoped<IPoolRoleService, PoolRoleService>();

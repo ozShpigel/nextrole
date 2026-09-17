@@ -1,5 +1,4 @@
 import asyncio
-import json
 import logging
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
@@ -14,7 +13,7 @@ from app.config import Settings
 from app import identity, roles
 from app.indexes import ensure_pool_indexes, ensure_ttl_index, ensure_user_scope
 from app.models.scrape_spec import ScrapeSpec
-from app.services import match_client, scraper, tracker_client
+from app.services import scraper
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -107,19 +106,6 @@ app.add_middleware(
 )
 
 
-# Resolved once per request, the same way the API resolves it.
-#
-# One dependency now: the only user-scoped endpoint left is import_jobs, and it
-# calls the API, so it needs the CREDENTIAL rather than the resolved id -- the
-# API will not accept an id (see identity.RequestIdentity). The id-only
-# dependency went with the endpoints that queried Mongo directly, which moved
-# to the API in Phase 1/1b of docs/scraper-slimming.md.
-async def current_identity(request: Request) -> identity.RequestIdentity:
-    # Async because resolution is now a session lookup (docs/auth.md). FastAPI
-    # awaits async dependencies transparently, so no handler signature changes.
-    return await identity.resolve(settings, request, db)
-
-
 # ---------------------------------------------------------------------------
 # Health
 # ---------------------------------------------------------------------------
@@ -154,6 +140,29 @@ class ScrapeRequest(BaseModel):
     hours_old: int = 72
     country: str = "Israel"
     is_remote: bool | None = None
+
+
+class ScrapeUrlRequest(BaseModel):
+    url: str
+
+
+@app.post("/scrape/url")
+async def scrape_url(request: ScrapeUrlRequest):
+    """Fetch one LinkedIn posting directly by URL -- a link found outside of
+    discovery, not a search.
+
+    Returns `{"job": null}` rather than an error status on a failed fetch. A bad
+    link, an expired posting and a changed page structure are all ordinary
+    outcomes here, not faults of this service, and the caller reports them per
+    URL. 404 would make the caller's own error handling ambiguous with a
+    genuinely missing route.
+    """
+    job = await asyncio.get_running_loop().run_in_executor(
+        None, scraper.fetch_job_by_url, request.url
+    )
+    if job is None:
+        logger.info("Could not fetch job from %s", request.url)
+    return {"job": job}
 
 
 @app.post("/scrape")
@@ -209,101 +218,3 @@ async def get_run(run_id: str):
 # Discovered Jobs Actions
 # ---------------------------------------------------------------------------
 
-class ImportJobsRequest(BaseModel):
-    urls: list[str]
-
-
-MAX_IMPORT_URLS = 5  # matches the Evaluator batch cap (see match_client.score_job_batch)
-
-
-@app.post("/api/discovery/jobs/import")
-async def import_jobs(request: ImportJobsRequest, ident: identity.RequestIdentity = Depends(current_identity)):
-    """The "Import Job" button on Active — one or more LinkedIn job URLs
-    found outside of discovery. Fetches each directly (no search), scores
-    them in one batch call, and saves straight to the tracker at
-    DecidedToApply, landing in the Added column. Never raises on a
-    per-job failure (bad link, fetch blocked, scoring unavailable) — those
-    are reported per-URL in the response instead, same fail-open philosophy
-    as the discovery pipeline; a bad link in a batch of five shouldn't lose
-    the other four.
-    """
-    urls = [u.strip() for u in request.urls if u.strip()]
-    if not urls:
-        raise HTTPException(400, "At least one URL is required")
-    if len(urls) > MAX_IMPORT_URLS:
-        raise HTTPException(400, f"At most {MAX_IMPORT_URLS} URLs per import")
-
-    loop = asyncio.get_running_loop()
-    results: list[dict] = []
-    fetched: list[tuple[str, dict]] = []
-    for url in urls:
-        job = await loop.run_in_executor(None, scraper.fetch_job_by_url, url)
-        if job is None:
-            results.append({
-                "url": url, "status": "failed", "title": None, "company": None,
-                "error": "Couldn't fetch this job — check the link, or paste the description instead.",
-            })
-            continue
-        fetched.append((url, job))
-
-    if fetched:
-        batch_items = [
-            {
-                "id": str(i),
-                "jobDescription": job["description"],
-                "title": job["title"],
-                "company": job["company"],
-                "location": job.get("location"),
-                "companyProfile": job.get("company_profile"),
-            }
-            for i, (_url, job) in enumerate(fetched)
-        ]
-        # Scored against this user's profile, and saved to this user's
-        # tracker — both need the identity forwarded, not just the save.
-        scores = await match_client.score_job_batch(settings, batch_items, identity=ident)
-
-        for i, (url, job) in enumerate(fetched):
-            match_response = (scores or {}).get(str(i))
-            score = verdict = analysis_json = None
-            analyst_in = analyst_out = eval_in = eval_out = None
-            if match_response:
-                score = match_response.get("overallScore")
-                verdict = match_response.get("verdict")
-                analysis = {
-                    k: v for k, v in match_response.items()
-                    if k not in ("analystSnapshotInput", "analystSnapshotOutput",
-                                 "evaluatorSnapshotInput", "evaluatorSnapshotOutput")
-                }
-                analysis_json = json.dumps(analysis, ensure_ascii=False)
-                analyst_in = match_response.get("analystSnapshotInput")
-                analyst_out = match_response.get("analystSnapshotOutput")
-                eval_in = match_response.get("evaluatorSnapshotInput")
-                eval_out = match_response.get("evaluatorSnapshotOutput")
-
-            saved = await tracker_client.save_to_tracker(
-                settings=settings,
-                identity=ident,
-                title=job["title"],
-                company=job["company"],
-                description=job["description"],
-                score=score,
-                verdict=verdict,
-                analysis_json=analysis_json,
-                job_url=job["job_url"],
-                analyst_snapshot_input=analyst_in,
-                analyst_snapshot_output=analyst_out,
-                evaluator_snapshot_input=eval_in,
-                evaluator_snapshot_output=eval_out,
-                company_logo=await _resolve_company_logo(job.get("company"), job.get("company_logo")),
-            )
-            results.append({
-                "url": url,
-                "status": "saved" if saved else "failed",
-                "title": job["title"],
-                "company": job["company"],
-                "score": score,
-                "verdict": verdict,
-                "error": None if saved else "Scored, but couldn't save it to the tracker.",
-            })
-
-    return {"results": results}

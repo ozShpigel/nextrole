@@ -18,6 +18,11 @@ services:
     env_file: [.env.api]
     environment:
       - DOTNET_gcServer=0
+      # Importing a posting by URL needs jobspy, and jobspy is Python. This is
+      # the API's only call into the scraper, and it makes the dependency
+      # bidirectional -- previously the scraper called the API and never the
+      # reverse. 8080 is the container's port; 8000 is the local dev one.
+      - Scraper__BaseUrl=http://scraper:8080
 
   scraper:
     image: ghcr.io/ozshpigel/scraper:latest

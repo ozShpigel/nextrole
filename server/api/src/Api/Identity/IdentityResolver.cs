@@ -52,14 +52,41 @@ public sealed class IdentityResolver
     public static void Park(HttpContext http, Guid userId) =>
         http.Items[HttpContextItemKey] = userId;
 
+    /// <summary>
+    /// Record that a service client presented a credential that did not
+    /// resolve, WITHOUT deciding yet whether that matters.
+    /// </summary>
+    /// <remarks>
+    /// It matters only if the handler goes on to need a user. Refusing in the
+    /// middleware instead — which is what shipped in #81 — refuses the
+    /// user-independent calls too, and those legitimately act as nobody:
+    /// job-facts and job-parse read no profile and score nothing. That
+    /// regression stored 60 pool jobs with no extracted requirements before it
+    /// was caught, silently, because the ingest treats a failed extraction as
+    /// "retry next run" rather than as an error.
+    ///
+    /// So the refusal moves to the point of use. A handler that never reads
+    /// IUserContext is unaffected; one that does gets a 401 instead of a
+    /// freshly minted account. That is structural rather than a route list:
+    /// a new user-scoped endpoint is covered without anyone remembering to add
+    /// it, which is the property the route allowlist in nginx.conf does not have.
+    /// </remarks>
+    public static void ParkUnresolvedServiceIdentity(HttpContext http, string source) =>
+        http.Items[HttpContextItemKey] = new UnresolvedServiceIdentity(source);
+
     public Guid Resolve(HttpContext? http)
     {
         if (_options.Mode == IdentityMode.Fixed) return _fixedUserId;
 
-        if (http is not null
-            && http.Items.TryGetValue(HttpContextItemKey, out var parked)
-            && parked is Guid resolved)
-            return resolved;
+        if (http is not null && http.Items.TryGetValue(HttpContextItemKey, out var parked))
+        {
+            if (parked is Guid resolved) return resolved;
+
+            // A service client whose credential did not resolve, now asking
+            // who it is. This is the question it must not get an answer to.
+            if (parked is UnresolvedServiceIdentity unresolved)
+                throw new UnresolvedServiceIdentityException(unresolved.Source);
+        }
 
         // Previously this minted a fresh id here. It must not any more.
         //
@@ -78,6 +105,21 @@ public sealed class IdentityResolver
             + "before anything reads IUserContext.UserId, and background work must take an "
             + "explicit userId rather than resolving one.");
     }
+}
+
+/// <summary>Parked for a service client whose credential did not resolve.</summary>
+public sealed record UnresolvedServiceIdentity(string Source);
+
+/// <summary>
+/// Thrown when a handler asks who the user is and the answer would have been a
+/// freshly minted account. Surfaced as a 401 by UseUserIdentityCookie.
+/// </summary>
+public sealed class UnresolvedServiceIdentityException(string source)
+    : InvalidOperationException(
+        $"Service client '{source}' presented no credential that resolves to a session, "
+        + "and this request needs to know which user it is for.")
+{
+    public string Source { get; } = source;
 }
 
 // Scoped per-request view of the resolved id, so endpoints can take it as a

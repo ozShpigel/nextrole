@@ -77,7 +77,7 @@ public class ServiceIdentityRefusalTests
     /// terminal handler that records whether the request got through.
     /// </summary>
     private static async Task<(int Status, string? ContentType, bool ReachedHandler, Guid? SeenUserId)>
-        Send(FakeSessions sessions, string? cookie, string? sourceHeader)
+        Send(FakeSessions sessions, string? cookie, string? sourceHeader, bool handlerNeedsUser = true)
     {
         var services = new ServiceCollection();
         services.AddLogging();
@@ -101,7 +101,11 @@ public class ServiceIdentityRefusalTests
         app.Run(ctx =>
         {
             reached = true;
-            seen = provider.GetRequiredService<IdentityResolver>().Resolve(ctx);
+            // The distinction the whole design now rests on: a handler that
+            // reads IUserContext needs a user, one that does not is
+            // user-independent and must be left alone.
+            if (handlerNeedsUser)
+                seen = provider.GetRequiredService<IdentityResolver>().Resolve(ctx);
             return Task.CompletedTask;
         });
         var pipeline = app.Build();
@@ -126,12 +130,14 @@ public class ServiceIdentityRefusalTests
     {
         var sessions = new FakeSessions();
 
-        var (status, contentType, reached, _) = await Send(sessions, cookie: null, sourceHeader: source);
+        var (status, contentType, _, seen) = await Send(sessions, cookie: null, sourceHeader: source);
 
         Assert.Equal(StatusCodes.Status401Unauthorized, status);
         Assert.Equal("application/json", contentType);
-        // The point of the whole thing: no handler runs, so nothing can write.
-        Assert.False(reached);
+        // The handler runs but never learns who it is for, so it cannot write
+        // under a minted id. Refusing before the handler would also refuse the
+        // user-independent calls -- see the regression tests above.
+        Assert.Null(seen);
     }
 
     [Fact]
@@ -139,10 +145,10 @@ public class ServiceIdentityRefusalTests
     {
         var sessions = new FakeSessions();
 
-        var (status, _, reached, _) = await Send(sessions, cookie: "not-a-real-token", sourceHeader: "mailbot");
+        var (status, _, _, seen) = await Send(sessions, cookie: "not-a-real-token", sourceHeader: "mailbot");
 
         Assert.Equal(StatusCodes.Status401Unauthorized, status);
-        Assert.False(reached);
+        Assert.Null(seen);
     }
 
     [Fact]
@@ -152,10 +158,48 @@ public class ServiceIdentityRefusalTests
         // Guid instead of the opaque token. It used to mint; now it is a 401.
         var sessions = new FakeSessions();
 
-        var (status, _, reached, _) = await Send(sessions, cookie: Alice.ToString(), sourceHeader: "ingest");
+        var (status, _, _, seen) = await Send(sessions, cookie: Alice.ToString(), sourceHeader: "ingest");
 
         Assert.Equal(StatusCodes.Status401Unauthorized, status);
-        Assert.False(reached);
+        Assert.Null(seen);
+    }
+
+    // ---- The regression this cost us ---------------------------------------
+
+    [Fact]
+    public async Task A_user_independent_call_from_a_service_client_is_NOT_refused()
+    {
+        // job-facts and job-parse read no profile and score nothing: they act
+        // as nobody, by design, and present no credential because none applies.
+        //
+        // The first version of this refusal turned them into 401s. The daily
+        // ingest stored 60 pool jobs with no extracted requirements and
+        // reported `completed`, because a failed extraction is "retry next
+        // run" rather than an error. Two runs before, the same path extracted
+        // 94 of 94.
+        var sessions = new FakeSessions();
+
+        var (status, _, reached, _) = await Send(
+            sessions, cookie: null, sourceHeader: "ingest", handlerNeedsUser: false);
+
+        Assert.Equal(StatusCodes.Status200OK, status);
+        Assert.True(reached, "a handler that needs no user must run");
+    }
+
+    [Fact]
+    public async Task The_refusal_still_fires_when_the_handler_asks_who_it_is()
+    {
+        // Same request as above; the only difference is that the handler reads
+        // IUserContext. That is what makes the refusal structural rather than a
+        // list of routes someone has to maintain.
+        var sessions = new FakeSessions();
+
+        var (status, contentType, _, seen) = await Send(
+            sessions, cookie: null, sourceHeader: "ingest", handlerNeedsUser: true);
+
+        Assert.Equal(StatusCodes.Status401Unauthorized, status);
+        Assert.Equal("application/json", contentType);
+        Assert.Null(seen);   // it never got an answer
     }
 
     // ---- What must NOT change ---------------------------------------------

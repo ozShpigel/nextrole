@@ -65,7 +65,7 @@ the API down with it; and two API instances would double-run it.
 |---|---|---|
 | `services/scraper.py` | 333 | **stays** — jobspy, NaN handling, `is_remote` correction |
 | `services/orchestrator.py` | 653 | **delete** — the legacy criteria path |
-| glassdoor + news + company_size + ddg_search | 408 | **decision below** |
+| glassdoor + news + company_size + ddg_search | 408 | **delete** — 5.6% hit rate, see Decisions |
 | `services/demo_seed.py` | 275 | **delete** — the demo was torn down |
 | `models/search_criteria.py`, `schemas/criteria.py` | 73 | **delete** |
 | `services/pool.py` | 377 | → `PoolIngest` |
@@ -77,7 +77,7 @@ the API down with it; and two API instances would double-run it.
 | `indexes.py` | 268 | → `PoolIndexInitializer` |
 | `roles.py` | 169 | → `PoolRoleService` (already exists in .NET) |
 | `services/parse_quality.py`, `models/` | 275 | → `Core/Matching` |
-| `services/verdict_eval.py`, `subscore_eval.py` | 362 | **decision below** |
+| `services/verdict_eval.py`, `subscore_eval.py` | 362 | → a .NET console tool, Phase 2 |
 
 ## Phases
 
@@ -238,29 +238,37 @@ not remove what they depend on.
 considered and rejected — it already names the daily Telegram digest
 (`deploy/monitoring/daily-digest.sh`), which reports *on* this pipeline.
 
-**Deferred: the three enrichment clients.** Left in the tree, uncalled, until
-the decision is made. Phase 0 deleted their only caller
-(`orchestrator._prefetch_enrichment`), so `glassdoor_client`,
-`news_client`, `company_size_client` and `ddg_search` now have no live entry
-point at all — they are retained deliberately, as the reference for a .NET port
-if Glassdoor is restored in Phase 2. Their tests still pass and still run.
+**Settled: the enrichment clients are deleted.** `glassdoor_client`,
+`news_client`, `company_size_client` and `ddg_search`, with their tests. Two
+measurements decided it against restoring Glassdoor in .NET.
 
-The case for restoring Glassdoor rather than deleting it:
-`reviewCount` drives `reviewAdjustment` and `EnforceEvidenceCaps`, the caps
-built in PR #1 because the Evaluator ignored prompt-stated ones. Measured
-against production: the guard fires on 24 of 344 scannable jobs, all of them
-inherited from the retired criteria path, and decays to zero as those age out.
+**It succeeded 5.6% of the time.** Across the criteria path's whole life the
+DDG-then-Glassdoor scrape produced data for **49 of 875 distinct companies** —
+the same 5.6% per job. Porting HTML parsing of a site that actively blocks
+scrapers, reached through a search-engine redirect, to win data on 1 job in 18,
+is not a good trade for a fresh service.
 
-Recommendation: **keep Glassdoor, drop news and company-size.** News is
-already measured at +856 input tokens per job for an effect the batch prompt
-forbids; company-size only backfilled `numEmployees`, which is context-only by
-the prompt's own rule. If Glassdoor is kept, restore it **in .NET during Phase
-2**, not in Python now.
+**And its absence is the safe direction, not a lost guard.** `ReviewCap(null)`
+is **1**, the tightest setting; review evidence *loosens* the clamp to 2 or 3 on
+Engineering Maturity, Pace & Workload and Long-term Risk. So removing Glassdoor
+makes scoring more conservative. An earlier reading of this had it backwards —
+the mechanism is a permission bought by evidence, not a protection lost without
+it.
 
-If it is dropped instead, prune the read side with it —
-`PoolScanService.cs:211` and `ReviewCap` — and do not leave the comment at
-`PoolScanService.cs:206-210` claiming "the ingest already paid to scrape" when
-nothing does.
+What stays: `ReviewCap` and `EnforceReviewCaps`, which are correct with null
+input and are the enforcement half of PR #1's lesson (a structured field plus a
+server-side clamp, because the model will not respect a prompt-stated cap).
+`PoolScanService` still forwards `GlassdoorData`, because the ~24 pool-visible
+documents from the criteria era carry real values until they age out.
+
+`DiscoveredJob` drops `company_news` and `glassdoor_data` outright rather than
+keeping nullable fields — a field nothing can ever write reads as an oversight
+to the next person. Documents already holding them are untouched and still
+forward what they have on save.
+
+If employee-review signal is ever wanted again, the answer is a paid API with a
+contract, not scraping at 5.6%. Recorded here so the gap looks like a decision
+rather than an omission.
 
 **Open — `server/api/` as a directory name.** With five projects under it, it
 is the .NET solution rather than the API. `server/dotnet/` would be truer.

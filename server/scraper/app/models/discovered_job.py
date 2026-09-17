@@ -45,9 +45,12 @@ class DiscoveredJob(BaseModel):
     analyst_snapshot_output: str | None = None
     evaluator_snapshot_input: str | None = None
     evaluator_snapshot_output: str | None = None
-    # Company enrichment (news headlines + Glassdoor rating)
-    company_news: list[dict] | None = None
-    glassdoor_data: dict | None = None
+    # Company enrichment (news headlines + Glassdoor rating) is GONE, not
+    # pending: the DDG-based scrapers that produced it succeeded for 49 of 875
+    # companies (5.6%) and were deleted with the criteria path. No field is kept
+    # for them, because a field nothing can ever write reads as an oversight.
+    # Documents from that era still carry the keys and are still forwarded on
+    # save; see docs/scraper-slimming.md for why this is not coming back.
     # Tracking
     is_duplicate: bool = False
     saved_to_tracker: bool = False

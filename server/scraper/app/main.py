@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 
 import certifi
-from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel
@@ -14,15 +14,7 @@ from pydantic import BaseModel
 from app.config import Settings
 from app import identity, roles
 from app.indexes import ensure_pool_indexes, ensure_ttl_index, ensure_user_scope
-from app.schemas.criteria import (
-    MAX_SEARCHES_PER_RUN,
-    CreateCriteriaRequest,
-    UpdateCriteriaRequest,
-    pairs_error,
-    search_pairs,
-)
-from app.models.search_criteria import SearchCriteria
-from app.services import match_client, orchestrator, pool_state, scraper, tracker_client
+from app.services import match_client, pool_state, scraper, tracker_client
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -146,70 +138,13 @@ async def health():
 
 
 # ---------------------------------------------------------------------------
-# Search Criteria CRUD
-# ---------------------------------------------------------------------------
-
-@app.get("/api/discovery/criteria")
-async def list_criteria(user_id: str = Depends(current_user_id)):
-    docs = await db.search_criteria.find({"user_id": user_id}).sort("created_at", -1).to_list(100)
-    for d in docs:
-        d.pop("_id", None)
-    return docs
-
-
-@app.post("/api/discovery/criteria", status_code=201)
-async def create_criteria(req: CreateCriteriaRequest, user_id: str = Depends(current_user_id)):
-    criteria = SearchCriteria(**req.model_dump(), user_id=user_id)
-    await db.search_criteria.insert_one(criteria.model_dump())
-    return criteria.model_dump()
-
-
-@app.put("/api/discovery/criteria/{criteria_id}")
-async def update_criteria(criteria_id: str, req: UpdateCriteriaRequest, user_id: str = Depends(current_user_id)):
-    updates = req.model_dump(exclude_unset=True)
-    if not updates:
-        raise HTTPException(400, "No fields to update")
-    # Partial update: enforce the titles x locations search budget against the
-    # merged result (schema-level validation can't see the other half).
-    if "job_titles" in updates or "locations" in updates:
-        existing = await db.search_criteria.find_one({"id": criteria_id, "user_id": user_id})
-        if not existing:
-            raise HTTPException(404, "Criteria not found")
-        titles = updates.get("job_titles", existing.get("job_titles") or [])
-        locations = updates.get("locations", existing.get("locations") or [])
-        if search_pairs(titles, locations) > MAX_SEARCHES_PER_RUN:
-            raise HTTPException(400, pairs_error(titles, locations))
-    updates["updated_at"] = datetime.now(timezone.utc)
-    result = await db.search_criteria.update_one({"id": criteria_id, "user_id": user_id}, {"$set": updates})
-    if result.matched_count == 0:
-        raise HTTPException(404, "Criteria not found")
-    doc = await db.search_criteria.find_one({"id": criteria_id, "user_id": user_id})
-    doc.pop("_id", None)
-    return doc
-
-
-@app.delete("/api/discovery/criteria/{criteria_id}", status_code=204)
-async def delete_criteria(criteria_id: str, user_id: str = Depends(current_user_id)):
-    result = await db.search_criteria.delete_one({"id": criteria_id, "user_id": user_id})
-    if result.deleted_count == 0:
-        raise HTTPException(404, "Criteria not found")
-
-
-# ---------------------------------------------------------------------------
 # Discovery Runs
+#
+# Read-only. The criteria CRUD, the per-criteria trigger and the per-run
+# drill-down went with the criteria-driven ingest (docs/scraper-slimming.md,
+# Phase 0). Runs are still written — by the daily pool ingest — so listing
+# them stays useful for seeing whether last night's run completed.
 # ---------------------------------------------------------------------------
-
-@app.post("/api/discovery/run/{criteria_id}", status_code=202)
-async def trigger_run(criteria_id: str, background_tasks: BackgroundTasks, user_id: str = Depends(current_user_id)):
-    doc = await db.search_criteria.find_one({"id": criteria_id, "user_id": user_id})
-    if not doc:
-        raise HTTPException(404, "Criteria not found")
-    from app.models.discovery_run import DiscoveryRun
-    run = DiscoveryRun(criteria_id=criteria_id, criteria_name=doc.get("name", ""))
-    await db.discovery_runs.insert_one(run.model_dump())
-    background_tasks.add_task(orchestrator.run_discovery, db, settings, criteria_id, run.id)
-    return {"status": "started", "criteria_id": criteria_id, "run_id": run.id}
-
 
 @app.get("/api/discovery/runs")
 async def list_runs():
@@ -228,14 +163,6 @@ async def get_run(run_id: str):
     doc.pop("_id", None)
     _tag_utc(doc)
     return doc
-
-
-@app.get("/api/discovery/runs/{run_id}/jobs")
-async def get_run_jobs(run_id: str):
-    docs = await db.discovered_jobs.find({"run_id": run_id}).sort("score", -1).to_list(200)
-    for d in docs:
-        d.pop("_id", None)
-    return docs
 
 
 @app.get("/api/discovery/jobs")
@@ -357,26 +284,6 @@ async def list_scored_jobs(
     total = len(docs)
     return {"jobs": docs[offset:offset + limit], "total": total, "limit": limit, "offset": offset}
 
-
-
-@app.post("/api/discovery/runs/{run_id}/abort")
-async def abort_run(run_id: str):
-    # Can't actually cancel the in-process BackgroundTask — FastAPI doesn't
-    # expose a handle. But marking the row "cancelled" removes the phantom from
-    # the UI and frees the user to start a fresh run. The orchestrator's status
-    # writes are guarded with `status != cancelled`, so a still-alive zombie
-    # task can no longer resurrect the row back to scoring/completed/failed.
-    result = await db.discovery_runs.update_one(
-        {"id": run_id, "status": {"$in": ["pending", "scraping", "scoring"]}},
-        {"$set": {
-            "status": "cancelled",
-            "error": "Aborted by user",
-            "completed_at": datetime.now(timezone.utc),
-        }},
-    )
-    if result.matched_count == 0:
-        raise HTTPException(404, "Run not found or already finished")
-    return {"status": "cancelled"}
 
 
 # ---------------------------------------------------------------------------

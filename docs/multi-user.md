@@ -48,7 +48,7 @@ by hand, and no way to write a lookup that forgets to scope itself.
 it.
 
 `discovered_jobs` and `discovery_runs` are **shared** by design: the job pool is
-common to everyone. `search_criteria` is user-scoped (`user_id`), in the scraper.
+common to everyone. `poolJobState` is user-scoped (`UserId`), in the scraper.
 
 ## Why a missed filter cannot happen
 
@@ -104,10 +104,13 @@ The rule, and the check behind it:
   its user from configuration and ignores the cookie, so an instance identity is
   sound there; under `Cookie` there is no provable answer, and the honest move
   is to skip the call rather than send an id that will mint a stranger
-  (`orchestrator._run_identity`).
+  (this was `orchestrator._run_identity`, removed with the criteria path).
 - `tests/test_identity_forwarding.py` walks the AST of `app/services/*.py` and
-  fails if any `_request_with_retry` call site omits `user_id`, and checks that
-  the four job-action endpoints declare the identity dependency. Verified by
+  fails if any `_request_with_retry` call site omits the `RequestIdentity`. It
+  also asserts `user_id` is **not** a parameter — a bare userId is not a
+  credential the API can resolve, and an earlier version of this test asserted
+  the opposite and stayed green right through the bug. It checks that the four
+  job-action endpoints declare the identity dependency. Verified by
   mutation: reverting any one of the three fixes turns it red.
 
 Work with no request behind it (the demo seeder, the golden-set eval CLIs) has

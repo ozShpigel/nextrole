@@ -171,7 +171,8 @@ Scores went the same way in Step 5, for the same reason.
 `is_duplicate` is still written onto the document by the criteria-driven path.
 That path's rows carry a `criteria_id`, and a criteria belongs to exactly one
 user, so those documents are single-user in practice. Pool rows never get the
-field. It goes when `search_criteria` does (Tasks.md).
+field. Nothing writes it true any more; it goes with the criteria documents
+in the data cleanup (docs/scraper-slimming.md).
 
 The test to apply to a new field: **would two users ever disagree about it?**
 If yes, it belongs in a per-user row, not on the job.

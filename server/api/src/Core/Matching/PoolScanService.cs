@@ -199,11 +199,18 @@ public sealed class PoolScanService : IPoolScanService
                 // same facts to ground the rationale against the profile.
                 MustHaveTech = j.MustHaveTech,
                 NiceToHaveTech = j.NiceToHaveTech,
-                // Review evidence the ingest already paid to scrape. Omitting it
-                // left EnforceEvidenceCaps capping Pace & Workload / Long-term
-                // Risk on jobs whose work-life-balance data was sitting unread
-                // on the pool document, and suppressed reviewAdjustment on
-                // every pool-scored job.
+                // Review evidence, on the documents that still have any. NOTHING
+                // PRODUCES IT ANY MORE: the DDG-based Glassdoor scraper was
+                // deleted with the criteria path, having succeeded for 49 of 875
+                // companies (5.6%) across its whole life. What is left is the
+                // ~24 pool-visible documents ingested before that, and they age
+                // out.
+                //
+                // Still forwarded, because null is the SAFE input here and the
+                // remaining rows are real data. ReviewCap(null) is 1 — the
+                // tightest clamp — so the absence of review evidence restricts
+                // what the Evaluator may move rather than permitting more. The
+                // cap and reviewAdjustment stay; only their source is gone.
                 GlassdoorData = j.GlassdoorData,
                 // Context only — the prompt states company_profile must never
                 // change a numeric score. Cheap (industry + url) and already

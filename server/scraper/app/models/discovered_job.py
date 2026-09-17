@@ -28,9 +28,9 @@ class DiscoveredJob(BaseModel):
     company_logo: str | None = None  # jobspy "company_logo" — not always present
     # Company profile fields jobspy captures on every scrape (industry, size,
     # revenue, description, url) — free, no extra HTTP call. jobspy's LinkedIn
-    # scraper never fills numEmployees though (only Indeed does), so relevant
-    # jobs get that one gap backfilled from company_size_client's DDG-based
-    # prefetch (see orchestrator._enrich_company_profile) before scoring.
+    # scraper never fills numEmployees though (only Indeed does), so pool jobs
+    # carry that gap. The DDG-based backfill that used to close it belonged to
+    # the criteria-driven ingest and went with it (docs/scraper-slimming.md).
     company_profile: dict | None = None
     # Per-job Evaluator score, populated by the batched-scoring ingest step.
     # None = not yet scored, scoring failed, or the job was triaged out.
@@ -45,9 +45,12 @@ class DiscoveredJob(BaseModel):
     analyst_snapshot_output: str | None = None
     evaluator_snapshot_input: str | None = None
     evaluator_snapshot_output: str | None = None
-    # Company enrichment (news headlines + Glassdoor rating)
-    company_news: list[dict] | None = None
-    glassdoor_data: dict | None = None
+    # Company enrichment (news headlines + Glassdoor rating) is GONE, not
+    # pending: the DDG-based scrapers that produced it succeeded for 49 of 875
+    # companies (5.6%) and were deleted with the criteria path. No field is kept
+    # for them, because a field nothing can ever write reads as an oversight.
+    # Documents from that era still carry the keys and are still forwarded on
+    # save; see docs/scraper-slimming.md for why this is not coming back.
     # Tracking
     is_duplicate: bool = False
     saved_to_tracker: bool = False
@@ -59,7 +62,13 @@ class DiscoveredJob(BaseModel):
     # Retention marker: criteria-driven jobs are purged by the TTL index after
     # 60 days; shared-pool jobs opt out (pool.py sets this False) because an
     # expired pool listing is marked inactive, never deleted. See indexes.py.
-    ttl_managed: bool = True
+    # Default False since the criteria path went (docs/scraper-slimming.md):
+    # pool rows are the only rows anyone creates now, and a True default means
+    # a construction site that forgets the flag hands a pool job to the 60-day
+    # TTL index -- deleting a listing the pool guarantees to keep and only mark
+    # inactive. `_backfill_ttl_managed` still stamps True, but only on rows with
+    # no pool_key, and it writes to Mongo directly rather than through here.
+    ttl_managed: bool = False
     # ---- Shared pool (docs/job-pool.md) -------------------------------------
     # Stable identity for a listing across runs: the job_url when the board
     # gives one, otherwise a hash of company+title+date_posted. Unique index.

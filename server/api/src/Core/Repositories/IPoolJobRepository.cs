@@ -26,6 +26,18 @@ public interface IPoolJobRepository
     Task<long> CountActiveAsync(CancellationToken ct = default);
 
     /// <summary>
+    /// The Matches page's filtered read over a candidate id set.
+    /// </summary>
+    /// <remarks>
+    /// Takes the ids rather than finding them, because eligibility is decided
+    /// by this user's <c>jobScores</c> rows — a pool job with no row has never
+    /// been scored for them and must not appear. The caller narrows first and
+    /// this applies the posting-level filters to what is left.
+    /// </remarks>
+    Task<List<PoolJobListItem>> BrowseAsync(
+        IReadOnlyCollection<string> jobIds, PoolBrowseQuery query, CancellationToken ct = default);
+
+    /// <summary>
     /// Every pool job id sharing this posting URL.
     /// </summary>
     /// <remarks>

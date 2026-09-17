@@ -112,6 +112,80 @@ public sealed class PoolJobRepository : IPoolJobRepository
     public Task<long> CountActiveAsync(CancellationToken ct = default) =>
         _jobs.CountDocumentsAsync(ActivePool, cancellationToken: ct);
 
+    public async Task<List<PoolJobListItem>> BrowseAsync(
+        IReadOnlyCollection<string> jobIds, PoolBrowseQuery query, CancellationToken ct = default)
+    {
+        if (jobIds.Count == 0) return [];
+
+        var b = Builders<BsonDocument>.Filter;
+        var clauses = new List<FilterDefinition<BsonDocument>>
+        {
+            b.In("id", jobIds.Select(i => (BsonValue)i)),
+            b.Ne("triaged_out", true),
+        };
+
+        // Recency means what the control says it means. Pool rows date from
+        // first_seen_at; rows written before the pool existed carry only
+        // discovered_at, so either satisfies it.
+        var cutoff = DateTime.UtcNow.AddDays(-query.DaysBack);
+        clauses.Add(b.Or(
+            b.Gte("first_seen_at", cutoff),
+            b.And(b.Exists("first_seen_at", false), b.Gte("discovered_at", cutoff))));
+
+        if (!string.IsNullOrWhiteSpace(query.Location))
+            clauses.Add(b.Regex("location", Contains(query.Location)));
+
+        if (!string.IsNullOrWhiteSpace(query.Text))
+        {
+            var text = Contains(query.Text);
+            clauses.Add(b.Or(
+                b.Regex("title", text),
+                b.Regex("company", text),
+                b.Regex("description", text)));
+        }
+
+        if (query.IsRemote is { } remote)
+            clauses.Add(b.Eq("is_remote", remote));
+
+        if (query.Levels.Count > 0)
+            clauses.Add(b.In("actual_job_level", query.Levels.Select(l => (BsonValue)l)));
+
+        var docs = await _jobs
+            .Find(b.And(clauses), new FindOptions { Collation = CaseInsensitive })
+            .ToListAsync(ct);
+
+        return docs.Select(ToListItem).ToList();
+    }
+
+    // Escaped: a company or location with a regex metacharacter in it
+    // ("C++", "Tel Aviv (Center)") would otherwise either throw or match the
+    // wrong rows. Case-insensitive substring, as the free-text controls imply.
+    private static BsonRegularExpression Contains(string value) =>
+        new(System.Text.RegularExpressions.Regex.Escape(value.Trim()), "i");
+
+    private static PoolJobListItem ToListItem(BsonDocument d) => new()
+    {
+        Id = Str(d, "id") ?? "",
+        Title = Str(d, "title") ?? "",
+        Company = Str(d, "company") ?? "",
+        Location = Str(d, "location"),
+        Description = Str(d, "description"),
+        JobUrl = Str(d, "job_url"),
+        DatePosted = Str(d, "date_posted"),
+        Site = Str(d, "site"),
+        JobLevel = Str(d, "job_level"),
+        ActualJobLevel = Str(d, "actual_job_level"),
+        IsRemote = d.TryGetValue("is_remote", out var r) && r.IsBoolean ? r.AsBoolean : null,
+        CompanyLogo = Str(d, "company_logo"),
+        CompanyProfile = d.TryGetValue("company_profile", out var cp) && cp.IsBsonDocument
+            ? cp.AsBsonDocument.ToDictionary(e => e.Name, e => (object?)(e.Value.IsBsonNull ? null : e.Value.ToString()))
+            : null,
+        IsDuplicate = d.TryGetValue("is_duplicate", out var dup) && dup.IsBoolean && dup.AsBoolean,
+        DiscoveredAt = d.TryGetValue("discovered_at", out var da) && da.IsValidDateTime
+            ? da.ToUniversalTime()
+            : null,
+    };
+
     public async Task<List<string>> FindIdsByJobUrlAsync(string jobUrl, CancellationToken ct = default)
     {
         var docs = await _jobs

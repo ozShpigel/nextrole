@@ -157,13 +157,34 @@ data orphaned on every sign-in, silently.
 
 ### Phase 1b — the jobs list
 
-`GET /api/discovery/jobs` stays on the scraper for now. It is a ~120-line join
-across `jobScores`, `discovered_jobs` and `poolJobState` with nine filters, it
-is read-only, and it is the Matches page's only data source — worth moving on
-its own rather than inside a change that also moves four writes.
+`GET /api/pool/jobs`, the Matches page's only data source. **Done.**
 
-`POST /api/discovery/jobs/import` stays until Phase 3: it calls jobspy
-directly, so it cannot move until the adapter exists.
+- `PoolBrowseService` owns the join. Three collections meet, and which one
+  leads matters: `jobScores` decides eligibility, because a pool job with no
+  row for this user has never been scored for them. The pool document then says
+  what the posting is, and `poolJobState` what this user did about it.
+- The merge stays in memory rather than becoming a `$lookup`, for the reason
+  the Python had: the sort key lives in the joined collection, so a pipeline
+  would have to sort after the lookup anyway, and a user has at most a few
+  hundred scored rows.
+- Browse got its own projection (`PoolJobListItem`) instead of widening
+  `PoolJob`, which is deliberately thin because every scan carries it.
+
+**The wire contract is byte-identical, snake_case and all.** The client reads
+`saved_to_tracker`, `match_analysis`, `actual_job_level` and the rest, so the
+response keeps those names via `[JsonPropertyName]`. Renaming in the same
+change would make any regression ambiguous, and the dangerous ones are silent:
+a missing `saved_to_tracker` reads as `undefined`, which is falsy, so a saved
+job would quietly render as unsaved. Normalising to camelCase with the client
+is worth doing as its own change.
+
+Typing the response is already an improvement regardless. The scraper returned
+the raw Mongo document with `_id` stripped, so the wire contract was "whatever
+fields `discovered_jobs` happens to have" and any storage change leaked
+straight to the browser.
+
+What is left on the scraper: `POST /api/discovery/jobs/import` (calls jobspy,
+so Phase 3), the two read-only run-history endpoints, and health.
 
 ### Phase 2 — the ingest → `PoolIngest`
 

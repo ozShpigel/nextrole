@@ -28,6 +28,18 @@ public sealed class JobScoreRepository : IJobScoreRepository
         return found.ToHashSet();
     }
 
+    public async Task<List<JobScore>> GetScoredAsync(
+        Guid userId, int? minScore, IReadOnlyList<string> verdicts, CancellationToken ct = default)
+    {
+        var f = Builders<JobScore>.Filter;
+        var clauses = new List<FilterDefinition<JobScore>> { f.Ne(s => s.Score, null) };
+
+        if (minScore is { } floor) clauses.Add(f.Gte(s => s.Score, floor));
+        if (verdicts.Count > 0) clauses.Add(f.In(s => s.Verdict, verdicts));
+
+        return await _scores.Find(userId, f.And(clauses)).ToListAsync(ct);
+    }
+
     public async Task<List<JobScore>> GetByJobIdsAsync(
         Guid userId, IEnumerable<string> jobIds, CancellationToken ct = default)
     {

@@ -36,8 +36,55 @@ public static class PoolEndpoints
 {
     public sealed record UnsaveRequest(string JobUrl);
 
+    /// <summary>Comma-separated query parameter to a trimmed, non-empty list.</summary>
+    private static IReadOnlyList<string> Csv(string? value) =>
+        string.IsNullOrWhiteSpace(value)
+            ? []
+            : value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
     public static void MapPoolEndpoints(this WebApplication app)
     {
+        // ── The Matches list ────────────────────────────────────────────────
+        app.MapGet("/api/pool/jobs", async (
+            IUserContext user,
+            IPoolBrowseService browse,
+            int? min_score,
+            string? verdict,
+            int? days_back,
+            string? location,
+            string? q,
+            bool? is_remote,
+            string? actual_job_level,
+            bool? include_dismissed,
+            bool? include_saved,
+            int? limit,
+            int? offset,
+            CancellationToken ct) =>
+        {
+            // Query-string names are snake_case because the client has always
+            // sent them that way -- see PoolJobListItem on why this move keeps
+            // the wire contract byte-identical.
+            var query = new PoolBrowseQuery
+            {
+                MinScore = min_score,
+                Verdicts = Csv(verdict),
+                DaysBack = days_back ?? 14,
+                Location = location,
+                Text = q,
+                IsRemote = is_remote,
+                Levels = Csv(actual_job_level),
+                IncludeDismissed = include_dismissed ?? false,
+                IncludeSaved = include_saved ?? true,
+                Limit = limit ?? 50,
+                Offset = offset ?? 0,
+            };
+
+            return Results.Ok(await browse.BrowseAsync(user.UserId, query, ct));
+        })
+        .WithName("BrowsePoolJobs")
+        .WithSummary("This user's scored pool jobs, filtered and ranked")
+        .RequireRateLimiting("discovery");
+
         // ── Add to tracker ──────────────────────────────────────────────────
         app.MapPost("/api/pool/jobs/{jobId}/save", async (
             string jobId,

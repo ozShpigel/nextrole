@@ -12,11 +12,11 @@ interfaces:
   grpc: ""
   events_out: []
   events_in: []
-  cli: ["python -m app.cli run-pool"]
+  cli: []
   jobs: ["nextrole-pool-ingest.timer — 05:30 UTC daily"]
-data_owned: ["discovered_jobs", "discovery_runs", "poolJobState"]
-deps_internal: ["server/api (all AI, dedupe checks, tracker saves)"]
-deps_external: ["LinkedIn via python-jobspy", "MongoDB Atlas"]
+data_owned: []
+deps_internal: []
+deps_external: ["LinkedIn via python-jobspy"]
 tests_hint: ["server/scraper/tests/**"]
 runbook: "deploy/README.md"
 ---

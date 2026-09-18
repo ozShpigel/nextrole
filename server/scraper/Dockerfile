@@ -6,12 +6,11 @@ COPY server/scraper/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY server/scraper/app/ ./app/
-# The shared pool's role list. Configuration, not code (docs/job-pool.md), but
-# still part of the image: app.roles.load() is fatal without it, so an image
-# built without this line starts, migrates, and then exits on the first
-# lifespan hook. ROLES_CONFIG_PATH can point elsewhere at runtime; this is the
-# default the code looks for.
-COPY server/scraper/config/ ./config/
+
+# No config/ any more: the role list belongs to PoolIngest, which is the only
+# thing that reads it (docs/scraper-slimming.md, Phase 3d). This service is
+# handed its search parameters in the request body and knows nothing about
+# which roles the pool covers.
 
 EXPOSE 8080
 

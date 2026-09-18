@@ -53,13 +53,83 @@ public sealed class IngestRunner
         _log = log;
     }
 
+    // Longest run measured so far: 458s, 542s, 739s. Two hours is far clear of
+    // that and still catches a death the same night.
+    private static readonly TimeSpan OrphanAfter = TimeSpan.FromHours(2);
+
+    /// <summary>
+    /// Mark runs that nothing ever finished as failed (issue #90).
+    /// </summary>
+    /// <remarks>
+    /// The record is written twice: <c>pending</c> on start, then
+    /// <c>completed</c>/<c>failed</c> at the end. A process killed in between —
+    /// OOM, a reboot, an evicted container — never writes the second, so the row
+    /// stays <c>pending</c> forever and is indistinguishable from one that is
+    /// running right now.
+    ///
+    /// The scraper used to sweep these on ITS startup, which was sound while it
+    /// ran the ingest in-process. It is not any more: a scraper restart says
+    /// nothing about whether an ingest died, and it could mark a live run
+    /// failed. This process is the only one that knows, because it is the
+    /// ingest.
+    ///
+    /// Age-based rather than a lock, because two ingests never overlap by
+    /// design — one timer, one container.
+    ///
+    /// Scoped to <c>criteria_id: "pool"</c>, which is a deliberate limit rather
+    /// than an oversight: nothing has created a criteria-driven run since Phase
+    /// 0, and none is pending (measured: 211 completed, 11 failed, 1 cancelled,
+    /// 0 pending). Sweeping rows this process did not write would mean deciding
+    /// on behalf of a pipeline it knows nothing about.
+    ///
+    /// This is preventive, not remedial — but not theoretical either. One run
+    /// has already been orphaned: a Python ingest interrupted at 12:42 on
+    /// 2026-09-17 sat pending for an hour and forty minutes, and was only
+    /// cleaned up because an unrelated deploy happened to restart the scraper,
+    /// whose own reconciler then caught it. Without that deploy it would still
+    /// be pending. That reconciler is deleted in this same phase, because a
+    /// scraper restart says nothing about whether an ingest died — and worse,
+    /// it could have marked a LIVE run failed.
+    /// </remarks>
+    private async Task SweepOrphanedRunsAsync(CancellationToken ct)
+    {
+        var cutoff = DateTime.UtcNow - OrphanAfter;
+
+        var swept = await _runs.UpdateManyAsync(
+            Builders<BsonDocument>.Filter.And(
+                Builders<BsonDocument>.Filter.Eq("criteria_id", "pool"),
+                Builders<BsonDocument>.Filter.Eq("status", "pending"),
+                Builders<BsonDocument>.Filter.Lt("started_at", cutoff)),
+            Builders<BsonDocument>.Update
+                .Set("status", "failed")
+                .Set("error", "Orphaned — no process ever completed this run. "
+                    + "Marked failed by a later ingest; see issue #90.")
+                .Set("completed_at", DateTime.UtcNow),
+            cancellationToken: ct);
+
+        if (swept.ModifiedCount > 0)
+            _log.LogWarning(
+                "Swept {Count} orphaned pool run(s) to failed — they were left pending by a process "
+                + "that died before finishing. A run that dies silently otherwise looks like one that worked.",
+                swept.ModifiedCount);
+    }
+
     public async Task<RunRecord> RunAsync(CancellationToken ct)
     {
+        // Before claiming a row of our own, settle any left pending by a
+        // process that died (issue #90).
+        await SweepOrphanedRunsAsync(ct);
+
         var run = RunRecord.Start();
         await _runs.InsertOneAsync(run.ToDocument(), cancellationToken: ct);
 
         try
         {
+            // Keep the API's view of "roles already being searched" current
+            // before the run reads the grown half back out of the same
+            // collection. The file is authoritative either way.
+            await _roles.PublishBaselineAsync(_config, ct);
+
             var searchRoles = await _roles.ResolveAsync(_config, ct);
             _log.LogInformation("Pool run {RunId}: {Roles} role(s) x {Locations} location(s)",
                 run.Id, searchRoles.Count, _config.Locations.Count);

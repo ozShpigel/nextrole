@@ -5,6 +5,8 @@ using ApplicationTracker.Core.Matching;
 using ApplicationTracker.Core.Models;
 using ApplicationTracker.Core.Repositories;
 using ApplicationTracker.Infrastructure.Listings;
+using MongoDB.Bson;
+using MongoDB.Driver;
 using Microsoft.AspNetCore.Mvc;
 
 namespace ApplicationTracker.Api.Endpoints;
@@ -54,6 +56,12 @@ public static class PoolEndpoints
     // Matches the Evaluator batch cap -- a batch is one call, and five is what
     // the output budget was measured against.
     private const int MaxImportUrls = 5;
+
+    // Relaxed, so dates serialise as ISO strings rather than {$date: ...}.
+    // The run document is written by PoolIngest as raw BSON and read by a
+    // human, so its own field names are the contract -- no DTO in between.
+    private static readonly MongoDB.Bson.IO.JsonWriterSettings RelaxedJson =
+        new() { OutputMode = MongoDB.Bson.IO.JsonOutputMode.RelaxedExtendedJson };
 
     private static readonly JsonSerializerOptions CamelCase =
         new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
@@ -106,6 +114,42 @@ public static class PoolEndpoints
         .WithName("BrowsePoolJobs")
         .WithSummary("This user's scored pool jobs, filtered and ranked")
         .RequireRateLimiting("discovery");
+
+        // ── Run history ─────────────────────────────────────────────────────
+        //
+        // Read-only, not user-scoped, and nothing in the client fetches it: a
+        // pool run is shared, and this is for looking at last night's by hand.
+        // Moved from the scraper in Phase 3d of docs/scraper-slimming.md,
+        // because that service no longer has a database connection.
+        app.MapGet("/api/pool/runs", async (
+            IMongoCollection<BsonDocument> jobs, int? limit, CancellationToken ct) =>
+        {
+            var runs = jobs.Database.GetCollection<BsonDocument>("discovery_runs");
+            var docs = await runs
+                .Find(Builders<BsonDocument>.Filter.Empty)
+                .Sort(Builders<BsonDocument>.Sort.Descending("started_at"))
+                .Limit(Math.Clamp(limit ?? 20, 1, 100))
+                .ToListAsync(ct);
+
+            return Results.Text(
+                docs.Select(d => { d.Remove("_id"); return d; }).ToJson(RelaxedJson),
+                "application/json");
+        })
+        .WithName("ListPoolRuns")
+        .WithSummary("Recent ingest runs, newest first");
+
+        app.MapGet("/api/pool/runs/{runId}", async (
+            string runId, IMongoCollection<BsonDocument> jobs, CancellationToken ct) =>
+        {
+            var runs = jobs.Database.GetCollection<BsonDocument>("discovery_runs");
+            var doc = await runs.Find(Builders<BsonDocument>.Filter.Eq("id", runId)).FirstOrDefaultAsync(ct);
+            if (doc is null) return Results.NotFound(new { error = "Run not found" });
+
+            doc.Remove("_id");
+            return Results.Text(doc.ToJson(RelaxedJson), "application/json");
+        })
+        .WithName("GetPoolRun")
+        .WithSummary("One ingest run");
 
         // ── Add to tracker ──────────────────────────────────────────────────
         app.MapPost("/api/pool/jobs/{jobId}/save", async (

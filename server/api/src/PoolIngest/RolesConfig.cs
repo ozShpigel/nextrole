@@ -118,6 +118,65 @@ public sealed class EffectiveRoles
         _log = log;
     }
 
+    /// <summary>
+    /// Mirror the config file's baseline roles into <c>pool_roles</c>.
+    /// </summary>
+    /// <remarks>
+    /// The API classifies a new CV against "roles already being searched", and
+    /// it reads that list from <c>pool_roles</c> — it has no access to this
+    /// file. Without the baseline in there, a backend engineer would be
+    /// classified against an empty list and could be filed under an invented
+    /// "Backend Developer" while "Backend Engineer" was already running:
+    /// exactly the fragmentation the role cap makes expensive.
+    ///
+    /// The file stays authoritative for what actually gets searched — see
+    /// <see cref="ResolveAsync"/>, which reads it directly — so an edit takes
+    /// effect on the next run whether or not this mirror is current.
+    ///
+    /// Ported in Phase 3d of docs/scraper-slimming.md. It ran in the scraper's
+    /// lifespan until then, and Phase 2 moved the ingest without it: the mirror
+    /// kept working only because that service happened to still be starting up
+    /// next to it.
+    /// </remarks>
+    public async Task PublishBaselineAsync(RolesConfig config, CancellationToken ct = default)
+    {
+        var now = DateTime.UtcNow;
+        var keys = config.Roles.Select(r => r.ToLowerInvariant()).ToList();
+
+        try
+        {
+            foreach (var (role, key) in config.Roles.Zip(keys))
+            {
+                await _poolRoles.UpdateOneAsync(
+                    Builders<BsonDocument>.Filter.Eq("_id", key),
+                    Builders<BsonDocument>.Update
+                        .Set("Role", role)
+                        .Set("Baseline", true)
+                        .Set("UpdatedAt", now)
+                        .SetOnInsert("UserIds", new BsonArray())
+                        .SetOnInsert("CreatedAt", now),
+                    new UpdateOptions { IsUpsert = true }, ct);
+            }
+
+            // A role removed from the file stops being baseline. It is NOT
+            // deleted: users may still be filed under it, and that is what
+            // decides whether it keeps being searched.
+            await _poolRoles.UpdateManyAsync(
+                Builders<BsonDocument>.Filter.And(
+                    Builders<BsonDocument>.Filter.Eq("Baseline", true),
+                    Builders<BsonDocument>.Filter.Nin("_id", keys.Select(k => (BsonValue)k))),
+                Builders<BsonDocument>.Update.Unset("Baseline"),
+                cancellationToken: ct);
+        }
+        catch (Exception e)
+        {
+            // Not fatal. The run searches the file's roles regardless; what
+            // degrades is the API's view of "already being searched", which
+            // costs role fragmentation rather than a failed ingest.
+            _log.LogError(e, "Could not publish the baseline role list; CV classification may fragment roles");
+        }
+    }
+
     public async Task<List<string>> ResolveAsync(RolesConfig config, CancellationToken ct = default)
     {
         var baseline = new List<string>(config.Roles);

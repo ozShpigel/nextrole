@@ -56,7 +56,7 @@ more way of answering the same question. Concretely, none of this changes:
 - `_id = userId` documents (`profile`, `resumeFile`, `interviewInsights`)
 - `UserId` + index on the many-per-user collections
 - `jobScores` / `poolJobState` on the shared pool
-- `tracker_client._request_with_retry(user_id=…)` in the scraper, and
+- the scraper's outbound calls (removed in Phase 3d — it makes none), and
   `app/identity.py`'s cookie read
 
 The alternative — letting an auth library's own user id become the primary key —

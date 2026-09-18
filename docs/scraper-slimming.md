@@ -343,10 +343,47 @@ These were the last thing keeping the scraper's CLI alive apart from
 
 ### Phase 3d — strip
 
-Still to do. Delete `pool.py`, `match_client.py`, `tracker_client.py`,
-`roles.py`, `pool_state.py`, the models and the CLI. `.env.scraper` loses
-`MONGODB_CONNECTION_STRING`, and a service that parses hostile HTML stops
-holding `readWrite` on both production databases.
+**Done.** `server/scraper` is 4,907 lines to **503**:
+
+```
+333  app/services/scraper.py   jobspy
+120  app/main.py               /scrape, /scrape/url, /health
+ 26  app/config.py             CORS_ORIGINS, and nothing else
+ 24  app/models/scrape_spec.py
+```
+
+Deleted: `pool.py`, `match_client.py`, `tracker_client.py`, `roles.py`,
+`pool_state.py`, `parse_quality.py`, `identity.py`, `cli.py`, the models, and
+five test files whose subjects no longer exist. `motor`, `httpx` and `openai`
+left `requirements.txt` with them.
+
+**Two things Phase 2 had quietly left behind, found while removing their last
+caller — both would have broken silently:**
+
+`roles.publish_baseline` was never ported. It mirrors the config file's roles
+into `pool_roles`, which is what the API classifies a new CV against — without
+it a backend engineer is classified against an empty list and filed under an
+invented "Backend Developer" while "Backend Engineer" is already running. It
+kept working through Phase 2 only because the scraper happened to still be
+starting up next to the ingest. Now in `EffectiveRoles.PublishBaselineAsync`,
+called at the top of each run.
+
+The stale run reconciler (issue #90) was not merely useless in the scraper, it
+was harmful: a scraper restart during a live ingest would have marked that run
+`failed`. The sweep is now in `PoolIngest`, which is the only process that
+knows, because it is the ingest — age-based, two hours, against measured runs
+of 458s / 542s / 739s.
+
+`roles.json` moved to `server/api/src/PoolIngest/config/`, its only reader. The
+run-history routes moved to `GET /api/pool/runs` and `/api/pool/runs/{id}`,
+since the scraper no longer has a database connection.
+
+**The credential is the point.** `.env.scraper` is down to `CORS_ORIGINS`.
+`Settings` ignores unknown keys, so an existing file keeps working — but
+`MONGODB_CONNECTION_STRING` should be **deleted from the box**, not left for
+the code to ignore. An unused credential is still a credential, and this one
+grants `readWrite` on both production databases to a process whose job is
+parsing hostile HTML.
 
 ### Phase 4 — rename
 

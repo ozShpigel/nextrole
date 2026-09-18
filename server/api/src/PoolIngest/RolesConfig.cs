@@ -27,13 +27,21 @@ public sealed record RolesConfig
     [JsonPropertyName("country")] public string Country { get; init; } = "Israel";
 
     /// <summary>
-    /// A listing absent from this many consecutive runs is marked inactive.
+    /// A listing not seen for this many days is marked inactive.
+    /// </summary>
+    /// <remarks>
     /// Not 1: a single scrape missing a job is routine — rate limiting, a flaky
     /// detail fetch, a board reshuffling its result page — and flipping a live
-    /// posting to inactive on one bad run is worse than noticing a day late.
-    /// </summary>
-    [JsonPropertyName("missed_runs_before_inactive")]
-    public int MissedRunsBeforeInactive { get; init; } = 3;
+    /// posting to inactive on one bad day is worse than noticing a day late.
+    ///
+    /// Days, not runs (issue #86). The old key was
+    /// <c>missed_runs_before_inactive</c> and meant the same thing only while
+    /// the cron fired exactly once a day; it is not read any more, and a config
+    /// still carrying it falls back to this default of 3, which is what it
+    /// said anyway.
+    /// </remarks>
+    [JsonPropertyName("inactive_after_days")]
+    public int InactiveAfterDays { get; init; } = 3;
 
     /// <summary>
     /// Ceiling on how many roles the daily run searches, baseline included.

@@ -8,9 +8,12 @@ NextRole is a multi-user job application platform that automates the job hunt en
 |---|---|
 | `/client` | React + Vite + shadcn/ui + Tailwind v4 (TypeScript, Bun) |
 | `/server/api` | ASP.NET Core (C#) — **all Claude/Anthropic calls live here** |
-| `/server/scraper` | Python FastAPI — scraping, dedupe, per-job fact extraction. Never scores, never reads a profile |
+| `/server/scraper` | Python FastAPI — a jobspy adapter and nothing else. No database, no identity, no outbound calls |
 | `/server/mailbot` | .NET console app — one-shot Gmail sync (cron), not a service |
-| `/server/api/src/DbCopy` | CLI: copy a database (documents + index definitions) to a scratch name, for rehearsing a migration against real data |
+| `/server/api/src/PoolIngest` | .NET console app — the daily pool ingest (cron). Owns the pipeline; calls the scraper for listings |
+
+`server/api/src` also holds `EvalHarness` (golden-set evals), `Seeder` and
+`DbCopy` — console projects, run by hand.
 
 Database: MongoDB Atlas.
 
@@ -30,11 +33,11 @@ cd server/scraper
 
 ## Hard conventions
 
-- Frontend: TypeScript everywhere; **Bun** (not npm/yarn); shadcn/ui components (`@/components/ui/*`); **Axios** (not fetch); **TanStack React Query** for server state (not useEffect + useState).
+- Frontend: TypeScript everywhere; **Bun** (not npm/yarn); shadcn/ui components (`@/components/ui/*`); **TanStack React Query** for server state (not useEffect + useState). HTTP goes through the helpers in `client/src/lib/api.ts` — thin `fetch` wrappers, one per backend prefix. There is no axios.
 - **Never hardcode Tailwind palette colors** (emerald/amber/red…). Use design tokens: `--ed-*` inside editorial pages, shadcn semantic tokens in neutral/shared chrome (nav, portaled dialogs). Theme spec + portal caveat: `docs/design-system.md`.
 - The frontend is English LTR, but content can be mixed Hebrew RTL (AI summaries, interview text) — render those nodes with `dir="rtl"`/`dir="auto"`.
-- **Never fire a mutation from a mount effect without a ref guard.** StrictMode invokes effects twice in dev, and a `let cancelled` cleanup flag does NOT stop an awaited mutation — it only suppresses the `setState` afterwards, so the request completes twice. This has bitten twice: a scan mutation that settled against the discarded mount and hung the spinner forever (fixed by making it a query), and the CV upload effect, which billed two Claude PDF reads plus two profile saves per upload (`uploadedRef` in `ProcessingPage.tsx`). Guard with a ref keyed on the thing being acted upon, or prefer a query/event handler over an effect. The one place a bare mutation-in-effect is acceptable is an idempotent write with no AI cost — `MessagesPage`'s mark-as-read; say so in a comment when you rely on that.
-- All Claude/Anthropic calls live in the API; the scraper delegates via HTTP.
+- **Never fire a mutation from a mount effect without a ref guard.** StrictMode invokes effects twice in dev, and a `let cancelled` cleanup flag does NOT stop an awaited mutation — it only suppresses the `setState`, so the request completes twice. This has bitten twice, most expensively the CV upload: two Claude PDF reads and two profile saves per upload (`uploadedRef` in `ProcessingPage.tsx`). Guard with a ref, or prefer a query or an event handler. The one exception is an idempotent write with no AI cost — say so in a comment when you rely on it.
+- All Claude/Anthropic calls live in the API. `PoolIngest` and the mailbot delegate to it over HTTP rather than holding a key — one prompt config, one key, one set of rate-limit buckets.
 - AI prompts use system/user separation: trusted instructions in the system prompt; untrusted external data (job descriptions, emails, scraped titles) XML-wrapped in the user message.
 - **A check whose input the model writes is not a check.** `stackedGaps` was the Evaluator's own list of missing requirements, and it was the only input to the Core Stack cap — so the responses that needed capping reported the gaps away (12 absent requirements, 1 self-reported gap, 20/20). Compute the consequence's input server-side from data the model does not author: the posting's extracted `must_have_tech` and the profile (`ClaimGrounding`). Same lesson as `reviewAdjustment`, one level deeper.
 - **Claims about the candidate must trace to the profile.** The prompt constrained what the Evaluator may call MISSING and said nothing about what it may call THEIRS, so it read postings' requirement lists back as the candidate's stack. Any generated text naming a technology as the candidate's is checked against their profile (`ClaimGrounding` for scores, `ResumePackValidator` for packs, both via `ProfileTrace`). Scores annotate (`UnsupportedClaims`); packs block — a pack goes to an employer. Detail: `docs/scoring-and-search.md`.
@@ -42,9 +45,8 @@ cd server/scraper
 - **The `claude-*-5` models need `AnthropicThinkingHandler`.** They run *adaptive* thinking by default with no cap, which will consume the entire `max_tokens` budget before emitting a single output token — the response then carries a `thinking` block and no `text` block at all, and the caller sees an empty completion. The handler stamps `thinking: adaptive` + `output_config: effort` onto outgoing requests for those models; the SDK cannot express this (`ThinkingParameters.Type` is a get-only `"enabled"`, which these models reject with a 400). They also reject an explicit `temperature`, so `ScoringConfig.Temperature` is dropped for them at request time.
 - `scoring_config` + the agent prompts are **read-only server configuration** (Options pattern, env overrides, change = redeploy). The candidate **profile is the user-editable input** — stored as `StructuredProfile`, rendered to the `content` string prompts consume; **never hand-edit `content`**. Keep prompts generic/objective; candidate signal comes only from the injected profile. Detail: `docs/scoring-and-search.md`.
 - **Every user-scoped query takes an explicit `userId`.** Repositories never see a raw `IMongoCollection<T>` — they get `UserScopedCollection<T>`, which has no overload that omits the userId, ANDs the filter on internally, and exposes no way back to the raw handle — so "remember to scope it" is a compile error rather than a convention (`ArchitectureTests` guards the rest). `_id = userId` for one-per-user documents (profile, resumeFile, interviewInsights); a `UserId` field + index for the rest. The job pool (`discovered_jobs`, `discovery_runs`) is shared. Detail: `docs/multi-user.md`.
-- **Identity resolution is the only code that knows which deployment it is.** `Identity:Mode` is `Fixed` (private, id from config) or `Cookie` (multi-user, id resolved from the opaque session token in the `uid` cookie — the API is the only issuer; the scraper resolves the same `sessions` collection itself, never mints); everything downstream takes a plain `Guid`. **A `Fixed` deployment and a `Cookie` deployment differ by configuration only — never by a code branch, a separate branch or project, or a duplicated service.** One image, one codebase, two env files; if you reach for `if (private)`, the resolution layer is the thing to change. Misconfiguration fails at startup, in both the API and the scraper.
-- **A service client must present the session token, not the userId — and the scraper no longer presents anything.** *(Historical as of Phase 3d: the scraper holds no identity and makes no user-scoped call. Kept because the failure it describes is the one the API's refusal now guards, and because the mailbot still forwards a token.)* `UserScopedCollection` cannot help across an HTTP boundary, and the API answers a `uid` cookie it cannot resolve by *minting a fresh user*, not by failing: the write returns 201 and lands where nobody will ever find it. This has shipped twice — first sending no identity, then sending the resolved Guid after sessions made the cookie an opaque token (linked accounts broke first: `SessionIdentity.cs` refuses a raw Guid for them outright, so signing in with Google is what killed "Add"). `identity.resolve` therefore returns a `RequestIdentity` carrying **both** — `user_id` for this service's own Mongo queries, `credential` for the wire — and `tracker_client._request_with_retry` takes that object, with **no default**; pass an explicit `None` for genuinely user-independent calls (triage, seniority, job facts). `tests/test_identity_forwarding.py` walked the AST for call sites that omitted it; it went with the code it guarded. Offline commands (demo seeder, eval CLIs) use `identity.instance_identity`, which raises on a Cookie instance rather than guessing; a background task on a Cookie instance has no token at all, so it skips the call instead (this was `orchestrator._run_identity`, deleted with the criteria path).
-- **An unresolvable credential from a service client is a 401, never a new account.** Minting on an identity it cannot resolve is right for a browser — an expired cookie should look like a first visit — and catastrophic for a daemon, which only reaches that state by being misconfigured. That single conflation is the root of all three orphaned-write incidents. A request carrying `X-Source` (`ingest`, `mailbot`; a browser never sends it) whose credential does not resolve is recorded, and refused **at the point the handler asks who the user is** — not in the middleware. Refusing up front also refused the user-independent calls, which act as nobody by design: it turned `job-facts` and `job-parse` into 401s and the daily ingest stored 60 pool jobs with no extracted requirements while reporting `completed`, because a failed extraction is "retry next run" rather than an error. Deferring makes the rule structural — a handler that reads `IUserContext` is covered, one that does not is untouched, and a new user-scoped endpoint needs nobody to remember it. `ResolvedIdentity.Minted` is what the refusal keys on — deliberately narrower than `TokenToIssue`, which is also set when a legacy cookie is upgraded onto a real pre-existing account. The header is unverified, but it can only make a request stricter, so forging it locks the forger out rather than letting them in. `ServiceIdentityRefusalTests` pairs every refusal with a browser case that must still mint.
+- **Identity resolution is the only code that knows which deployment it is.** `Identity:Mode` is `Fixed` (id from config) or `Cookie` (id from the opaque session token in the `uid` cookie; the API is the only issuer). Everything downstream takes a plain `Guid`. **The two differ by configuration only — never by a code branch or a duplicated service.** If you reach for `if (private)`, the resolution layer is the thing to change. Misconfiguration fails at startup.
+- **An unresolvable credential from a service client is a 401, never a new account.** The API used to mint a fresh user instead: the write returns 201 and lands where nobody will find it. That shipped three times — twice from the scraper, once from the mailbot (#67: 115 applications, 0 seen, `{"Success":true}`). Minting is right for a browser and catastrophic for a daemon, so the refusal fires when the **handler asks who the user is**, not in middleware — refusing up front also refused the user-independent calls. A client acting for a user presents the session token, never the userId. Detail: `ServiceIdentityRefusalTests`.
 - **A shared pool document holds only what is true for everyone.** Apply the test: would two users ever disagree about this field? Then it belongs in a per-user row — `jobScores` for the score, `poolJobState` for dismissed/saved (`IPoolJobStateRepository`) — never on `discovered_jobs`.
 - **The job pool is shared, and the daily ingest is config-driven.** `server/api/src/PoolIngest/config/roles.json` drives the `pool-ingest` cron container — not anyone's profile or saved search. A listing is identified by `pool_key` (unique index), marked inactive after N absent runs and **never deleted**, and has its stated requirements extracted exactly once on entry. The role list is that file's human-authored baseline (always searched, never dropped) plus roles grown from users' CVs in `pool_roles`, which leave again when their last user does; `max_roles` caps the total. Detail: `docs/job-pool.md`.
 - **Nothing is scored at ingest.** The pool is shared, a score is an opinion about one candidate, so scoring is per user and on demand: `POST /api/match/pool-scan` narrows the pool with a cheap Mongo filter over the extracted facts, scores only what that user has never had scored, and stores it in `jobScores`. Per-user allowances (3 packs/day) are claimed atomically before the Claude call, never counted afterwards. Detail: `docs/scoring-and-search.md`.
@@ -64,8 +66,7 @@ carries the visual weight; typography stays quiet.
 - Mostly flat. Real bordered/panel cards get the soft elevation shadow the `.editorial` "modern-skin layer" already applies automatically (`client/src/index.css`) — don't hand-roll a heavier one. Exception: `.editorial-grain`/`.home-atmosphere` are intentional ambient layers on Landing/Home. Everywhere else: no gradients, no glow.
 - Use tokens from `client/src/index.css` only. Never hardcode hex.
 - `--ed-accent` marks the primary action, or active/selected state, wherever that state appears. Never decorative.
-- The score ramp is never used for accent, status, or category.
-- The score ramp is for any 0-100 or rated score (match score, interview score, per-dimension sub-scores). Never for status or category.
+- The score ramp is for any 0-100 or rated score (match score, interview score, per-dimension sub-scores) — never for accent, status or category.
 - Error and destructive states keep their color (`--ed-no`). Everything else that isn't a primary action or a score stays neutral.
 - Two font weights: 400, 500.
 - Display face (`--font-serif`, Schibsted Grotesk) is for the wordmark and empty-state copy only. Page titles and section headers use sans with weight.
@@ -85,9 +86,8 @@ carries the visual weight; typography stays quiet.
 | Generate Pack — AI-tailored résumé PDF per application | `docs/resume-pack.md` |
 | Interview prep, Q&A rubric, keyword cues, mock interview | `docs/interview-prep.md` |
 | Mailbot (Gmail sync, parsing rules, resync, OAuth) | `docs/mailbot.md` |
-| Shared job pool: role config, dedupe, expiry, per-job extraction | `docs/job-pool.md` |
-| Multi-user identity, userId scoping, migration | `docs/multi-user.md` |
 | Hosting: least-privilege Atlas credentials, the ApiKey gate, seeded fictional data | `docs/hosting.md` |
+| Deploying: the box, config, verification probes, what a green tick misses | `docs/deploying.md` |
 
 ## Testing
 
@@ -97,110 +97,26 @@ carries the visual weight; typography stays quiet.
 - **Confirm a database name is free before seeding into it.** `list_database_names()` first, and refuse if the target exists — a "scratch" name that turns out to be a real database means the seeder writes into live data. The seeder deletes and reinserts per seed user, so the blast radius is not bounded by anything except which database it was pointed at. (Cost so far: two documents written into the real demo DB, caught only because a legacy unique index happened to abort the run.)
 - **Running e2e locally — stop your dev servers first.** Playwright's `webServer` config sets `reuseExistingServer` when not CI, so if your dev servers are up on :5002/:8000/:5173 it runs the suite against them (your dev `job-tracker` DB) instead of spawning its own against the **test** DBs (`job-tracker-test`/`jobmatch-test`, which `global-setup` drops). Gotcha: a uvicorn `--reload` reloader can survive a task kill and hold :8000 in *Bound* (not *Listen*) state — a `-State Listen` port check won't see it; find/kill the python PID directly.
 - **After a "restart", verify the process actually runs the new code** — both dev servers have survived intended restarts (day-old PIDs kept serving :8000/:5002, silently executing old code). Cheap probes: scraper → `GET :8000/openapi.json` should list the endpoint you're testing; API → hit the endpoint with `{}` — a **404** where you expect a **400** means the old build. If stale, `Get-NetTCPConnection -LocalPort <port>` → `taskkill /PID <pid> /T /F`, then relaunch.
-- **Check which path your instrument exercises before trusting a clean result.** This has now gone wrong twice, in opposite directions, which makes it a pattern rather than two accidents. Predicting that forwarding company news would light up `companyNewsAnalysis` on 96% of scored jobs: it came back **0 in both arms** of the A/B, because the batch addendum's "omit narrative-only fields entirely" rule drops that field regardless of whether the input block was supplied — the prediction was tested on a path that could not produce it. Planning to golden-set the removal of `components[].reason`: the golden-set evals (`server/api/src/EvalHarness`) drive the **single-job** path (`POST /api/match`), while the 8-word `reason` cap lives in the **batch** addendum — the eval would have been structurally blind to the change. **A clean result from an instrument that cannot see the change is worse than no result, because it licenses the change.** Before running an eval to justify a change, name the path the change lives on and confirm the eval drives it.
-- **Score drift cannot detect the loss of a guard.** The sharpest case of the above. Dropping `components[].reason` would have removed **72% of all `UnsupportedClaims` catches** (48 of 67, measured across every stored production score) — and moved no score at all, because `ClaimGrounding` annotates rather than scores. A golden-set run would have come back clean and been reported as safe. When removing a field, grep for who *reads* it server-side before measuring what changes when it is gone; "nothing renders it" is not "nothing uses it".
-- **Hebrew in PowerShell 5.1 looks like mojibake (`××ª×...`) — it's the console, not the data.** `Invoke-RestMethod` decodes JSON responses without a charset header as ISO-8859-1. The wire bytes are valid UTF-8 (the browser renders fine); recover a captured string with `s.encode('latin-1').decode('utf-8')` if you need to read it in a script.
+- **Check which path your instrument exercises before trusting a clean result.** A clean result from an instrument that cannot see the change is worse than no result, because it licenses the change. Twice: a company-news A/B that came back 0 in both arms because the batch prompt drops that field regardless of input, and a plan to golden-set a change whose cap lives in the batch addendum while the evals drive the single-job path. Name the path the change lives on and confirm the eval drives it.
+- **Score drift cannot detect the loss of a guard.** Dropping `components[].reason` would have removed **72% of all `UnsupportedClaims` catches** (48 of 67, measured across every stored production score) and moved no score at all, because `ClaimGrounding` annotates rather than scores — a golden-set run would have come back clean. When removing a field, grep for who *reads* it server-side first: "nothing renders it" is not "nothing uses it".
 
 ## Deploying
 
-- **`nextrole.cloud` is production, and the only deployment.** It serves the
-  real `job-tracker`/`jobmatch` pair behind optional Google sign-in. The compose
-  services are `api`, `scraper`, `web` — they were called `demo-api`,
-  `demo-scraper`, `demo-client` until the teardown, because they began life
-  serving a seeded read-only demo and were repurposed. If you find `demo-`
-  anywhere, it is a leftover rather than a second deployment.
-  `private.nextrole.cloud` is gone. **`Identity:Mode=Fixed` is not** — the
-  golden-set eval CLIs call `identity.instance_identity`, which raises on a
-  Cookie instance, so they run against a local `dotnet run` in Fixed mode.
 - **Merging to `main` IS the deploy.** Every workflow in `.github/workflows/`
-  ends by SSHing to the VPS and running `docker compose pull … && up -d
-  --force-recreate`. There is no separate deploy step to forget, and no
-  way to merge without shipping. Images are `:latest` built from `main` only, so
-  **a branch's images do not exist**: deploying before merging deploys `main`.
-- **Config changes are the only manual step**, and they are where the danger is.
-  Edit `.env.api` *and* `.env.scraper` before recreating either — the scraper
-  resolves sessions out of the API's database, so a window where they disagree
-  means every scraper request 401s. `.env.web` is the one people forget: its
-  `API_URL`/`SCRAPER_URL` are Docker DNS **service names**, resolved at runtime
-  by `client/nginx.conf`, and it is manual config on the box that no `git pull`
-  will fix.
-- **Atlas credentials are scoped per database pair** (`docs/hosting.md`
-  prescribes `readWrite` on exactly two databases, and tells you to verify the
-  isolation). **Repointing a database without repointing the credential fails at
-  boot**, and the first symptom is misleading: `UserScopeMigrationInitializer`
-  issues an unconditional `updateMany` per collection, so it demands write
-  privilege even with nothing to migrate and the error names the migration
-  rather than the credential (issue #57).
-- **Scripts scp'd from a Windows working tree need LF.** The repo's blobs are
-  LF, but a working-tree file authored on Windows drifts to CRLF, and `scp`
-  copies the working tree -- not the blob. bash then reads `set -euo pipefail
-`
-  and dies on line 2. For `monitoring/check-services.sh` that means **the
-  monitor is dead and an outage produces no alert**: a broken monitor and a
-  healthy system look identical from outside, so nothing ever reports it.
-  `.gitattributes` pins `*.sh`/`*.yml` to `eol=lf`; after copying anything to
-  the box, run it once by hand before trusting it. Go's YAML/JSON readers
-  tolerate a trailing `
-`, which is why Loki and Grafana came up regardless --
-  only the shell scripts actually break.
+  ends by SSHing to the VPS. There is no separate step to forget and no way to
+  merge without shipping. Images are `:latest` from `main` only, so a branch's
+  images do not exist.
+- **`deploy/` is not synced by CI.** `compose.yml`, the systemd units and the
+  monitoring configs are manual state on the box that no `git pull` fixes. This
+  has bitten twice — most recently a "Phase 2" run that was actually the old
+  Python ingest, because the new service definition never reached the server.
+- **Config changes are where the danger is.** `.env.api` and `.env.pool-ingest`
+  share a credential and must move together; `.env.web` holds Docker DNS service
+  names resolved at runtime by `client/nginx.conf`.
 
-- **The mailbot must present a session token, and refuses to run without one.**
-  It sends `X-Api-Key` (a shared-secret *gate* that selects no user) and
-  `X-Source`; neither is an identity. Against the retired Fixed-mode private
-  instance that was enough, because identity came from configuration. Against
-  `nextrole.cloud` it is not: a Cookie-mode API answers an identity it cannot
-  resolve by **minting a fresh anonymous user**, so the sync read an empty
-  account and reported `{"Success":true}` -- 115 applications in the database,
-  0 seen, two throwaway users minted (issue #67). `Tracker__SessionToken` in
-  `.env.mailbot` carries the opaque token (never a userId), provisioned by
-  `deploy/mint-mailbot-session.sh`. `TrackerPreflight` then refuses to start
-  unless `/api/auth/me` confirms *which* account it resolved to -- reaching the
-  API is not reaching the right account, and only the second is worth anything.
-  `/api/config` reports `identityMode` so a service client can tell whether a
-  token is required at all; an unknown value is treated as Cookie, because
-  assuming Fixed is the assumption that fails quietly.
-
-- **The API refuses to start** on a half-configured claim (`Google:ClaimUserId`
-  needs `ClaimEmail` and `ClaimExpiresAt`) or an expired one. That is the
-  mechanism working, but `restart: unless-stopped` disguises it as a restart
-  loop — check `docker compose logs api` for `InvalidOperationException`
-  before assuming the deploy hung.
-
-### Verifying a deploy
-
-- **An unproxied `/api/*` route used to return the SPA with a 200.** Routes are
-  allowlisted in `client/nginx.conf`; anything unclaimed fell through to
-  `try_files … /index.html`, so a missing proxy block failed *invisibly* — no
-  404, nothing in logs, and a browser quietly parsing HTML as JSON. `/api/auth`
-  and `/api/notices` shipped that way. There is now a catch-all returning a JSON
-  404, and **it is load-bearing**: it is what makes the next missing route
-  announce itself. Do not remove it. (Inverting the allowlist: issue #55.)
-- **Probe with content-type, not status.** It is the only thing that separates
-  the three states:
-
-  | Response | Meaning |
-  |---|---|
-  | `200 text/html` | never left nginx — route not proxied |
-  | `404 application/json` | API reached, endpoint missing — **old image** |
-  | `200 application/json` | API reached and working |
-
-  `curl -s -o /dev/null -w '%{http_code} %{content_type}\n' https://nextrole.cloud/api/auth/me`
-  — then read the body: `available:false` means the new build is up but sign-in
-  is not configured yet.
-- **Take a baseline before deploying.** The nginx gap above was caught only
-  because the pre-merge reading was `200 text/html` where a 404 was expected.
-
-### Testing gaps a green tick does not cover
-
-- **CI has no MongoDB**, so `UserMergeIntegrationTests` (10 tests) skip via
-  `[MongoFact]`. They are the *only* coverage of the re-key, the singleton
-  parking and the post-condition leak check — everything the merge does against
-  a real database. A green Tests run says the unit tests pass, nothing more
-  (issue #54).
-- **The e2e suite never runs in CI** either (costs money, drops databases).
-- Local development uses Vite's catch-all `/api` proxy, so **no local test can
-  catch a missing nginx route** — that only exists in the production image
-  (issue #56).
+Everything else — verification probes, the Atlas credential scope, the mailbot's
+session token, what a green tick does not cover — is in **`docs/deploying.md`**.
+Read it before touching the server.
 
 ## Security
 

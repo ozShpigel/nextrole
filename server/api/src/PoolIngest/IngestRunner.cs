@@ -160,11 +160,16 @@ public sealed class IngestRunner
             new BsonDocument("$set", run.ToDocument()),
             cancellationToken: ct);
 
+        // The counters worth reading at a glance, and the two that catch a
+        // silent failure: extracted should track new plus retried, and parsed
+        // should track new. A run reporting new jobs with neither is the shape
+        // the 401 regression had -- completed, plausible, and storing pool
+        // documents with nothing to filter or score on.
         _log.LogInformation(
             "Pool run {RunId} {Status}: {Scraped} scraped, {New} new, {Known} refreshed, "
-            + "{Extracted} extracted, {Inactive} marked inactive",
+            + "{Extracted} extracted ({Retried} retried), {Parsed} parsed, {Inactive} marked inactive",
             run.Id, run.Status, run.JobsScraped, run.JobsNew, run.JobsAlreadyKnown,
-            run.JobsExtracted, run.JobsMarkedInactive);
+            run.JobsExtracted, run.JobsExtractRetried, run.JobsParsed, run.JobsMarkedInactive);
 
         return run;
     }

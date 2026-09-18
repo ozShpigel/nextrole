@@ -1,16 +1,48 @@
 # Slimming the scraper to a jobspy adapter
 
-The Python service began as a wrapper around one library. It is now the
-orchestrator: it owns the pipeline, holds database credentials, resolves
-sessions, and calls the API on a user's behalf. Only one of its modules needs
-to be Python at all.
+**Complete.** `server/scraper` went from 4,907 lines to 503, and from holding
+`readWrite` on two production databases to holding no credential at all.
 
-This document is the plan to reverse that — to shrink `server/scraper` to a
-stateless adapter over jobspy, and to move everything else into .NET, where
-the repositories, the models and the user-scoping guard already live.
+The Python service began as a wrapper around one library. It became the
+orchestrator: it owned the pipeline, held the database credentials, resolved
+sessions, and called the API on users' behalf. Only one of its modules ever
+needed to be Python.
 
-Nothing here changes behaviour. Every phase is deployable on its own, and the
-daily ingest keeps running throughout.
+This document was the plan and is now the record — kept because the reasoning
+matters more than the outcome, and because several decisions here were made
+against measurements that are not obvious from the code.
+
+| Phase | | |
+|---|---|---|
+| 0 | delete the criteria-driven ingest | done |
+| 1 | per-user pool state → the API | done |
+| 1b | the Matches list → the API | done |
+| 2 | the daily ingest → `PoolIngest` (.NET) | done |
+| 3a | import by URL → the API | done |
+| 3b | index management → the API | done |
+| 3c | the golden-set evals → .NET | done |
+| 3d | strip Python to the adapter | done |
+| 4 | rename the service | **declined** |
+
+## What it cost, and what it caught
+
+Four defects surfaced that the diffs alone would not have shown, because each
+lived in code that still ran while the thing depending on it moved:
+
+- **`roles.publish_baseline` was never ported** in Phase 2 and kept working only
+  because the scraper was still starting up next to the ingest. Unnoticed, CV
+  classification would have fragmented roles.
+- **The stale run reconciler** was not merely useless after Phase 2 but harmful:
+  a scraper restart during a live ingest would have marked it failed.
+- **`HttpClient`'s 100-second default** would have aborted every ingest, which
+  takes 12–13 minutes.
+- **The 401 refusal in #81** turned the user-independent AI calls into failures,
+  and stored 60 pool jobs with no extracted requirements while reporting
+  success.
+
+Three of the four fail silently. That is the argument for finishing a migration
+rather than leaving the old path in place: **dead code that still runs hides
+what depends on it.**
 
 ## The measurement
 
@@ -26,7 +58,7 @@ needs the Python runtime.
 ## Target architecture
 
 ```
-┌─ server/listings (Python, ~430 LOC) ───────────────────────────┐
+┌─ server/scraper (Python, ~500 LOC) ────────────────────────────┐
 │  Stateless. No Mongo. No identity. No API calls.               │
 │                                                                │
 │  POST /scrape      {roles[], locations[], site_names[],        │
@@ -385,21 +417,32 @@ the code to ignore. An unused credential is still a credential, and this one
 grants `readWrite` on both production databases to a process whose job is
 parsing hostile HTML.
 
-### Phase 4 — rename
+### Phase 4 — rename — **declined**
 
-Only once the service is ~430 LOC and its config surface is at its smallest.
-Renaming a 4,900-LOC service you are about to gut means paying twice.
+The plan was to rename `scraper` to `listings`, on the grounds that the name
+described one part of a service doing five things.
 
-The blast radius today: client 10 files, server/api 30, docs 13, deploy 7,
-.github 3, e2e 2 — plus three that are not mechanical:
+**The slimming removed the reason.** `scraper` is now an accurate name for a
+service that only scrapes: jobspy, three routes, one config variable, no
+credentials. Renaming it would buy nothing a reader is confused by.
 
-- **`.env.web` on the box.** `SCRAPER_URL` is a Docker DNS service name
-  resolved at runtime by `client/nginx.conf`. Manual config; no `git pull`
-  fixes it.
-- **`ghcr.io/ozshpigel/scraper:latest`.** A new image name means the first
-  deploy pulls something that does not exist yet and compose keeps the old
-  container. Merge the workflow before the compose change.
-- **`daily-digest.sh`'s Loki filters**, which key on service labels.
+The cost has not moved, and it is all in the places that bite:
+
+- `ghcr.io/ozshpigel/scraper:latest` — a new image name means the first deploy
+  pulls something that does not exist and compose silently keeps the old
+  container, so the workflow has to merge before the compose change
+- `.env.web`'s `SCRAPER_URL` — a Docker DNS service name resolved at runtime by
+  `client/nginx.conf`, and manual state on the box that no `git pull` fixes
+- `daily-digest.sh`'s Loki filters, which key on container labels
+- `Scraper__BaseUrl` in two compose services, `deploy/`, and the docs
+
+That is a coordinated four-part change, two parts of it manual on the server,
+to rename something whose name is now correct.
+
+**Declined, not deferred.** If jobspy is ever replaced the naming question
+returns on its own terms — at that point the service genuinely might not be
+scraping — but nothing is waiting on this and it should not read as unfinished
+work.
 
 ## Decisions
 
@@ -410,9 +453,10 @@ The blast radius today: client 10 files, server/api 30, docs 13, deploy 7,
 golden-set fixtures. They stay Python until then, because Phase 0 through 2 do
 not remove what they depend on.
 
-**Settled: the Python service is renamed `listings`,** in Phase 4. `digest` was
-considered and rejected — it already names the daily Telegram digest
-(`deploy/monitoring/daily-digest.sh`), which reports *on* this pipeline.
+**Settled: the service keeps the name `scraper`** — see Phase 4. `listings` was
+the plan and `digest` was rejected outright (it already names the daily Telegram
+digest, which reports *on* this pipeline); the slimming then made `scraper`
+accurate, which removed the reason to rename anything.
 
 **Settled: the enrichment clients are deleted.** `glassdoor_client`,
 `news_client`, `company_size_client` and `ddg_search`, with their tests. Two

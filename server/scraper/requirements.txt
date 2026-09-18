@@ -1,7 +1,10 @@
+# The jobspy adapter's whole dependency list.
+#
+# Dropped in Phase 3d of docs/scraper-slimming.md, with the code that used them:
+#   motor   -- no database connection any more
+#   httpx   -- no outbound calls; this service is only ever called
+#   openai  -- retired with the RAG removal long before that, and still listed
 fastapi==0.115.*
 uvicorn[standard]==0.34.*
 python-jobspy==1.1.*
-motor==3.7.*
 pydantic-settings==2.7.*
-httpx==0.28.*
-openai==1.*

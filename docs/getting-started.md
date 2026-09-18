@@ -60,7 +60,7 @@ dotnet build nextrole.sln
 
 The Mongo connection string and the Anthropic key are read **only** from the environment — never hardcoded. `.env.example` templates are provided for the [API](../server/api/src/Api/.env.example), [Scraper](../server/scraper/.env.example), and [Mailbot](../server/mailbot/.env.example); copy to `.env` and fill in. ASP.NET maps `__` in env-var names to config `:` (e.g. `MongoDB__ConnectionString` → `MongoDB:ConnectionString`).
 
-> **Minimum to run:** the API needs only `MongoDB__ConnectionString` + `Anthropic__ApiKey`; the Scraper needs only `MONGODB_CONNECTION_STRING`. Everything else is optional with sensible defaults.
+> **Minimum to run:** the API needs only `MongoDB__ConnectionString` + `Anthropic__ApiKey`; the Scraper needs nothing (it holds no credential). Everything else is optional with sensible defaults.
 
 ### API (ASP.NET Core)
 
@@ -75,14 +75,23 @@ The Mongo connection string and the Anthropic key are read **only** from the env
 
 ### Scraper (Python FastAPI)
 
+A jobspy adapter: search parameters in, listings out. It holds **no
+credential** — no database, no API key, no identity — because a service that
+parses hostile HTML should not hold either (`docs/scraper-slimming.md`).
+
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `MONGODB_CONNECTION_STRING` | **yes** | — | MongoDB connection string |
-| `MONGODB_DATABASE_NAME` | no | `job-tracker` | Database name |
-| `API_BASE_URL` | no | `http://localhost:5002` | Unified API URL (triage, seniority classification, batched scoring, dedup, save) |
-| `CORS_ORIGINS` | no | `*` | Comma-separated allowed browser origins |
+| `CORS_ORIGINS` | no | `*` | Comma-separated allowed browser origins. Vestigial: the browser does not call this service. |
 
-**Scheduled ingest.** Discovery can run daily without the UI: build the scraper image (`server/scraper/Dockerfile`) and run `python -m app.cli run-pool` on a schedule (`0 5 * * *` is the reference cadence) — via your host's cron/systemd timer, a container-platform scheduled/cron job, or (for the maintainer's own deployment) a docker-compose cron-profile service on a plain VPS. Give it the scraper env vars above (`CORS_ORIGINS` not needed; point `API_BASE_URL` at your deployed API). `run-pool` scrapes the configured role list (`config/roles.json`), folds the results into the shared pool, ensures the indexes, and exits non-zero on a failed run so it is visible in whatever job history your scheduler keeps.
+It serves `POST /scrape`, `POST /scrape/url` and `/health`, and is called by
+`PoolIngest` and the API over Docker DNS.
+
+**Scheduled ingest.** The daily run is `PoolIngest`, a .NET cron container
+(`server/api/Dockerfile.poolingest`), not this service. It reads
+`server/api/src/PoolIngest/config/roles.json`, calls `POST /scrape` here, folds
+the results into the shared pool, and exits non-zero on failure so a bad night
+is visible in whatever job history your scheduler keeps. `0 5 * * *` is the
+reference cadence; see `deploy/systemd/nextrole-pool-ingest.*`.
 
 ### Mailbot (.NET console, optional) & Frontend
 

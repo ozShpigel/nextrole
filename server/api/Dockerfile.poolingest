@@ -20,6 +20,8 @@ COPY --from=build /app .
 # want it to -- but baking a default means the box needs no hand-placed file.
 # Manual state on the box is what no `git pull` fixes, and .env.web is the
 # standing lesson (AGENTS.md).
-COPY server/scraper/config/roles.json /app/config/roles.json
+# Copied by the publish above (CopyToOutputDirectory in the csproj), so this
+# is only here to fail loudly if that ever stops working.
+RUN test -f /app/config/roles.json
 
 ENTRYPOINT ["dotnet", "ApplicationTracker.PoolIngest.dll"]

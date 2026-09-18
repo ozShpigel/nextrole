@@ -24,12 +24,19 @@ services:
       # reverse. 8080 is the container's port; 8000 is the local dev one.
       - Scraper__BaseUrl=http://scraper:8080
 
+  # The jobspy adapter. Parameters in, listings out -- no database, no identity,
+  # no decisions (docs/scraper-slimming.md, Phase 3d). PoolIngest and the API
+  # call it; the browser does not.
+  #
+  # It deliberately holds no credential. .env.scraper is down to CORS_ORIGINS,
+  # and MONGODB_CONNECTION_STRING should be deleted from it on the box -- a
+  # service that parses hostile HTML has no business holding readWrite on two
+  # production databases. Leaving it set is harmless (Settings ignores unknown
+  # keys) but it is the credential that matters, not the code that ignores it.
   scraper:
     image: ghcr.io/ozshpigel/scraper:latest
     restart: unless-stopped
     env_file: [.env.scraper]
-    environment:
-      - API_BASE_URL=http://api:8080
 
   # Not `client`: this repo already uses "client" for the /client directory and
   # for a half-dozen HTTP clients OF things (TrackerApiClient, tracker_client,

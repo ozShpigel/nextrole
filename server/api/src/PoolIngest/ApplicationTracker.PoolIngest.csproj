@@ -19,6 +19,13 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- The role list the daily run searches. RolesConfig.Load is deliberately
+         fatal without it: a run over a silently-defaulted role set would ingest
+         the wrong pool for as long as nobody noticed. -->
+    <None Update="config/roles.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="MongoDB.Driver" Version="3.2.0" />
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.3" />
     <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.3" />

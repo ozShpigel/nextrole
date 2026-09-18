@@ -75,6 +75,21 @@ public sealed class IngestRunner
     ///
     /// Age-based rather than a lock, because two ingests never overlap by
     /// design — one timer, one container.
+    ///
+    /// Scoped to <c>criteria_id: "pool"</c>, which is a deliberate limit rather
+    /// than an oversight: nothing has created a criteria-driven run since Phase
+    /// 0, and none is pending (measured: 211 completed, 11 failed, 1 cancelled,
+    /// 0 pending). Sweeping rows this process did not write would mean deciding
+    /// on behalf of a pipeline it knows nothing about.
+    ///
+    /// This is preventive, not remedial — but not theoretical either. One run
+    /// has already been orphaned: a Python ingest interrupted at 12:42 on
+    /// 2026-09-17 sat pending for an hour and forty minutes, and was only
+    /// cleaned up because an unrelated deploy happened to restart the scraper,
+    /// whose own reconciler then caught it. Without that deploy it would still
+    /// be pending. That reconciler is deleted in this same phase, because a
+    /// scraper restart says nothing about whether an ingest died — and worse,
+    /// it could have marked a LIVE run failed.
     /// </remarks>
     private async Task SweepOrphanedRunsAsync(CancellationToken ct)
     {

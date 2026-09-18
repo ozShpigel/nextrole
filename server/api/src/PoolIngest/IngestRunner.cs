@@ -141,7 +141,7 @@ public sealed class IngestRunner
             run.SearchesEmpty = scrape.Stats.SearchesEmpty;
 
             var seenKeys = await UpsertAsync(run, scrape.Jobs, ct);
-            var (missed, deactivated) = await _pool.AgeOutAsync(seenKeys, _config.MissedRunsBeforeInactive, ct);
+            var (missed, deactivated) = await _pool.AgeOutAsync(seenKeys, _config.InactiveAfterDays, ct);
             run.JobsMissed = missed;
             run.JobsMarkedInactive = deactivated;
 

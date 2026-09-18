@@ -57,6 +57,10 @@ public sealed class PoolWriter
             Builders<BsonDocument>.Filter.In("pool_key", keys.Select(k => (BsonValue)k)),
             Builders<BsonDocument>.Update
                 .Set("is_active", true)
+                // Retired by issue #86 and no longer read. Still reset here so
+                // the stale values on existing rows clear themselves as those
+                // listings are seen again, rather than sitting there looking
+                // like they mean something.
                 .Set("missed_runs", 0)
                 .Set("last_seen_at", now)
                 .Set("last_seen_run_id", runId),
@@ -142,34 +146,54 @@ public sealed class PoolWriter
     }
 
     /// <summary>
-    /// Count a miss against every active pool job this run did not see, and
-    /// deactivate those that have now missed enough consecutive runs.
+    /// Deactivate listings that have not been seen for long enough.
     /// </summary>
     /// <remarks>
+    /// Keyed on <c>last_seen_at</c>, not a run counter (issue #86). The counter
+    /// meant "absent for N runs", which equals "absent for N days" only while
+    /// the cron fires exactly once a day. It does not survive contact with
+    /// anything else: three manual runs in ninety minutes aged 170 listings as
+    /// though three days had passed, and at the time of the fix 66 active rows
+    /// sat at <c>missed_runs = 2</c> — one run from deactivation — while every
+    /// one of them had been seen within the last day.
+    ///
+    /// Time is what the field always meant. Keying on it makes the rule
+    /// cadence-independent, which unblocks three things at once: running the
+    /// ingest more often, seeding a single new role without ageing every other
+    /// role's listings, and surviving a blocked scrape — LinkedIn returns
+    /// nothing roughly four times a year, and under the counter three such days
+    /// in a row would have emptied the pool.
+    ///
     /// Nothing is deleted, ever. An inactive job keeps its description, its
-    /// facts and its history; it only drops out of the default view. A listing
-    /// that reappears is reactivated with its counter reset by
-    /// <see cref="TouchAsync"/>, so a board hiccup costs nothing permanent.
+    /// facts and its history; it only drops out of the default view, and
+    /// <see cref="TouchAsync"/> reactivates it if it reappears.
     ///
     /// Scoped to pool jobs (<c>pool_key</c> present) so criteria-era rows are
     /// left alone.
     /// </remarks>
     public async Task<(long Missed, long Deactivated)> AgeOutAsync(
-        IReadOnlyCollection<string> seenKeys, int missedRunsBeforeInactive, CancellationToken ct)
+        IReadOnlyCollection<string> seenKeys, int inactiveAfterDays, CancellationToken ct)
     {
-        var absent = Builders<BsonDocument>.Filter.And(
-            Builders<BsonDocument>.Filter.Exists("pool_key"),
-            Builders<BsonDocument>.Filter.Nin("pool_key", seenKeys.Select(k => (BsonValue)k)),
-            Builders<BsonDocument>.Filter.Eq("is_active", true));
+        // Reported, not written. The old code incremented a counter on every
+        // absent row -- a bulk write over ~150 documents every run to record
+        // something a count already answers.
+        var missed = await _jobs.CountDocumentsAsync(
+            Builders<BsonDocument>.Filter.And(
+                Builders<BsonDocument>.Filter.Exists("pool_key"),
+                Builders<BsonDocument>.Filter.Nin("pool_key", seenKeys.Select(k => (BsonValue)k)),
+                Builders<BsonDocument>.Filter.Eq("is_active", true)),
+            cancellationToken: ct);
 
-        var bumped = await _jobs.UpdateManyAsync(
-            absent, Builders<BsonDocument>.Update.Inc("missed_runs", 1), cancellationToken: ct);
-
+        var cutoff = DateTime.UtcNow.AddDays(-inactiveAfterDays);
         var deactivated = await _jobs.UpdateManyAsync(
             Builders<BsonDocument>.Filter.And(
                 Builders<BsonDocument>.Filter.Exists("pool_key"),
                 Builders<BsonDocument>.Filter.Eq("is_active", true),
-                Builders<BsonDocument>.Filter.Gte("missed_runs", missedRunsBeforeInactive)),
+                // Absent OR null would deactivate a row missing the field. Every
+                // pool row has last_seen_at (measured: 550 of 550), and a row
+                // that somehow lacked it should be left alone rather than
+                // expired on the strength of a missing value.
+                Builders<BsonDocument>.Filter.Lt("last_seen_at", cutoff)),
             Builders<BsonDocument>.Update
                 .Set("is_active", false)
                 .Set("inactive_at", DateTime.UtcNow),
@@ -177,9 +201,9 @@ public sealed class PoolWriter
 
         if (deactivated.ModifiedCount > 0)
             _log.LogInformation(
-                "{Count} listing(s) absent for {Runs} consecutive runs marked inactive (kept, not deleted)",
-                deactivated.ModifiedCount, missedRunsBeforeInactive);
+                "{Count} listing(s) last seen before {Cutoff:u} marked inactive (kept, not deleted)",
+                deactivated.ModifiedCount, cutoff);
 
-        return (bumped.ModifiedCount, deactivated.ModifiedCount);
+        return (missed, deactivated.ModifiedCount);
     }
 }

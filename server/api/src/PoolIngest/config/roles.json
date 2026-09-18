@@ -17,6 +17,6 @@
   "results_wanted": 50,
   "hours_old": 72,
   "country": "Israel",
-  "missed_runs_before_inactive": 3,
+  "inactive_after_days": 3,
   "max_roles": 12
 }

@@ -1,0 +1,33 @@
+# The Greenhouse source. Two entry points, one image:
+#
+#   publish   one-shot, run by deploy/systemd/nextrole-greenhouse.timer
+#   consume   long-running
+#
+# Built from the same source tree as the API and by the same workflow, because
+# both compile Core and Infrastructure -- the embedding client and the stored
+# document model are shared with the API's FindCandidateJobIds. Two workflows on
+# the same path filter could deploy an API on new Core while this still ran the
+# old one, and if the two disagreed about the model or the dimensions, nothing
+# would go red: $vectorSearch would simply return nothing.
+FROM mcr.microsoft.com/dotnet/sdk:10.0-alpine AS build
+WORKDIR /src
+COPY server/api/ API/
+RUN dotnet publish API/src/Greenhouse/ApplicationTracker.Greenhouse.csproj -c Release -o /app
+
+# runtime, not aspnet: nothing here listens on a port. The consumer is
+# long-running but it is a consumer, not a server.
+FROM mcr.microsoft.com/dotnet/runtime:10.0-alpine
+WORKDIR /app
+COPY --from=build /app .
+
+# The board list ships with the image, as roles.json does for pool-ingest. Still
+# configuration -- Companies__ConfigPath points elsewhere when you want it to --
+# but baking a default means the box needs no hand-placed file, and manual state
+# on the box is what no `git pull` fixes.
+# Copied by the publish above (CopyToOutputDirectory in the csproj), so this is
+# only here to fail loudly if that ever stops working.
+RUN test -f /app/config/companies.json
+
+# No CMD default on purpose: Program.cs refuses to run without publish|consume.
+# Guessing wrong is either a day with no ingest or a second fan-out.
+ENTRYPOINT ["dotnet", "ApplicationTracker.Greenhouse.dll"]

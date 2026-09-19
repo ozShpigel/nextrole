@@ -11,6 +11,7 @@ NextRole is a multi-user job application platform that automates the job hunt en
 | `/server/scraper` | Python FastAPI — a jobspy adapter and nothing else. No database, no identity, no outbound calls |
 | `/server/mailbot` | .NET console app — one-shot Gmail sync (cron), not a service |
 | `/server/api/src/PoolIngest` | .NET console app — the daily pool ingest (cron). Owns the pipeline; calls the scraper for listings |
+| `/server/api/src/Greenhouse` | .NET console app — the Greenhouse ATS source. `publish` (cron) fans out, `consume` (long-running) does the work |
 
 `server/api/src` also holds `EvalHarness` (golden-set evals), `Seeder` and
 `DbCopy` — console projects, run by hand.
@@ -49,6 +50,9 @@ cd server/scraper
 - **An unresolvable credential from a service client is a 401, never a new account.** The API used to mint a fresh user instead: the write returns 201 and lands where nobody will find it. That shipped three times — twice from the scraper, once from the mailbot (#67: 115 applications, 0 seen, `{"Success":true}`). Minting is right for a browser and catastrophic for a daemon, so the refusal fires when the **handler asks who the user is**, not in middleware — refusing up front also refused the user-independent calls. A client acting for a user presents the session token, never the userId. Detail: `ServiceIdentityRefusalTests`.
 - **A shared pool document holds only what is true for everyone.** Apply the test: would two users ever disagree about this field? Then it belongs in a per-user row — `jobScores` for the score, `poolJobState` for dismissed/saved (`IPoolJobStateRepository`) — never on `discovered_jobs`.
 - **The job pool is shared, and the daily ingest is config-driven.** `server/api/src/PoolIngest/config/roles.json` drives the `pool-ingest` cron container — not anyone's profile or saved search. A listing is identified by `pool_key` (unique index), marked inactive when `last_seen_at` is older than `inactive_after_days` — time, not run count, so a manual run or a blocked scrape does not age the pool (#86) — and **never deleted**, and has its stated requirements extracted exactly once on entry. The role list is that file's human-authored baseline (always searched, never dropped) plus roles grown from users' CVs in `pool_roles`, which leave again when their last user does; `max_roles` caps the total. Detail: `docs/job-pool.md`.
+- **Greenhouse is a second source, and the intended successor to LinkedIn scraping.** It reads company boards directly into `greenhouse_jobs` with a Voyage embedding per posting, and it touches nothing in `discovered_jobs` — no age-out, no `missed_runs`, no shared rows. But it stores the **same extracted-fact contract** (`extracted.location`, `extracted.seniority`, `extracted.must_have_tech`) the Evaluator and `CandidateFilter` already read, so scoring works unchanged when the source flips. `PoolContractTests` enforces that by scanning `PoolJobRepository` for the paths it actually queries — "keeps the same contract" is otherwise a comment that goes stale the first time one side is renamed. Detail: `docs/greenhouse.md`.
+- **Ingestion and retrieval share one embedding client, one model, one dimension count.** `GreenhouseEmbeddingOptions`, bound by both the API and the ingest; they differ in `input_type` (`document` on write, `query` on read) and nothing else. A disagreement is **silent** — `$vectorSearch` returns an empty result, which reads as "no candidates" rather than as a misconfiguration. That is why the model is not in `companies.json` (the API cannot read it), why the ingest image is built by `api.yml` from the same commit as the API, and why the deploy recreates the long-running consumer rather than only pulling it.
+- **A failed fetch is not an empty board.** The two are the same absence of listings, and treating the first as the second closes every job a company has. `BoardClient` *throws* — on a non-2xx, an unparseable body, or a `meta.total`/count mismatch — so the close diff is structurally unreachable rather than guarded by a flag someone has to remember. The second guard (`CloseDiff`) refuses to close a large stored set on an empty response, but deliberately still closes a small one: a guard that never lets go is its own bug.
 - **Nothing is scored at ingest.** The pool is shared, a score is an opinion about one candidate, so scoring is per user and on demand: `POST /api/match/pool-scan` narrows the pool with a cheap Mongo filter over the extracted facts, scores only what that user has never had scored, and stores it in `jobScores`. Per-user allowances (3 packs/day) are claimed atomically before the Claude call, never counted afterwards. Detail: `docs/scoring-and-search.md`.
 - **Multi-user, still no authentication (intentional).** A visitor is identified by the `uid` cookie and nothing else: no login, no recovery, no account. That is a deliberate trade for a personal-scale tool, and it is why the userId rule above has to be structural rather than diligent — there is no auth layer standing behind it. **Optional Google sign-in is live on `nextrole.cloud`** and anonymous use still needs no account: the Guid stays the identity and auth only decides *which* Guid you are (`docs/auth.md`). The `uid` cookie carries an opaque session token, not a userId — presenting a userId gets you an empty account. Detail: `docs/multi-user.md`.
 - Use the context7 MCP server to fetch up-to-date library documentation.
@@ -79,6 +83,7 @@ carries the visual weight; typography stays quiet.
 |---|---|
 | Scoring pipeline, title triage, company enrichment, on-demand AI (superseded in part by the shared pool) | `docs/scoring-and-search.md` |
 | Shared job pool, dedupe, fact extraction, role growth, measured size | `docs/job-pool.md` |
+| Greenhouse source: boards API, embeddings, the queue, vector retrieval | `docs/greenhouse.md` |
 | Multi-user: identity modes, userId scoping, per-user scoring and quotas | `docs/multi-user.md` |
 | Auth: sign-in, sessions, the anonymous-session merge, the one-shot claim | `docs/auth.md` |
 | Editorial Broadsheet theme (tokens, page pattern, portal caveat, status colors) | `docs/design-system.md` |
@@ -92,6 +97,7 @@ carries the visual weight; typography stays quiet.
 ## Testing
 
 - **Unit/component**: Vitest + Testing Library (`cd client && bunx vitest run`). Tests query by text/role/testid — preserve those when restyling. Editorial restyles must keep heading roles (e.g. `AnalysisCard`'s "AI Analysis" stays an `<h3>`, asserted by an e2e `getByRole('heading')`).
+- **Greenhouse**: xUnit in `server/api/tests/GreenhouseTests` (`dotnet test server/api/tests/GreenhouseTests -c Release`). Covers the failures in that path that produce no error at all: vectors zipped to the wrong jobs, a close diff run on a failed fetch, and content cleaned without the first HTML decode — which then hashes stably as markup and is never re-read.
 - **Architecture**: xUnit in `server/api/tests/ArchitectureTests` (`dotnet test server/api/tests/ArchitectureTests -c Release`). Asserts user-scoping cannot be bypassed. Use `-c Release` if a dev API server is holding the Debug output lock.
 - **E2E**: Playwright in `/e2e` (`npx playwright test`, use `--reporter=line` to avoid the HTML report server hanging). Use the `e2e-test-writer` agent to **write** tests — it has the full setup, DB config, and conventions.
 - **Confirm a database name is free before seeding into it.** `list_database_names()` first, and refuse if the target exists — a "scratch" name that turns out to be a real database means the seeder writes into live data. The seeder deletes and reinserts per seed user, so the blast radius is not bounded by anything except which database it was pointed at. (Cost so far: two documents written into the real demo DB, caught only because a legacy unique index happened to abort the run.)
@@ -106,8 +112,9 @@ carries the visual weight; typography stays quiet.
   ends by SSHing to the VPS. There is no separate step to forget and no way to
   merge without shipping. Images are `:latest` from `main` only, so a branch's
   images do not exist.
-- **`deploy/` is not synced by CI.** `compose.yml`, the systemd units and the
-  monitoring configs are manual state on the box that no `git pull` fixes. This
+- **`deploy/` is not synced by CI.** `compose.yml`, the systemd units, the
+  monitoring configs and `rabbitmq/10-nextrole.conf` are manual state on the box
+  that no `git pull` fixes. This
   has bitten twice — most recently a "Phase 2" run that was actually the old
   Python ingest, because the new service definition never reached the server.
 - **Config changes are where the danger is.** `.env.api` and `.env.pool-ingest`

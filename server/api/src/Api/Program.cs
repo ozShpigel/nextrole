@@ -36,6 +36,11 @@ if (File.Exists(envPath))
 
 builder.Services.AddMongoCollections(builder.Configuration);
 builder.Services.AddApplicationServices(builder.Configuration);
+// The Greenhouse source's READ side only -- ICandidateJobStore over
+// $vectorSearch. Ingestion is a separate process; this registers nothing that
+// writes. Absent entirely when no embedding key is configured, so an
+// unconfigured deployment starts normally rather than failing per request.
+builder.Services.AddGreenhouseRetrieval(builder.Configuration);
 
 // JSON: accept enum values as strings
 builder.Services.ConfigureHttpJsonOptions(options =>

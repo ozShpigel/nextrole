@@ -1,0 +1,44 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>ApplicationTracker.Greenhouse</AssemblyName>
+    <RootNamespace>ApplicationTracker.Greenhouse</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Here beside PoolIngest, DbCopy and Seeder for the reason PoolIngest is:
+         it compiles Core and Infrastructure. The unit of work, the models, the
+         Mongo layer and the embedding client all live there, and the API's
+         FindCandidateJobIds uses the SAME embedding client, model and
+         dimensions as this ingest does.
+
+         That sharing is not tidiness. A stored 1024-vector queried with a
+         512-vector does not fail: $vectorSearch returns nothing, which reads
+         as "no candidates" rather than as a configuration error. Two
+         implementations of the same client is exactly how the two halves drift
+         apart without anything going red. -->
+    <ProjectReference Include="../Infrastructure/ApplicationTracker.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The board-token list ships with the image, exactly as roles.json does
+         for PoolIngest. Still configuration (Companies__ConfigPath points
+         elsewhere when you want it to) but baking a default means the box needs
+         no hand-placed file. Manual state on the box is what no `git pull`
+         fixes (AGENTS.md). -->
+    <None Update="config/companies.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="appsettings.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="RabbitMQ.Client" Version="7.1.2" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.3" />
+    <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.3" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.3" />
+  </ItemGroup>
+
+</Project>

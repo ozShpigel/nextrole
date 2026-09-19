@@ -43,6 +43,23 @@ jobs:
       - name: Test
         run: dotnet test server/api/tests/ArchitectureTests -c Release --no-restore --nologo
 
+  greenhouse:
+    name: Greenhouse — ingest tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Restore
+        run: dotnet restore server/api/tests/GreenhouseTests
+      # Covers the failures in this path that produce no error: a batch whose
+      # vectors are zipped to the wrong jobs, a close diff run on a failed
+      # fetch, and content cleaned without the first HTML decode (which then
+      # hashes stably as markup and is never re-read).
+      - name: Test
+        run: dotnet test server/api/tests/GreenhouseTests -c Release --no-restore --nologo
+
   mailbot:
     name: Mailbot — parser tests
     runs-on: ubuntu-latest

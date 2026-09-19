@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" Version="6.0.4" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <!-- SkippableFact: the retrieval integration tests need a live Atlas
+         cluster with a built vector index and a billed Voyage key. They must
+         SKIP rather than fail when those are absent, or CI goes red for a
+         reason that has nothing to do with the change under test. -->
+    <PackageReference Include="Xunit.SkippableFact" Version="1.5.23" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The ingestion project, which pulls Infrastructure and Core with it.
+         The unit of work under test is CompanyHandler, and it lives there now:
+         the board client and the handler are scoped to ingestion so the API
+         never carries a Greenhouse parser. -->
+    <ProjectReference Include="..\..\src\Greenhouse\ApplicationTracker.Greenhouse.csproj" />
+  </ItemGroup>
+
+</Project>

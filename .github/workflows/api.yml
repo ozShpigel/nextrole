@@ -41,6 +41,18 @@ jobs:
           file: server/api/Dockerfile.poolingest
           push: true
           tags: ghcr.io/${{ env.OWNER }}/pool-ingest:latest
+      # Same reasoning, one step further. This image and the API share more than
+      # Core: they share the EMBEDDING CLIENT, the model and the dimensions
+      # (GreenhouseEmbeddingOptions). If they ever shipped from different
+      # commits and disagreed about either, $vectorSearch would return an empty
+      # result rather than an error -- the prefilter would simply stop finding
+      # good jobs, with nothing in any log to say so.
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: server/api/Dockerfile.greenhouse
+          push: true
+          tags: ghcr.io/${{ env.OWNER }}/greenhouse:latest
       - name: Deploy to server
         uses: appleboy/ssh-action@v1
         with:
@@ -54,4 +66,13 @@ jobs:
             # pool-ingest is a cron container: nothing is running to recreate.
             # Pulling is enough — the next timer fire starts a fresh one from
             # the new image.
-            docker compose --profile cron pull pool-ingest    
+            docker compose --profile cron pull pool-ingest
+            # greenhouse is two services from one image: a cron container
+            # (publish) that the next timer fire starts fresh, and a
+            # LONG-RUNNING consumer that has to be recreated to pick up the new
+            # image. Pulling alone would leave the old consumer running against
+            # the new API -- which is exactly the drift the shared embedding
+            # client exists to prevent.
+            docker compose --profile cron pull greenhouse
+            docker compose pull greenhouse-consumer
+            docker compose up -d --force-recreate greenhouse-consumer    

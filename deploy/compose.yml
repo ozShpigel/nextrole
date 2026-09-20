@@ -114,6 +114,70 @@ services:
       - ./credentials.json:/app/credentials.json:ro
       - ./gmail-token.json:/etc/secrets/gmail-token.json:ro
 
+  # The Greenhouse ingest broker. NOT behind the cron profile and NOT one-shot:
+  # the publisher is a daily timer but the consumer is long-running, so the
+  # broker has to outlive both.
+  rabbitmq:
+    image: rabbitmq:4-management-alpine
+    restart: unless-stopped
+    env_file: [.env.rabbitmq]
+    ports:
+      # 127.0.0.1 only -- nothing outside this box speaks AMQP to it. 15672 is
+      # the management UI, which is how you look at the DLQ without writing a
+      # consumer for it. Reach it over an SSH tunnel, as with Grafana on 3001.
+      - "127.0.0.1:5672:5672"
+      - "127.0.0.1:15672:15672"
+    volumes:
+      # MANUAL STATE. `deploy/` is not synced by CI, so editing this file in the
+      # repo changes nothing here until it is copied to the box by hand. It
+      # carries vm_memory_high_watermark.absolute=512MB, which has no supported
+      # environment-variable form in RabbitMQ 4 -- the variable that search
+      # results still suggest was removed and now does nothing, silently.
+      - ./rabbitmq/10-nextrole.conf:/etc/rabbitmq/conf.d/10-nextrole.conf:ro
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      # check_running, not ping: ping answers as soon as the Erlang VM is up,
+      # several seconds before the broker accepts an AMQP connection.
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "check_running"]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+      start_period: 30s
+
+  # The Greenhouse source's fan-out. A cron container like pool-ingest: it
+  # writes one pending ledger row and publishes one message per board token in
+  # config/companies.json, then exits.
+  #
+  #   docker compose --profile cron run --rm greenhouse publish
+  #
+  # It needs no embedding key -- only the consumer embeds.
+  greenhouse:
+    image: ghcr.io/ozshpigel/greenhouse:latest
+    profiles: ["cron"]
+    env_file: [.env.greenhouse]
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  # The Greenhouse source's worker. Long-running, deliberately: a one-shot
+  # consumer would have to decide when the work is finished, and an empty queue
+  # is not that -- a message can be in flight, or delivered and unacked and
+  # about to be redelivered. "Done" is zero pending rows in greenhouse_runs for
+  # the day, which anyone can query without this process having to be right
+  # about it on the way out.
+  #
+  # One company at a time (prefetch 1), acking only after the Mongo write. A
+  # company that fails goes to the dead-letter queue rather than back onto the
+  # queue: requeueing a 429 is a hot loop that also blocks every other company.
+  greenhouse-consumer:
+    image: ghcr.io/ozshpigel/greenhouse:latest
+    command: ["consume"]
+    restart: unless-stopped
+    env_file: [.env.greenhouse]
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
   loki:
     image: grafana/loki:3.0.0
     ports:
@@ -155,3 +219,4 @@ services:
 volumes:
   loki-data:
   grafana-data:
+  rabbitmq-data:

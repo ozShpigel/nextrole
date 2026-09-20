@@ -1,0 +1,9 @@
+[Timer]
+# 06:15 UTC: after nextrole-pool-ingest at 05:30, which can run for several
+# minutes. The two share no collection and no rate-limit bucket -- this source
+# never touches discovered_jobs and makes no Claude calls -- so the gap is for
+# the box's sake, not for correctness.
+OnCalendar=*-*-* 06:15:00 UTC
+Persistent=true
+[Install]
+WantedBy=timers.target

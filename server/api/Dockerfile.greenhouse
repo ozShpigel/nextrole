@@ -1,0 +1,45 @@
+# The Greenhouse source. Two entry points, one image:
+#
+#   publish   one-shot, run by deploy/systemd/nextrole-greenhouse.timer
+#   consume   long-running
+#
+# Built from the same source tree as the API and by the same workflow, because
+# both compile Core and Infrastructure -- the embedding client and the stored
+# document model are shared with the API's FindCandidateJobIds. Two workflows on
+# the same path filter could deploy an API on new Core while this still ran the
+# old one, and if the two disagreed about the model or the dimensions, nothing
+# would go red: $vectorSearch would simply return nothing.
+FROM mcr.microsoft.com/dotnet/sdk:10.0-alpine AS build
+WORKDIR /src
+COPY server/api/ API/
+RUN dotnet publish API/src/Greenhouse/ApplicationTracker.Greenhouse.csproj -c Release -o /app
+
+# aspnet, NOT runtime -- even though nothing here listens on a port.
+#
+# This project references Infrastructure (for the shared VoyageEmbeddingClient),
+# and Infrastructure carries `FrameworkReference Microsoft.AspNetCore.App` for
+# the IHttpContextAccessor that ClaudeClient uses. That reference is transitive,
+# so the published app demands the ASP.NET shared framework at STARTUP:
+#
+#   You must install or update .NET to run this application.
+#   Framework: 'Microsoft.AspNetCore.App', version '10.0.0'
+#
+# Dockerfile.poolingest gets away with `runtime` because PoolIngest references
+# Core only. The difference is the reference graph, not whether the process
+# serves HTTP -- and it is invisible outside a container, because `dotnet run`
+# against the SDK has every framework installed.
+FROM mcr.microsoft.com/dotnet/aspnet:10.0-alpine
+WORKDIR /app
+COPY --from=build /app .
+
+# The board list ships with the image, as roles.json does for pool-ingest. Still
+# configuration -- Companies__ConfigPath points elsewhere when you want it to --
+# but baking a default means the box needs no hand-placed file, and manual state
+# on the box is what no `git pull` fixes.
+# Copied by the publish above (CopyToOutputDirectory in the csproj), so this is
+# only here to fail loudly if that ever stops working.
+RUN test -f /app/config/companies.json
+
+# No CMD default on purpose: Program.cs refuses to run without publish|consume.
+# Guessing wrong is either a day with no ingest or a second fan-out.
+ENTRYPOINT ["dotnet", "ApplicationTracker.Greenhouse.dll"]

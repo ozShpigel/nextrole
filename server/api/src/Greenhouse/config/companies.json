@@ -1,0 +1,12 @@
+{
+  "_comment": "Greenhouse board tokens are CONFIGURATION, not code. The token is the slug in boards.greenhouse.io/<token> and in the API path /v1/boards/<token>/jobs. Going from one company to fifty is an edit to this file and nothing else -- no code change, no test change. Nothing here is derived from any user's profile; this source is shared exactly like the LinkedIn pool.",
+
+  "companies": [
+    "similarweb"
+  ],
+
+  "_limits_comment": "Embedding batch packing, and ONLY that. The model and its dimensions are deliberately NOT here: this file ships inside the ingestion image and the API cannot read it, so a model named here could differ from the one retrieval uses, and that failure is silent. They live in Greenhouse:Embedding (GreenhouseEmbeddingOptions), which both halves bind.",
+  "_budget_comment": "The token budget is what a batch is FILLED to; max_batch_items caps how many texts go in one request regardless of size. voyage-4's real ceiling is 320K tokens -- over three times this -- so split-and-retry should never fire in production. It is implemented and tested anyway, because the 120K-limit families (voyage-4-large, voyage-3-large, voyage-code-3) are one config edit away, and then this number is the only thing between a run and a hard 400.",
+  "embed_batch_token_budget": 100000,
+  "max_batch_items": 128
+}

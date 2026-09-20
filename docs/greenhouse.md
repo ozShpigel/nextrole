@@ -1,0 +1,361 @@
+# The Greenhouse source
+
+A second job source, independent of the LinkedIn pool: it reads company career
+boards directly from the Greenhouse boards API, cleans the posting text, embeds
+it, and stores it in its own collection with a vector index.
+
+**It is the first ATS source in an intended migration away from LinkedIn
+scraping, not a permanent second feed.** Everything here is shaped by that: it
+depends on nothing in `discovered_jobs` or its mechanics, and it stores the
+*same* extracted-fact contract the Evaluator and `CandidateFilter` already
+consume — so scoring works unchanged when the source flips.
+
+Nothing here scores anything, does per-user work, or touches the pool. See
+`docs/job-pool.md` for the LinkedIn side, which this leaves entirely alone.
+
+## What it is for
+
+The vector collection is a **recall prefilter**: it decides which jobs the
+Evaluator spends a call on. It is not a score and never becomes one. Ranking by
+cosine similarity to a profile answers "could this plausibly be for them"; the
+Evaluator answers "is it any good".
+
+## The board endpoint
+
+`GET boards-api.greenhouse.io/v1/boards/{token}/jobs?content=true` — public, no
+auth, one call per company.
+
+**It does not paginate.** Measured on four boards: `meta.total` equalled the
+returned job count every time (stripe 665, gitlab 216, airbnb 168, similarweb
+66). Stripe's board, the largest tested, is 5.1 MB with `content=true` and
+arrives in 1.7 seconds.
+
+That makes `meta.total` a free integrity check rather than a cursor, and it is
+used as one. There is no page to be incomplete, but a *body* can be truncated —
+a reset part-way through 5 MB — and `BoardClient` throws when the count
+disagrees. **A short read must never be treated as jobs closing.**
+
+### `content` is entity-encoded HTML
+
+The field literally contains `&lt;h2&gt;&lt;strong&gt;Who we are`. It must be
+HTML-decoded **before** tags can be stripped, and again afterwards for entities
+that lived inside the markup.
+
+Getting this wrong is silent and permanent: the stored text would be markup, the
+SHA-256 of that markup is perfectly stable, and every later run compares an
+unchanged hash and skips. Nothing ever re-reads it. `ContentCleaner` does both
+passes and `ContentCleanerTests` pins them.
+
+## Per company
+
+`CompanyHandler.HandleCompanyAsync(boardToken, ct)` — self-contained,
+idempotent, throws on failure. **No transport type appears in it**; the queue
+calls it, never the reverse, and the tests drive it by calling the method.
+
+1. Fetch the whole board.
+2. Clean the HTML; strip trailing boilerplate (EEO, privacy, pay transparency)
+   only when it is a heading, on its own line, in the last third of the posting,
+   and only if the cut leaves most of the text. Conservative on purpose: cutting
+   early destroys requirements, which is the signal the source exists for.
+3. **Keep the whole board.** No title or department filtering. `department` and
+   `office` are stored so later narrowing is a query, not a re-ingest.
+4. Skip anything whose content hash is unchanged — no embedding, no write.
+5. Embed what remains, batched by estimated token budget (~100K, cap 128 items),
+   splitting and retrying on a 400. `input_type: "document"`.
+6. `BulkWriteAsync` **per batch**, upserting on `(boardToken, greenhouseJobId)`
+   behind a unique index. Per batch, not at the end, so a failure keeps the
+   earlier batches and the money already spent on them.
+7. Close what is gone; reopen what came back. **Never delete.**
+
+### The two guards
+
+| | |
+|---|---|
+| **Never diff on a failed fetch** | Structural, not a flag. `BoardClient` *throws* on a non-2xx, an unparseable body or a `meta.total` mismatch, so control never reaches the diff. A 429, a 500 and a truncated response all leave the company's stored jobs exactly as they were. |
+| **Empty response against a large stored set** | `CloseDiff.Compute` refuses the diff when the board returned nothing and ≥10 jobs are stored open. It deliberately does *not* fire on a small stored count — a board with three jobs really can empty, and a guard that never lets go is its own bug. |
+
+`CloseDiff` is pure so both are tested on the code that runs, not on a
+restatement of it.
+
+## Queue semantics
+
+Durable queue, persistent messages, publisher confirms, prefetch 1, **manual ack
+only after the Mongo write**. A failed company is nacked with `requeue: false`
+to a dead-letter queue.
+
+Not requeued, deliberately: requeueing a 429 sends it straight back to the same
+consumer — a hot loop against a service that just asked us to slow down, with
+every other company blocked behind it. The retry is tomorrow's timer.
+
+### The consumer is long-running, not one-shot
+
+A one-shot consumer would have to decide when the work is finished, and **an
+empty queue is not that**: a message can be in flight, or delivered and unacked
+and about to be redelivered. Both look identical to "nothing left".
+
+The only honest stop condition is the ledger — zero `pending` rows for the day —
+and a consumer that polled it would hang forever the first time one company got
+stuck. Staying up moves "are we done?" to something anyone can query
+(`RunLedger.PendingAsync`) and out of the exit path of the process that would
+have to be right about it.
+
+### `greenhouse_runs`
+
+One row per company per day. The **publisher** writes it `pending` *before*
+publishing; the **consumer** resolves it to `done` or `failed` with the error.
+
+That order is the point. A row written first and a publish that then fails
+leaves a visible pending row, which is correct — the company genuinely was not
+handled. The other order loses the company entirely if the process dies between
+the two, and nothing anywhere records that it was meant to run.
+
+## The extracted-fact contract
+
+`greenhouse_jobs` stores `extracted` with the **same shape and the same field
+paths** the pool uses — `extracted.location`, `extracted.seniority`,
+`extracted.must_have_tech` — because `CandidateFilter` and the Evaluator must
+work against this collection unchanged when it becomes the primary source.
+
+`PoolContractTests` enforces that: it scans `PoolJobRepository` for the
+`extracted.*` paths it actually queries and fails if `GreenhouseJobFields` does
+not declare every one. Without a check, "keeps the same contract" is a comment
+that goes stale the first time someone renames a field on one side.
+
+**The facts are unstated today, and that is safe rather than broken.** Every
+clause in `PoolJobRepository` is "matches OR is unstated", because the
+extraction is best-effort and a job with no facts must never become invisible to
+everyone. A Greenhouse row therefore *passes* the candidate filter.
+
+It is stored as a **sub-document with explicit null leaves**, not as a null
+`extracted`:
+
+```json
+"extracted": { "location": null, "seniority": null, "must_have_tech": [],
+               "nice_to_have_tech": [], "required_years": null, "domain": null }
+```
+
+That shape is not cosmetic. An Atlas vector-search filter does not match a
+missing path, so a null parent made every `extracted.*` filter return zero rows
+— see **Measured** below. `extract_attempts: 0` remains the honest signal that
+nothing has read the posting yet.
+
+Populating it is the pool's existing extraction — one batched call per new job,
+in the API, exactly once on entry. **It is not wired here yet**: this ingest
+makes no Claude calls at all. That is a self-contained next step, and the shape
+above is what it writes.
+
+## Retrieval
+
+`ICandidateJobStore.FindCandidateJobIds(renderedProfile, filters, n)` over Atlas
+`$vectorSearch`. Lives in the API; an interface so the store is swappable.
+
+- The query text is the **rendered `StructuredProfile`** — what `ProfileRenderer`
+  produces. Not a job title and not a keyword: the document vectors describe
+  4,000-character postings, and a two-word query lands nowhere near them in the
+  same space.
+- `input_type: "query"` against the ingest's `"document"`. **That argument is the
+  only difference between the two paths.**
+- Returns **ids**, not documents. A prefilter that returned job bodies would
+  invite the caller to read a second source's postings through a retrieval API.
+
+### Filters must be in the index
+
+`location`, `seniority` and `closedAt` are declared as filter paths so they are
+applied *during* the search. A `$match` after `$vectorSearch` filters what the
+limit already truncated: ask for 200, get however many of those 200 survive —
+and it degrades silently, because a short result set looks like a thin pool.
+
+One deliberate divergence: the pool matches location by regex, and a vector
+search filter cannot express one. This matches exact values, or leave it empty
+and let the vector do the work — location is in the embedded text.
+
+## One model, one set of dimensions
+
+`GreenhouseEmbeddingOptions` (`Greenhouse:Embedding`) is bound by **both** the
+API and the ingest. Model and dimensions are deliberately **not** in
+`config/companies.json`, which ships inside the ingestion image and which the API
+cannot read.
+
+If the two ever disagreed, nothing would error. A stored 1024-vector queried
+with a 512-vector returns an empty result, indistinguishable from a profile that
+matches nothing; two different models return real ids that are simply not the
+relevant ones. It is why the ingest image is built by `api.yml`, from the same
+commit as the API, and why the deploy recreates the consumer rather than only
+pulling it.
+
+Changing either is not a config edit: it means a new `embedding_vN` field, a new
+index, and re-embedding every stored job.
+
+## Measured
+
+All figures from real runs against the `similarweb` board (66 jobs) on
+2026-09-19, `voyage-4` at 1024 dimensions.
+
+| | |
+|---|---|
+| Tokens for the whole board | **69,510** (Voyage's own `usage.total_tokens`) |
+| Per job | **1,053 tokens** — about **$0.000063** at $0.06/M |
+| Whole board | **$0.0042**, and $0 in practice while the 200M free-token allowance lasts |
+| Fetch | ~1 s for 66 jobs; 1.7 s for Stripe's 665-job, 5.1 MB board |
+| Embed + write | ~5 s in one batch |
+| End to end | **~6-7 s** of work per board |
+| Second run | 0 embedded, 66 skipped, **0 tokens** |
+
+The 4-chars-per-token estimate used for batch packing is conservative: the real
+ratio here was **5.1 chars/token**, so the estimator over-counts by about 25%
+and batches come out slightly smaller than the budget allows. That is the right
+direction to be wrong in.
+
+Extrapolating to Stripe's 665 jobs (mean 4,427 cleaned chars): roughly 575K
+tokens, six batches at the 100K budget, about **$0.035** per full ingest — and
+near zero on every later run, because only changed postings are re-embedded.
+
+### Three things that only showed up by running it
+
+**An Atlas vector-search filter does not match a missing path.** Storing
+`extracted: null` made every `extracted.*` filter return **zero** rows, while
+`closedAt: {$eq: null}` worked — because that one is an explicit null *leaf*.
+Regular MQL hides this: `$eq: null` matches a missing field there, and
+`$exists` is available as a fallback, which is exactly what `PoolJobRepository`
+relies on. A vector-search filter has neither. `extracted` is therefore stored
+as a **sub-document with explicit null leaves**, which still satisfies the
+pool's permissive clauses (`Eq(field, null)` for scalars, `Size(field, 0)` for
+arrays).
+
+**Embeddings are reproducible, but only per batch composition.** The same text
+embedded twice in the same shape of request returns bit-identical floats. The
+same text alone versus in a batch of two does not — cosine 0.99998. So after a
+kill-and-restart the final rows are identical in every field except the vectors,
+which differ at ~2e-5 cosine because the batches were composed differently.
+"Same rows" cannot mean byte-identical vectors, and nothing should be written
+that assumes it.
+
+**A successful `publish` exited non-zero.** `ProcessExit` fired after a
+`using`-scoped `CancellationTokenSource` had been disposed, so `Cancel()` threw
+and the process exited 127. systemd would have reported a failed job every day
+while the run itself was fine.
+
+## Configuration
+
+`server/api/src/Greenhouse/config/companies.json` — board tokens, and only
+tokens plus batch limits. Loaded like `roles.json` and **fatal** on a missing
+file or an empty list: a run against a silently-defaulted list still ingests
+jobs, they are simply the wrong company's.
+
+**No board token appears in code or in any test.** Tests build a config in
+memory via `CompaniesConfig.ForTesting`. Going from one company to fifty is an
+edit to that file and nothing else.
+
+## Deploying it the first time
+
+**Do the manual steps BEFORE merging.** Merging to `main` is the deploy, and
+`api.yml` now ends with:
+
+```
+docker compose --profile cron pull greenhouse
+docker compose pull greenhouse-consumer
+docker compose up -d --force-recreate greenhouse-consumer
+```
+
+If `/srv/nextrole/compose.yml` does not yet define those services, that step
+**fails, and it fails the whole job -- including the API deploy that runs in the
+same workflow**. `deploy/` is not synced by CI, so the repo being correct does
+not make the box correct. This is the third time that gap has bitten; it is
+worth reading twice.
+
+### On the box, first
+
+1. Copy `deploy/compose.yml` (adds `rabbitmq`, `greenhouse`,
+   `greenhouse-consumer` and the `rabbitmq-data` volume).
+2. Copy `deploy/rabbitmq/10-nextrole.conf` to `/srv/nextrole/rabbitmq/`.
+3. Copy both `deploy/systemd/nextrole-greenhouse.*` to `/etc/systemd/system/`,
+   then `systemctl daemon-reload && systemctl enable --now nextrole-greenhouse.timer`.
+4. Write `.env.rabbitmq` and `.env.greenhouse` from `deploy/.env.example`.
+   The credentials in `.env.rabbitmq` only take effect on a **fresh volume**.
+5. Add `Greenhouse__Embedding__*` to `.env.api`. **The three values must match
+   `.env.greenhouse` exactly** -- a mismatch is silent, because `$vectorSearch`
+   returns an empty result rather than an error.
+6. `docker compose up -d rabbitmq` and wait for healthy.
+
+### Then the Atlas index
+
+The vector index does **not** create itself. Without it every search fails, and
+with the wrong `numDimensions` it silently returns nothing. On
+`job-tracker.greenhouse_jobs`, matching `MongoCandidateJobStore.IndexDefinition`:
+
+```json
+{ "fields": [
+  { "type": "vector", "path": "embedding_v1", "numDimensions": 1024, "similarity": "cosine" },
+  { "type": "filter", "path": "closedAt" },
+  { "type": "filter", "path": "extracted.location" },
+  { "type": "filter", "path": "extracted.seniority" }
+]}
+```
+
+Name it `greenhouse_vector_v1`. It takes a minute or two to become
+`queryable`; creating it before any rows exist is fine.
+
+**Check storage headroom first.** A stored job is ~19.5 KB, of which the vector
+is 13.2 KB. See **Measured** for what that means per 10,000 jobs, and note the
+free tier is 512 MB with `job-tracker` already using most of the difference.
+
+### Verifying the deploy
+
+A green tick means images were pulled, nothing more. Probe it:
+
+```bash
+# The broker is up and the watermark is ABSOLUTE, not 40% of host memory
+docker exec -it $(docker compose ps -q rabbitmq)   rabbitmq-diagnostics -q status | grep -i watermark
+
+# The timer is armed and has a next firing time
+systemctl list-timers nextrole-greenhouse.timer
+
+# The consumer is UP, not restarting -- a crashloop looks like "Up" for a
+# second at a time, so check the restart count too
+docker inspect -f '{{.State.Status}} restarts={{.RestartCount}}'   $(docker compose ps -q greenhouse-consumer)
+
+# Run the fan-out by hand rather than waiting for 06:15
+docker compose --profile cron run --rm greenhouse publish   # must exit 0
+docker compose logs --tail=20 greenhouse-consumer
+```
+
+Then in Mongo, the two questions that matter:
+
+```js
+// Is the day finished? Zero pending rows is the ONLY honest answer --
+// an empty queue is not (docs above).
+db.greenhouse_runs.find({ day: "<today>", status: "pending" })
+
+// Did the pool stay out of it? These must not have moved.
+db.discovered_jobs.countDocuments({})
+db.discovered_jobs.countDocuments({ missed_runs: { $gt: 0 } })
+```
+
+**The second run is the real test.** Run `publish` twice and read the consumer
+log: the second must say `0 embedded, N skipped, 0 tokens billed`. If it
+re-embeds everything, the content hash is broken -- and nothing else will tell
+you, because the only symptom is the bill.
+
+## Running it
+
+```bash
+# Broker (local): 127.0.0.1 only, management UI on 15672
+docker compose up -d rabbitmq
+
+# Fan out one message per board token, then exit
+docker compose --profile cron run --rm greenhouse publish
+
+# Long-running worker
+docker compose up -d greenhouse-consumer
+```
+
+Production: `deploy/systemd/nextrole-greenhouse.timer` (06:15 UTC) runs the
+`publish` container; the consumer is `restart: unless-stopped`.
+
+**`deploy/` is not synced by CI.** `rabbitmq/10-nextrole.conf` carries
+`vm_memory_high_watermark.absolute=512MB` and is manual state on the box. It has
+to be a file: RabbitMQ 4 has no supported environment-variable form for that
+setting, and the variable search results still suggest was removed and now does
+nothing, silently. The watermark is absolute rather than the default relative
+0.4 because the figure that takes 40% of is the **host's** memory, not the
+container's limit.

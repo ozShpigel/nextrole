@@ -71,3 +71,94 @@ services:
       dockerfile: client/Dockerfile
     ports:
       - "3000:80"
+
+  # The Greenhouse ingest broker. Local dev mirror of the production service in
+  # deploy/compose.yml -- same image, same conf file, same 127.0.0.1 binding.
+  #
+  # Unlike every other service here it is NOT behind the cron profile and NOT
+  # one-shot: the publisher is a daily timer, but the consumer is long-running,
+  # so the broker has to outlive both.
+  rabbitmq:
+    image: rabbitmq:4-management-alpine
+    restart: unless-stopped
+    environment:
+      # These create the account only on a FRESH volume. Changing them later and
+      # restarting does nothing -- the Mnesia database already has the user, and
+      # the container starts happily with the old credentials while the .env
+      # file says otherwise. Rotate with `rabbitmqctl change_password`, or by
+      # deleting the volume.
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_USER:-nextrole}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASSWORD:-nextrole-dev}
+      - RABBITMQ_DEFAULT_VHOST=${RABBITMQ_VHOST:-nextrole}
+    ports:
+      # 127.0.0.1 only. 5672 is AMQP; 15672 is the management UI, which is in
+      # the -management image and is how you look at the DLQ without writing a
+      # consumer for it.
+      - "127.0.0.1:5672:5672"
+      - "127.0.0.1:15672:15672"
+    volumes:
+      - ./deploy/rabbitmq/10-nextrole.conf:/etc/rabbitmq/conf.d/10-nextrole.conf:ro
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      # `ping` answers as soon as the Erlang VM is up, which is several seconds
+      # before the broker accepts an AMQP connection. check_running is the one
+      # that means "you may now connect".
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "check_running"]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+      start_period: 30s
+
+  # The Greenhouse source. Two entry points, one image:
+  #
+  #   docker compose --profile cron run --rm greenhouse publish   (daily timer)
+  #   docker compose up -d greenhouse-consumer                    (long-running)
+  #
+  # `publish` fans one message out per board token in config/companies.json and
+  # exits. `consume` stays up -- see the comment on CompanyConsumer for why it
+  # is not one-shot (an empty queue is not the same as done).
+  greenhouse:
+    build:
+      context: .
+      dockerfile: server/api/Dockerfile.greenhouse
+    # Both services pin the SAME image tag, because in production they are the
+    # same image (ghcr.io/ozshpigel/greenhouse:latest) run with two different
+    # commands. Without this, compose builds nextrole-greenhouse and
+    # nextrole-greenhouse-consumer separately, `docker compose build greenhouse`
+    # leaves the consumer on a stale image, and a local run stops resembling the
+    # deployment it is meant to rehearse.
+    image: nextrole-greenhouse:local
+    profiles: ["cron"]
+    environment:
+      - MongoDB__ConnectionString=${MONGODB_CONNECTION_STRING}
+      - MongoDB__Database=${MONGO_DB:-job-tracker}
+      - Rabbit__Uri=amqp://${RABBITMQ_USER:-nextrole}:${RABBITMQ_PASSWORD:-nextrole-dev}@rabbitmq:5672/${RABBITMQ_VHOST:-nextrole}
+      # Publishing needs no embedding key: it writes ledger rows and messages.
+      # Only the consumer embeds.
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  greenhouse-consumer:
+    build:
+      context: .
+      dockerfile: server/api/Dockerfile.greenhouse
+    image: nextrole-greenhouse:local
+    command: ["consume"]
+    restart: unless-stopped
+    environment:
+      - MongoDB__ConnectionString=${MONGODB_CONNECTION_STRING}
+      - MongoDB__Database=${MONGO_DB:-job-tracker}
+      - Rabbit__Uri=amqp://${RABBITMQ_USER:-nextrole}:${RABBITMQ_PASSWORD:-nextrole-dev}@rabbitmq:5672/${RABBITMQ_VHOST:-nextrole}
+      # The SAME model and dimensions the API binds for FindCandidateJobIds.
+      # If these two ever disagree, $vectorSearch returns nothing and nothing
+      # anywhere errors -- so they are one config section, not two.
+      - Greenhouse__Embedding__ApiKey=${VOYAGE_API_KEY}
+      - Greenhouse__Embedding__Model=${VOYAGE_MODEL:-voyage-4}
+      - Greenhouse__Embedding__Dimensions=${VOYAGE_DIMENSIONS:-1024}
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+volumes:
+  rabbitmq-data:

@@ -246,6 +246,96 @@ jobs, they are simply the wrong company's.
 memory via `CompaniesConfig.ForTesting`. Going from one company to fifty is an
 edit to that file and nothing else.
 
+## Deploying it the first time
+
+**Do the manual steps BEFORE merging.** Merging to `main` is the deploy, and
+`api.yml` now ends with:
+
+```
+docker compose --profile cron pull greenhouse
+docker compose pull greenhouse-consumer
+docker compose up -d --force-recreate greenhouse-consumer
+```
+
+If `/srv/nextrole/compose.yml` does not yet define those services, that step
+**fails, and it fails the whole job -- including the API deploy that runs in the
+same workflow**. `deploy/` is not synced by CI, so the repo being correct does
+not make the box correct. This is the third time that gap has bitten; it is
+worth reading twice.
+
+### On the box, first
+
+1. Copy `deploy/compose.yml` (adds `rabbitmq`, `greenhouse`,
+   `greenhouse-consumer` and the `rabbitmq-data` volume).
+2. Copy `deploy/rabbitmq/10-nextrole.conf` to `/srv/nextrole/rabbitmq/`.
+3. Copy both `deploy/systemd/nextrole-greenhouse.*` to `/etc/systemd/system/`,
+   then `systemctl daemon-reload && systemctl enable --now nextrole-greenhouse.timer`.
+4. Write `.env.rabbitmq` and `.env.greenhouse` from `deploy/.env.example`.
+   The credentials in `.env.rabbitmq` only take effect on a **fresh volume**.
+5. Add `Greenhouse__Embedding__*` to `.env.api`. **The three values must match
+   `.env.greenhouse` exactly** -- a mismatch is silent, because `$vectorSearch`
+   returns an empty result rather than an error.
+6. `docker compose up -d rabbitmq` and wait for healthy.
+
+### Then the Atlas index
+
+The vector index does **not** create itself. Without it every search fails, and
+with the wrong `numDimensions` it silently returns nothing. On
+`job-tracker.greenhouse_jobs`, matching `MongoCandidateJobStore.IndexDefinition`:
+
+```json
+{ "fields": [
+  { "type": "vector", "path": "embedding_v1", "numDimensions": 1024, "similarity": "cosine" },
+  { "type": "filter", "path": "closedAt" },
+  { "type": "filter", "path": "extracted.location" },
+  { "type": "filter", "path": "extracted.seniority" }
+]}
+```
+
+Name it `greenhouse_vector_v1`. It takes a minute or two to become
+`queryable`; creating it before any rows exist is fine.
+
+**Check storage headroom first.** A stored job is ~19.5 KB, of which the vector
+is 13.2 KB. See **Measured** for what that means per 10,000 jobs, and note the
+free tier is 512 MB with `job-tracker` already using most of the difference.
+
+### Verifying the deploy
+
+A green tick means images were pulled, nothing more. Probe it:
+
+```bash
+# The broker is up and the watermark is ABSOLUTE, not 40% of host memory
+docker exec -it $(docker compose ps -q rabbitmq)   rabbitmq-diagnostics -q status | grep -i watermark
+
+# The timer is armed and has a next firing time
+systemctl list-timers nextrole-greenhouse.timer
+
+# The consumer is UP, not restarting -- a crashloop looks like "Up" for a
+# second at a time, so check the restart count too
+docker inspect -f '{{.State.Status}} restarts={{.RestartCount}}'   $(docker compose ps -q greenhouse-consumer)
+
+# Run the fan-out by hand rather than waiting for 06:15
+docker compose --profile cron run --rm greenhouse publish   # must exit 0
+docker compose logs --tail=20 greenhouse-consumer
+```
+
+Then in Mongo, the two questions that matter:
+
+```js
+// Is the day finished? Zero pending rows is the ONLY honest answer --
+// an empty queue is not (docs above).
+db.greenhouse_runs.find({ day: "<today>", status: "pending" })
+
+// Did the pool stay out of it? These must not have moved.
+db.discovered_jobs.countDocuments({})
+db.discovered_jobs.countDocuments({ missed_runs: { $gt: 0 } })
+```
+
+**The second run is the real test.** Run `publish` twice and read the consumer
+log: the second must say `0 embedded, N skipped, 0 tokens billed`. If it
+re-embeds everything, the content hash is broken -- and nothing else will tell
+you, because the only symptom is the bill.
+
 ## Running it
 
 ```bash

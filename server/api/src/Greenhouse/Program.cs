@@ -5,6 +5,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using MongoDB.Bson;
 using MongoDB.Driver;
+using System.Runtime.InteropServices;
 using RabbitMQ.Client;
 
 // The Greenhouse source. Two entry points, one image:
@@ -90,11 +91,27 @@ try
     }
 
     Console.CancelKeyPress += (_, e) => { e.Cancel = true; RequestShutdown(); };
-    // SIGTERM: how Docker stops the long-running consumer. Without it the
-    // consumer is killed rather than shut down, and an in-flight company is
-    // abandoned without the broker being told -- which is survivable, since it
-    // is redelivered, but it loses the clean "leaving it unacked" log line.
-    AppDomain.CurrentDomain.ProcessExit += (_, _) => RequestShutdown();
+
+    // SIGTERM is how Docker stops the long-running consumer, and how a deploy
+    // recreates it.
+    //
+    // ProcessExit is NOT enough and was measured not to be: the container
+    // exited 143 (128+SIGTERM) with the shutdown line never printed, because
+    // ProcessExit runs too late when the main thread is parked in Task.Delay,
+    // and it has a short budget before the runtime tears down regardless.
+    // Setting Cancel = true here claims the signal, so the app unwinds its own
+    // way and exits 0 -- the difference between a consumer that was stopped and
+    // one that was killed, which is otherwise indistinguishable to whoever
+    // reads the exit code.
+    //
+    // Nothing is lost either way: an in-flight company is never acked, so the
+    // broker redelivers it and the hash skip makes the redo nearly free. This
+    // buys a clean exit code and a log line that says what happened.
+    using var sigterm = PosixSignalRegistration.Create(PosixSignal.SIGTERM, context =>
+    {
+        context.Cancel = true;
+        RequestShutdown();
+    });
 
     var ct = cancellation.Token;
 

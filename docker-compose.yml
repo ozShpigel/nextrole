@@ -121,6 +121,13 @@ services:
     build:
       context: .
       dockerfile: server/api/Dockerfile.greenhouse
+    # Both services pin the SAME image tag, because in production they are the
+    # same image (ghcr.io/ozshpigel/greenhouse:latest) run with two different
+    # commands. Without this, compose builds nextrole-greenhouse and
+    # nextrole-greenhouse-consumer separately, `docker compose build greenhouse`
+    # leaves the consumer on a stale image, and a local run stops resembling the
+    # deployment it is meant to rehearse.
+    image: nextrole-greenhouse:local
     profiles: ["cron"]
     environment:
       - MongoDB__ConnectionString=${MONGODB_CONNECTION_STRING}
@@ -136,6 +143,7 @@ services:
     build:
       context: .
       dockerfile: server/api/Dockerfile.greenhouse
+    image: nextrole-greenhouse:local
     command: ["consume"]
     restart: unless-stopped
     environment:

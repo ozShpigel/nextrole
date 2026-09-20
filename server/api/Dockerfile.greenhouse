@@ -14,9 +14,21 @@ WORKDIR /src
 COPY server/api/ API/
 RUN dotnet publish API/src/Greenhouse/ApplicationTracker.Greenhouse.csproj -c Release -o /app
 
-# runtime, not aspnet: nothing here listens on a port. The consumer is
-# long-running but it is a consumer, not a server.
-FROM mcr.microsoft.com/dotnet/runtime:10.0-alpine
+# aspnet, NOT runtime -- even though nothing here listens on a port.
+#
+# This project references Infrastructure (for the shared VoyageEmbeddingClient),
+# and Infrastructure carries `FrameworkReference Microsoft.AspNetCore.App` for
+# the IHttpContextAccessor that ClaudeClient uses. That reference is transitive,
+# so the published app demands the ASP.NET shared framework at STARTUP:
+#
+#   You must install or update .NET to run this application.
+#   Framework: 'Microsoft.AspNetCore.App', version '10.0.0'
+#
+# Dockerfile.poolingest gets away with `runtime` because PoolIngest references
+# Core only. The difference is the reference graph, not whether the process
+# serves HTTP -- and it is invisible outside a container, because `dotnet run`
+# against the SDK has every framework installed.
+FROM mcr.microsoft.com/dotnet/aspnet:10.0-alpine
 WORKDIR /app
 COPY --from=build /app .
 

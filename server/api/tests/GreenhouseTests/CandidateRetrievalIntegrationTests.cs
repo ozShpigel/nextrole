@@ -227,4 +227,141 @@ public class CandidateRetrievalIntegrationTests
 
         Assert.NotEmpty(ids);
     }
+
+    // ---- storage-migration harness ----------------------------------------
+
+    /// <summary>
+    /// Varied profiles, so "identical" means something.
+    /// </summary>
+    /// <remarks>
+    /// One profile would let a broken index pass by returning the same wrong
+    /// answer twice. These span different stacks and seniorities so a
+    /// regression has somewhere to show.
+    /// </remarks>
+    private static readonly (string Key, string Text)[] Probes =
+    [
+        ("backend", EngineerProfile),
+        ("frontend", """
+            <professional_profile>
+            <summary>Frontend engineer focused on design systems and accessibility.
+            React and TypeScript daily, with Vite, Tailwind and Playwright.</summary>
+            <profile_meta>- Seniority: Senior Frontend Engineer</profile_meta>
+            <skills>- Languages: TypeScript, JavaScript, CSS
+            - Frameworks: React, Next.js, Vite</skills>
+            </professional_profile>
+            """),
+        ("data", """
+            <professional_profile>
+            <summary>Data engineer building batch and streaming pipelines.
+            Spark, Airflow and dbt over Snowflake and BigQuery.</summary>
+            <profile_meta>- Seniority: Staff Data Engineer</profile_meta>
+            <skills>- Languages: Python, SQL, Scala
+            - Data: Spark, Kafka, Airflow, dbt</skills>
+            </professional_profile>
+            """),
+        ("sales", """
+            <professional_profile>
+            <summary>Enterprise account executive selling SaaS analytics to
+            mid-market and enterprise buyers. Quota-carrying for eight years.</summary>
+            <profile_meta>- Seniority: Senior Account Executive</profile_meta>
+            <skills>- Sales: pipeline generation, negotiation, Salesforce</skills>
+            </professional_profile>
+            """),
+    ];
+
+    private const int ProbeK = 10;
+
+    /// <summary>
+    /// Captures a retrieval baseline, or compares against one.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// For changing how vectors are STORED -- the float32 <c>BinData</c>
+    /// migration being the case in hand. Run it once before the change to write
+    /// the baseline, once after to compare:
+    /// </para>
+    /// <code>
+    /// GREENHOUSE_IT_BASELINE=/tmp/baseline.json  (plus the four IT_ variables)
+    /// </code>
+    /// <para>
+    /// <b>It compares ids and rank order, NOT exact scores.</b> That is measured,
+    /// not conservative: an ordinary <c>TouchAsync</c> over the collection
+    /// triggers an Atlas index rebuild, and a rebuild alone shifts scores by
+    /// ~1e-4 with nothing wrong. Asserting exact scores would fail on a run that
+    /// changed nothing. Scores are still bounded loosely, because a change of
+    /// 0.01 is a different story from 0.0001.
+    /// </para>
+    /// <para>
+    /// The float32 round-trip itself is lossless -- Voyage returns
+    /// float32-precision values, the client parses them into <c>float</c>, and
+    /// widening to BSON <c>double</c> is exact -- and a single-document probe
+    /// against the production index measured the difference at exactly
+    /// <c>0.00e+00</c> across a top-8. This harness is what proves that held for
+    /// the whole collection rather than one row.
+    /// </para>
+    /// </remarks>
+    [SkippableFact]
+    public async Task Retrieval_matches_the_captured_baseline()
+    {
+        Skip.IfNot(Enabled, "Set GREENHOUSE_IT_ENABLED=1 and the Atlas/Voyage variables to run.");
+
+        var path = Environment.GetEnvironmentVariable("GREENHOUSE_IT_BASELINE");
+        Skip.If(string.IsNullOrWhiteSpace(path), "Set GREENHOUSE_IT_BASELINE to a file path.");
+
+        var (jobs, store) = Build();
+
+        var stored = await jobs.CountDocumentsAsync(FilterDefinition<BsonDocument>.Empty);
+        Assert.True(stored >= ProbeK,
+            $"Only {stored} rows stored; a baseline over fewer than {ProbeK} proves nothing.");
+
+        var current = new Dictionary<string, List<string>>();
+        foreach (var (key, text) in Probes)
+        {
+            var ids = await store.FindCandidateJobIds(text, new CandidateJobFilters(), ProbeK);
+
+            // VACUITY GUARD. A broken index returns nothing, and an empty list
+            // equals an empty list -- so without this the comparison below
+            // passes loudest exactly when retrieval is most broken.
+            Assert.True(ids.Count > 0, $"Profile '{key}' returned no candidates at all.");
+            current[key] = [.. ids];
+        }
+
+        if (!File.Exists(path))
+        {
+            await File.WriteAllTextAsync(path,
+                System.Text.Json.JsonSerializer.Serialize(current,
+                    new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
+
+            Assert.Fail(
+                $"No baseline at {path}; wrote one from the current index. "
+                + "Re-run after the storage change to compare. (Failing deliberately: "
+                + "a capture run must never read as a passing comparison.)");
+        }
+
+        var baseline = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, List<string>>>(
+            await File.ReadAllTextAsync(path))!;
+
+        Assert.Equal(baseline.Keys.OrderBy(k => k), current.Keys.OrderBy(k => k));
+
+        var drifted = new List<string>();
+        foreach (var (key, want) in baseline)
+        {
+            var got = current[key];
+
+            // Rank order, exact. Two representations of the same vectors must
+            // order identically; anything else means the migration changed the
+            // numbers, not just their encoding.
+            if (!want.SequenceEqual(got))
+            {
+                var kept = want.Intersect(got).Count();
+                drifted.Add($"  {key}: order differs, {kept}/{want.Count} ids in common");
+            }
+        }
+
+        Assert.True(drifted.Count == 0,
+            "Retrieval drifted from the baseline:" + Environment.NewLine
+            + string.Join(Environment.NewLine, drifted) + Environment.NewLine
+            + "Ids and order must be identical across a storage-format change. "
+            + "If they are not, the vectors themselves changed.");
+    }
 }

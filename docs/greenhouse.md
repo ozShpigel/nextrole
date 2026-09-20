@@ -210,6 +210,51 @@ Extrapolating to Stripe's 665 jobs (mean 4,427 cleaned chars): roughly 575K
 tokens, six batches at the 100K budget, about **$0.035** per full ingest — and
 near zero on every later run, because only changed postings are re-embedded.
 
+### Vectors are stored as `BinData` float32, not an array of doubles
+
+`JobStore` writes `new BinaryVectorFloat32(vector).ToBsonBinaryData()` (BSON
+subtype 9). The vector arrives from Voyage as float32 and is parsed into
+`float[]`, so the previous `(double)v` widened every value to 8 bytes to carry
+4 bytes of information, 1024 times per job.
+
+Measured on the production collection:
+
+| | array of doubles | `BinData` float32 |
+|---|---|---|
+| vector | 8,192 B | **4,098 B** |
+| whole document | 19,545 B | **10,417 B** (−46.7%) |
+| retrieval (4 profiles x 10 ids) | baseline | **identical ids and order** |
+| top-8 scores | baseline | ~1e-11 apart |
+
+**This is not a precision trade.** The round-trip is lossless by construction,
+and a float64 -> float32 -> float64 pass over all 66 stored vectors (67,584
+values) differed by exactly `0.000e+00`. It is the same numbers in half the
+bytes.
+
+`$vectorSearch` reads both representations and a mixed collection queries
+correctly, verified with a one-document probe against the live index, so a
+migration does not have to be atomic with a deploy.
+
+### Comparing retrieval across a storage change
+
+`CandidateRetrievalIntegrationTests.Retrieval_matches_the_captured_baseline`
+captures the top N ids for several profiles, then compares after the change.
+Three things about it are deliberate:
+
+- **It compares ids and rank order, NOT scores.** An ordinary `TouchAsync` over
+  the collection triggers an Atlas index rebuild, and a rebuild alone moves
+  scores by ~1e-4 with nothing wrong. Asserting exact scores fails on a run
+  that changed nothing.
+- **It has a vacuity guard.** A broken index returns nothing, and an empty list
+  equals an empty list, so a naive diff passes loudest exactly when retrieval
+  is most broken.
+- **A capture run fails deliberately**, so writing a baseline can never be
+  mistaken for a passing comparison.
+
+It also uses four unlike profiles (backend, frontend, data, sales) pulling
+different slices of the same board. One profile could return the same wrong
+answer before and after and still diff clean.
+
 ### Three things that only showed up by running it
 
 **An Atlas vector-search filter does not match a missing path.** Storing
@@ -295,8 +340,8 @@ with the wrong `numDimensions` it silently returns nothing. On
 Name it `greenhouse_vector_v1`. It takes a minute or two to become
 `queryable`; creating it before any rows exist is fine.
 
-**Check storage headroom first.** A stored job is ~19.5 KB, of which the vector
-is 13.2 KB. See **Measured** for what that means per 10,000 jobs, and note the
+**Check storage headroom first.** A stored job is ~10.4 KB, of which the vector
+is 4.1 KB. See **Measured** for what that means per 10,000 jobs, and note the
 free tier is 512 MB with `job-tracker` already using most of the difference.
 
 ### Verifying the deploy

@@ -1,4 +1,5 @@
 using ApplicationTracker.Core.Greenhouse;
+using ApplicationTracker.Core.Matching;
 using Microsoft.Extensions.Logging;
 using MongoDB.Bson;
 
@@ -45,6 +46,7 @@ public sealed class CompanyHandler
 {
     private readonly IBoardClient _board;
     private readonly IEmbeddingClient _embeddings;
+    private readonly IngestAiClient? _ai;
     private readonly IJobStore _store;
     private readonly CompaniesConfig _config;
     private readonly ILogger<CompanyHandler> _log;
@@ -61,10 +63,15 @@ public sealed class CompanyHandler
 
     public CompanyHandler(
         IBoardClient board, IEmbeddingClient embeddings, IJobStore store,
-        CompaniesConfig config, ILogger<CompanyHandler> log)
+        CompaniesConfig config, ILogger<CompanyHandler> log, IngestAiClient? ai = null)
     {
         _board = board;
         _embeddings = embeddings;
+        // Optional so the unit tests can drive the handler without an API to
+        // call. Null means the AI passes are skipped and the jobs are stored
+        // with extracted/parsed null -- which the scan tolerates, at the cost
+        // of parsing inline per user.
+        _ai = ai;
         _store = store;
         _config = config;
         _log = log;
@@ -155,6 +162,21 @@ public sealed class CompanyHandler
                 boardToken, i + 1, batches.Count, batch.Count, result.TotalTokens);
         }
 
+        // The two USER-INDEPENDENT AI reads, once per job, here rather than
+        // once per user.
+        //
+        // Neither pass sees a profile, so their output cannot differ between
+        // users -- running them per user was measured at 2.1x the entire
+        // global ingest pipeline, spent recomputing identical answers. Doing
+        // them here is what leaves the per-user scan with a single Evaluator
+        // call, and it is what feeds EnforceEvidenceCaps and ClaimGrounding
+        // from a reading the scored model did not author.
+        //
+        // Only for jobs whose content CHANGED. An unchanged posting keeps the
+        // facts and parse it already has; that is the whole point of the hash.
+        if (_ai is not null && changed.Count > 0)
+            await RunIngestAiAsync(boardToken, changed, now, ct);
+
         // Presence for the ones we skipped. Also clears closedAt, so a job that
         // closed and came back unchanged reopens without being re-embedded.
         await _store.TouchAsync(boardToken, unchanged, runId, now, ct);
@@ -169,5 +191,85 @@ public sealed class CompanyHandler
             ct);
 
         return new CompanyResult(jobs.Count, unchanged.Count, embedded, closed, tokens);
+    }
+
+    /// <summary>
+    /// Run job-facts and job-parse over the changed jobs and store both.
+    /// </summary>
+    /// <remarks>
+    /// Never throws. Both passes already swallow their own failures and return
+    /// what they got, and a posting is worth keeping even when the reads about
+    /// it are not available yet -- the scan degrades to an inline parse rather
+    /// than losing the job. Letting a failure here fail the company would nack
+    /// a message whose embeddings are already written and paid for.
+    /// </remarks>
+    private async Task RunIngestAiAsync(
+        string boardToken, IReadOnlyList<GreenhouseJob> changed, DateTime now, CancellationToken ct)
+    {
+        try
+        {
+            // The board's own job id is the correlation key, as a string,
+            // because that is what the endpoints take. It maps back to the long
+            // the collection is keyed on.
+            var aiJobs = changed
+                .Select(j => new IngestJob(
+                    j.GreenhouseJobId.ToString(),
+                    j.Source.Title ?? "",
+                    j.Source.CompanyName,
+                    j.Source.Location?.Name,
+                    j.CleanedContent))
+                .ToList();
+
+            var facts = await ChunkedAsync(aiJobs, IngestAiClient.FactsChunkSize,
+                chunk => _ai!.ExtractFactsAsync(chunk, ct));
+
+            string? parseVersion = null;
+            var parsed = await ChunkedAsync(aiJobs, IngestAiClient.ParseChunkSize, async chunk =>
+            {
+                var (result, version) = await _ai!.ParseAsync(chunk, ct);
+                if (version is not null) parseVersion = version;
+                return result;
+            });
+
+            var saved = await _store.SaveIngestAiAsync(
+                boardToken, ByJobId(facts), ByJobId(parsed), parseVersion, now, ct);
+
+            _log.LogInformation(
+                "Board {Board}: stored {Facts} fact read(s) and {Parsed} parse(s) over {Rows} row(s)",
+                boardToken, facts.Count, parsed.Count, saved);
+        }
+        catch (Exception e)
+        {
+            _log.LogError(e,
+                "Board {Board}: the ingest AI passes failed; jobs are stored without facts or a parse "
+                + "and the per-user scan will parse them inline", boardToken);
+        }
+    }
+
+    /// <summary>Re-key the API's string job ids back to the collection's long ids.</summary>
+    /// <remarks>
+    /// A key that will not parse is dropped rather than guessed at. Attaching
+    /// one job's facts to another is the failure this whole correlation exists
+    /// to avoid.
+    /// </remarks>
+    private static Dictionary<long, BsonDocument> ByJobId(Dictionary<string, BsonDocument> source)
+    {
+        var result = new Dictionary<long, BsonDocument>(source.Count);
+        foreach (var (key, value) in source)
+            if (long.TryParse(key, out var id)) result[id] = value;
+        return result;
+    }
+
+    private static async Task<Dictionary<string, BsonDocument>> ChunkedAsync(
+        IReadOnlyList<IngestJob> jobs, int chunkSize,
+        Func<IReadOnlyList<IngestJob>, Task<Dictionary<string, BsonDocument>>> call)
+    {
+        var merged = new Dictionary<string, BsonDocument>();
+        for (var i = 0; i < jobs.Count; i += chunkSize)
+        {
+            foreach (var (k, v) in await call([.. jobs.Skip(i).Take(chunkSize)]))
+                merged[k] = v;
+        }
+        return merged;
     }
 }

@@ -178,6 +178,68 @@ public sealed class JobStore : IJobStore
     }
 
     /// <summary>
+    /// Store the ingest-time AI reads: the extracted facts and the Analyst parse.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Written per job rather than in one bulk update because the two
+    /// dictionaries are independently sparse -- a facts chunk can succeed while
+    /// the parse chunk for the same jobs fails, and vice versa. A job present in
+    /// neither is left exactly as it was, with extract_attempts still counting.
+    /// </para>
+    /// <para>
+    /// <c>extract_attempts</c> increments whether or not facts came back, which
+    /// is the pool's rule: a posting the model consistently cannot read costs a
+    /// bounded number of calls in its lifetime rather than one a day forever.
+    /// </para>
+    /// </remarks>
+    public async Task<long> SaveIngestAiAsync(
+        string boardToken,
+        IReadOnlyDictionary<long, BsonDocument> facts,
+        IReadOnlyDictionary<long, BsonDocument> parsed,
+        string? parseVersion,
+        DateTime now,
+        CancellationToken ct)
+    {
+        var ids = facts.Keys.Union(parsed.Keys).ToList();
+        if (ids.Count == 0) return 0;
+
+        var writes = new List<WriteModel<BsonDocument>>(ids.Count);
+
+        foreach (var id in ids)
+        {
+            var set = new BsonDocument();
+
+            if (facts.TryGetValue(id, out var f))
+            {
+                set.Add(GreenhouseJobFields.Extracted, f);
+                set.Add(GreenhouseJobFields.ExtractedAt, now);
+            }
+
+            if (parsed.TryGetValue(id, out var p))
+            {
+                set.Add(GreenhouseJobFields.Parsed, p);
+                set.Add(GreenhouseJobFields.ParsedAt, now);
+                set.Add(GreenhouseJobFields.ParsedWith,
+                    parseVersion is null ? BsonNull.Value : new BsonString(parseVersion));
+            }
+
+            writes.Add(new UpdateOneModel<BsonDocument>(
+                Builders<BsonDocument>.Filter.And(
+                    Builders<BsonDocument>.Filter.Eq(GreenhouseJobFields.BoardToken, boardToken),
+                    Builders<BsonDocument>.Filter.Eq(GreenhouseJobFields.GreenhouseJobId, id)),
+                new BsonDocument
+                {
+                    { "$set", set },
+                    { "$inc", new BsonDocument { { GreenhouseJobFields.ExtractAttempts, 1 } } },
+                }));
+        }
+
+        var result = await _jobs.BulkWriteAsync(writes, new BulkWriteOptions { IsOrdered = false }, ct);
+        return result.ModifiedCount;
+    }
+
+    /// <summary>
     /// Close the jobs this board no longer lists.
     /// </summary>
     /// <remarks>

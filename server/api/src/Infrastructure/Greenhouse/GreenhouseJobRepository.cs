@@ -1,0 +1,319 @@
+using ApplicationTracker.Core.Greenhouse;
+using ApplicationTracker.Core.Matching;
+using ApplicationTracker.Core.Repositories;
+using Microsoft.Extensions.Logging;
+using MongoDB.Bson;
+using MongoDB.Driver;
+
+namespace ApplicationTracker.Infrastructure.Greenhouse;
+
+/// <summary>
+/// <see cref="IPoolJobRepository"/> over <c>greenhouse_jobs</c>, retrieving by
+/// vector similarity instead of by Mongo field match.
+/// </summary>
+/// <remarks>
+/// <para>
+/// Implements the pool's own interface deliberately. Swapping the source is
+/// then a single DI registration: <c>PoolScanService</c>, <c>PoolBrowseService</c>
+/// and every endpoint above them are untouched, and switching back is the same
+/// one-line change. Nothing here reads <c>discovered_jobs</c>.
+/// </para>
+/// <para>
+/// Not user-scoped, for the same reason the pool is not: this collection is
+/// shared source data, and per-user opinion lives in <c>jobScores</c>.
+/// </para>
+/// </remarks>
+public sealed class GreenhouseJobRepository : IPoolJobRepository
+{
+    private readonly IMongoCollection<BsonDocument> _jobs;
+    private readonly ICandidateJobStore _vectors;
+    private readonly ILogger<GreenhouseJobRepository> _log;
+
+    /// <summary>
+    /// How many vector hits to pull back per job actually wanted.
+    /// </summary>
+    /// <remarks>
+    /// <b>Over-fetch, then filter in memory.</b> An Atlas vector-search filter
+    /// cannot express a regex, and the extraction's location values do not
+    /// survive exact matching: measured across 134 real postings, "London"
+    /// arrives as ten distinct strings -- <c>London, United Kingdom</c>,
+    /// <c>London, UK (hybrid)</c>, <c>Cardiff, London or Remote (UK) (hybrid)</c>,
+    /// <c>United Kingdom (remote)</c> and <c>London (hybrid)</c> among them,
+    /// with country and city each sometimes absent. An <c>$in</c> list would
+    /// need maintaining forever and would silently miss whatever it had not
+    /// seen yet.
+    ///
+    /// So the vector does the ranking with only <c>closedAt</c> applied inside
+    /// the index, and the location match happens here where substring logic is
+    /// available -- the same forgiving comparison the pool does with a regex.
+    /// </remarks>
+    public const int OverFetchFactor = 10;
+
+    /// <summary>Never ask the index for fewer than this, however small the limit.</summary>
+    /// <remarks>
+    /// A limit of 5 with a narrow location filter would otherwise over-fetch 50
+    /// and could still find nothing matching. The floor costs nothing -- the
+    /// search is ~95ms regardless of limit -- and buys the post-filter room to
+    /// work.
+    /// </remarks>
+    public const int MinOverFetch = 200;
+
+    public GreenhouseJobRepository(
+        IMongoCollection<BsonDocument> jobs, ICandidateJobStore vectors,
+        ILogger<GreenhouseJobRepository> log)
+    {
+        _jobs = jobs;
+        _vectors = vectors;
+        _log = log;
+    }
+
+    private static FilterDefinition<BsonDocument> Open =>
+        Builders<BsonDocument>.Filter.Eq(GreenhouseJobFields.ClosedAt, BsonNull.Value);
+
+    /// <summary>
+    /// Jobs worth scoring for this profile: vector-ranked, location-filtered,
+    /// minus anything this user already has a score for.
+    /// </summary>
+    public async Task<List<PoolJob>> FindCandidatesAsync(
+        CandidateFilter filter, IReadOnlyCollection<string> excludeJobIds, int limit,
+        CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(filter.ProfileText))
+        {
+            // Without profile text there is nothing to embed, and returning an
+            // arbitrary slice of the collection would look like a working scan.
+            _log.LogWarning("Candidate search asked for with no profile text; returning nothing");
+            return [];
+        }
+
+        var fetch = Math.Max(MinOverFetch, limit * OverFetchFactor);
+
+        var ids = await _vectors.FindCandidateJobIds(
+            filter.ProfileText, new CandidateJobFilters(), fetch, ct);
+
+        if (ids.Count == 0) return [];
+
+        // Ranked order is the vector's answer and must survive the round trip
+        // through Mongo, which returns documents in whatever order it likes.
+        var rank = ids.Select((id, i) => (id, i)).ToDictionary(x => x.id, x => x.i);
+
+        var exclude = excludeJobIds as HashSet<string> ?? [.. excludeJobIds];
+
+        var docs = await _jobs
+            .Find(Builders<BsonDocument>.Filter.And(
+                Builders<BsonDocument>.Filter.In("_id", ids.Select(ObjectId.Parse)),
+                Open))
+            .ToListAsync(ct);
+
+        var candidates = docs
+            .Select(ToPoolJob)
+            .Where(j => !exclude.Contains(j.Id))
+            .Where(j => MatchesLocation(j, filter.LocationTerm))
+            .OrderBy(j => rank.TryGetValue(j.Id, out var r) ? r : int.MaxValue)
+            .Take(limit)
+            .ToList();
+
+        _log.LogInformation(
+            "Greenhouse candidates: {Fetched} vector hit(s) -> {Kept} after location {Term} and {Excluded} already scored",
+            ids.Count, candidates.Count, filter.LocationTerm ?? "(any)", exclude.Count);
+
+        return candidates;
+    }
+
+    /// <summary>
+    /// Whether a posting's extracted location satisfies the candidate's term.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Substring, case-insensitive, and <b>permissive on absence</b> — the
+    /// pool's rule, and the extraction is best-effort, so a job whose location
+    /// could not be read must never become invisible to everyone.
+    /// </para>
+    /// <para>
+    /// "UK" and "United Kingdom" are treated as the same thing because the
+    /// extraction genuinely emits both, on the same board, for the same city.
+    /// This is a small, explicit alias list rather than a general gazetteer:
+    /// anything cleverer would be guessing, and a wrong guess silently hides
+    /// jobs.
+    /// </para>
+    /// </remarks>
+    public static bool MatchesLocation(PoolJob job, string? term)
+    {
+        if (string.IsNullOrWhiteSpace(term)) return true;
+
+        var location = job.Location;
+        if (string.IsNullOrWhiteSpace(location)) return true;   // unstated passes
+
+        foreach (var candidate in Aliases(term.Trim()))
+            if (location.Contains(candidate, StringComparison.OrdinalIgnoreCase))
+                return true;
+
+        return false;
+    }
+
+    private static IEnumerable<string> Aliases(string term)
+    {
+        yield return term;
+
+        // Measured on the real collection: the extraction writes both
+        // "London, United Kingdom" and "London, UK (hybrid)".
+        if (term.Equals("United Kingdom", StringComparison.OrdinalIgnoreCase)) yield return "UK";
+        if (term.Equals("UK", StringComparison.OrdinalIgnoreCase)) yield return "United Kingdom";
+        if (term.Equals("United States", StringComparison.OrdinalIgnoreCase)) yield return "USA";
+        if (term.Equals("USA", StringComparison.OrdinalIgnoreCase)) yield return "United States";
+    }
+
+    public async Task<List<PoolJob>> GetByIdsAsync(IEnumerable<string> jobIds, CancellationToken ct = default)
+    {
+        var ids = jobIds.Where(IsObjectId).Select(ObjectId.Parse).ToList();
+        if (ids.Count == 0) return [];
+
+        var docs = await _jobs.Find(Builders<BsonDocument>.Filter.In("_id", ids)).ToListAsync(ct);
+        return [.. docs.Select(ToPoolJob)];
+    }
+
+    public Task<long> CountActiveAsync(CancellationToken ct = default) =>
+        _jobs.CountDocumentsAsync(Open, cancellationToken: ct);
+
+    /// <summary>The Matches page's read over ids this user has scores for.</summary>
+    public async Task<List<PoolJobListItem>> BrowseAsync(
+        IReadOnlyCollection<string> jobIds, PoolBrowseQuery query, CancellationToken ct = default)
+    {
+        var ids = jobIds.Where(IsObjectId).Select(ObjectId.Parse).ToList();
+        if (ids.Count == 0) return [];
+
+        var clauses = new List<FilterDefinition<BsonDocument>>
+        {
+            Builders<BsonDocument>.Filter.In("_id", ids),
+            Open,
+        };
+
+        if (!string.IsNullOrWhiteSpace(query.Text))
+        {
+            var term = BsonRegularExpression.Create(
+                new System.Text.RegularExpressions.Regex(
+                    System.Text.RegularExpressions.Regex.Escape(query.Text!),
+                    System.Text.RegularExpressions.RegexOptions.IgnoreCase));
+
+            clauses.Add(Builders<BsonDocument>.Filter.Or(
+                Builders<BsonDocument>.Filter.Regex(GreenhouseJobFields.Title, term),
+                Builders<BsonDocument>.Filter.Regex(GreenhouseJobFields.Company, term),
+                Builders<BsonDocument>.Filter.Regex(GreenhouseJobFields.Content, term)));
+        }
+
+        var docs = await _jobs
+            .Find(Builders<BsonDocument>.Filter.And(clauses))
+            .SortByDescending(d => d[GreenhouseJobFields.FirstSeenAt])
+            .ToListAsync(ct);
+
+        return [.. docs.Select(ToListItem)];
+    }
+
+    /// <summary>
+    /// Greenhouse ids sharing a posting URL.
+    /// </summary>
+    /// <remarks>
+    /// Singular in practice, unlike the pool: <c>(boardToken, greenhouseJobId)</c>
+    /// is unique, so one posting is one row. Still returns a list because the
+    /// interface promises one and a caller must not assume otherwise.
+    /// </remarks>
+    public async Task<List<string>> FindIdsByJobUrlAsync(string jobUrl, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(jobUrl)) return [];
+
+        var docs = await _jobs
+            .Find(Builders<BsonDocument>.Filter.Eq(GreenhouseJobFields.AbsoluteUrl, jobUrl))
+            .Project(Builders<BsonDocument>.Projection.Include("_id"))
+            .ToListAsync(ct);
+
+        return [.. docs.Select(d => d["_id"].ToString()!)];
+    }
+
+    /// <summary>
+    /// No logos here.
+    /// </summary>
+    /// <remarks>
+    /// The Greenhouse boards API returns no company logo, so there is nothing
+    /// to borrow from a sibling posting. Returning null is honest; inventing a
+    /// source would be worse than a blank tracker row.
+    /// </remarks>
+    public Task<string?> FindCompanyLogoAsync(string company, CancellationToken ct = default) =>
+        Task.FromResult<string?>(null);
+
+    private static bool IsObjectId(string id) => ObjectId.TryParse(id, out _);
+
+    private static PoolJob ToPoolJob(BsonDocument d) => new()
+    {
+        Id = d["_id"].ToString()!,
+        Title = Str(d, GreenhouseJobFields.Title) ?? "",
+        Company = Str(d, GreenhouseJobFields.Company) ?? "",
+        // The EXTRACTED location, not the board's raw text: it is the
+        // normalised one, and the one the post-filter above compares.
+        Location = ExtractedStr(d, "location") ?? Str(d, GreenhouseJobFields.Location),
+        Description = Str(d, GreenhouseJobFields.Content),
+        JobUrl = Str(d, GreenhouseJobFields.AbsoluteUrl),
+        FirstSeenAt = Date(d, GreenhouseJobFields.FirstSeenAt),
+        MustHaveTech = ExtractedStrings(d, "must_have_tech"),
+        NiceToHaveTech = ExtractedStrings(d, "nice_to_have_tech"),
+        // The ingest's Analyst read. Null falls through to an inline parse for
+        // that job alone -- the behaviour that existed before the cache, so a
+        // miss is never worse than no cache.
+        Parsed = d.TryGetValue(GreenhouseJobFields.Parsed, out var p) && p.IsBsonDocument
+            ? ParsedJobFrom(p.AsBsonDocument)
+            : null,
+        // Greenhouse carries no company enrichment: the boards API returns no
+        // news and no reviews. Left null rather than empty -- EnforceEvidenceCaps
+        // treats a non-null GlassdoorData as "pace evidence exists" and lifts a
+        // cap on that basis, so an empty object would raise scores while
+        // supplying nothing to raise them with.
+        CompanyNews = null,
+        GlassdoorData = null,
+    };
+
+    private static PoolJobListItem ToListItem(BsonDocument d) => new()
+    {
+        Id = d["_id"].ToString()!,
+        Title = Str(d, GreenhouseJobFields.Title) ?? "",
+        Company = Str(d, GreenhouseJobFields.Company) ?? "",
+        Location = ExtractedStr(d, "location") ?? Str(d, GreenhouseJobFields.Location),
+        Description = Str(d, GreenhouseJobFields.Content),
+        JobUrl = Str(d, GreenhouseJobFields.AbsoluteUrl),
+        // The board's own seniority read, so the Matches filters keep working.
+        ActualJobLevel = ExtractedStr(d, "seniority"),
+        DiscoveredAt = Date(d, GreenhouseJobFields.FirstSeenAt),
+        Site = "greenhouse",
+    };
+
+    private static ParsedJob? ParsedJobFrom(BsonDocument doc)
+    {
+        try
+        {
+            return MongoDB.Bson.Serialization.BsonSerializer.Deserialize<ParsedJob>(doc);
+        }
+        catch (Exception)
+        {
+            // A stored parse that will not deserialise must not fail the scan:
+            // null means "parse it inline", which is a slower correct answer.
+            return null;
+        }
+    }
+
+    private static string? Str(BsonDocument d, string field) =>
+        d.TryGetValue(field, out var v) && v.IsString ? v.AsString : null;
+
+    private static DateTime? Date(BsonDocument d, string field) =>
+        d.TryGetValue(field, out var v) && v.IsValidDateTime ? v.ToUniversalTime() : null;
+
+    private static string? ExtractedStr(BsonDocument d, string field) =>
+        d.TryGetValue(GreenhouseJobFields.Extracted, out var e) && e.IsBsonDocument
+        && e.AsBsonDocument.TryGetValue(field, out var v) && v.IsString
+            ? v.AsString
+            : null;
+
+    private static string[] ExtractedStrings(BsonDocument d, string field)
+    {
+        if (!d.TryGetValue(GreenhouseJobFields.Extracted, out var e) || !e.IsBsonDocument) return [];
+        if (!e.AsBsonDocument.TryGetValue(field, out var v) || !v.IsBsonArray) return [];
+        return [.. v.AsBsonArray.Where(x => x.IsString).Select(x => x.AsString)];
+    }
+}

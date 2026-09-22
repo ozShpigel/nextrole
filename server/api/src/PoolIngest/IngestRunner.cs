@@ -198,14 +198,17 @@ public sealed class IngestRunner
         if (newJobs.Count == 0) return [.. byKey.Keys];
 
         var payloads = newJobs.Select(kv => kv.Value).ToList();
-        var facts = await ChunkedAsync(payloads, ExtractChunkSize,
+        // Mapped to the source-neutral IngestJob the shared Core client takes:
+        // the Greenhouse ingest hands it the same shape from a board posting.
+        var aiJobs = payloads.Select(ToIngestJob).ToList();
+        var facts = await ChunkedAsync(aiJobs, ExtractChunkSize,
             chunk => _ai.ExtractFactsAsync(chunk, ct));
 
         // The Analyst read, computed once here instead of once per user.
         // Failure is not fatal: the job is stored unparsed and the per-user
         // scan parses it inline, which is what happened before this existed.
         string? parseVersion = null;
-        var parsed = await ChunkedAsync(payloads, ParseChunkSize, async chunk =>
+        var parsed = await ChunkedAsync(aiJobs, ParseChunkSize, async chunk =>
         {
             var (result, version) = await _ai.ParseAsync(chunk, ct);
             if (version is not null) parseVersion = version;
@@ -250,7 +253,7 @@ public sealed class IngestRunner
             Company = Str(d, "company") ?? "",
             Location = Str(d, "location"),
             Description = Str(d, "description"),
-        }).ToList();
+        }).Select(ToIngestJob).ToList();
 
         var facts = await ChunkedAsync(asJobs, ExtractChunkSize, chunk => _ai.ExtractFactsAsync(chunk, ct));
 
@@ -285,9 +288,11 @@ public sealed class IngestRunner
     /// Bounded concurrency so a big first run does not arrive at the API as one
     /// enormous burst — the same guardrail the scoring path has.
     /// </remarks>
-    private static async Task<Dictionary<string, BsonDocument>> ChunkedAsync(
-        IReadOnlyList<ScrapedJob> jobs, int chunkSize,
-        Func<IReadOnlyList<ScrapedJob>, Task<Dictionary<string, BsonDocument>>> call)
+    // Generic over the element type since the AI passes now take the shared
+    // IngestJob rather than this project's ScrapedJob.
+    private static async Task<Dictionary<string, BsonDocument>> ChunkedAsync<T>(
+        IReadOnlyList<T> jobs, int chunkSize,
+        Func<IReadOnlyList<T>, Task<Dictionary<string, BsonDocument>>> call)
     {
         var merged = new Dictionary<string, BsonDocument>();
         using var gate = new SemaphoreSlim(MaxConcurrentChunks);
@@ -305,6 +310,10 @@ public sealed class IngestRunner
 
         return merged;
     }
+
+    /// <summary>A scraped listing as the shared ingest AI client takes it.</summary>
+    private static IngestJob ToIngestJob(ScrapedJob j) =>
+        new(j.Id, j.Title, j.Company, j.Location, j.Description);
 
     private static string? Str(BsonDocument d, string name) =>
         d.TryGetValue(name, out var v) && v.IsString ? v.AsString : null;

@@ -23,8 +23,25 @@ public sealed record CandidateFilter
     // The candidate's own technologies, lowercased. Empty = no constraint.
     public IReadOnlyList<string> Tech { get; init; } = [];
 
+    /// <summary>
+    /// The rendered profile, for a candidate source that retrieves by meaning
+    /// rather than by field match.
+    /// </summary>
+    /// <remarks>
+    /// The Mongo-backed pool ignores this: its clauses are field comparisons.
+    /// The vector-backed source needs it, because a query vector has to
+    /// describe the candidate in the same terms the stored job vectors
+    /// describe postings -- a seniority band and a tech list embed nowhere near
+    /// a 4,000-character posting.
+    ///
+    /// Carried here rather than passed alongside so that IPoolJobRepository
+    /// keeps one shape across both sources.
+    /// </remarks>
+    public string ProfileText { get; init; } = "";
+
     public static CandidateFilter FromProfile(StructuredProfile profile) => new()
     {
+        ProfileText = Profile.ProfileRenderer.Render(profile),
         LocationTerm = LocationTermOf(profile.Location),
         SeniorityBands = BandsFor(profile.Seniority),
         Tech = TechOf(profile),

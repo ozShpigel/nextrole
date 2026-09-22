@@ -127,6 +127,18 @@ public sealed class FakeJobStore : IJobStore
         return Task.FromResult((long)ids.Count);
     }
 
+    public List<long> SavedAiFor { get; } = [];
+
+    public Task<long> SaveIngestAiAsync(
+        string boardToken,
+        IReadOnlyDictionary<long, MongoDB.Bson.BsonDocument> facts,
+        IReadOnlyDictionary<long, MongoDB.Bson.BsonDocument> parsed,
+        string? parseVersion, DateTime now, CancellationToken ct)
+    {
+        SavedAiFor.AddRange(facts.Keys.Union(parsed.Keys));
+        return Task.FromResult((long)SavedAiFor.Count);
+    }
+
     public Task<long> CloseMissingAsync(
         string boardToken, IReadOnlyCollection<long> seenIds, int emptyResponseGuardThreshold,
         DateTime now, CancellationToken ct)
@@ -144,9 +156,11 @@ internal static class Build
             NullLogger<BoardClient>.Instance);
 
     public static CompanyHandler Handler(
-        StubHandler board, IEmbeddingClient embeddings, IJobStore store, CompaniesConfig? config = null) =>
+        StubHandler board, IEmbeddingClient embeddings, IJobStore store,
+        CompaniesConfig? config = null,
+        ApplicationTracker.Core.Matching.IngestAiClient? ai = null) =>
         new(BoardClient(board), embeddings, store,
-            config ?? CompaniesConfig.ForTesting(Token), NullLogger<CompanyHandler>.Instance);
+            config ?? CompaniesConfig.ForTesting(Token), NullLogger<CompanyHandler>.Instance, ai);
 
     /// <summary>
     /// The board token every test uses.

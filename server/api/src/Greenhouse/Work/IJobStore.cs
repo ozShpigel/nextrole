@@ -23,6 +23,22 @@ public interface IJobStore
     Task<long> TouchAsync(
         string boardToken, IReadOnlyCollection<long> ids, string runId, DateTime now, CancellationToken ct);
 
+    /// <summary>
+    /// Store the ingest-time AI reads for jobs that have just entered.
+    /// </summary>
+    /// <remarks>
+    /// Both are user-independent, so they are computed once here rather than
+    /// once per user. Either may be absent for a given job -- a failed chunk
+    /// contributes nothing and is retried on a later run.
+    /// </remarks>
+    Task<long> SaveIngestAiAsync(
+        string boardToken,
+        IReadOnlyDictionary<long, MongoDB.Bson.BsonDocument> facts,
+        IReadOnlyDictionary<long, MongoDB.Bson.BsonDocument> parsed,
+        string? parseVersion,
+        DateTime now,
+        CancellationToken ct);
+
     Task<long> CloseMissingAsync(
         string boardToken, IReadOnlyCollection<long> seenIds, int emptyResponseGuardThreshold,
         DateTime now, CancellationToken ct);

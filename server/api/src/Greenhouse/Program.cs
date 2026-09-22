@@ -1,4 +1,5 @@
 using ApplicationTracker.Core.Greenhouse;
+using ApplicationTracker.Core.Matching;
 using ApplicationTracker.Greenhouse;
 using ApplicationTracker.Infrastructure.Greenhouse;
 using Microsoft.Extensions.Configuration;
@@ -169,12 +170,45 @@ try
     voyageHttp.DefaultRequestHeaders.Authorization =
         new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", embedding.ApiKey);
 
+    // The API is where every Claude call lives (AGENTS.md). This process holds
+    // no Anthropic key and presents NO session token: job-facts and job-parse
+    // read no profile and score nothing, so it acts as nobody. Presenting an
+    // identity it does not need is how the mailbot ended up writing into a
+    // freshly minted account (#67).
+    //
+    // Optional: without Api:BaseUrl the ingest still runs and still embeds --
+    // jobs are simply stored without facts or a parse, and the per-user scan
+    // parses them inline. Degraded, not broken.
+    IngestAiClient? ingestAi = null;
+    if (configuration["Api:BaseUrl"] is { Length: > 0 } apiBaseUrl)
+    {
+        var apiHttp = new HttpClient
+        {
+            BaseAddress = new Uri(apiBaseUrl),
+            // Batched Claude calls behind it. One ceiling above both passes,
+            // since a chunk that times out is retried on a later run.
+            Timeout = TimeSpan.FromMinutes(10),
+        };
+        if (configuration["Api:ApiKey"] is { Length: > 0 } apiKey)
+            apiHttp.DefaultRequestHeaders.Add("X-Api-Key", apiKey);
+        apiHttp.DefaultRequestHeaders.Add("X-Source", "ingest");
+
+        ingestAi = new IngestAiClient(apiHttp, loggerFactory.CreateLogger<IngestAiClient>());
+    }
+    else
+    {
+        log.LogWarning(
+            "Api:BaseUrl is not set: jobs will be stored without extracted facts or a parse, "
+            + "and every per-user scan will pay to parse them inline");
+    }
+
     var handler = new CompanyHandler(
         new BoardClient(boardHttp, loggerFactory.CreateLogger<BoardClient>()),
         new VoyageEmbeddingClient(voyageHttp, embedding, loggerFactory.CreateLogger<VoyageEmbeddingClient>()),
         store,
         companies,
-        loggerFactory.CreateLogger<CompanyHandler>());
+        loggerFactory.CreateLogger<CompanyHandler>(),
+        ingestAi);
 
     var consumer = new CompanyConsumer(
         connection, handler, ledger, loggerFactory.CreateLogger<CompanyConsumer>());

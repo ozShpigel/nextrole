@@ -42,3 +42,4 @@ jobs:
             docker compose pull scraper
             docker compose up -d --force-recreate scraper
             docker compose --profile cron pull pool-ingest    
+            docker image prune -f   # see api.yml for why -f and not -a

@@ -76,3 +76,23 @@ jobs:
             docker compose --profile cron pull greenhouse
             docker compose pull greenhouse-consumer
             docker compose up -d --force-recreate greenhouse-consumer    
+            # Reclaim the image this pull just orphaned.
+            #
+            # `:latest` is a moving tag: pulling a new build retags it and the
+            # previous image keeps every layer while losing its name. Docker has
+            # no image garbage collector -- unlike kubelet, it ships no
+            # retention policy and no disk threshold -- so nothing ever removes
+            # them. Across 487 deploys that reached 281 images and 30 GB, and
+            # filled the box to 94%.
+            #
+            # Here rather than in a timer on the box: cleanup belongs to the
+            # event that creates the garbage, it cannot drift out of sync, and
+            # it lives in the repo rather than as manual state `deploy/` does
+            # not sync.
+            #
+            # -f, NOT -a. Dangling images only. `-a` removes anything no RUNNING
+            # container holds, and pool-ingest, mailbot and greenhouse-publish
+            # are cron containers that do not exist between runs -- it would
+            # delete their images and break the next timer firing until a deploy
+            # re-pulled them.
+            docker image prune -f

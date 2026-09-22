@@ -46,3 +46,4 @@ jobs:
             cd /srv/nextrole
             docker compose pull web
             docker compose up -d --force-recreate web      
+            docker image prune -f   # see api.yml for why -f and not -a

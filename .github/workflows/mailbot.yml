@@ -41,3 +41,4 @@ jobs:
           script: |
             cd /srv/nextrole
             docker compose --profile cron pull mailbot
+            docker image prune -f   # see api.yml for why -f and not -a

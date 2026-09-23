@@ -20,6 +20,16 @@ public sealed record PoolBrowseQuery
     public string? Text { get; init; }
     public bool? IsRemote { get; init; }
     public IReadOnlyList<string> Levels { get; init; } = [];
+    /// <summary>
+    /// Job functions this user accepts (<see cref="JobFunctions.AcceptedFor"/>).
+    /// Empty = no constraint.
+    /// </summary>
+    /// <remarks>
+    /// Set by <see cref="PoolBrowseService"/> from the profile, never from the
+    /// query string: it is the user's profile, not a panel filter. Whether it
+    /// is applied is the source's decision (<c>Greenhouse:FilterByFunction</c>).
+    /// </remarks>
+    public IReadOnlyList<string> Functions { get; init; } = [];
     public bool IncludeDismissed { get; init; }
     public bool IncludeSaved { get; init; } = true;
     public int Limit { get; init; } = 50;

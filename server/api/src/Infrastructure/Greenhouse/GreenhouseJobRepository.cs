@@ -342,6 +342,15 @@ public sealed class GreenhouseJobRepository : IPoolJobRepository
         if (query.Levels.Count > 0)
             clauses.Add(b.In(GreenhouseJobFields.ExtractedSeniority, query.Levels.Select(l => (BsonValue)l)));
 
+        // The same rule and the same switch as the candidate search, so a board
+        // cannot show what the scan now refuses to score. Unread (absent) and
+        // unclear (empty) both pass.
+        if (_filterByFunction && query.Functions.Count > 0)
+            clauses.Add(b.Or(
+                b.In(GreenhouseJobFields.ExtractedFunctions, query.Functions.Select(f => (BsonValue)f)),
+                b.Exists(GreenhouseJobFields.ExtractedFunctions, false),
+                b.Size(GreenhouseJobFields.ExtractedFunctions, 0)));
+
         if (!string.IsNullOrWhiteSpace(query.Text))
         {
             var term = BsonRegularExpression.Create(

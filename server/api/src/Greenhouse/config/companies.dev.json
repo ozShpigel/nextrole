@@ -1,0 +1,11 @@
+{
+  "_comment": "LOCAL DEVELOPMENT ONLY -- one small board, so a local ingest run costs cents, not dollars. The root docker-compose.yml points both Greenhouse services here by default (GREENHOUSE_COMPANIES_CONFIG overrides it); production reads companies.json, via deploy/compose.yml, which never mentions this file. Why it exists: on 2026-09-22 a day of local runs over every board cost $6.25 on the local key, two thirds of that week's Anthropic bill. similarweb is the smallest of the production boards (66 postings measured 2026-09-23), so a full run here is roughly $0.45 live or $0.25 through batches. Do NOT shrink a board by capping postings instead: the close diff would close every posting beyond the cap.",
+  "companies": [
+    "similarweb"
+  ],
+  "company_domains": {
+    "similarweb": "similarweb.com"
+  },
+  "embed_batch_token_budget": 100000,
+  "max_batch_items": 128
+}

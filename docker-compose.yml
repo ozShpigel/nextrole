@@ -133,6 +133,10 @@ services:
       - MongoDB__ConnectionString=${MONGODB_CONNECTION_STRING}
       - MongoDB__Database=${MONGO_DB:-job-tracker}
       - Rabbit__Uri=amqp://${RABBITMQ_USER:-nextrole}:${RABBITMQ_PASSWORD:-nextrole-dev}@rabbitmq:5672/${RABBITMQ_VHOST:-nextrole}
+      # ONE small board locally, not every company: a day of local runs over
+      # all of them cost $6.25 (AGENTS.md, Testing). Set
+      # GREENHOUSE_COMPANIES_CONFIG=config/companies.json to run the real list.
+      - Companies__ConfigPath=${GREENHOUSE_COMPANIES_CONFIG:-config/companies.dev.json}
       # Publishing needs no embedding key: it writes ledger rows and messages.
       # Only the consumer embeds.
     depends_on:
@@ -150,6 +154,10 @@ services:
       - MongoDB__ConnectionString=${MONGODB_CONNECTION_STRING}
       - MongoDB__Database=${MONGO_DB:-job-tracker}
       - Rabbit__Uri=amqp://${RABBITMQ_USER:-nextrole}:${RABBITMQ_PASSWORD:-nextrole-dev}@rabbitmq:5672/${RABBITMQ_VHOST:-nextrole}
+      # ONE small board locally, not every company: a day of local runs over
+      # all of them cost $6.25 (AGENTS.md, Testing). Set
+      # GREENHOUSE_COMPANIES_CONFIG=config/companies.json to run the real list.
+      - Companies__ConfigPath=${GREENHOUSE_COMPANIES_CONFIG:-config/companies.dev.json}
       # The SAME model and dimensions the API binds for FindCandidateJobIds.
       # If these two ever disagree, $vectorSearch returns nothing and nothing
       # anywhere errors -- so they are one config section, not two.

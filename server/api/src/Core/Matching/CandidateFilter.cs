@@ -23,9 +23,57 @@ public sealed record CandidateFilter
     // The candidate's own technologies, lowercased. Empty = no constraint.
     public IReadOnlyList<string> Tech { get; init; } = [];
 
+    /// <summary>
+    /// The rendered profile, for a candidate source that retrieves by meaning
+    /// rather than by field match.
+    /// </summary>
+    /// <remarks>
+    /// The Mongo-backed pool ignores this: its clauses are field comparisons.
+    /// The vector-backed source needs it, because a query vector has to
+    /// describe the candidate in the same terms the stored job vectors
+    /// describe postings -- a seniority band and a tech list embed nowhere near
+    /// a 4,000-character posting.
+    ///
+    /// Carried here rather than passed alongside so that IPoolJobRepository
+    /// keeps one shape across both sources.
+    /// </remarks>
+    public string ProfileText { get; init; } = "";
+
+    /// <summary>
+    /// The candidate's own location, verbatim from the profile.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Not a second copy of <see cref="LocationTerm"/>.</b> That term is the
+    /// trailing comma segment -- usually the country -- and a posting located
+    /// only <c>"London"</c> contains neither <c>"UK"</c> nor
+    /// <c>"United Kingdom"</c>, so a country-only filter hides it. Measured:
+    /// 14 of 132 real postings carried a bare city, the second most common form
+    /// on those boards.
+    /// </para>
+    /// <para>
+    /// The city cannot simply be pulled out of the profile instead. Real
+    /// profiles say <c>"Open to relocation to London, UK"</c>, whose leading
+    /// segment is prose, not a city -- so extracting one means guessing, which
+    /// this deliberately does not do. Carrying the whole string lets the
+    /// in-memory matcher ask the question the other way round: does the
+    /// candidate's stated location contain the posting's?
+    /// </para>
+    /// <para>
+    /// Like <see cref="ProfileText"/>, the Mongo-backed pool ignores this --
+    /// its clauses are field comparisons against a fixed regex, and "does this
+    /// document's value appear in that string" is not one. The pool therefore
+    /// still misses a bare city; fixing it there needs a term list in the
+    /// query, not this field.
+    /// </para>
+    /// </remarks>
+    public string? LocationText { get; init; }
+
     public static CandidateFilter FromProfile(StructuredProfile profile) => new()
     {
+        ProfileText = Profile.ProfileRenderer.Render(profile),
         LocationTerm = LocationTermOf(profile.Location),
+        LocationText = profile.Location,
         SeniorityBands = BandsFor(profile.Seniority),
         Tech = TechOf(profile),
     };

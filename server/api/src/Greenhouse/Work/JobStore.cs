@@ -178,6 +178,68 @@ public sealed class JobStore : IJobStore
     }
 
     /// <summary>
+    /// Store the ingest-time AI reads: the extracted facts and the Analyst parse.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Written per job rather than in one bulk update because the two
+    /// dictionaries are independently sparse -- a facts chunk can succeed while
+    /// the parse chunk for the same jobs fails, and vice versa. A job present in
+    /// neither is left exactly as it was, with extract_attempts still counting.
+    /// </para>
+    /// <para>
+    /// <c>extract_attempts</c> increments whether or not facts came back, which
+    /// is the pool's rule: a posting the model consistently cannot read costs a
+    /// bounded number of calls in its lifetime rather than one a day forever.
+    /// </para>
+    /// </remarks>
+    public async Task<long> SaveIngestAiAsync(
+        string boardToken,
+        IReadOnlyDictionary<long, BsonDocument> facts,
+        IReadOnlyDictionary<long, BsonDocument> parsed,
+        string? parseVersion,
+        DateTime now,
+        CancellationToken ct)
+    {
+        var ids = facts.Keys.Union(parsed.Keys).ToList();
+        if (ids.Count == 0) return 0;
+
+        var writes = new List<WriteModel<BsonDocument>>(ids.Count);
+
+        foreach (var id in ids)
+        {
+            var set = new BsonDocument();
+
+            if (facts.TryGetValue(id, out var f))
+            {
+                set.Add(GreenhouseJobFields.Extracted, f);
+                set.Add(GreenhouseJobFields.ExtractedAt, now);
+            }
+
+            if (parsed.TryGetValue(id, out var p))
+            {
+                set.Add(GreenhouseJobFields.Parsed, p);
+                set.Add(GreenhouseJobFields.ParsedAt, now);
+                set.Add(GreenhouseJobFields.ParsedWith,
+                    parseVersion is null ? BsonNull.Value : new BsonString(parseVersion));
+            }
+
+            writes.Add(new UpdateOneModel<BsonDocument>(
+                Builders<BsonDocument>.Filter.And(
+                    Builders<BsonDocument>.Filter.Eq(GreenhouseJobFields.BoardToken, boardToken),
+                    Builders<BsonDocument>.Filter.Eq(GreenhouseJobFields.GreenhouseJobId, id)),
+                new BsonDocument
+                {
+                    { "$set", set },
+                    { "$inc", new BsonDocument { { GreenhouseJobFields.ExtractAttempts, 1 } } },
+                }));
+        }
+
+        var result = await _jobs.BulkWriteAsync(writes, new BulkWriteOptions { IsOrdered = false }, ct);
+        return result.ModifiedCount;
+    }
+
+    /// <summary>
     /// Close the jobs this board no longer lists.
     /// </summary>
     /// <remarks>
@@ -201,6 +263,59 @@ public sealed class JobStore : IJobStore
     /// would leave them retrievable forever.
     /// </para>
     /// </remarks>
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<StoredJobContent>> NeedingIngestAiAsync(
+        string boardToken, int limit, CancellationToken ct)
+    {
+        // extract_attempts: 0 means nothing has read this posting yet -- the
+        // value the initial write sets, and the only thing that distinguishes
+        // "never attempted" from "attempted, unchanged since". Open postings
+        // only: a closed one is not scored, so reading it would be spend with
+        // no consumer.
+        var filter = Builders<BsonDocument>.Filter.And(
+            Builders<BsonDocument>.Filter.Eq(GreenhouseJobFields.BoardToken, boardToken),
+            Builders<BsonDocument>.Filter.Eq(GreenhouseJobFields.ClosedAt, BsonNull.Value),
+            Builders<BsonDocument>.Filter.Lte(GreenhouseJobFields.ExtractAttempts, 0));
+
+        var docs = await _jobs
+            .Find(filter)
+            .Project(Builders<BsonDocument>.Projection
+                .Include(GreenhouseJobFields.GreenhouseJobId)
+                .Include(GreenhouseJobFields.Title)
+                .Include(GreenhouseJobFields.Company)
+                .Include(GreenhouseJobFields.Location)
+                .Include(GreenhouseJobFields.Content))
+            // Oldest first, so a capped sweep drains the backlog instead of
+            // re-reading the same newest page every run.
+            .Sort(Builders<BsonDocument>.Sort.Ascending(GreenhouseJobFields.FirstSeenAt))
+            .Limit(limit)
+            .ToListAsync(ct);
+
+        var result = new List<StoredJobContent>(docs.Count);
+        foreach (var d in docs)
+        {
+            if (!d.TryGetValue(GreenhouseJobFields.GreenhouseJobId, out var id) || !id.IsNumeric) continue;
+
+            // No content, nothing to read. Skipping rather than sending an
+            // empty posting to Claude: the call would cost money and return
+            // facts about nothing.
+            var content = Str(d, GreenhouseJobFields.Content);
+            if (string.IsNullOrWhiteSpace(content)) continue;
+
+            result.Add(new StoredJobContent(
+                id.ToInt64(),
+                Str(d, GreenhouseJobFields.Title) ?? "",
+                Str(d, GreenhouseJobFields.Company) ?? "",
+                Str(d, GreenhouseJobFields.Location),
+                content));
+        }
+
+        return result;
+    }
+
+    private static string? Str(BsonDocument d, string field) =>
+        d.TryGetValue(field, out var v) && v.IsString ? v.AsString : null;
+
     public async Task<long> CloseMissingAsync(
         string boardToken, IReadOnlyCollection<long> seenIds, int emptyResponseGuardThreshold,
         DateTime now, CancellationToken ct)

@@ -103,6 +103,30 @@ public static class GreenhouseJobFields
     /// </remarks>
     public const string ExtractAttempts = "extract_attempts";
 
+    /// <summary>
+    /// The ingest-time Analyst read, or null when it has not run.
+    /// </summary>
+    /// <remarks>
+    /// Same field name and shape the pool uses, so <c>PoolScanService</c> hands
+    /// it straight to the Evaluator batch as <c>MatchBatchItem.Parsed</c> and
+    /// the per-user scan makes ONE Claude call instead of two.
+    ///
+    /// Null is safe: the scan falls through to an inline Analyst call for that
+    /// job alone, which is what happened before the cache existed. A miss is
+    /// never worse than no cache -- only slower and dearer.
+    /// </remarks>
+    public const string Parsed = "parsed";
+
+    public const string ParsedAt = "parsed_at";
+
+    /// <summary>Which prompt version produced <see cref="Parsed"/>.</summary>
+    /// <remarks>
+    /// Stored so a prompt change can invalidate stale parses rather than
+    /// leaving them to be trusted forever. <c>ParseVersioning</c> owns what the
+    /// value means.
+    /// </remarks>
+    public const string ParsedWith = "parsed_with";
+
     /// <summary>The cleaned, tag-stripped posting text.</summary>
     public const string Content = "content";
 

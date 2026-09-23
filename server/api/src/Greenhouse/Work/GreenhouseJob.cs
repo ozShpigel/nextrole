@@ -136,6 +136,9 @@ public sealed record GreenhouseJob
         },
         { GreenhouseJobFields.ExtractedAt, BsonNull.Value },
         { GreenhouseJobFields.ExtractAttempts, 0 },
+        { GreenhouseJobFields.Parsed, BsonNull.Value },
+        { GreenhouseJobFields.ParsedAt, BsonNull.Value },
+        { GreenhouseJobFields.ParsedWith, BsonNull.Value },
     };
 
     private static BsonValue Value(string? s) =>

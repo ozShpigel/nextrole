@@ -156,9 +156,26 @@ services:
       - Greenhouse__Embedding__ApiKey=${VOYAGE_API_KEY}
       - Greenhouse__Embedding__Model=${VOYAGE_MODEL:-voyage-4}
       - Greenhouse__Embedding__Dimensions=${VOYAGE_DIMENSIONS:-1024}
+      # WITHOUT THIS the consumer still runs and still embeds, and every posting
+      # it stores gets an empty `extracted` and no `parsed`. That is silent and
+      # expensive: the server-side stackedGaps check goes inert so Core Stack is
+      # scored on the model's own unchecked reading, the location and seniority
+      # filters fall back to raw board text, and every per-user scan pays for an
+      # inline Analyst parse -- measured at 2.1x the whole ingest pipeline.
+      #
+      # It was missing here, and missing on the production box, and neither
+      # failed: the ingest logs one startup warning and then runs happily
+      # forever. Reached by Docker DNS, so it is the API's SERVICE name and
+      # container port, never localhost.
+      - Api__BaseUrl=${API_INTERNAL_URL:-http://api:8080}
+      # Only needed when the instance-wide ApiKey gate is on. Harmless when
+      # unset; the header is simply not sent.
+      - Api__ApiKey=${API_KEY:-}
     depends_on:
       rabbitmq:
         condition: service_healthy
+      api:
+        condition: service_started
 
 volumes:
   rabbitmq-data:

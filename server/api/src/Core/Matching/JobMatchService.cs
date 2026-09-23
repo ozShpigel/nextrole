@@ -249,7 +249,7 @@ public sealed class JobMatchService : IJobMatchService
         r = EnforceScoreBounds(r);
         r = EnforceEvidenceCaps(r, parsedJob, glassdoorData);
         r = EnforceQuickHighlightsLength(r);
-        r = EnforceHardBlockerScope(r, parsedJob, redFlags);
+        r = EnforceHardBlockerScope(r, redFlags);
         var verdict = VerdictFromScore(r.OverallScore, cfg.VerdictBands) ?? r.Verdict;
         // The model reliably identifies a disqualifying condition in its
         // reasoning but doesn't reliably apply the consequence to its own
@@ -589,31 +589,54 @@ public sealed class JobMatchService : IJobMatchService
         // speaks to hours or load at all. Measured before the change: every
         // live payload with any evidence also has a work-life-balance
         // sub-rating, so this narrows the rule without moving today's scores.
+        // Signal: no pace evidence ANYWHERE -> the dimension is dropped from
+        // the total rather than capped, and the score is renormalised over what
+        // could actually be assessed.
+        //
+        // It used to cap Pace & Workload / Long-term Risk to 12+7=19 of 35.
+        // That was calibrated for a world where the cap was the exception: a JD
+        // silent on pace could still be paired with review evidence reaching
+        // the Evaluator separately, so capping discarded a guess and kept the
+        // dimension. There is no such pairing any more. The Glassdoor scraper
+        // was deleted with the criteria path (49 of 875 companies, 5.6%, over
+        // its whole life) and Greenhouse never had one -- the boards API
+        // returns no reviews at all. So PaceEvidence.In is false for every job
+        // from every live source, the condition collapses to "the JD did not
+        // mention pace", and a fixed 19/35 became a permanent tax rather than a
+        // correction.
+        //
+        // A permanent tax is not neutral: it compresses every score toward the
+        // middle, and it is the reason a posting matching a candidate's stack
+        // exactly could not reach YES. Renormalising over the assessable
+        // dimensions says the honest thing instead -- this was scored out of
+        // 65, not out of 100 with 19 handed over.
+        //
+        // The dimension's Score becomes null, which is already how this model
+        // spells "not assessed" (every Score here is int?) and which the UI
+        // already renders as an em dash. Components are deliberately left as
+        // the Evaluator wrote them: nothing renders them, but they are
+        // ClaimGrounding's largest scan surface, and the narrative in
+        // PositiveSignals/Concerns stays readable.
         if (parsedJob.PaceSignals.Length == 0 && !PaceEvidence.In(glassdoorData))
         {
-            var (components, capped) = CapNamedComponents(
-                r.Breakdown.SustainabilityPaceFit.Components, "SustainabilityPaceFit",
-                new Dictionary<string, int> { ["Pace & Workload"] = 12, ["Long-term Risk"] = 7 },
-                "no_pace_signals");
-            if (capped)
+            if (breakdown.SustainabilityPaceFit.Score is not null)
             {
                 changed = true;
+                _logger.LogInformation(
+                    "Dimension excluded from total: field={Field} was={Original} reason={Reason}",
+                    "SustainabilityPaceFit", breakdown.SustainabilityPaceFit.Score, "no_pace_evidence_from_any_source");
                 breakdown = breakdown with
                 {
-                    SustainabilityPaceFit = breakdown.SustainabilityPaceFit with { Components = components, Score = components.Sum(c => c.Score ?? 0) },
+                    SustainabilityPaceFit = breakdown.SustainabilityPaceFit with { Score = null },
                 };
             }
         }
 
         if (!changed) return r;
 
-        var overall = breakdown.TechnicalFit.Score is int t
-                   && breakdown.EngineeringExecutionFit.Score is int e
-                   && breakdown.SustainabilityPaceFit.Score is int s
-            ? t + e + s
-            : r.OverallScore;
-        return r with { Breakdown = breakdown, OverallScore = overall };
+        return r with { Breakdown = breakdown, OverallScore = ScoreTotal.Renormalised(breakdown) ?? r.OverallScore };
     }
+
 
     // The prompt states a 6-word ceiling per quickHighlights line, but models
     // count words poorly — enforced here instead: log the violation, then
@@ -640,37 +663,19 @@ public sealed class JobMatchService : IJobMatchService
         return changed ? r with { QuickHighlights = corrected } : r;
     }
 
-    // hardBlockers now carries a filter tag (PromptSeeds.cs), but tagging
-    // correctly doesn't stop the model inventing evidence for the filter it
-    // named — citing coreValues/strengths as if they were the profile's own
-    // <red_flags>, or firing Scope Discipline/Sustainability Signals with no
-    // grounded negative signal behind it (same class of failure as the
-    // culturalSignals fabrication above). Validates the two filters where a
-    // cheap structural check exists; work_arrangement/people_management are
-    // left unvalidated — no evidence either needs it yet.
-    private static readonly HashSet<string> RedFlagFilters = new(StringComparer.OrdinalIgnoreCase) { "candidate_dealbreaker" };
-    private static readonly HashSet<string> CulturalSignalFilters = new(StringComparer.OrdinalIgnoreCase) { "scope_discipline", "sustainability_signals" };
-
-    private MatchResponse EnforceHardBlockerScope(MatchResponse r, ParsedJob parsedJob, string[] redFlags)
+    // The allow-list, its rationale and the measurements behind removing three
+    // filters live in HardBlockerScope -- extracted so the decision has a test.
+    private MatchResponse EnforceHardBlockerScope(MatchResponse r, string[] redFlags)
     {
         if (r.HardBlockers.Length == 0) return r;
 
         var kept = r.HardBlockers.Where(b =>
         {
-            var supported = b.Filter switch
-            {
-                var f when RedFlagFilters.Contains(f) => redFlags.Any(flag =>
-                    VerbatimCulturalSignals.NormalizeWhitespace(b.Reason).Contains(VerbatimCulturalSignals.NormalizeWhitespace(flag), StringComparison.OrdinalIgnoreCase)),
-                var f when CulturalSignalFilters.Contains(f) => parsedJob.CulturalSignals.Negative.Length > 0,
-                _ => true,
-            };
-            if (!supported)
-            {
-                _logger.LogWarning(
-                    "Unsupported hard blocker dropped: filter={Filter} reason={Reason}",
-                    b.Filter, b.Reason);
-            }
-            return supported;
+            if (HardBlockerScope.IsSupported(b, redFlags)) return true;
+            _logger.LogWarning(
+                "Unsupported hard blocker dropped: filter={Filter} reason={Reason}",
+                b.Filter, b.Reason);
+            return false;
         }).ToArray();
 
         return kept.Length == r.HardBlockers.Length ? r : r with { HardBlockers = kept };

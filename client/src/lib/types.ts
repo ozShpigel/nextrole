@@ -1,8 +1,8 @@
 // The professional profile is the user-editable INPUT; prompts and scoring
 // config are read-only server configuration (appsettings / env), not data.
-// Experience & skills are LLM-normalized from pasted free text; strengths and
-// core values are explicit manual inputs. `content` is the server-rendered
-// projection the scoring prompts consume (read-only on the client).
+// Experience & skills are LLM-normalized from pasted free text; redFlags is the
+// one explicit manual input left. `content` is the server-rendered projection
+// the scoring prompts consume (read-only on the client).
 export interface ExperienceItem {
   title: string;
   company: string;
@@ -58,8 +58,6 @@ export interface StructuredProfile {
   sideProjects: SideProjectItem[];
   // Spoken/human languages (not programming languages — those belong in skills), e.g. "Hebrew (native)".
   spokenLanguages: string[];
-  strengths: string[];
-  coreValues: string[];
   // Explicit manual dealbreakers (e.g. "Early-stage startup") — checked by the
   // Evaluator's Candidate-Stated Dealbreakers hard filter, same enforcement as
   // the other hard filters (forces STRONG_NO on a match). Never auto-generated.
@@ -68,8 +66,8 @@ export interface StructuredProfile {
 }
 
 // Output of POST /api/match/profile/normalize (experience/skills/education/
-// militaryService/sideProjects/spokenLanguages; strengths/core values are
-// never auto-generated).
+// militaryService/sideProjects/spokenLanguages; redFlags is never
+// auto-generated).
 export interface NormalizedProfile {
   fullName?: string | null;
   email?: string | null;
@@ -195,6 +193,31 @@ export interface PoolScanResult {
   // A scan for this user was already running, so this request scored nothing
   // rather than paying Claude a second time for the same jobs. Not an error.
   scanInProgress: boolean;
+  // Today's scoring budget is spent, so some of what was asked for was not
+  // scored. The board stops asking rather than leaving cards that look like
+  // they are still loading.
+  budgetExhausted?: boolean;
+}
+
+// Result of GET /api/match/pool-band. The cheap half of matching: one profile
+// embedding plus a vector search, no Claude call — so the board can show the
+// real set of relevant postings immediately and score into it afterwards.
+//
+// Unscored jobs arrive with `score: null`, which the card already renders as an
+// em dash. They deliberately carry NO provisional number: similarity was
+// measured at +0.65 against real scores overall but −0.15 within the top ten,
+// so it orders the field and not the leaderboard.
+export interface PoolBandResult {
+  jobs: DiscoveredJobSummary[];
+  // Open postings in the source — a denominator, not a target.
+  poolSize: number;
+  // How many of `jobs` have never been scored for this user.
+  unscored: number;
+  profileMissing: boolean;
+}
+
+export interface ScoreJobsRequest {
+  jobIds: string[];
 }
 
 export interface ScoredJobsQuery {

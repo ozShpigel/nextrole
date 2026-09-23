@@ -39,4 +39,27 @@ public interface IUserQuotaRepository
     Task<bool> TryConsumePackAsync(Guid userId, int dailyLimit, CancellationToken ct = default);
     // For surfacing "n of 3 left" without consuming one.
     Task<int> PacksUsedTodayAsync(Guid userId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Atomically claims <paramref name="jobs"/> of today's scoring budget,
+    /// returning how many were actually granted (0 when the day is used up).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Claimed BEFORE the Claude call, never counted after it — the pack rule,
+    /// for the same reason: a request that fails still spent the money, and a
+    /// counter incremented on success can be driven past the limit by
+    /// concurrent requests that all read the old value.
+    /// </para>
+    /// <para>
+    /// Returns a partial grant rather than refusing outright. The caller asks
+    /// for a batch of 5 as the user scrolls; handing back 2 near the ceiling
+    /// scores 2 and stops, which is better than dropping the batch and leaving
+    /// the last two cards permanently blank.
+    /// </para>
+    /// </remarks>
+    Task<int> TryConsumeScoreBudgetAsync(Guid userId, int jobs, int dailyLimit, CancellationToken ct = default);
+
+    /// <summary>Today's scoring spend, for surfacing a ceiling without consuming it.</summary>
+    Task<int> ScoresUsedTodayAsync(Guid userId, CancellationToken ct = default);
 }

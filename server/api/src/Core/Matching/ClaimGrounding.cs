@@ -79,7 +79,6 @@ public static class ClaimGrounding
             phrases.Add(sp.Description);
             phrases.AddRange(sp.Highlights ?? []);
         }
-        phrases.AddRange(profile.Strengths);
         return ProfileTrace.ItemTokens(phrases.Where(p => !string.IsNullOrWhiteSpace(p)));
     }
 

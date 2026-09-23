@@ -13,6 +13,7 @@ import type {
   ResumeFileMeta,
   MessageItem,
   PoolScanResult,
+  PoolBandResult,
 } from './types';
 
 // The Matches page's primary data source — every discovered job is scored at
@@ -55,6 +56,46 @@ export function usePoolScan(enabled: boolean) {
     gcTime: 0,
     refetchOnWindowFocus: false,
     retry: false,
+  });
+}
+
+// The board's first paint: the retrieved band, scored or not.
+//
+// Cheap and safe to refetch — one embedding plus a vector search, no Claude
+// call — which is the whole point of separating it from the scan. A short
+// staleTime rather than Infinity, because scoring writes rows this read merges
+// in, so the board needs to pick them up.
+export function usePoolBand(enabled: boolean) {
+  return useQuery<PoolBandResult>({
+    queryKey: ['match', 'pool-band'],
+    queryFn: () => matchApi('/pool-band'),
+    enabled,
+    staleTime: 15 * 1000,
+    retry: false,
+  });
+}
+
+// Score specific postings, as the reader scrolls into unscored cards.
+//
+// A mutation, unlike the scan: it is fired from an interaction rather than a
+// mount, so the StrictMode double-mount problem that forced usePoolScan to be
+// a query does not apply here. Concurrency is handled server-side by an
+// in-flight id set, so several batches may be outstanding at once.
+export function useScoreJobs() {
+  const qc = useQueryClient();
+  return useMutation<PoolScanResult, Error, string[]>({
+    mutationFn: (jobIds) => matchApi('/score-jobs', {
+      method: 'POST',
+      body: JSON.stringify({ jobIds }),
+    }),
+    onSuccess: (result) => {
+      // Only when something actually landed: a no-op response must not make
+      // the board flicker.
+      if (result.scored > 0) {
+        qc.invalidateQueries({ queryKey: ['match', 'pool-band'] });
+        qc.invalidateQueries({ queryKey: ['discovery', 'jobs'] });
+      }
+    },
   });
 }
 

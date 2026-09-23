@@ -31,11 +31,17 @@ public sealed record PoolJob
     // MatchBatchItem without them, so the Evaluator's <company_news> and
     // <employee_reviews> blocks never appeared on a single pool-scored job.
     public List<CompanyNewsItem>? CompanyNews { get; init; }
-    // Null unless it carries actual evidence — see PoolJobRepository. An
-    // empty object here would not merely be useless: EnforceEvidenceCaps
-    // treats a non-null GlassdoorData as "pace evidence exists elsewhere" and
-    // lifts a cap on that basis, so an evidence-free object would raise scores
-    // while supplying nothing to raise them with.
+    // Null unless it carries actual evidence — see PoolJobRepository.
+    //
+    // What reads it is PaceEvidence.In, which asks whether the payload speaks
+    // to hours or load at all, not whether it exists — so an evidence-free
+    // object is merely useless here rather than harmful, which was not true of
+    // the earlier `glassdoorData is null` test. Kept null anyway: the field
+    // should say what is known, and nothing is.
+    //
+    // The consequence it decides is no longer a cap. When no pace evidence
+    // exists anywhere, Sustainability & Pace is dropped from the total and the
+    // score renormalised over what could be assessed (ScoreTotal).
     public GlassdoorData? GlassdoorData { get; init; }
     // The ingest's stored Analyst read, and the stamp it was produced under.
     // Null Parsed means the scan must parse inline — see PoolScanService.

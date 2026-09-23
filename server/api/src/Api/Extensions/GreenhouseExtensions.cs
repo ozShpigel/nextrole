@@ -1,4 +1,5 @@
 using ApplicationTracker.Core.Greenhouse;
+using ApplicationTracker.Core.Repositories;
 using ApplicationTracker.Infrastructure.Greenhouse;
 using MongoDB.Bson;
 using MongoDB.Driver;
@@ -72,6 +73,37 @@ public static class GreenhouseExtensions
             sp.GetRequiredKeyedService<IMongoCollection<BsonDocument>>(CollectionKey),
             sp.GetRequiredService<IEmbeddingClient>(),
             sp.GetRequiredService<ILogger<MongoCandidateJobStore>>()));
+
+        // THE SOURCE SWITCH.
+        //
+        // Greenhouse:UseAsJobSource=true makes greenhouse_jobs the collection
+        // every matching path reads: the scan's candidate search, the Matches
+        // page's browse, and the "n of m considered" count. discovered_jobs is
+        // then read by nothing.
+        //
+        // Registered LAST so it replaces the PoolJobRepository that
+        // AddApplicationServices registered -- the last registration of a
+        // service type is the one resolved. Flipping the flag back restores the
+        // LinkedIn pool with no code change, which is why the pool's cron keeps
+        // running and its data is left intact.
+        if (configuration.GetValue("Greenhouse:UseAsJobSource", false))
+        {
+            // The scan cap travels with the source (see
+            // GreenhouseJobRepository.DefaultMaxCandidatesPerScan). Configurable
+            // only so the ranked source's depth can be tuned on the box while it
+            // beds in; it cannot reach the LinkedIn pool's cap, which is the
+            // point of it being a constructor argument here rather than a
+            // setting the scan reads.
+            var maxCandidates = configuration.GetValue(
+                "Greenhouse:MaxCandidatesPerScan",
+                GreenhouseJobRepository.DefaultMaxCandidatesPerScan);
+
+            services.AddScoped<IPoolJobRepository>(sp => new GreenhouseJobRepository(
+                sp.GetRequiredKeyedService<IMongoCollection<BsonDocument>>(CollectionKey),
+                sp.GetRequiredService<ICandidateJobStore>(),
+                sp.GetRequiredService<ILogger<GreenhouseJobRepository>>(),
+                maxCandidates));
+        }
 
         return services;
     }

@@ -20,4 +20,12 @@ public sealed record UserQuota
     // query over a timestamp.
     public string PackDate { get; init; } = "";
     public int PackCount { get; init; }
+
+    // The same shape for job scoring. Separate counters because the two spend
+    // different amounts on different things: a pack is one expensive
+    // generation the user explicitly asked for, a score is a fraction of a cent
+    // spent because they scrolled. Sharing one counter would let scrolling
+    // exhaust the packs.
+    public string ScoreDate { get; init; } = "";
+    public int ScoreCount { get; init; }
 }

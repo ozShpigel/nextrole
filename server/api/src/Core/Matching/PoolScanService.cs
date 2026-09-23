@@ -10,6 +10,27 @@ namespace ApplicationTracker.Core.Matching;
 public interface IPoolScanService
 {
     Task<PoolScanResult> ScanAsync(Guid userId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Score exactly these postings, skipping any already scored for this user.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// What the board calls as the reader scrolls into unscored cards. The ids
+    /// come from the client, so nothing here trusts them: they are looked up in
+    /// the pool (an id that is not a current posting simply is not found), the
+    /// count is capped per request, and today's scoring budget is claimed
+    /// BEFORE the Claude call.
+    /// </para>
+    /// <para>
+    /// Unlike <see cref="ScanAsync"/> this does NOT take the one-scan-per-user
+    /// gate — several scroll batches are expected to be in flight at once.
+    /// Paying twice for one job is prevented per-job instead, by an in-flight
+    /// id set, which is the finer and more accurate guard for this shape.
+    /// </para>
+    /// </remarks>
+    Task<PoolScanResult> ScoreByIdsAsync(
+        Guid userId, IReadOnlyCollection<string> jobIds, CancellationToken ct = default);
 }
 
 /// <summary>
@@ -33,11 +54,12 @@ public interface IPoolScanService
 /// </remarks>
 public sealed class PoolScanService : IPoolScanService
 {
-    // The pre-filter is expected to leave tens of jobs, not hundreds. The cap
-    // is what stops a first-ever scan (or a profile edit that widens the
-    // filter) turning into an unbounded scoring bill in one request; the
-    // remainder is picked up by the next visit.
-    public const int MaxCandidatesPerScan = 50;
+    // How many candidates a scan may pay to score comes from the source, not
+    // from here: IPoolJobRepository.MaxCandidatesPerScan. The cap on a filtered
+    // source is a spend ceiling (50), and on a ranked one it is where the
+    // ranking stops being worth scoring (5) -- one number could not mean both,
+    // and the source switch has to move it.
+
     // Matches the Evaluator's batch size elsewhere in the codebase.
     private const int ScoreBatchSize = 5;
     // Batches run concurrently. One batch is an Analyst call and an Evaluator
@@ -55,11 +77,39 @@ public sealed class PoolScanService : IPoolScanService
     // is registered Scoped, so a per-instance field would gate nothing.
     private static readonly ConcurrentDictionary<Guid, SemaphoreSlim> ScanGates = new();
 
+    /// <summary>Most postings one ScoreByIdsAsync call will score.</summary>
+    /// <remarks>
+    /// The board asks for a batch of five as the reader scrolls. Ten leaves
+    /// room for a client that coalesces two batches, and stops a caller
+    /// handing over the whole band in one request. It is a request-shape
+    /// bound, not a spend bound -- the daily budget is that.
+    /// </remarks>
+    public const int MaxIdsPerRequest = 10;
+
+    /// <summary>
+    /// How many postings one user may have scored per UTC day.
+    /// </summary>
+    /// <remarks>
+    /// Measured cost is ~$0.0104 per job on Haiku 4.5 (30 jobs, 6 batches,
+    /// $0.311), so 120 is roughly $1.25 a day at the ceiling -- about what
+    /// scoring one user's entire relevant band costs, which is the most a
+    /// reader could genuinely get through. Scrolling is a cheap gesture and
+    /// this is what stops it being an expensive one.
+    /// </remarks>
+    public const int DailyScoreBudget = 120;
+
+    // Jobs currently being scored, per user. ScoreByIdsAsync deliberately does
+    // not hold the per-user scan gate, so this is what stops two overlapping
+    // scroll batches paying for the same posting: the exclusion set is read
+    // before either writes, so both would otherwise see it unscored.
+    private static readonly ConcurrentDictionary<Guid, ConcurrentDictionary<string, byte>> InFlight = new();
+
     private readonly IProfileProvider _profiles;
     private readonly IPoolJobRepository _pool;
     private readonly IJobScoreRepository _scores;
     private readonly IJobMatchService _matcher;
     private readonly IMatchSnapshotRepository _snapshots;
+    private readonly IUserQuotaRepository _quotas;
     private readonly ILogger<PoolScanService> _logger;
 
     public PoolScanService(
@@ -68,6 +118,7 @@ public sealed class PoolScanService : IPoolScanService
         IJobScoreRepository scores,
         IJobMatchService matcher,
         IMatchSnapshotRepository snapshots,
+        IUserQuotaRepository quotas,
         ILogger<PoolScanService> logger)
     {
         _profiles = profiles;
@@ -75,6 +126,7 @@ public sealed class PoolScanService : IPoolScanService
         _scores = scores;
         _matcher = matcher;
         _snapshots = snapshots;
+        _quotas = quotas;
         _logger = logger;
     }
 
@@ -145,33 +197,17 @@ public sealed class PoolScanService : IPoolScanService
         // One over the cap: the extra row is never scored, it only answers
         // "is there more after this page", so Capped can never promise a
         // "score more" that would find nothing to do.
-        var fetched = await _pool.FindCandidatesAsync(filter, alreadyScored, MaxCandidatesPerScan + 1, ct);
-        var more = fetched.Count > MaxCandidatesPerScan;
-        var toScore = more ? fetched.Take(MaxCandidatesPerScan).ToList() : fetched;
+        var cap = _pool.MaxCandidatesPerScan;
+        var fetched = await _pool.FindCandidatesAsync(filter, alreadyScored, cap + 1, ct);
+        var more = fetched.Count > cap;
+        var toScore = more ? fetched.Take(cap).ToList() : fetched;
         var poolSize = await _pool.CountActiveAsync(ct);
 
         _logger.LogInformation(
             "Pool scan for {UserId}: {Pool} active, {New} new candidate(s) to score, {Done} already scored, more={More}",
             userId, poolSize, toScore.Count, alreadyScored.Count, more);
 
-        var batches = Chunk(toScore, ScoreBatchSize).ToList();
-        var perBatch = new int[batches.Count];
-        using var gate = new SemaphoreSlim(MaxConcurrentBatches);
-        await Task.WhenAll(batches.Select(async (batch, i) =>
-        {
-            await gate.WaitAsync(ct);
-            try
-            {
-                // Each batch upserts its own rows as it finishes, so a scan cut
-                // short still keeps what it paid for.
-                perBatch[i] = await ScoreBatchAsync(userId, batch, ct);
-            }
-            finally
-            {
-                gate.Release();
-            }
-        }));
-        var scored = perBatch.Sum();
+        var scored = await ScoreAllAsync(userId, toScore, ct);
 
         return new PoolScanResult
         {
@@ -181,6 +217,106 @@ public sealed class PoolScanService : IPoolScanService
             AlreadyScored = alreadyScored.Count,
             Capped = more,
         };
+    }
+
+    /// <inheritdoc />
+    public async Task<PoolScanResult> ScoreByIdsAsync(
+        Guid userId, IReadOnlyCollection<string> jobIds, CancellationToken ct = default)
+    {
+        var requested = jobIds.Where(id => !string.IsNullOrWhiteSpace(id)).Distinct().ToList();
+        if (requested.Count == 0) return new PoolScanResult();
+
+        if (requested.Count > MaxIdsPerRequest)
+        {
+            _logger.LogInformation(
+                "Score-by-ids for {UserId}: {Count} ids requested, taking the first {Max}",
+                userId, requested.Count, MaxIdsPerRequest);
+            requested = requested.Take(MaxIdsPerRequest).ToList();
+        }
+
+        // Already scored is decided here, not by the caller: the board may ask
+        // again for a card whose score landed between render and scroll.
+        var alreadyScored = await _scores.GetScoredJobIdsAsync(userId, requested, ct);
+        var wanted = requested.Where(id => !alreadyScored.Contains(id)).ToList();
+        if (wanted.Count == 0)
+            return new PoolScanResult { AlreadyScored = alreadyScored.Count };
+
+        // Claim the ids before doing anything with them, so an overlapping
+        // batch for the same card cannot also pay for it.
+        var inFlight = InFlight.GetOrAdd(userId, _ => new ConcurrentDictionary<string, byte>());
+        var claimed = wanted.Where(id => inFlight.TryAdd(id, 0)).ToList();
+        if (claimed.Count == 0)
+            return new PoolScanResult { AlreadyScored = alreadyScored.Count, ScanInProgress = true };
+
+        try
+        {
+            // The spend ceiling, claimed before the call and never counted
+            // after it. A partial grant scores what it was given.
+            var granted = await _quotas.TryConsumeScoreBudgetAsync(
+                userId, claimed.Count, DailyScoreBudget, ct);
+            if (granted <= 0)
+            {
+                _logger.LogInformation(
+                    "Score-by-ids for {UserId}: daily scoring budget of {Budget} is used up",
+                    userId, DailyScoreBudget);
+                return new PoolScanResult { AlreadyScored = alreadyScored.Count, BudgetExhausted = true };
+            }
+
+            var affordable = claimed.Take(granted).ToList();
+
+            // An id that is not a live posting simply is not found. No error:
+            // the board may hold an id that closed a moment ago.
+            var jobs = await _pool.GetByIdsAsync(affordable, ct);
+            if (jobs.Count == 0) return new PoolScanResult { AlreadyScored = alreadyScored.Count };
+
+            _logger.LogInformation(
+                "Score-by-ids for {UserId}: {Found} of {Asked} id(s) scoring (budget granted {Granted})",
+                userId, jobs.Count, requested.Count, granted);
+
+            var scored = await ScoreAllAsync(userId, jobs, ct);
+            return new PoolScanResult
+            {
+                Candidates = jobs.Count,
+                Scored = scored,
+                AlreadyScored = alreadyScored.Count,
+                BudgetExhausted = granted < claimed.Count,
+            };
+        }
+        finally
+        {
+            foreach (var id in claimed) inFlight.TryRemove(id, out _);
+        }
+    }
+
+    /// <summary>
+    /// Score a set of postings in concurrent batches, persisting each batch as
+    /// it finishes.
+    /// </summary>
+    /// <remarks>
+    /// Shared by the eager scan and the scroll-driven path so both spend the
+    /// same way: batches of five, at most five in flight, each upserting its
+    /// own rows -- so work cut short still keeps what it paid for.
+    /// </remarks>
+    private async Task<int> ScoreAllAsync(Guid userId, List<PoolJob> jobs, CancellationToken ct)
+    {
+        if (jobs.Count == 0) return 0;
+
+        var batches = Chunk(jobs, ScoreBatchSize).ToList();
+        var perBatch = new int[batches.Count];
+        using var gate = new SemaphoreSlim(MaxConcurrentBatches);
+        await Task.WhenAll(batches.Select(async (batch, i) =>
+        {
+            await gate.WaitAsync(ct);
+            try
+            {
+                perBatch[i] = await ScoreBatchAsync(userId, batch, ct);
+            }
+            finally
+            {
+                gate.Release();
+            }
+        }));
+        return perBatch.Sum();
     }
 
     private async Task<int> ScoreBatchAsync(Guid userId, List<PoolJob> batch, CancellationToken ct)
@@ -349,4 +485,10 @@ public sealed record PoolScanResult
     // rather than paying a second time for the same jobs. Not an error: the
     // scan in flight is writing rows the caller can read.
     public bool ScanInProgress { get; init; }
+
+    // Today's scoring budget is used up (or was only partly available), so
+    // some of what was asked for was not scored. Not an error either: the
+    // board stops asking and says so rather than leaving cards that look
+    // like they are still loading.
+    public bool BudgetExhausted { get; init; }
 }

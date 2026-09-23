@@ -94,3 +94,38 @@ public sealed record PoolBrowseResult
     [JsonPropertyName("limit")] public int Limit { get; init; }
     [JsonPropertyName("offset")] public int Offset { get; init; }
 }
+
+/// <summary>
+/// The retrieved band: everything plausibly for this user, in retrieval order.
+/// </summary>
+/// <remarks>
+/// Separate from <see cref="PoolBrowseResult"/> because it answers a different
+/// question and carries no paging — the band is small (tens), and the client
+/// renders all of it so it can score into the list as the reader scrolls.
+/// </remarks>
+public sealed record PoolBandResult
+{
+    [System.Text.Json.Serialization.JsonPropertyName("jobs")]
+    public List<PoolJobListItem> Jobs { get; init; } = [];
+
+    /// <summary>Open postings in the source — the denominator, not a target.</summary>
+    [System.Text.Json.Serialization.JsonPropertyName("poolSize")]
+    public long PoolSize { get; init; }
+
+    /// <summary>How many of <see cref="Jobs"/> have never been scored for this user.</summary>
+    [System.Text.Json.Serialization.JsonPropertyName("unscored")]
+    public int Unscored { get; init; }
+
+    /// <summary>No profile yet — nothing to retrieve against, nothing spent.</summary>
+    [System.Text.Json.Serialization.JsonPropertyName("profileMissing")]
+    public bool ProfileMissing { get; init; }
+
+    /// <remarks>
+    /// The band is what a reader can plausibly work through, not the whole
+    /// pool. Measured on one real profile: 129 of 263 postings passed the
+    /// location and seniority filters, and mean score fell from 55.8 in the top
+    /// five to 20.1 past rank twenty — so the useful depth is tens, and a
+    /// ceiling here keeps one request from embedding a board nobody scrolls.
+    /// </remarks>
+    public const int MaxLimit = 60;
+}

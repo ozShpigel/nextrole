@@ -83,17 +83,5 @@
       "links": []
     }
   ],
-  "strengths": [
-    "Clear written communication and documentation",
-    "Breaking ambiguous problems into shippable milestones",
-    "Mentoring and growing junior engineers",
-    "Pragmatic trade-off decisions under constraints"
-  ],
-  "coreValues": [
-    "Sustainable, steady pace over short-term heroics",
-    "End-to-end ownership of what I build",
-    "Quality, reliability, and observability",
-    "Continuous learning and honest communication"
-  ],
   "rawExperienceText": "Senior software engineer, ~9 years. Lumen Retail (2021–Present) — Senior Software Engineer on the checkout platform (millions of orders/month); cut payment-failure retries 40%; added contract tests and CI gates; drove migration off the checkout monolith; cart-recovery flow lifted completed-checkout rate 8%; ran postmortems and introduced a lightweight RFC process. Atlas Health (2017–2021) — Software Engineer; patient scheduling features in React + Node.js; migrated a monolith module to a service with zero downtime; improved API p95 latency 35%; set up structured logging/dashboards; rotated on-call; added audit logging for a HIPAA review. Brightline Labs (2014–2017) — Junior Software Engineer; Java/Spring web app; built the first integration test suite; fixed a long-open data-sync bug; built an internal reporting dashboard. Brightline Labs (2013–2014) — Software Engineering Intern; internal admin tool; onboarding docs. B.Sc. Computer Science, Tel Aviv University, 2014; AWS Certified Solutions Architect – Associate, 2022. Skills: TypeScript, Python, Java, SQL, React, Node.js, Spring Boot, Express, AWS, Docker, GitHub Actions, Terraform, Kubernetes, PostgreSQL, Redis, DynamoDB, REST API design, CI/CD, Test automation, Observability, Incident response. Side projects: RouteCast (open-source webhook CLI), Pace (React Native habit tracker), shelfie (bookshelf cataloging app)."
 }

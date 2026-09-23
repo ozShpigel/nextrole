@@ -1,8 +1,11 @@
 {
   "_comment": "Greenhouse board tokens are CONFIGURATION, not code. The token is the slug in boards.greenhouse.io/<token> and in the API path /v1/boards/<token>/jobs. Going from one company to fifty is an edit to this file and nothing else -- no code change, no test change. Nothing here is derived from any user's profile; this source is shared exactly like the LinkedIn pool.",
 
+  "_companies_comment": "Each token here is justified by MEASURED London engineering supply, because the failure mode is silent: a board with London jobs but no engineering ones scores a London engineer against account executives and looks like it is working. similarweb has 6 London jobs and NOT ONE is engineering (4 sales, 2 data science). monzo carries 49 London jobs, 16 engineering -- but every one is backend, Android, analytics or management, so a front-end or full-stack candidate still matched nothing: measured end to end, Maya (TypeScript/React/Node) drew four Monzo backend roles and a product designer, top score 44, all NO. deliveroo is here to close that: 129 jobs, 63 London, 27 London engineering, including Senior/II/Staff Software Engineer - Full-Stack. Measured 2026-09-22 -- boards change, so re-check rather than trust this line.",
   "companies": [
-    "similarweb"
+    "similarweb",
+    "monzo",
+    "deliveroo"
   ],
 
   "_limits_comment": "Embedding batch packing, and ONLY that. The model and its dimensions are deliberately NOT here: this file ships inside the ingestion image and the API cannot read it, so a model named here could differ from the one retrieval uses, and that failure is silent. They live in Greenhouse:Embedding (GreenhouseEmbeddingOptions), which both halves bind.",

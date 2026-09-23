@@ -3,18 +3,31 @@ import { useLocation } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { createPortal } from 'react-dom';
 import { X, SlidersHorizontal, Plus, Check, Search } from 'lucide-react';
-import { useScoredJobs, usePoolScan } from '../lib/queries';
+import { useScoredJobs, usePoolScan, usePoolBand, useScoreJobs } from '../lib/queries';
 import { useSaveJob, useDismissJob, useMarkViewed } from '../lib/mutations';
 import type { DiscoveredJobSummary } from '../lib/types';
 import { VERDICT_LABELS } from '../lib/scoring';
 import { cityOnly, formatPostedAgo, isNew, hasRealJobUrl } from '../lib/format';
 import AnalysisCard, { edVerdictColor } from '../components/AnalysisCard';
 import { CompanyAvatar } from '../components/CompanyAvatar';
+import { UnscoredCard } from '../components/UnscoredCard';
 import { JobDescriptionText } from '../components/JobDescriptionText';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
 const ED_BTN = 'rounded-full border px-4 py-[0.5rem] text-[13px] font-medium transition-all disabled:opacity-50 disabled:pointer-events-none';
+
+// How many unscored cards one scroll-driven request asks for. Matches the
+// server's scoring batch size, so a request is exactly one Analyst + Evaluator
+// pair (~$0.05 measured) rather than a part-filled batch paying the same two
+// calls for fewer jobs.
+const PREFETCH_BATCH = 5;
+
+// Scoring requests allowed in flight at once. The server bounds each request
+// and the day, but without a client-side limit a reader working steadily down
+// a long band opens a new request every dwell and the board's spend rate is
+// set by how fast they scroll rather than by how much they read.
+const MAX_IN_FLIGHT_BATCHES = 2;
 // Shared by every reason the board can be empty, so they read as one voice.
 const EMPTY_STATE = 'w-full ed-display italic text-center text-[var(--ed-ink-faint)] py-12 text-[16px] border-t border-[var(--ed-rule-strong)]';
 const ED_GHOST = `${ED_BTN} border-[var(--ed-rule)] text-[var(--ed-ink-soft)] hover:border-[var(--ed-ink)] hover:text-[var(--ed-ink)]`;
@@ -504,6 +517,87 @@ export default function SearchPage() {
   // explicit action rather than an automatic loop: the cap is a spend bound,
   // and draining it silently would defeat the point of having one.
   const moreToScore = !!scan?.capped;
+
+  // ── The band, and scoring into it as the reader scrolls ──────────────────
+  //
+  // The band is the cheap half of matching (one embedding + a vector search,
+  // no Claude call), so the board can show every relevant posting immediately
+  // instead of only the handful the eager scan paid for. Unscored postings
+  // render as quiet cards and are scored in batches of five when the reader
+  // actually reaches them — which is what keeps spend proportional to how much
+  // of the board someone reads, rather than to how many postings exist.
+  const bandQuery = usePoolBand(true);
+  const scoreJobs = useScoreJobs();
+
+  // Ids we have already sent. Not derived from the band: the band refetches
+  // after each batch lands, and a card whose score has not been written yet
+  // would otherwise be requested again.
+  const requestedRef = useRef<Set<string>>(new Set());
+  const [pendingIds, setPendingIds] = useState<Set<string>>(new Set());
+  // Ids seen by the observer but not yet sent, waiting for a full batch.
+  const queuedRef = useRef<string[]>([]);
+  const inFlightRef = useRef(0);
+  // Today's budget is gone: stop asking rather than leaving cards that look
+  // like they are still loading.
+  const [budgetGone, setBudgetGone] = useState(false);
+
+  const scoredIds = useMemo(() => new Set(jobs.map((j) => j.id)), [jobs]);
+
+  // Everything retrieved that this user has no score for, in retrieval order.
+  // Cards already on the scored board are excluded rather than duplicated.
+  const unscoredBand = useMemo(
+    () => (bandQuery.data?.jobs ?? []).filter(
+      (j) => j.score === null || j.score === undefined,
+    ).filter((j) => !scoredIds.has(j.id) && !dismissedIds.has(j.id)),
+    [bandQuery.data, scoredIds, dismissedIds],
+  );
+
+  function flushQueue(): void {
+    if (inFlightRef.current >= MAX_IN_FLIGHT_BATCHES) return;
+
+    const batch = queuedRef.current.splice(0, PREFETCH_BATCH);
+    if (batch.length === 0) return;
+
+    inFlightRef.current += 1;
+
+    setPendingIds((prev) => new Set([...prev, ...batch]));
+    scoreJobs.mutate(batch, {
+      onSuccess: (result) => {
+        if (result.budgetExhausted) setBudgetGone(true);
+      },
+      onSettled: () => {
+        inFlightRef.current -= 1;
+        setPendingIds((prev) => {
+          const next = new Set(prev);
+          for (const id of batch) next.delete(id);
+          return next;
+        });
+      },
+    });
+  }
+
+  function handleCardVisible(jobId: string): void {
+    if (budgetGone) return;
+    if (requestedRef.current.has(jobId)) return;
+    requestedRef.current.add(jobId);
+    queuedRef.current.push(jobId);
+
+    // Send as soon as a whole batch is waiting. A part-filled batch costs the
+    // same two Claude calls as a full one, so it is worth waiting for five —
+    // but not forever: the tail of the band is flushed below.
+    if (queuedRef.current.length >= PREFETCH_BATCH) flushQueue();
+  }
+
+  // The tail. When the reader stops somewhere that leaves fewer than a full
+  // batch queued, those cards would otherwise sit unscored indefinitely.
+  // The tail, and anything the concurrency limit held back. Without this, a
+  // queue left under a full batch — or blocked while two requests were out —
+  // would sit unscored until the reader scrolled again.
+  useEffect(() => {
+    if (queuedRef.current.length === 0 || budgetGone) return;
+    const timer = setTimeout(() => flushQueue(), 1200);
+    return () => clearTimeout(timer);
+  }, [pendingIds, unscoredBand.length, budgetGone]);
   const selectedJob = jobs.find((j) => j.id === selectedId) ?? null;
 
   // A filter change can drop the currently-selected job out of the list —
@@ -616,7 +710,16 @@ export default function SearchPage() {
               </button>
             )}
             {jobsQuery.data && (
-              <span className="text-[13px] font-medium text-[var(--ed-ink-faint)] tabular-nums">{jobsQuery.data.total} match{jobsQuery.data.total === 1 ? '' : 'es'}</span>
+              /* Two numbers, kept apart. "15 matches" reads as the size of the
+                 result set when it is really the size of what has been judged
+                 so far -- which is how a first visit looked like five bad jobs
+                 rather than five of dozens. They are not phrased as "15 of 40"
+                 either: that implies a progress bar toward scoring everything,
+                 which is not the goal and not something to spend on. */
+              <span className="text-[13px] font-medium text-[var(--ed-ink-faint)] tabular-nums">
+                {jobsQuery.data.total} scored
+                {unscoredBand.length > 0 ? ` · ${unscoredBand.length} more` : ''}
+              </span>
             )}
           </div>
         </header>
@@ -757,11 +860,14 @@ export default function SearchPage() {
             <p className={EMPTY_STATE}>
               Loading matches…
             </p>
-          ) : jobs.length === 0 ? (
+          ) : jobs.length === 0 && unscoredBand.length === 0 ? (
             /* Four different reasons the board can be empty, and they need
                different answers. Telling someone to "relax the filters" when
                they have not uploaded a CV, or when scoring is still running,
-               reads as broken. */
+               reads as broken.
+               The band is part of this test: nothing scored yet but forty
+               postings retrieved is a board, not an empty state, and saying
+               "no matches" there would be false. */
             scan?.profileMissing ? (
               <p className={EMPTY_STATE}>
                 Upload your CV in Settings to start matching — nothing is scored until we know what you do.
@@ -840,9 +946,35 @@ export default function SearchPage() {
                   onDismiss={handleDismiss}
                 />
               ))}
+
+              {/* The rest of the band: retrieved, relevant, not yet judged.
+                  Shown because the alternative is pretending the board is
+                  five jobs long when the retrieval found dozens — and the
+                  retrieval is nearly free, so there is no reason to hide it.
+                  Each card scores itself when the reader reaches it. */}
+              {unscoredBand.map((job) => (
+                <UnscoredCard
+                  key={job.id}
+                  job={job}
+                  pending={pendingIds.has(job.id)}
+                  onVisible={handleCardVisible}
+                />
+              ))}
             </div>
           )}
+
         </div>
+
+        {/* Outside the filters/grid flex row on purpose: as a sibling of the
+            grid it became a flex item and squeezed the cards into one
+            overlapping column. Said once, under everything. */}
+        {!selectedJob && unscoredBand.length > 0 && (
+          <p className="pt-5 text-[13px] text-[var(--ed-ink-faint)] text-center">
+            {budgetGone
+              ? `${unscoredBand.length} more role${unscoredBand.length === 1 ? '' : 's'} retrieved — today's scoring budget is used up, so these stay unscored until tomorrow.`
+              : `${unscoredBand.length} more role${unscoredBand.length === 1 ? '' : 's'} retrieved — scored as you scroll.`}
+          </p>
+        )}
       </div>
     </div>
   );

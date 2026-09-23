@@ -8,7 +8,7 @@ import { matchesBandFilters } from '../lib/bandFilters';
 import { useSaveJob, useDismissJob, useMarkViewed } from '../lib/mutations';
 import type { DiscoveredJobSummary } from '../lib/types';
 import { VERDICT_LABELS } from '../lib/scoring';
-import { cityOnly, formatPostedAgo, isNew, hasRealJobUrl } from '../lib/format';
+import { cityCountry, formatPostedAgo, isNew, hasRealJobUrl } from '../lib/format';
 import AnalysisCard, { edVerdictColor } from '../components/AnalysisCard';
 import { CompanyAvatar } from '../components/CompanyAvatar';
 import { UnscoredCard } from '../components/UnscoredCard';
@@ -188,7 +188,7 @@ function MatchCard({ job, index, saved, dismissed, onSelect, onSave, onDismiss }
       <div className="min-w-0">
         <div className="flex items-center gap-x-2 flex-wrap text-[13px] text-[var(--ed-ink-faint)] mb-[0.15rem] tabular-nums">
           <span className="font-medium text-[var(--ed-ink-soft)]">{job.company}</span>
-          {cityOnly(job.location) && <span>{cityOnly(job.location)}</span>}
+          {cityCountry(job.location) && <span>{cityCountry(job.location)}</span>}
           {job.is_remote && <span>Remote</span>}
         </div>
         <h3 className="text-[16px] font-medium leading-[1.3] text-[var(--ed-ink)] line-clamp-2">
@@ -283,7 +283,7 @@ function MatchRow({ job, index, selected, saved, dismissed, onSelect, onSave }: 
       <div className="min-w-0 flex-1">
         <h3 className="text-[13px] font-medium leading-[1.3] text-[var(--ed-ink)] truncate">{job.title}</h3>
         <div className="text-[13px] text-[var(--ed-ink-faint)] truncate">
-          {job.company}{cityOnly(job.location) ? ` · ${cityOnly(job.location)}` : ''}{job.is_remote ? ' · Remote' : ''}
+          {job.company}{cityCountry(job.location) ? ` · ${cityCountry(job.location)}` : ''}{job.is_remote ? ' · Remote' : ''}
         </div>
       </div>
       <CompactScoreBadge job={job} />
@@ -349,7 +349,7 @@ function MatchDetail({ job, saved, dismissed, onClose, onSave, onDismiss }: Matc
             <div className="mt-4">
               <div className="flex items-center gap-x-2 flex-wrap text-[13px] text-[var(--ed-ink-faint)] mb-1">
                 <span className="font-medium text-[var(--ed-ink-soft)]">{job.company}</span>
-                {cityOnly(job.location) && <span>{cityOnly(job.location)}</span>}
+                {cityCountry(job.location) && <span>{cityCountry(job.location)}</span>}
                 {job.is_remote && (
                   <span className="border border-[var(--ed-rule)] rounded-full px-[0.5rem] py-[0.05rem]">Remote</span>
                 )}

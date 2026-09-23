@@ -185,6 +185,22 @@ public static class GreenhouseJobFields
     /// </remarks>
     public const string CompanyLogo = "company_logo";
 
+    /// <summary>The id of an open facts batch reading this posting, or absent.</summary>
+    /// <remarks>
+    /// Set on submit, cleared by that same batch on collect (IngestBatcher).
+    /// The backfill and re-read skip a posting that carries it, so a read in
+    /// flight is never paid for twice.
+    /// </remarks>
+    public const string AiPendingFacts = "ai_pending_facts";
+
+    /// <summary>The id of an open parse batch reading this posting, or absent.</summary>
+    /// <remarks>
+    /// The candidate search skips a posting that carries it: until the parse
+    /// lands, a scan would pay full price to parse it inline, per user -- and
+    /// score it before its facts can filter it.
+    /// </remarks>
+    public const string AiPendingParse = "ai_pending_parse";
+
     /// <summary>The collection these fields live in.</summary>
     /// <remarks>
     /// Entirely separate from <c>discovered_jobs</c>. Nothing merges the two
@@ -194,4 +210,7 @@ public static class GreenhouseJobFields
 
     /// <summary>One row per company per day: pending, done or failed.</summary>
     public const string RunsCollection = "greenhouse_runs";
+
+    /// <summary>Submitted Message Batches awaiting collection (IngestBatcher).</summary>
+    public const string AiBatchesCollection = "greenhouse_ai_batches";
 }

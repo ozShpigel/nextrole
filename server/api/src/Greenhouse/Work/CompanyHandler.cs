@@ -47,6 +47,7 @@ public sealed class CompanyHandler
     private readonly IBoardClient _board;
     private readonly IEmbeddingClient _embeddings;
     private readonly IngestAiClient? _ai;
+    private readonly IngestBatcher? _batcher;
     private readonly IJobStore _store;
     private readonly CompaniesConfig _config;
     private readonly ILogger<CompanyHandler> _log;
@@ -63,8 +64,13 @@ public sealed class CompanyHandler
 
     public CompanyHandler(
         IBoardClient board, IEmbeddingClient embeddings, IJobStore store,
-        CompaniesConfig config, ILogger<CompanyHandler> log, IngestAiClient? ai = null)
+        CompaniesConfig config, ILogger<CompanyHandler> log, IngestAiClient? ai = null,
+        IngestBatcher? batcher = null)
     {
+        // Set when Greenhouse:UseBatchApi is on: the same two reads go through
+        // the Message Batches API at half the price and are collected later.
+        // Null keeps the live path below, unchanged.
+        _batcher = batcher;
         _board = board;
         _embeddings = embeddings;
         // Optional so the unit tests can drive the handler without an API to
@@ -174,7 +180,11 @@ public sealed class CompanyHandler
         //
         // Only for jobs whose content CHANGED. An unchanged posting keeps the
         // facts and parse it already has; that is the whole point of the hash.
-        if (_ai is not null && changed.Count > 0)
+        if (_batcher is not null)
+        {
+            await SubmitBatchedReadsAsync(boardToken, changed, now, ct);
+        }
+        else if (_ai is not null && changed.Count > 0)
         {
             await RunIngestAiAsync(boardToken, ToIngestJobs(changed), now, ct);
         }
@@ -184,7 +194,7 @@ public sealed class CompanyHandler
         // down, leaves facts and parse missing, and an unchanged hash means
         // nothing ever looks at them again. Without this sweep the only repair
         // is the company editing their own posting text.
-        if (_ai is not null)
+        if (_ai is not null && _batcher is null)
         {
             await BackfillIngestAiAsync(boardToken, now, ct);
             await ReReadFactsAsync(boardToken, now, ct);
@@ -239,6 +249,51 @@ public sealed class CompanyHandler
             j.Source.CompanyName,
             j.Source.Location?.Name,
             j.CleanedContent))];
+
+    /// <summary>
+    /// The batch path: every read this run owes, submitted instead of awaited.
+    /// </summary>
+    /// <remarks>
+    /// The same three sets the live path reads -- changed postings, the never-
+    /// read backlog, and the facts re-read -- each posting once. Changed and
+    /// backlog postings need both reads; re-read postings need facts only, so
+    /// they get no parse batch and stay visible to the candidate search while
+    /// their new facts are in flight. The backlog and re-read selectors skip
+    /// postings already in an open batch, so nothing is paid for twice. Never
+    /// throws, like the live path: the board is already fetched, embedded and
+    /// written.
+    /// </remarks>
+    private async Task SubmitBatchedReadsAsync(
+        string boardToken, IReadOnlyList<GreenhouseJob> changed, DateTime now, CancellationToken ct)
+    {
+        try
+        {
+            var both = ToIngestJobs(changed);
+            var seen = both.Select(j => j.JobId).ToHashSet();
+
+            var backlog = await _store.NeedingIngestAiAsync(boardToken, BackfillBatchSize, ct);
+            both.AddRange(backlog.Where(p => seen.Add(p.GreenhouseJobId.ToString())).Select(ToIngestJob));
+
+            var reread = await _store.NeedingFactsReReadAsync(boardToken, BackfillBatchSize, ct);
+            var factsOnly = reread.Where(p => seen.Add(p.GreenhouseJobId.ToString())).Select(ToIngestJob).ToList();
+
+            var facts = await _batcher!.SubmitAsync(boardToken, AiBatchRecord.Facts, [.. both, .. factsOnly], now, ct);
+            var parses = await _batcher.SubmitAsync(boardToken, AiBatchRecord.Parse, both, now, ct);
+
+            if (facts + parses > 0)
+                _log.LogInformation(
+                    "Board {Board}: submitted {Facts} facts read(s) and {Parses} parse(s) as batches "
+                    + "({Changed} changed, {Backlog} never read, {ReRead} re-read)",
+                    boardToken, facts, parses, changed.Count, backlog.Count, factsOnly.Count);
+        }
+        catch (Exception e) when (e is not OperationCanceledException)
+        {
+            _log.LogError(e, "Board {Board}: could not submit the batched reads; they are owed again next run", boardToken);
+        }
+    }
+
+    private static IngestJob ToIngestJob(StoredJobContent p) =>
+        new(p.GreenhouseJobId.ToString(), p.Title, p.Company, p.Location, p.Content);
 
     /// <summary>
     /// Run the ingest AI reads over postings that have never had them.

@@ -37,7 +37,20 @@ public interface IJobStore
         IReadOnlyDictionary<long, MongoDB.Bson.BsonDocument> parsed,
         string? parseVersion,
         DateTime now,
-        CancellationToken ct);
+        CancellationToken ct,
+        bool countAttempt = true);
+
+    /// <summary>Mark postings as being read by an open batch (<see cref="IngestBatcher"/>).</summary>
+    Task MarkAiPendingAsync(
+        string boardToken, IReadOnlyCollection<long> ids, string kind, string batchId, CancellationToken ct);
+
+    /// <summary>Clear the markers THIS batch set; a newer batch's marker is left alone.</summary>
+    Task ClearAiPendingAsync(
+        string boardToken, IReadOnlyCollection<long> ids, string kind, string batchId, CancellationToken ct);
+
+    /// <summary>The stored text of these postings, for verifying a batch parse against it.</summary>
+    Task<IReadOnlyList<StoredJobContent>> StoredContentForAsync(
+        string boardToken, IReadOnlyCollection<long> ids, CancellationToken ct);
 
     /// <summary>
     /// Open postings that have never had the ingest AI reads run over them.

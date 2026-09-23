@@ -149,7 +149,12 @@ public sealed class GreenhouseJobRepository : IPoolJobRepository
         var docs = await _jobs
             .Find(Builders<BsonDocument>.Filter.And(
                 Builders<BsonDocument>.Filter.In("_id", ids.Select(ObjectId.Parse)),
-                Open))
+                Open,
+                // A posting whose parse is still in an open batch waits for it.
+                // Scored now, it would be parsed inline at full price for every
+                // user who reaches it -- the cost the batch exists to halve --
+                // and, if new, scored before its facts could filter it.
+                Builders<BsonDocument>.Filter.Eq(GreenhouseJobFields.AiPendingParse, BsonNull.Value)))
             .ToListAsync(ct);
 
         // Kept separate from the Take below so the log can report them

@@ -202,18 +202,40 @@ try
             + "and every per-user scan will pay to parse them inline");
     }
 
+    // The Message Batches path for the two reads (IngestBatcher): same answers,
+    // half the price, collected minutes to hours later. The batcher exists
+    // whenever the reads do, so the collector below always runs -- switching
+    // Greenhouse:UseBatchApi off must not strand open batches, whose postings
+    // stay hidden from the candidate search until they are collected. The flag
+    // only decides whether NEW reads are submitted as batches.
+    IngestBatcher? batcher = null;
+    var useBatchApi = configuration.GetValue("Greenhouse:UseBatchApi", false);
+    if (ingestAi is not null)
+    {
+        var batchStore = new AiBatchStore(database.GetCollection<BsonDocument>(GreenhouseJobFields.AiBatchesCollection));
+        await batchStore.EnsureIndexesAsync(ct);
+        batcher = new IngestBatcher(ingestAi, store, batchStore, loggerFactory.CreateLogger<IngestBatcher>());
+        log.LogInformation("Ingest reads: {Mode}", useBatchApi
+            ? "Message Batches (half price, collected every " + BatchCollectInterval.TotalMinutes + " min)"
+            : "live calls");
+    }
+
     var handler = new CompanyHandler(
         new BoardClient(boardHttp, loggerFactory.CreateLogger<BoardClient>()),
         new VoyageEmbeddingClient(voyageHttp, embedding, loggerFactory.CreateLogger<VoyageEmbeddingClient>()),
         store,
         companies,
         loggerFactory.CreateLogger<CompanyHandler>(),
-        ingestAi);
+        ingestAi,
+        useBatchApi ? batcher : null);
 
     var consumer = new CompanyConsumer(
         connection, handler, ledger, loggerFactory.CreateLogger<CompanyConsumer>());
 
+    var collector = batcher is null ? Task.CompletedTask : CollectForeverAsync(batcher, ct);
+
     await consumer.RunAsync(ct);
+    await collector;
     return 0;
 }
 catch (Exception e)
@@ -222,9 +244,34 @@ catch (Exception e)
     return 1;
 }
 
+// Polls open batches until shutdown. Each pass is cheap when nothing is
+// pending -- one Mongo query -- and a batch usually ends within the hour.
+static async Task CollectForeverAsync(IngestBatcher batcher, CancellationToken ct)
+{
+    // Shutdown cancels mid-collect as readily as mid-delay. Either way it is a
+    // stop, not a failure: letting it escape would turn a clean exit into a
+    // non-zero one, the misreport the ProcessExit note above exists to avoid.
+    try
+    {
+        while (!ct.IsCancellationRequested)
+        {
+            await batcher.CollectAsync(DateTime.UtcNow, ct);
+            await Task.Delay(BatchCollectInterval, ct);
+        }
+    }
+    catch (OperationCanceledException)
+    {
+    }
+}
+
 static string Require(IConfiguration configuration, string key) =>
     configuration[key] is { Length: > 0 } value
         ? value
         : throw new InvalidOperationException(
             $"{key} is not configured. Set it in .env.greenhouse -- this process cannot guess it, "
             + "and a default would point the ingest at the wrong place silently.");
+
+partial class Program
+{
+    private static readonly TimeSpan BatchCollectInterval = TimeSpan.FromMinutes(5);
+}

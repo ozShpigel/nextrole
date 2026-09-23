@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using Anthropic.SDK;
+using Anthropic.SDK.Batches;
 using Anthropic.SDK.Messaging;
 using ApplicationTracker.Core.AI;
 using ApplicationTracker.Core.Email;
@@ -605,15 +606,7 @@ public sealed class ClaudeClient : IClaudeClient
             await gate.WaitAsync(cancellationToken);
             try
             {
-                var parameters = new MessageParameters
-                {
-                    System = new List<SystemMessage> { new(systemPrompt) },
-                    Messages = new List<Message> { new(RoleType.User, buildUserMessage(chunk)) },
-                    MaxTokens = ClassifyChunkMaxTokens,
-                    Model = _scoring.Analyst.Model,
-                    Temperature = 0.2m,
-                    Stream = false
-                };
+                var parameters = ClassifyParameters(systemPrompt, buildUserMessage(chunk));
 
                 var response = await ResolveClient().Messages.GetClaudeMessageAsync(parameters, cancellationToken);
                 ThrowIfTruncated(response, label, chunk.Length);
@@ -652,6 +645,19 @@ public sealed class ClaudeClient : IClaudeClient
         }
         return merged;
     }
+
+    // One chunk's request, for the live call above and for a batch request
+    // alike -- so the two cannot drift, and a batch answer is the answer the
+    // live call would have given.
+    private MessageParameters ClassifyParameters(string systemPrompt, string userMessage) => new()
+    {
+        System = new List<SystemMessage> { new(systemPrompt) },
+        Messages = new List<Message> { new(RoleType.User, userMessage) },
+        MaxTokens = ClassifyChunkMaxTokens,
+        Model = _scoring.Analyst.Model,
+        Temperature = 0.2m,
+        Stream = false
+    };
 
     public async Task<TitleTriageResponse> TriageTitlesAsync(TitleTriageRequest request, CancellationToken cancellationToken = default)
     {
@@ -716,28 +722,44 @@ public sealed class ClaudeClient : IClaudeClient
     {
         _logger.LogInformation("Extracting job facts for {Count} pool jobs", request.Jobs.Count);
 
-        var camelCase = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-
         var results = await ClassifyInChunksAsync<JobFactsItem, JobFactsResponse, JobFacts>(
             request.Jobs,
             PromptSeeds.JobFactsExtraction,
             "job-facts",
-            chunk =>
-            {
-                var jobsJson = JsonSerializer.Serialize(
-                    chunk.Select(j => new { j.JobId, j.Title, j.Company, j.Location, j.Description }), camelCase);
-                // Scraped postings — untrusted, XML-wrapped as data.
-                return $"<scraped_jobs>\n{jobsJson}\n</scraped_jobs>";
-            },
+            JobFactsUserMessage,
             r => r.Results,
             cancellationToken,
             JobFactsChunkSize);
 
-        // Groups are the source of truth for what is required; the flat list
-        // is derived from them so the two can never disagree. A model that
-        // ignored the new field and answered only the flat list gets each name
-        // as its own requirement -- the old behaviour, never a worse one.
-        results = [.. results.Select(r =>
+        results = NormalizeJobFacts(results);
+
+        // A job with no facts is not dropped: the pool keeps it and the caller
+        // records that extraction is still owed, so a bad run costs a retry
+        // rather than a posting.
+        _logger.LogInformation(
+            "Job facts: {Total} jobs, {Extracted} extracted, {Missing} without facts",
+            request.Jobs.Count, results.Count, request.Jobs.Count - results.Count);
+        return new JobFactsResponse { Results = results };
+    }
+
+    private static readonly JsonSerializerOptions CamelCase =
+        new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+
+    private static string JobFactsUserMessage(IReadOnlyList<JobFactsItem> chunk)
+    {
+        var jobsJson = JsonSerializer.Serialize(
+            chunk.Select(j => new { j.JobId, j.Title, j.Company, j.Location, j.Description }), CamelCase);
+        // Scraped postings — untrusted, XML-wrapped as data.
+        return $"<scraped_jobs>\n{jobsJson}\n</scraped_jobs>";
+    }
+
+    // Groups are the source of truth for what is required; the flat list is
+    // derived from them so the two can never disagree. A model that ignored the
+    // new field and answered only the flat list gets each name as its own
+    // requirement -- the old behaviour, never a worse one. Shared by the live
+    // and batch paths: whatever arrives, it is normalised the same way.
+    private static List<JobFacts> NormalizeJobFacts(IEnumerable<JobFacts> results) =>
+        [.. results.Select(r =>
         {
             var groups = RequirementGroups.From(r.MustHaveGroups, r.MustHaveTech);
             return r with
@@ -750,15 +772,6 @@ public sealed class ClaudeClient : IClaudeClient
             };
         })];
 
-        // A job with no facts is not dropped: the pool keeps it and the caller
-        // records that extraction is still owed, so a bad run costs a retry
-        // rather than a posting.
-        _logger.LogInformation(
-            "Job facts: {Total} jobs, {Extracted} extracted, {Missing} without facts",
-            request.Jobs.Count, results.Count, request.Jobs.Count - results.Count);
-        return new JobFactsResponse { Results = results };
-    }
-
     public string ParseVersion =>
         ParseVersioning.Compute(AnalystPrompt, _scoring.AnalystBatch.Model, _scoring.AnalystBatch.Temperature);
 
@@ -770,22 +783,34 @@ public sealed class ClaudeClient : IClaudeClient
         // Reuses the existing batch parse rather than a parallel implementation:
         // the per-user scan and the ingest must never drift on the extraction
         // schema, and the surest way to guarantee that is one call site.
-        var items = request.Jobs
-            .Select(j => new MatchBatchItem
-            {
-                Id = j.JobId,
-                JobDescription = j.Description ?? "",
-                Title = j.Title,
-                Company = j.Company,
-            })
-            .ToList();
+        var items = PoolParseItems(request.Jobs);
 
         var (results, _) = await ParseJobDescriptionBatchAsync(items, cancellationToken);
 
+        var parsed = VerifyPoolParses(request.Jobs, results);
+
+        _logger.LogInformation("Pool parse completed: {Count} results at version {Version}",
+            parsed.Count, ParseVersion);
+        return new JobParseResponse { Results = parsed, ParseVersion = ParseVersion };
+    }
+
+    private static List<MatchBatchItem> PoolParseItems(IEnumerable<JobParseItem> jobs) =>
+        [.. jobs.Select(j => new MatchBatchItem
+        {
+            Id = j.JobId,
+            JobDescription = j.Description ?? "",
+            Title = j.Title,
+            Company = j.Company,
+        })];
+
+    // Everything that guards a shared parse runs here, before it is stored,
+    // on the live and batch paths alike (see JobParse.cs on why).
+    private List<JobParseResult> VerifyPoolParses(IReadOnlyList<JobParseItem> jobs, IEnumerable<ParseBatchResult> results)
+    {
         // Title/Company overrides are applied the same way the scan applied
         // them — after parsing, never sent to the model.
-        var byId = request.Jobs.ToDictionary(j => j.JobId);
-        var parsed = results.Select(r =>
+        var byId = jobs.ToDictionary(j => j.JobId);
+        return [.. results.Where(r => byId.ContainsKey(r.Id)).Select(r =>
         {
             var item = byId[r.Id];
             var verified = VerbatimCulturalSignals.Enforce(
@@ -801,11 +826,208 @@ public sealed class ClaudeClient : IClaudeClient
                     Company = !string.IsNullOrWhiteSpace(item.Company) ? item.Company : verified.Company,
                 },
             };
-        }).ToList();
+        })];
+    }
 
-        _logger.LogInformation("Pool parse completed: {Count} results at version {Version}",
-            parsed.Count, ParseVersion);
-        return new JobParseResponse { Results = parsed, ParseVersion = ParseVersion };
+    // ── Ingest reads through the Message Batches API ────────────────────────
+    //
+    // Same requests the live endpoints make -- ClassifyParameters and
+    // BuildParameters, the same chunk sizes, the same prompts -- submitted in
+    // one batch at half the price. See IngestBatch.cs.
+
+    /// <summary>Parse chunk per batch request: the ingest's own live chunk size.</summary>
+    private const int PoolParseChunkSize = 10;
+
+    public async Task<IngestBatchSubmitted> SubmitJobFactsBatchAsync(
+        JobFactsRequest request, CancellationToken cancellationToken = default)
+    {
+        var requests = request.Jobs.Chunk(JobFactsChunkSize)
+            .Select((chunk, i) => new BatchRequest
+            {
+                CustomId = $"c{i}",
+                MessageParameters = ClassifyParameters(PromptSeeds.JobFactsExtraction, JobFactsUserMessage(chunk)),
+            })
+            .ToList();
+
+        var id = await SubmitBatchAsync(requests, "job-facts-batch", request.Jobs.Count, cancellationToken);
+        return new IngestBatchSubmitted { BatchId = id, Requests = requests.Count };
+    }
+
+    public async Task<IngestBatchSubmitted> SubmitJobParseBatchAsync(
+        JobParseRequest request, CancellationToken cancellationToken = default)
+    {
+        var requests = PoolParseItems(request.Jobs).Chunk(PoolParseChunkSize)
+            .Select((chunk, i) =>
+            {
+                var (systemPrompt, userMessage) = _promptBuilder.BuildAnalysisBatchPrompt(chunk, AnalystPrompt);
+                return new BatchRequest
+                {
+                    CustomId = $"c{i}",
+                    // stream:false -- a batch request is never streamed.
+                    MessageParameters = BuildParameters(systemPrompt, userMessage, _scoring.AnalystBatch, stream: false),
+                };
+            })
+            .ToList();
+
+        var id = await SubmitBatchAsync(requests, "job-parse-batch", request.Jobs.Count, cancellationToken);
+        return new IngestBatchSubmitted { BatchId = id, Requests = requests.Count, ParseVersion = ParseVersion };
+    }
+
+    public async Task<JobFactsBatchResponse> CollectJobFactsBatchAsync(
+        string batchId, CancellationToken cancellationToken = default)
+    {
+        var (status, lines) = await ReadBatchAsync(batchId, "job-facts-batch", cancellationToken);
+        if (status != IngestBatchStatus.Ended) return new JobFactsBatchResponse { Status = status };
+
+        var results = new List<JobFacts>();
+        var failed = 0;
+        foreach (var line in lines)
+        {
+            var parsed = DeserializeBatchText<JobFactsResponse>(line, "job-facts-batch");
+            if (parsed is null) { failed++; continue; }
+            results.AddRange(parsed.Results);
+        }
+
+        return new JobFactsBatchResponse
+        {
+            Status = status,
+            Results = NormalizeJobFacts(results),
+            FailedRequests = failed,
+        };
+    }
+
+    public async Task<JobParseBatchResponse> CollectJobParseBatchAsync(
+        string batchId, JobParseRequest request, CancellationToken cancellationToken = default)
+    {
+        var (status, lines) = await ReadBatchAsync(batchId, "job-parse-batch", cancellationToken);
+        if (status != IngestBatchStatus.Ended) return new JobParseBatchResponse { Status = status };
+
+        var results = new List<ParseBatchResult>();
+        var failed = 0;
+        foreach (var line in lines)
+        {
+            var envelope = DeserializeBatchText<ParseBatchApiEnvelope>(line, "job-parse-batch");
+            if (envelope is null) { failed++; continue; }
+            // Unlike the live call, a missing id does not fail the rest: the
+            // chunk's other parses are paid for, and the job without one is
+            // simply read again on a later run.
+            results.AddRange((envelope.Results ?? [])
+                .Where(r => !string.IsNullOrWhiteSpace(r.Id) && r.Parsed is not null)
+                .Select(r => new ParseBatchResult { Id = r.Id!, Parsed = r.Parsed! }));
+        }
+
+        return new JobParseBatchResponse
+        {
+            Status = status,
+            // Only ids the caller sent: the request is what the answers are
+            // verified against, and an id it did not send has nothing to check.
+            Results = VerifyPoolParses(request.Jobs, results),
+            FailedRequests = failed,
+        };
+    }
+
+    private async Task<string> SubmitBatchAsync(
+        List<BatchRequest> requests, string label, int jobs, CancellationToken cancellationToken)
+    {
+        var batch = await ResolveClient().Batches.CreateBatchAsync(requests, cancellationToken);
+        _logger.LogInformation("Claude {Label} submitted batch {BatchId}: {Requests} request(s) over {Jobs} job(s)",
+            label, batch.Id, requests.Count, jobs);
+        return batch.Id;
+    }
+
+    /// <summary>One batch result line: its request id, and either the text or why there is none.</summary>
+    private sealed record BatchLine(string CustomId, string? Text, string? Error);
+
+    private async Task<(string Status, List<BatchLine> Lines)> ReadBatchAsync(
+        string batchId, string label, CancellationToken cancellationToken)
+    {
+        var client = ResolveClient();
+        var status = await client.Batches.RetrieveBatchStatusAsync(batchId, cancellationToken);
+        var processing = Convert.ToString(status.ProcessingStatus) ?? "";
+        if (!string.Equals(processing, "ended", StringComparison.OrdinalIgnoreCase))
+            return (IngestBatchStatus.InProgress, []);
+
+        var lines = new List<BatchLine>();
+        await foreach (var raw in client.Batches.RetrieveBatchResultsJsonlAsync(batchId, cancellationToken))
+        {
+            if (string.IsNullOrWhiteSpace(raw)) continue;
+            lines.Add(ParseBatchLine(raw, label));
+        }
+
+        _logger.LogInformation("Claude {Label} batch {BatchId} ended: {Ok}/{Total} request(s) answered",
+            label, batchId, lines.Count(l => l.Text is not null), lines.Count);
+        return (IngestBatchStatus.Ended, lines);
+    }
+
+    // One line of the documented results JSONL:
+    //   {"custom_id":"...","result":{"type":"succeeded","message":{"content":[...],"usage":{...},"stop_reason":"..."}}}
+    //   {"custom_id":"...","result":{"type":"errored"|"expired"|"canceled","error":{...}}}
+    // Logs the same usage line as the live path, so the day's cost stays
+    // answerable from the logs.
+    private BatchLine ParseBatchLine(string raw, string label)
+    {
+        var customId = "";
+        try
+        {
+            using var doc = JsonDocument.Parse(raw);
+            var root = doc.RootElement;
+            customId = root.GetProperty("custom_id").GetString() ?? "";
+            var result = root.GetProperty("result");
+            var type = result.TryGetProperty("type", out var t) ? t.GetString() : null;
+
+            if (type != "succeeded" || !result.TryGetProperty("message", out var msg))
+            {
+                var error = result.TryGetProperty("error", out var e) ? e.ToString() : type ?? "unknown";
+                _logger.LogWarning("Claude {Label} batch request {CustomId} ended {Type}: {Error}", label, customId, type, error);
+                return new BatchLine(customId, null, type ?? "unknown");
+            }
+
+            if (msg.TryGetProperty("usage", out var usage))
+                _logger.LogInformation(
+                    "Claude {Label} usage — input={Input} output={Output} items={Items}",
+                    label,
+                    usage.TryGetProperty("input_tokens", out var i) ? i.GetInt32() : null,
+                    usage.TryGetProperty("output_tokens", out var o) ? o.GetInt32() : null,
+                    customId);
+
+            // Truncated JSON is not a malformed answer to repair: the same
+            // budget truncates it again (see ThrowIfTruncated).
+            if (msg.TryGetProperty("stop_reason", out var stop) && stop.GetString() == "max_tokens")
+            {
+                _logger.LogError("Claude {Label} batch request {CustomId} hit max_tokens; its jobs get no read", label, customId);
+                return new BatchLine(customId, null, "max_tokens");
+            }
+
+            var sb = new System.Text.StringBuilder();
+            if (msg.TryGetProperty("content", out var content) && content.ValueKind == JsonValueKind.Array)
+                foreach (var block in content.EnumerateArray())
+                    if (block.TryGetProperty("type", out var bt) && bt.GetString() == "text"
+                        && block.TryGetProperty("text", out var txt))
+                        sb.Append(txt.GetString());
+
+            return new BatchLine(customId, sb.ToString(), null);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Claude {Label} batch line for {CustomId} could not be read", label, customId);
+            return new BatchLine(customId, null, "line: " + ex.Message);
+        }
+    }
+
+    private T? DeserializeBatchText<T>(BatchLine line, string label) where T : class
+    {
+        if (line.Text is null) return null;
+        try
+        {
+            return JsonSerializer.Deserialize<T>(ExtractJson(line.Text, label), CaseInsensitive);
+        }
+        catch (Exception ex)
+        {
+            // No repair retry here: that would be a live call at full price,
+            // for a read the next run makes again anyway.
+            _logger.LogError(ex, "Claude {Label} batch request {CustomId} returned unparseable JSON", label, line.CustomId);
+            return null;
+        }
     }
 
     public async Task<RoleClassificationResponse> ClassifyRoleAsync(

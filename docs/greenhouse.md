@@ -65,7 +65,24 @@ calls it, never the reverse, and the tests drive it by calling the method.
 6. `BulkWriteAsync` **per batch**, upserting on `(boardToken, greenhouseJobId)`
    behind a unique index. Per batch, not at the end, so a failure keeps the
    earlier batches and the money already spent on them.
-7. Close what is gone; reopen what came back. **Never delete.**
+7. Stamp the board's logo on every row it has (see below).
+8. Close what is gone; reopen what came back. **Never delete.**
+
+### Company logos
+
+The boards API returns no logo, and a board token is a Greenhouse slug, not a
+domain, so the domain is configured per company in `companies.json`
+(`company_domains`). The ingest resolves `logo_url_template` (default: Google's
+keyless favicon service, `sz=128`) and writes the URL to `company_logo` — the
+pool's field name, so every surface that shows a logo reads it unchanged.
+
+It is a **per-board `UpdateMany`, not part of the upsert.** The hash skip never
+rewrites an unchanged posting, so a logo carried on the upsert would reach only
+postings that changed after the domain was configured. The stamp writes only
+rows that differ, clears the logo when a domain is removed, and never fails the
+company: a logo is display-only, and a nack would throw away paid embeddings.
+Swapping services (e.g. logo.dev) is an edit to the template; the next run
+restamps every row.
 
 ### The two guards
 
@@ -307,8 +324,8 @@ while the run itself was fine.
 
 ## Configuration
 
-`server/api/src/Greenhouse/config/companies.json` — board tokens, and only
-tokens plus batch limits. Loaded like `roles.json` and **fatal** on a missing
+`server/api/src/Greenhouse/config/companies.json` — board tokens, each
+company's domain for its logo, and batch limits. Loaded like `roles.json` and **fatal** on a missing
 file or an empty list: a run against a silently-defaulted list still ingests
 jobs, they are simply the wrong company's.
 

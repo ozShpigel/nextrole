@@ -28,6 +28,41 @@ public sealed record CompaniesConfig
 {
     [JsonPropertyName("companies")] public List<string> Companies { get; init; } = [];
 
+    /// <summary>Each company's own web domain, by board token.</summary>
+    /// <remarks>
+    /// <para>
+    /// The logo source. The boards API returns no logo, and a board token is a
+    /// Greenhouse slug rather than a domain -- the two differ often enough that
+    /// deriving one from the other would put the wrong company's mark on a card.
+    /// So the domain is written down, next to the token it belongs to.
+    /// </para>
+    /// <para>
+    /// Optional per company: a token with no domain gets no logo, and the card
+    /// falls back to its initial. A domain for a token that is NOT in
+    /// <see cref="Companies"/> is fatal, because it is a typo in one of the two.
+    /// </para>
+    /// </remarks>
+    [JsonPropertyName("company_domains")]
+    public Dictionary<string, string> CompanyDomains { get; init; } = [];
+
+    /// <summary>The logo URL for a domain, with <c>{domain}</c> as the placeholder.</summary>
+    /// <remarks>
+    /// Resolved at ingest and stored on every row, so the API never needs to
+    /// read this file. Changing the service is an edit here and a run; the next
+    /// run restamps every row of every board.
+    /// </remarks>
+    [JsonPropertyName("logo_url_template")]
+    public string LogoUrlTemplate { get; init; } = DefaultLogoUrlTemplate;
+
+    /// <summary>Google's favicon service: no key, no account, fine at card size.</summary>
+    public const string DefaultLogoUrlTemplate = "https://www.google.com/s2/favicons?domain={domain}&sz=128";
+
+    /// <summary>The logo URL for this board, or null when it has no domain.</summary>
+    public string? LogoUrlFor(string boardToken) =>
+        CompanyDomains.TryGetValue(boardToken, out var domain)
+            ? LogoUrlTemplate.Replace("{domain}", domain, StringComparison.Ordinal)
+            : null;
+
     /// <summary>What an embedding batch is filled to, in estimated tokens.</summary>
     /// <remarks>
     /// A budget, not the limit. voyage-4's real ceiling is 320K tokens per
@@ -60,10 +95,20 @@ public sealed record CompaniesConfig
                 + "This is deliberately fatal: there is no default board list, because a run against "
                 + "a guessed one would ingest the wrong companies silently.");
 
-        var config = JsonSerializer.Deserialize<CompaniesConfig>(File.ReadAllText(path), Json)
-            ?? throw new InvalidOperationException($"Companies config at {path} did not parse.");
+        return Parse(File.ReadAllText(path), $"Companies config at {path}");
+    }
 
-        return config.Validated($"Companies config at {path}");
+    /// <summary>
+    /// Build a config from the file's JSON, with the file's validation. Tests
+    /// that need more than tokens use this rather than <c>with</c>, which would
+    /// skip the validation.
+    /// </summary>
+    public static CompaniesConfig Parse(string json, string what = "Companies config")
+    {
+        var config = JsonSerializer.Deserialize<CompaniesConfig>(json, Json)
+            ?? throw new InvalidOperationException($"{what} did not parse.");
+
+        return config.Validated(what);
     }
 
     /// <summary>
@@ -100,6 +145,33 @@ public sealed record CompaniesConfig
         if (EmbedBatchTokenBudget <= 0 || MaxBatchItems <= 0)
             throw new InvalidOperationException($"{what} has a non-positive batch budget or item cap.");
 
-        return this with { Companies = unique };
+        if (!LogoUrlTemplate.StartsWith("https://", StringComparison.Ordinal)
+            || !LogoUrlTemplate.Contains("{domain}", StringComparison.Ordinal))
+            throw new InvalidOperationException(
+                $"{what} has logo_url_template {LogoUrlTemplate}, which must be an https URL "
+                + "containing {domain}. Without the placeholder every company would get the same logo.");
+
+        var listed = new HashSet<string>(unique, StringComparer.OrdinalIgnoreCase);
+        var domains = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (token, raw) in CompanyDomains)
+        {
+            if (!listed.Contains(token.Trim()))
+                throw new InvalidOperationException(
+                    $"{what} has a domain for {token}, which is not in companies. "
+                    + "One of the two is a typo, and guessing which would put a logo on the wrong board.");
+
+            // A bare hostname: no scheme, no path. It is substituted into a URL,
+            // so anything else is either a broken logo or a different URL.
+            var domain = raw?.Trim().ToLowerInvariant() ?? "";
+            if (domain.Length == 0 || !domain.Contains('.')
+                || !domain.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '.'))
+                throw new InvalidOperationException(
+                    $"{what} has domain {raw} for {token}. Expected a bare hostname like example.com, "
+                    + "with no scheme or path.");
+
+            domains[token.Trim()] = domain;
+        }
+
+        return this with { Companies = unique, CompanyDomains = domains };
     }
 }

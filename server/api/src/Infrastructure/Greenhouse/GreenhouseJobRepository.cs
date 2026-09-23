@@ -360,12 +360,13 @@ public sealed class GreenhouseJobRepository : IPoolJobRepository
     }
 
     /// <summary>
-    /// No logos here.
+    /// Nothing to borrow.
     /// </summary>
     /// <remarks>
-    /// The Greenhouse boards API returns no company logo, so there is nothing
-    /// to borrow from a sibling posting. Returning null is honest; inventing a
-    /// source would be worse than a blank tracker row.
+    /// The ingest stamps a board's logo on every row of that board at once
+    /// (<c>JobStore.StampCompanyLogoAsync</c>), so a job with no logo belongs to
+    /// a company whose domain is not configured, and so do its siblings.
+    /// Looking one up would find the same null.
     /// </remarks>
     public Task<string?> FindCompanyLogoAsync(string company, CancellationToken ct = default) =>
         Task.FromResult<string?>(null);
@@ -382,6 +383,7 @@ public sealed class GreenhouseJobRepository : IPoolJobRepository
         Location = ExtractedStr(d, "location") ?? Str(d, GreenhouseJobFields.Location),
         Description = Str(d, GreenhouseJobFields.Content),
         JobUrl = Str(d, GreenhouseJobFields.AbsoluteUrl),
+        CompanyLogo = Str(d, GreenhouseJobFields.CompanyLogo),
         FirstSeenAt = Date(d, GreenhouseJobFields.FirstSeenAt),
         MustHaveTech = ExtractedStrings(d, "must_have_tech"),
         MustHaveGroups = RequirementGroups.From(
@@ -415,6 +417,7 @@ public sealed class GreenhouseJobRepository : IPoolJobRepository
         Location = ExtractedStr(d, "location") ?? Str(d, GreenhouseJobFields.Location),
         Description = Str(d, GreenhouseJobFields.Content),
         JobUrl = Str(d, GreenhouseJobFields.AbsoluteUrl),
+        CompanyLogo = Str(d, GreenhouseJobFields.CompanyLogo),
         // The board's own seniority read, so the Matches filters keep working.
         ActualJobLevel = ExtractedStr(d, "seniority"),
         DiscoveredAt = Date(d, GreenhouseJobFields.FirstSeenAt),

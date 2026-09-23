@@ -173,6 +173,19 @@ public sealed class FakeJobStore : IJobStore
         return Task.FromResult<IReadOnlyList<StoredJobContent>>([.. NeedingFactsReRead.Take(limit)]);
     }
 
+    /// <summary>The logo each stamp wrote, by board. A null value means it was cleared.</summary>
+    public Dictionary<string, string?> StampedLogos { get; } = [];
+
+    /// <summary>When set, the stamp throws this instead of writing.</summary>
+    public Exception? StampThrows { get; set; }
+
+    public Task<long> StampCompanyLogoAsync(string boardToken, string? logoUrl, CancellationToken ct)
+    {
+        if (StampThrows is not null) throw StampThrows;
+        StampedLogos[boardToken] = logoUrl;
+        return Task.FromResult(1L);
+    }
+
     public Task<long> CloseMissingAsync(
         string boardToken, IReadOnlyCollection<long> seenIds, int emptyResponseGuardThreshold,
         DateTime now, CancellationToken ct)

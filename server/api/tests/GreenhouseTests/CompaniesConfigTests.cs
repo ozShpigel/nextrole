@@ -153,6 +153,85 @@ public class CompaniesConfigTests
         finally { File.Delete(path); }
     }
 
+    // ---- company domains, for logos ------------------------------------------
+
+    [Fact]
+    public void Resolves_a_logo_url_from_the_configured_domain()
+    {
+        var config = CompaniesConfig.Parse("""
+            {
+              "companies": ["alpha-co", "beta-co"],
+              "company_domains": { "Alpha-Co": " Alpha.example " },
+              "logo_url_template": "https://logos.test/{domain}.png"
+            }
+            """);
+
+        // Matched case-insensitively and normalised, the way tokens are.
+        Assert.Equal("https://logos.test/alpha.example.png", config.LogoUrlFor("alpha-co"));
+        // No domain, no logo: the card falls back to its initial.
+        Assert.Null(config.LogoUrlFor("beta-co"));
+    }
+
+    [Fact]
+    public void Defaults_to_the_keyless_favicon_service()
+    {
+        var config = CompaniesConfig.Parse("""
+            { "companies": ["alpha-co"], "company_domains": { "alpha-co": "alpha.example" } }
+            """);
+
+        Assert.Equal(
+            "https://www.google.com/s2/favicons?domain=alpha.example&sz=128",
+            config.LogoUrlFor("alpha-co"));
+    }
+
+    [Fact]
+    public void A_domain_for_an_unlisted_token_is_fatal()
+    {
+        // A typo in one of the two. Guessing which would put a logo on the
+        // wrong board, or silently on none.
+        var e = Assert.Throws<InvalidOperationException>(() => CompaniesConfig.Parse("""
+            { "companies": ["alpha-co"], "company_domains": { "alpha-cp": "alpha.example" } }
+            """));
+        Assert.Contains("not in companies", e.Message);
+    }
+
+    [Theory]
+    [InlineData("https://alpha.example")]
+    [InlineData("alpha.example/careers")]
+    [InlineData("alpha")]
+    [InlineData("")]
+    public void A_domain_that_is_not_a_bare_hostname_is_fatal(string domain)
+    {
+        Assert.Throws<InvalidOperationException>(() => CompaniesConfig.Parse(
+            $$"""{ "companies": ["alpha-co"], "company_domains": { "alpha-co": "{{domain}}" } }"""));
+    }
+
+    [Theory]
+    [InlineData("https://logos.test/fixed.png")]
+    [InlineData("http://logos.test/{domain}")]
+    public void A_template_without_the_placeholder_or_https_is_fatal(string template)
+    {
+        // Without {domain}, every company would show the same logo.
+        Assert.Throws<InvalidOperationException>(() => CompaniesConfig.Parse(
+            $$"""{ "companies": ["alpha-co"], "logo_url_template": "{{template}}" }"""));
+    }
+
+    [Fact]
+    public void The_shipped_file_loads()
+    {
+        // The real file is the one config a typo in it would break in
+        // production, so it is parsed here rather than trusted.
+        var relative = Path.Combine("server", "api", "src", "Greenhouse", "config", "companies.json");
+        var dir = AppContext.BaseDirectory;
+        while (dir is not null && !File.Exists(Path.Combine(dir, relative)))
+            dir = Path.GetDirectoryName(dir);
+        Assert.NotNull(dir);
+
+        var config = CompaniesConfig.Load(Path.Combine(dir!, relative));
+
+        Assert.All(config.CompanyDomains.Keys, token => Assert.NotNull(config.LogoUrlFor(token)));
+    }
+
     [Fact]
     public void ForTesting_applies_the_same_validation_as_the_file()
     {

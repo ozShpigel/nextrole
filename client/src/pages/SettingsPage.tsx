@@ -26,25 +26,14 @@ function initials(name: string): string {
 const FIELD_INPUT = 'w-full py-[0.5rem] px-[0.75rem] bg-transparent border border-[var(--ed-rule)] text-[var(--ed-ink)] text-[0.85rem] font-code text-left transition-colors hover:border-[var(--ed-ink-faint)] focus:border-[var(--ed-accent)] focus:outline-none';
 const FIELD_LABEL = 'text-[0.62rem] text-[var(--ed-ink-faint)] tracking-[0.16em] uppercase font-semibold';
 
-// Manual, never auto-extracted — kept editable even though everything else
-// (Summary/Experience/Skills/Education) only comes from Upload/Paste now.
-const STRENGTH_SUGGESTIONS = [
-  'Complexity reduction', 'Reliability mindset', 'Understanding-to-enablement', 'Automation leverage',
-  'End-to-end ownership', 'Persistent depth', 'Sustainable delivery', 'Trade-off thinking',
-  'Cross-team collaboration', 'Mentorship and growth', 'Systems thinking', 'Incident response',
-  'Technical communication', 'Deep debugging', 'Documentation discipline', 'Pragmatic problem-solving',
-];
-const VALUE_SUGGESTIONS = [
-  'Clarity over complexity', 'Reliability over shortcuts', 'Ownership and accountability',
-  'Perseverance and follow-through', 'Honesty and transparency', 'Continuous growth',
-  'Enabling others', 'Respect for focus', 'Sustainability over heroics', 'Pragmatism over perfection',
-  'Depth over breadth', 'Curiosity and continuous learning', 'Team success over individual credit',
-  'Long-term thinking over quick wins', 'Quality over speed', 'Trust through consistency',
-  'Empathy in collaboration', 'Autonomy with alignment',
-];
-// Dealbreakers — checked by the Evaluator's Candidate-Stated Dealbreakers hard
-// filter (forces STRONG_NO on a clear match), not just weighed as soft context
-// like Strengths/Core values above.
+// Manual, never auto-extracted, and the only self-declared field left.
+//
+// Strengths and Core values used to sit above this. They were removed: never
+// extracted from a CV so usually empty, and a self-asserted strength is the
+// weakest evidence in a profile. Dealbreakers survive because they are the one
+// self-declaration the scoring acts on mechanically -- checked by the
+// Candidate-Stated Dealbreakers hard filter, which forces STRONG_NO on a clear
+// match and must quote the user's own wording.
 const RED_FLAG_SUGGESTIONS = [
   'Early-stage startup', 'No remote option', 'Heavy on-call rotation', 'People-management required',
   'Frequent reorgs', '5-day return to office', 'Agency / consulting model', 'Unpaid overtime culture',
@@ -98,7 +87,7 @@ export default function SettingsPage() {
     persist({ ...profile, [field]: value });
   }
 
-  function saveChips(field: 'strengths' | 'coreValues' | 'redFlags', value: string[]): void {
+  function saveChips(field: 'redFlags', value: string[]): void {
     persist({ ...profile, [field]: value });
   }
 
@@ -191,7 +180,7 @@ export default function SettingsPage() {
 
           <nav className="flex flex-col gap-[0.35rem] max-sm:flex-row max-sm:flex-wrap">
             <SidebarTab active={activeTab === 'about'} onClick={() => setActiveTab('about')} icon={<User size={15} />} label="About You" />
-            <SidebarTab active={activeTab === 'values'} onClick={() => setActiveTab('values')} icon={<Award size={15} />} label="Work Values" />
+            <SidebarTab active={activeTab === 'values'} onClick={() => setActiveTab('values')} icon={<Award size={15} />} label="Dealbreakers" />
             <SidebarTab active={activeTab === 'resume'} onClick={() => setActiveTab('resume')} icon={<FileText size={15} />} label="Resume" />
           </nav>
         </aside>
@@ -239,36 +228,9 @@ export default function SettingsPage() {
 
           {activeTab === 'values' && (
             <section className="animate-in fade-in slide-in-from-bottom-2 duration-300" id="settings-work-values">
-              <TabHeader icon={<Award size={18} />} name="Work Values" />
+              <TabHeader icon={<Award size={18} />} name="Dealbreakers" />
 
-              {/* Manual: strengths + core values. Capped at 3 each so the matching
-                  signal stays sharp — a long list dilutes every item's weight in
-                  the search queries and the advisor ranking. Nothing else auto-
-                  extracts these, so they stay editable even though the rest of
-                  the structured profile no longer shows in this UI. */}
-              <FieldGroup title="Strengths" first>
-                <ChipInput
-                  value={profile.strengths}
-                  onChange={(v) => saveChips('strengths', v)}
-                  placeholder="e.g. Clear written communication"
-                  ariaLabel="Add a strength"
-                  suggestions={STRENGTH_SUGGESTIONS}
-                  max={3}
-                />
-              </FieldGroup>
-
-              <FieldGroup title="Core values">
-                <ChipInput
-                  value={profile.coreValues}
-                  onChange={(v) => saveChips('coreValues', v)}
-                  placeholder="e.g. Sustainable pace over short-term heroics"
-                  ariaLabel="Add a core value"
-                  suggestions={VALUE_SUGGESTIONS}
-                  max={3}
-                />
-              </FieldGroup>
-
-              <FieldGroup title="Red flags" desc="Dealbreakers — a clear match rejects the job outright, not just a lower score.">
+              <FieldGroup title="Red flags" desc="Dealbreakers — a clear match rejects the job outright, not just a lower score." first>
                 <ChipInput
                   value={profile.redFlags}
                   onChange={(v) => saveChips('redFlags', v)}

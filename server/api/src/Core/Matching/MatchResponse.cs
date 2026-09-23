@@ -43,12 +43,16 @@ public sealed record MatchResponse
     public string[] QuickHighlights { get; init; } = [];
 }
 
-// One HARD FILTERS (or the people-management rule) failure. Filter is one of
-// work_arrangement | scope_discipline | sustainability_signals |
-// candidate_dealbreaker | people_management — lets Correct() validate the
-// two filters (candidate_dealbreaker, scope_discipline/sustainability_signals)
-// prone to the model inventing ungrounded evidence, without needing to parse
-// quotes out of the narrative reason text itself.
+// One HARD FILTERS failure. Filter is work_arrangement or
+// candidate_dealbreaker, and Correct() DROPS anything else -- an allow-list,
+// because a hard blocker forces STRONG_NO over every score in the response.
+//
+// Both survivors state something the candidate declared about themselves.
+// scope_discipline, sustainability_signals and people_management were removed:
+// the first two disqualified a posting for its own prose ("wear many hats",
+// "fast-paced"), which is taste and belongs in a dimension's concerns, and the
+// third was a fit judgement that fired on mentoring and interview panels and
+// flipped between runs on identical input. See EnforceHardBlockerScope.
 public sealed record HardBlocker
 {
     public string Filter { get; init; } = "";

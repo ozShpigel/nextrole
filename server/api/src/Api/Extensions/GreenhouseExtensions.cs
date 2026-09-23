@@ -88,10 +88,21 @@ public static class GreenhouseExtensions
         // running and its data is left intact.
         if (configuration.GetValue("Greenhouse:UseAsJobSource", false))
         {
+            // The scan cap travels with the source (see
+            // GreenhouseJobRepository.DefaultMaxCandidatesPerScan). Configurable
+            // only so the ranked source's depth can be tuned on the box while it
+            // beds in; it cannot reach the LinkedIn pool's cap, which is the
+            // point of it being a constructor argument here rather than a
+            // setting the scan reads.
+            var maxCandidates = configuration.GetValue(
+                "Greenhouse:MaxCandidatesPerScan",
+                GreenhouseJobRepository.DefaultMaxCandidatesPerScan);
+
             services.AddScoped<IPoolJobRepository>(sp => new GreenhouseJobRepository(
                 sp.GetRequiredKeyedService<IMongoCollection<BsonDocument>>(CollectionKey),
                 sp.GetRequiredService<ICandidateJobStore>(),
-                sp.GetRequiredService<ILogger<GreenhouseJobRepository>>()));
+                sp.GetRequiredService<ILogger<GreenhouseJobRepository>>(),
+                maxCandidates));
         }
 
         return services;

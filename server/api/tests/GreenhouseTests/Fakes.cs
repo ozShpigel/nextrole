@@ -139,6 +139,20 @@ public sealed class FakeJobStore : IJobStore
         return Task.FromResult((long)SavedAiFor.Count);
     }
 
+    /// <summary>Postings the backfill sweep should find. Empty by default.</summary>
+    public List<StoredJobContent> NeedingAi { get; } = [];
+
+    public int NeedingAiCalls { get; private set; }
+    public int? LastNeedingAiLimit { get; private set; }
+
+    public Task<IReadOnlyList<StoredJobContent>> NeedingIngestAiAsync(
+        string boardToken, int limit, CancellationToken ct)
+    {
+        NeedingAiCalls++;
+        LastNeedingAiLimit = limit;
+        return Task.FromResult<IReadOnlyList<StoredJobContent>>([.. NeedingAi.Take(limit)]);
+    }
+
     public Task<long> CloseMissingAsync(
         string boardToken, IReadOnlyCollection<long> seenIds, int emptyResponseGuardThreshold,
         DateTime now, CancellationToken ct)

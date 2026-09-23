@@ -340,8 +340,6 @@ public sealed class MongoProfileProvider : IProfileProvider
         var parts = new List<string>();
         if (!string.IsNullOrWhiteSpace(p.Summary)) parts.Add(p.Summary.Trim());
         parts.Add($"{p.Experience.Length} role(s)");
-        if (p.Strengths.Length > 0) parts.Add($"{p.Strengths.Length} strength(s)");
-        if (p.CoreValues.Length > 0) parts.Add($"{p.CoreValues.Length} value(s)");
         var text = string.Join(" · ", parts);
         return (text.Length > 300 ? text[..300] + "…" : text, text.Length);
     }

@@ -263,6 +263,59 @@ public sealed class JobStore : IJobStore
     /// would leave them retrievable forever.
     /// </para>
     /// </remarks>
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<StoredJobContent>> NeedingIngestAiAsync(
+        string boardToken, int limit, CancellationToken ct)
+    {
+        // extract_attempts: 0 means nothing has read this posting yet -- the
+        // value the initial write sets, and the only thing that distinguishes
+        // "never attempted" from "attempted, unchanged since". Open postings
+        // only: a closed one is not scored, so reading it would be spend with
+        // no consumer.
+        var filter = Builders<BsonDocument>.Filter.And(
+            Builders<BsonDocument>.Filter.Eq(GreenhouseJobFields.BoardToken, boardToken),
+            Builders<BsonDocument>.Filter.Eq(GreenhouseJobFields.ClosedAt, BsonNull.Value),
+            Builders<BsonDocument>.Filter.Lte(GreenhouseJobFields.ExtractAttempts, 0));
+
+        var docs = await _jobs
+            .Find(filter)
+            .Project(Builders<BsonDocument>.Projection
+                .Include(GreenhouseJobFields.GreenhouseJobId)
+                .Include(GreenhouseJobFields.Title)
+                .Include(GreenhouseJobFields.Company)
+                .Include(GreenhouseJobFields.Location)
+                .Include(GreenhouseJobFields.Content))
+            // Oldest first, so a capped sweep drains the backlog instead of
+            // re-reading the same newest page every run.
+            .Sort(Builders<BsonDocument>.Sort.Ascending(GreenhouseJobFields.FirstSeenAt))
+            .Limit(limit)
+            .ToListAsync(ct);
+
+        var result = new List<StoredJobContent>(docs.Count);
+        foreach (var d in docs)
+        {
+            if (!d.TryGetValue(GreenhouseJobFields.GreenhouseJobId, out var id) || !id.IsNumeric) continue;
+
+            // No content, nothing to read. Skipping rather than sending an
+            // empty posting to Claude: the call would cost money and return
+            // facts about nothing.
+            var content = Str(d, GreenhouseJobFields.Content);
+            if (string.IsNullOrWhiteSpace(content)) continue;
+
+            result.Add(new StoredJobContent(
+                id.ToInt64(),
+                Str(d, GreenhouseJobFields.Title) ?? "",
+                Str(d, GreenhouseJobFields.Company) ?? "",
+                Str(d, GreenhouseJobFields.Location),
+                content));
+        }
+
+        return result;
+    }
+
+    private static string? Str(BsonDocument d, string field) =>
+        d.TryGetValue(field, out var v) && v.IsString ? v.AsString : null;
+
     public async Task<long> CloseMissingAsync(
         string boardToken, IReadOnlyCollection<long> seenIds, int emptyResponseGuardThreshold,
         DateTime now, CancellationToken ct)

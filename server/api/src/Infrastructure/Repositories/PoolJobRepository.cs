@@ -34,6 +34,18 @@ public sealed class PoolJobRepository : IPoolJobRepository
 
     public PoolJobRepository(IMongoCollection<BsonDocument> jobs) => _jobs = jobs;
 
+    /// <summary>
+    /// 50 — see <see cref="IPoolJobRepository.MaxCandidatesPerScan"/>.
+    /// </summary>
+    /// <remarks>
+    /// The pre-filter here leaves tens of jobs out of hundreds, in no
+    /// particular order of fit, so the cap is a spend ceiling and not a
+    /// relevance judgement: it stops a first-ever scan, or a profile edit that
+    /// widens the filter, becoming an unbounded scoring bill in one request.
+    /// What it leaves behind is picked up by the next visit.
+    /// </remarks>
+    public int MaxCandidatesPerScan => 50;
+
     private static FilterDefinition<BsonDocument> ActivePool =>
         Builders<BsonDocument>.Filter.And(
             // Pool membership: the criteria-driven path's rows have no pool_key.

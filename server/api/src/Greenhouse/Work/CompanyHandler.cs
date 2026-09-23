@@ -175,7 +175,19 @@ public sealed class CompanyHandler
         // Only for jobs whose content CHANGED. An unchanged posting keeps the
         // facts and parse it already has; that is the whole point of the hash.
         if (_ai is not null && changed.Count > 0)
-            await RunIngestAiAsync(boardToken, changed, now, ct);
+        {
+            await RunIngestAiAsync(boardToken, ToIngestJobs(changed), now, ct);
+        }
+
+        // ...and then the ones the hash skip can never reach: postings stored
+        // before this ran at all. A run with no Api:BaseUrl, or with the API
+        // down, leaves facts and parse missing, and an unchanged hash means
+        // nothing ever looks at them again. Without this sweep the only repair
+        // is the company editing their own posting text.
+        if (_ai is not null)
+        {
+            await BackfillIngestAiAsync(boardToken, now, ct);
+        }
 
         // Presence for the ones we skipped. Also clears closedAt, so a job that
         // closed and came back unchanged reopens without being re-embedded.
@@ -203,23 +215,70 @@ public sealed class CompanyHandler
     /// than losing the job. Letting a failure here fail the company would nack
     /// a message whose embeddings are already written and paid for.
     /// </remarks>
-    private async Task RunIngestAiAsync(
-        string boardToken, IReadOnlyList<GreenhouseJob> changed, DateTime now, CancellationToken ct)
+    /// <summary>
+    /// How many never-read postings one run will sweep, per board.
+    /// </summary>
+    /// <remarks>
+    /// Bounded so recovering a backlog cannot turn a nightly run into an
+    /// unbounded Claude bill in one go — 100 is two facts chunks and ten parse
+    /// chunks. The selector sorts oldest-first, so successive runs drain the
+    /// backlog instead of re-reading the same page.
+    /// </remarks>
+    public const int BackfillBatchSize = 100;
+
+    // The board's own job id is the correlation key, as a string, because that
+    // is what the endpoints take. It maps back to the long the collection is
+    // keyed on.
+    private static List<IngestJob> ToIngestJobs(IReadOnlyList<GreenhouseJob> jobs) =>
+        [.. jobs.Select(j => new IngestJob(
+            j.GreenhouseJobId.ToString(),
+            j.Source.Title ?? "",
+            j.Source.CompanyName,
+            j.Source.Location?.Name,
+            j.CleanedContent))];
+
+    /// <summary>
+    /// Run the ingest AI reads over postings that have never had them.
+    /// </summary>
+    /// <remarks>
+    /// Reads the stored content rather than the board response, so it repairs a
+    /// posting whose text has not changed since it was stored. Deliberately
+    /// does NOT re-embed: the vectors are valid and already paid for, and only
+    /// the reads are missing.
+    /// </remarks>
+    private async Task BackfillIngestAiAsync(string boardToken, DateTime now, CancellationToken ct)
     {
+        List<IngestJob> aiJobs;
         try
         {
-            // The board's own job id is the correlation key, as a string,
-            // because that is what the endpoints take. It maps back to the long
-            // the collection is keyed on.
-            var aiJobs = changed
-                .Select(j => new IngestJob(
-                    j.GreenhouseJobId.ToString(),
-                    j.Source.Title ?? "",
-                    j.Source.CompanyName,
-                    j.Source.Location?.Name,
-                    j.CleanedContent))
-                .ToList();
+            var pending = await _store.NeedingIngestAiAsync(boardToken, BackfillBatchSize, ct);
+            if (pending.Count == 0) return;
 
+            _log.LogInformation(
+                "Board {Board}: {Count} stored posting(s) have never had the ingest AI reads; backfilling",
+                boardToken, pending.Count);
+
+            aiJobs = [.. pending.Select(p => new IngestJob(
+                p.GreenhouseJobId.ToString(), p.Title, p.Company, p.Location, p.Content))];
+        }
+        catch (Exception e)
+        {
+            // Selecting the backlog is not worth failing a company over: the
+            // board has already been fetched, embedded and written.
+            _log.LogError(e, "Board {Board}: could not select postings needing the ingest AI reads", boardToken);
+            return;
+        }
+
+        await RunIngestAiAsync(boardToken, aiJobs, now, ct);
+    }
+
+    private async Task RunIngestAiAsync(
+        string boardToken, IReadOnlyList<IngestJob> aiJobs, DateTime now, CancellationToken ct)
+    {
+        if (aiJobs.Count == 0) return;
+
+        try
+        {
             var facts = await ChunkedAsync(aiJobs, IngestAiClient.FactsChunkSize,
                 chunk => _ai!.ExtractFactsAsync(chunk, ct));
 

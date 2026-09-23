@@ -140,9 +140,34 @@ missing path, so a null parent made every `extracted.*` filter return zero rows
 nothing has read the posting yet.
 
 Populating it is the pool's existing extraction — one batched call per new job,
-in the API, exactly once on entry. **It is not wired here yet**: this ingest
-makes no Claude calls at all. That is a self-contained next step, and the shape
-above is what it writes.
+in the API, exactly once on entry. The consumer delegates over HTTP rather than
+holding a key, like every other caller (`IngestAiClient`, reached at
+`Api:BaseUrl`).
+
+**The reads are optional at startup, and that is the trap.** Without
+`Api:BaseUrl` the consumer still runs and still embeds; it logs one warning and
+then stores every posting with an empty `extracted` and no `parsed`, forever.
+Nothing errors. What it silently costs: the server-side `stackedGaps` check goes
+inert, so Core Stack is scored on the model's own unchecked reading; the
+location and seniority filters fall back to raw board text; and every per-user
+scan pays for an inline Analyst parse — measured at 2.1x the whole ingest
+pipeline. It was missing from `docker-compose.yml` and from the production box
+at the same time. It is a Docker DNS **service** name and container port, never
+localhost.
+
+**The hash skip cannot repair that, which is why there is a backfill.** The AI
+passes run only over postings whose content *changed*, so "never attempted" and
+"attempted, unchanged" are the same thing to the hash — and a posting stored
+during an outage stays factless until the company edits their own text.
+`NeedingIngestAiAsync` selects on `extract_attempts: 0` (the value the initial
+write sets) oldest-first, and `CompanyHandler.BackfillIngestAiAsync` sweeps up
+to `BackfillBatchSize` (100) per board per run, after the changed-job pass.
+Attempts are incremented whether or not facts come back, so a posting the model
+genuinely cannot read leaves the set after one try instead of being retried
+forever — the sweep bounds itself. It deliberately does **not** touch
+`contentHash` or `embedding_v1`: the vectors are valid and already paid for, and
+re-embedding to fix a missing parse would spend money for no reason. Covered by
+`IngestAiBackfillTests`.
 
 ## Retrieval
 

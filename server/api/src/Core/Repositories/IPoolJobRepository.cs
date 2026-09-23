@@ -20,6 +20,25 @@ public interface IPoolJobRepository
     Task<List<PoolJob>> FindCandidatesAsync(
         CandidateFilter filter, IReadOnlyCollection<string> excludeJobIds, int limit, CancellationToken ct = default);
 
+    /// <summary>
+    /// How many candidates one scan may pay to score, from THIS source.
+    /// </summary>
+    /// <remarks>
+    /// On the source rather than on the scan because the right number follows
+    /// from how <see cref="FindCandidatesAsync"/> chooses what it returns, and
+    /// the two implementations choose differently: a Mongo field filter hands
+    /// back everything that survived it, unranked, so the cap is only a spend
+    /// ceiling and wants to be generous; a vector search hands back a ranked
+    /// list, where the useful answer is the top few and the tail is noise the
+    /// scan would pay Claude to reject.
+    ///
+    /// Keeping it here means the source switch moves the cap with it. A single
+    /// value shared by both would be right for at most one of them, and wrong
+    /// silently -- an over-generous cap on the ranked source shows up as a
+    /// scoring bill, not as an error.
+    /// </remarks>
+    int MaxCandidatesPerScan { get; }
+
     Task<List<PoolJob>> GetByIdsAsync(IEnumerable<string> jobIds, CancellationToken ct = default);
 
     /// <summary>Total active jobs in the pool — the denominator for "n of m considered".</summary>

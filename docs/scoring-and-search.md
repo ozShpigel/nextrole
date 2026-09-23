@@ -19,21 +19,86 @@ Each job scoring = 2 Claude API calls: Analyst (Haiku) + Evaluator (Haiku — mo
 
 ## The professional profile (user-editable INPUT)
 
-- **The professional profile is a user-editable INPUT** (not configuration). It is **structured**: experience & skills are LLM-normalized from pasted free text (`POST /api/match/profile/normalize` → `PromptSeeds.NormalizeProfile` → `NormalizedProfile`), while **strengths** and **core values** are explicit manual inputs (never auto-extracted). Stored as `StructuredProfile` on the `profile` doc; `ProfileRenderer.Render` produces the canonical `<professional_profile>` string saved as `content` and injected into prompts via `{{USER_PROFILE}}` — so all consumers (`GetProfileAsync`) keep receiving a plain string. Edited on the Settings page; version-history field is `profile`. Seeded from a **fictional** sample persona (`server/api/Data/sample-profile.json`). **Never hand-edit `content` — edit the structured fields.** Keep agent prompts generic/objective (no candidate/role/stack baked in); candidate-specific signal comes only from the injected profile.
-- **Résumé upload**: the same normalize result can also be produced from an uploaded résumé via `POST /api/match/profile/normalize-file` (`IFormFile`, `.DisableAntiforgery()`, same `match` rate limit). **PDF** is handed to Claude as a native `DocumentContent` base64 block (no extraction lib); **TXT** reuses the free-text path; other types → 400. Both share `ClaudeClient.NormalizeProfileCoreAsync` (system prompt + `ExtractJson` + deserialize) with the text path and return the same `NormalizedProfile`. Client: `useNormalizeProfileFile` + the "Upload résumé" control on Settings; `matchApi` skips the JSON `Content-Type` when the body is `FormData`. Demo-allowlisted in `Program.cs` (non-persisting AI). The merge preserves manual strengths/core values, exactly like paste→Normalize.
+- **The professional profile is a user-editable INPUT** (not configuration). It is **structured**: experience & skills are LLM-normalized from pasted free text (`POST /api/match/profile/normalize` → `PromptSeeds.NormalizeProfile` → `NormalizedProfile`), while **red flags** (dealbreakers) are the one explicit manual input (never auto-extracted). Stored as `StructuredProfile` on the `profile` doc; `ProfileRenderer.Render` produces the canonical `<professional_profile>` string saved as `content` and injected into prompts via `{{USER_PROFILE}}` — so all consumers (`GetProfileAsync`) keep receiving a plain string. Edited on the Settings page; version-history field is `profile`. Seeded from a **fictional** sample persona (`server/api/Data/sample-profile.json`). **Never hand-edit `content` — edit the structured fields.** Keep agent prompts generic/objective (no candidate/role/stack baked in); candidate-specific signal comes only from the injected profile.
+- **Résumé upload**: the same normalize result can also be produced from an uploaded résumé via `POST /api/match/profile/normalize-file` (`IFormFile`, `.DisableAntiforgery()`, same `match` rate limit). **PDF** is handed to Claude as a native `DocumentContent` base64 block (no extraction lib); **TXT** reuses the free-text path; other types → 400. Both share `ClaudeClient.NormalizeProfileCoreAsync` (system prompt + `ExtractJson` + deserialize) with the text path and return the same `NormalizedProfile`. Client: `useNormalizeProfileFile` + the "Upload résumé" control on Settings; `matchApi` skips the JSON `Content-Type` when the body is `FormData`. Demo-allowlisted in `Program.cs` (non-persisting AI). The merge preserves manual red flags, exactly like paste→Normalize.
 - **Skills** are `SkillGroup[]` — a flexible list of `{category, items}` groups (real category names, taken from the résumé's own Skills section or invented sensibly by `NormalizeProfile`; no fixed set, no catch-all "Other" bucket). Populated exclusively via Upload/Paste → Normalize, not hand-edited — there's no Skills chip UI on Settings.
-- **Strengths / Core values UI**: edited as **chip inputs** (`components/ChipInput.tsx`) — type-to-add (Enter/comma/blur/+Add), removable chips, case-insensitive dedupe, plus curated `suggestions` quick-add. Flat `string[]` arrays.
+- **Red flags UI** (the Dealbreakers tab): edited as **chip inputs** (`components/ChipInput.tsx`) — type-to-add (Enter/comma/blur/+Add), removable chips, case-insensitive dedupe, plus curated `suggestions` quick-add. Flat `string[]` arrays.
 
 ## Read-only configuration (Options pattern)
 
 - **Scoring config & prompts are read-only configuration** (admin-only), bound via the .NET Options pattern — not user-editable data. `scoring_config` (models, temperature, max tokens, thinking, `min_score_to_save`, verdict bands) lives in `appsettings.json` under `Scoring`, bound to `ScoringConfig` via `IOptions<ScoringConfig>`. The Analyst/Evaluator system prompts default from `PromptSeeds.cs`, bound via `IOptions<PromptOptions>`. Both override per-deploy with env vars (`Scoring__Evaluator__Temperature`, `Scoring__MinScoreToSave`, `Prompts__Analyzer`, `Prompts__Evaluator`, …). Changing either is a redeploy/restart — there is **no** runtime UI/endpoint to edit them and no 30s hot-reload.
 
+## The match board: retrieve cheap, score on attention
+
+The board is two halves with very different prices, and it used to present only
+the expensive one.
+
+- **`GET /api/match/pool-band`** — one profile embedding plus a vector search,
+  ~95ms, **no Claude call**. Returns the whole relevant band (default 40, ceiling
+  `PoolBandResult.MaxLimit`) in retrieval order, scored or not, with per-user
+  score and saved/dismissed state merged in. This is the board's first paint.
+- **`POST /api/match/pool-scan`** — the eager scan, which scores the top
+  `IPoolJobRepository.MaxCandidatesPerScan` (10 on the Greenhouse source).
+- **`POST /api/match/score-jobs`** — scores specific ids, which is what the
+  board asks for as the reader scrolls into unscored cards.
+
+**Unscored cards carry no number.** Similarity is the only free signal and it
+does not predict fit within the band — measured against 29 real scores at
+**+0.65 overall but −0.15 within the top ten**. Showing it as a score would
+publish a figure that reshuffles when the real one lands, so the card says "not
+scored yet". Tech coverage was tested as an alternative ordering and is worse
+than useless (+0.011, and 1/5 recall of the best jobs against similarity's 5/5)
+— it is not used.
+
+**Spend follows attention, and four things bound it:**
+
+| Bound | Where | Why |
+|---|---|---|
+| Dwell of 400ms before a card is requested | `UnscoredCard` | Intersection means "passed the viewport". Measured: one fast flick queued 20 cards and 8 Claude calls for a gesture that read nothing. |
+| 2 concurrent batches | `SearchPage` | Otherwise the spend rate is set by scroll speed, not by reading. |
+| 10 ids per request | `PoolScanService.MaxIdsPerRequest` | Request shape, not spend: stops one call becoming a scan. |
+| 120 jobs per user per UTC day | `PoolScanService.DailyScoreBudget` | The actual ceiling. ~$1.25/day at ~$0.0104 per job, measured. |
+
+The client now names what to spend money on, so **nothing about those ids is
+trusted**: already-scored ids are dropped server-side, an id that is not a live
+posting is simply not found, overlapping batches cannot both pay for one posting
+(a per-user in-flight id set, because this path deliberately does *not* take the
+one-scan-per-user gate), and the daily budget is **claimed before the Claude
+call** — the pack rule, since a request that fails has still spent the money. A
+partial grant scores what it was given rather than dropping the batch. Pinned by
+`ScoreByIdsTests`.
+
+**Cost, measured** (Haiku 4.5, 30 jobs, 6 batches, $0.311): **~$0.0104/job**, of
+which the Analyst parse was 46% — and that half is user-independent and belongs
+to the ingest (`docs/greenhouse.md`), so a posting whose `parsed` is stored costs
+roughly half as much to score per user.
+
 ## Dimensions, verdicts, mechanics
 
 - **Scoring dimensions**: Technical Fit (35pts), Engineering Execution Fit (30pts), Sustainability & Pace Fit (35pts)
+- **A dimension no source can evidence is dropped from the total, not capped.** `EnforceEvidenceCaps` still caps Technical Fit's and Engineering Execution's components when the JD names no technologies or no process signals — the JD is the only possible source for those, so silence there is a fact about the posting. **Sustainability & Pace is different**: its cap was always conditional on there being no pace evidence *elsewhere* (`PaceEvidence.In`), because a JD silent on pace could be paired with Glassdoor review evidence reaching the Evaluator separately.
+
+  Nothing supplies that any more. The Glassdoor scraper was deleted with the criteria path (49 of 875 companies, 5.6%, over its whole life) and Greenhouse never had one — the boards API returns no reviews. So `PaceEvidence.In` is false for every job from every live source, the condition collapsed to "the JD did not mention pace", and a fixed 12+7 = 19 of 35 became a permanent tax instead of a correction. A permanent tax is not neutral: it compresses every score toward the middle and is why a posting matching a candidate's stack exactly could not reach YES.
+
+  So the dimension's `score` becomes **null** — already how this model spells "not assessed", and already rendered as an em dash by `AnalysisCard` — and `ScoreTotal.Renormalised` rescales over the dimensions that do carry a score (here 65, not 100). Components are left exactly as the Evaluator wrote them: nothing renders them, but they are `ClaimGrounding`'s largest scan surface.
+
+  **The maxima are server-side constants** (`ScoreTotal`), never the response's own `maxScore` fields — a total divided by a model-authored denominator is a consequence whose input the model controls. Same rule as `stackedGaps` and `reviewAdjustment`.
+
+  When all three dimensions are scored the denominator is already 100 and the result is the plain sum, bit for bit, so a job with full evidence scores exactly what it did before. Measured across all 58 stored scores (Greenhouse + the dev pool): 26 sit at the pace cap and move, from **-13 to +14, mean -0.3** — 11 raised, 13 lowered. It spreads the distribution rather than inflating it, and **6 verdicts change** (2 YES→STRONG_YES, 1 MAYBE→YES, 1 MAYBE→NO, 2 NO→STRONG_NO). The verdict bands in `scoring_config` were calibrated against the old compressed distribution and are worth re-checking against the new one. Pinned by `ScoreTotalTests`; the arithmetic previously had no test at all, because it lived inside a private method and `PaceEvidenceTests` only ever covered the predicate.
 - **Sub-component breakdown**: each dimension's `breakdown.<dim>.components[]` array (modeled by `ScoreComponent` in `MatchResponse.cs`) splits its score into sub-criteria, each with `name`, `score`, `maxScore`, and a one-sentence `reason` — Technical Fit → Core Stack (0-20) + System Design (0-15); Engineering Execution → Role Clarity & Ownership + Engineering Maturity & Stability; Sustainability & Pace → Pace & Workload + Long-term Risk. Dimension score = sum of its components; surfaced by `AnalysisCard` (Matches page card expand, Application Detail page, Manual Score page) alongside a "Signals" summary (recommendation green/red flags). A component may also carry a `reviewAdjustment {base, delta}` (see Employee-review scoring below), rendered in the breakdown as `base N ±delta from employee reviews`.
 - **Role-level match rule (System Design cap)**: the Evaluator caps **System Design** at the "transferable concepts" band (4-7 of 15) when the role demands a level the profile never demonstrates — Architect / Staff / Principal titles, or cross-team architecture ownership — and notes the gap in the component `reason` + `redFlags`. Pure seniority prefixes ("Senior") never trigger it; it targets undemonstrated *role scope*, not years.
-- **People-management is a hard blocker, not just a score cap**: when the posting requires the candidate to formally manage people — either as the role's own duties ("lead the team") or as a stated prior-experience qualification ("5 years as a DevOps lead") — the Evaluator adds a reason to `hardBlockers`, which forces the verdict to `STRONG_NO` server-side (`JobMatchService.Correct`). Individual-contributor mentoring and leading technical initiatives (not people) do **not** count. This is checked mechanically, not just narratively: a non-empty `hardBlockers` array always wins over whatever score the model computed.
+- **A people-management gap is a score cap, never a hard blocker.** It caps System Design at the transferable-concepts band (4-7) and is stated in the component `reason` and `recommendation.redFlags`. IC mentoring, leading initiatives, and **sitting on an interview panel** do not count.
+
+  It used to be a hard blocker too, and that was removed. Measured: the same five real postings, scored twice against one profile, drew no blocker on the first run and a `people_management` blocker on the second — forcing `STRONG_NO` on all five, with top score dropping 62 → 41. Two of the five state no management requirement anywhere; the rest named only mentoring and "take an active role in conducting engineering interviews", which the prompt already excluded. So the most consequential field in the response was both unchecked and unstable, and removing it loses nothing — the System Design cap was always separate.
+
+- **Hard blockers are an allow-list of two, and the default is DROP** (`HardBlockerScope`, pinned by `HardBlockerScopeTests`). A non-empty `hardBlockers` still forces `STRONG_NO` server-side over any score, which is exactly why only a filter stating something **the candidate declared about themselves** may populate it:
+
+  | Filter | Checked |
+  |---|---|
+  | `candidate_dealbreaker` | reason must quote one of the profile's own red flags |
+  | `work_arrangement` | not structurally — the constraint is free text, and an honest gap beats a weak proxy |
+
+  `scope_discipline` and `sustainability_signals` were removed with `people_management`: disqualifying a posting for saying "wear many hats" or "fast-paced" is taste, not a dealbreaker, and plenty of candidates want that job. Those concerns belong in a dimension's `concerns`, where a posting loses points instead of vanishing. An unrecognised filter — renamed, or emitted by a model running an older prompt — is dropped and logged, because a false blocker does not shade a score, it deletes a job the user never learns existed.
 - **Stacked gaps (Core Stack cap)**: every missing *required* named technology/skill (never "nice to have" items). When 4 or more accumulate, `JobMatchService.EnforceStackedGapsCap` caps the Core Stack component at 11/20 server-side regardless of the model's own score — a posting with many individually-minor gaps was being scored too generously on narrative alone; tuning the verdict threshold couldn't separate this pattern from genuinely strong matches without this mechanical check.
 
   **The list is computed server-side** (`ClaimGrounding.RequiredButAbsent`), from the posting's stated requirements and the candidate's profile. It used to be the model's own field, which made the cap a check whose only input was written by the thing it was checking — and responses that needed capping were exactly the ones that reported the gaps away. See "Grounding the rationale" below.
@@ -268,10 +333,22 @@ says, `jobScores` holds what it is worth to one user — keyed by
    gets a row carrying the reason — without it, every visit would re-send it
    and be billed again.
 
-Bounds: `MaxCandidatesPerScan = 50`. A first-ever scan, or a profile edit that
-widens the filter, must not become an unbounded scoring bill in one request;
-the remainder is picked up on the next visit (`capped: true` says so). A user
-with no profile yet scores nothing at all and spends nothing.
+Bounds: `IPoolJobRepository.MaxCandidatesPerScan`. A first-ever scan, or a
+profile edit that widens the filter, must not become an unbounded scoring bill
+in one request; the remainder is picked up on the next visit (`capped: true`
+says so). A user with no profile yet scores nothing at all and spends nothing.
+
+The cap lives **on the source**, not on the scan, because the two sources are
+capped for different reasons and the numbers cannot be reconciled. The pool's
+Mongo filter returns everything that survived it, in no order of fit, so 50 is
+a spend ceiling. Greenhouse returns a vector-ranked list, where the top few
+*are* the answer and the tail is noise the scan would pay Claude to reject, so
+it is 5 — and 5 rather than 6 because a batch is five jobs and one Analyst plus
+one Evaluator call, so a sixth candidate buys a whole second batch for one job.
+Keeping the number on the repository means flipping `Greenhouse:UseAsJobSource`
+moves the cap with the source instead of leaving one that is right for only one
+of them. `Greenhouse:MaxCandidatesPerScan` can tune the ranked source's depth
+on the box; it cannot reach the pool's.
 
 **Pack quota: 3 per user per UTC day.** Claimed atomically in
 `UserQuotaRepository` *before* the Claude call — the `pack` rate-limit bucket

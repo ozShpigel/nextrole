@@ -58,14 +58,49 @@ public sealed class GreenhouseJobRepository : IPoolJobRepository
     /// </remarks>
     public const int MinOverFetch = 200;
 
+    /// <summary>
+    /// 10 — see <see cref="IPoolJobRepository.MaxCandidatesPerScan"/>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Measured, not reasoned.</b> This was 5, on the argument that a ranked
+    /// source puts the best matches at the top so the top few ARE the answer.
+    /// That argument is wrong, and scoring 30 deep for one real profile showed
+    /// why: cosine similarity correlates +0.65 with the eventual score across
+    /// the whole set, but <b>-0.15 within the top ten</b>. It sorts the field
+    /// and not the leaderboard -- which is exactly what a recall prefilter is
+    /// for, and means rank cannot stand in for quality.
+    /// </para>
+    /// <para>
+    /// Concretely: ranks 1-10 averaged 53-56 and were statistically
+    /// indistinguishable, rank 11 onward fell to 37, and the two
+    /// highest-scoring postings sat at ranks 7 and 10 -- both invisible at a
+    /// cap of 5. At 10 the selection found all five of the genuinely best
+    /// jobs; the perfect ordering would have averaged 56.4 against this
+    /// ordering's 54.2, so there is little left to win.
+    /// </para>
+    /// <para>
+    /// Ten is also two whole scoring batches, so nothing is wasted on a
+    /// part-filled one.
+    /// </para>
+    /// </remarks>
+    public const int DefaultMaxCandidatesPerScan = 10;
+
     public GreenhouseJobRepository(
         IMongoCollection<BsonDocument> jobs, ICandidateJobStore vectors,
-        ILogger<GreenhouseJobRepository> log)
+        ILogger<GreenhouseJobRepository> log,
+        int maxCandidatesPerScan = DefaultMaxCandidatesPerScan)
     {
         _jobs = jobs;
         _vectors = vectors;
         _log = log;
+        MaxCandidatesPerScan = maxCandidatesPerScan > 0
+            ? maxCandidatesPerScan
+            : DefaultMaxCandidatesPerScan;
     }
+
+    /// <inheritdoc />
+    public int MaxCandidatesPerScan { get; }
 
     private static FilterDefinition<BsonDocument> Open =>
         Builders<BsonDocument>.Filter.Eq(GreenhouseJobFields.ClosedAt, BsonNull.Value);
@@ -105,17 +140,25 @@ public sealed class GreenhouseJobRepository : IPoolJobRepository
                 Open))
             .ToListAsync(ct);
 
-        var candidates = docs
+        // Kept separate from the Take below so the log can report them
+        // separately. Conflating the two reads as "the location filter cut 132
+        // to 6" when the limit did most of the cutting -- measured once at 44
+        // matched and 6 returned, off by a factor of seven for anyone
+        // diagnosing recall.
+        var matched = docs
             .Select(ToPoolJob)
             .Where(j => !exclude.Contains(j.Id))
-            .Where(j => MatchesLocation(j, filter.LocationTerm))
+            .Where(j => MatchesLocation(j, filter.LocationTerm, filter.LocationText))
             .OrderBy(j => rank.TryGetValue(j.Id, out var r) ? r : int.MaxValue)
-            .Take(limit)
             .ToList();
 
+        var candidates = matched.Take(limit).ToList();
+
         _log.LogInformation(
-            "Greenhouse candidates: {Fetched} vector hit(s) -> {Kept} after location {Term} and {Excluded} already scored",
-            ids.Count, candidates.Count, filter.LocationTerm ?? "(any)", exclude.Count);
+            "Greenhouse candidates: {Fetched} vector hit(s), {Excluded} already scored, "
+            + "{Matched} in {Term}, returning top {Returned} of those (limit {Limit})",
+            ids.Count, exclude.Count, matched.Count, filter.LocationTerm ?? "(any)",
+            candidates.Count, limit);
 
         return candidates;
     }
@@ -137,7 +180,7 @@ public sealed class GreenhouseJobRepository : IPoolJobRepository
     /// jobs.
     /// </para>
     /// </remarks>
-    public static bool MatchesLocation(PoolJob job, string? term)
+    public static bool MatchesLocation(PoolJob job, string? term, string? candidateLocation = null)
     {
         if (string.IsNullOrWhiteSpace(term)) return true;
 
@@ -148,7 +191,38 @@ public sealed class GreenhouseJobRepository : IPoolJobRepository
             if (location.Contains(candidate, StringComparison.OrdinalIgnoreCase))
                 return true;
 
-        return false;
+        // The other direction, for the posting that names a city and no
+        // country: "London" holds neither "UK" nor "United Kingdom", so the
+        // loop above cannot see it, and 14 of 132 real postings were exactly
+        // that. Asking whether the CANDIDATE's stated location contains the
+        // POSTING's needs no city extraction and no gazetteer -- "Open to
+        // relocation to London, UK" contains "London", and contains neither
+        // "Barcelona" nor "Tel Aviv, Israel".
+        return ContainsAsWords(candidateLocation, location);
+    }
+
+    /// <summary>
+    /// Whether <paramref name="haystack"/> contains <paramref name="needle"/>
+    /// as a whole word (or whole run of words), ignoring case.
+    /// </summary>
+    /// <remarks>
+    /// Word-bounded rather than a plain substring because the needle here is a
+    /// posting's location, and a short one is a substring of ordinary text by
+    /// accident: a posting in <c>"NY"</c> would otherwise match a candidate in
+    /// <c>"Penny Lane, UK"</c>. Boundaries cost nothing and remove that whole
+    /// class of false positive.
+    /// </remarks>
+    private static bool ContainsAsWords(string? haystack, string needle)
+    {
+        if (string.IsNullOrWhiteSpace(haystack)) return false;
+
+        var trimmed = needle.Trim();
+        if (trimmed.Length == 0) return false;
+
+        return System.Text.RegularExpressions.Regex.IsMatch(
+            haystack,
+            $@"(?<![\p{{L}}\p{{N}}]){System.Text.RegularExpressions.Regex.Escape(trimmed)}(?![\p{{L}}\p{{N}}])",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
     }
 
     private static IEnumerable<string> Aliases(string term)
@@ -262,10 +336,14 @@ public sealed class GreenhouseJobRepository : IPoolJobRepository
             ? ParsedJobFrom(p.AsBsonDocument)
             : null,
         // Greenhouse carries no company enrichment: the boards API returns no
-        // news and no reviews. Left null rather than empty -- EnforceEvidenceCaps
-        // treats a non-null GlassdoorData as "pace evidence exists" and lifts a
-        // cap on that basis, so an empty object would raise scores while
-        // supplying nothing to raise them with.
+        // news and no reviews. Null rather than empty, because the field should
+        // say what is known and nothing is.
+        //
+        // The consequence is that PaceEvidence.In is false for every posting
+        // from this source, so Sustainability & Pace is dropped from the total
+        // and the score renormalised over the rest (ScoreTotal). That is not a
+        // Greenhouse quirk any more: the pool's Glassdoor scraper is gone too,
+        // so no live source supplies pace evidence.
         CompanyNews = null,
         GlassdoorData = null,
     };

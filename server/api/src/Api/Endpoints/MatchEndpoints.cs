@@ -14,7 +14,6 @@ public static class MatchEndpoints
 {
     // Cap on the manual matching-signal lists (strengths / core values);
     // mirrored by the ChipInput max in the Settings UI.
-    private const int MaxSignalItems = 3;
 
     // Resolves its own scope: the request that triggered this has already
     // returned, so anything scoped to it is disposed by the time this runs.
@@ -234,6 +233,67 @@ public static class MatchEndpoints
         .WithName("PoolScan")
         .WithSummary("Score the shared pool's new candidates against this user's profile");
 
+        // The cheap half of matching, and the first thing the board asks for.
+        // One profile embedding plus a vector search -- no Claude call -- so
+        // the reader sees the real set of relevant postings in ~95ms instead of
+        // waiting on a scan, and scoring fills in behind it.
+        //
+        // In the "match" bucket, not "discovery": this is interactive, it is
+        // the page's first paint, and it must not queue behind a scan's burst.
+        app.MapGet("/api/match/pool-band", async (
+            IUserContext user,
+            IPoolBrowseService browse,
+            ILogger<Program> logger,
+            int? limit,
+            CancellationToken ct) =>
+        {
+            try
+            {
+                var result = await browse.BandAsync(user.UserId, limit ?? 40, ct);
+                return Results.Ok(result);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Pool band retrieval failed");
+                return Results.Problem("An error occurred while retrieving matching jobs.", statusCode: 500);
+            }
+        })
+        .RequireRateLimiting("match")
+        .WithName("PoolBand")
+        .WithSummary("The retrieved band for this user -- relevant postings, scored or not, no Claude call");
+
+        // Score specific postings, which is what the board asks for as the
+        // reader scrolls into unscored cards. The ids come from the client and
+        // are treated as untrusted: capped per request, looked up in the pool,
+        // deduped against what is already scored and what is in flight, and
+        // charged against today's budget before any Claude call.
+        //
+        // "discovery" bucket, like the scan: it is a burst of batch calls.
+        app.MapPost("/api/match/score-jobs", async (
+            [FromBody] ScoreJobsRequest request,
+            IUserContext user,
+            IPoolScanService scan,
+            ILogger<Program> logger,
+            CancellationToken ct) =>
+        {
+            if (request?.JobIds is null || request.JobIds.Count == 0)
+                return Results.BadRequest(new { error = "jobIds is required" });
+
+            try
+            {
+                var result = await scan.ScoreByIdsAsync(user.UserId, request.JobIds, ct);
+                return Results.Ok(result);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Scoring requested jobs failed");
+                return Results.Problem("An error occurred while scoring these jobs.", statusCode: 500);
+            }
+        })
+        .RequireRateLimiting("discovery")
+        .WithName("ScoreJobs")
+        .WithSummary("Score these specific pool postings for this user");
+
         // What the match tab renders: this user's scores for the pool jobs it
         // is about to show. Scores are per user and live in jobScores, never on
         // the shared pool document.
@@ -424,14 +484,6 @@ public static class MatchEndpoints
         {
             if (request is null)
                 return Results.BadRequest(new { error = "a structured profile is required" });
-
-            // Strengths/core values are the manual matching signal; capping them
-            // keeps each one carrying real weight in the Evaluator's scoring
-            // instead of diluting into a wish list.
-            if (request.Strengths.Length > MaxSignalItems)
-                return Results.BadRequest(new { error = $"at most {MaxSignalItems} strengths — keep the ones that should steer matching" });
-            if (request.CoreValues.Length > MaxSignalItems)
-                return Results.BadRequest(new { error = $"at most {MaxSignalItems} core values — keep the ones that should steer matching" });
 
             try
             {
@@ -882,4 +934,15 @@ public static class MatchEndpoints
 
         return app;
     }
+}
+
+/// <summary>Body of POST /api/match/score-jobs.</summary>
+/// <remarks>
+/// Ids only. The server decides what they mean -- which are real postings,
+/// which are already scored, and how many of them today's budget allows -- so
+/// a client cannot widen the work by sending more of them.
+/// </remarks>
+public sealed record ScoreJobsRequest
+{
+    public List<string> JobIds { get; init; } = [];
 }

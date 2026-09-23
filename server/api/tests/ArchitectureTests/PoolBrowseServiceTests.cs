@@ -61,6 +61,7 @@ public class PoolBrowseServiceTests
 
         public Task<List<PoolJob>> FindCandidatesAsync(CandidateFilter f, IReadOnlyCollection<string> x, int n, CancellationToken ct = default) =>
             Task.FromResult(new List<PoolJob>());
+        public int MaxCandidatesPerScan => 50;
         public Task<List<PoolJob>> GetByIdsAsync(IEnumerable<string> ids, CancellationToken ct = default) =>
             Task.FromResult(new List<PoolJob>());
         public Task<long> CountActiveAsync(CancellationToken ct = default) => Task.FromResult(0L);
@@ -68,6 +69,25 @@ public class PoolBrowseServiceTests
             Task.FromResult(new List<string>());
         public Task<string?> FindCompanyLogoAsync(string company, CancellationToken ct = default) =>
             Task.FromResult<string?>(null);
+    }
+
+    /// <summary>
+    /// BandAsync's dependency. These tests drive BrowseAsync, which never
+    /// reads a profile — so this throws rather than pretending to have one.
+    /// </summary>
+    private sealed class UnusedProfiles : ApplicationTracker.Core.Profile.IProfileProvider
+    {
+        public Task<ApplicationTracker.Core.Profile.ProfileDocument> GetProfileDocumentAsync(Guid u, CancellationToken ct = default) =>
+            throw new NotSupportedException("BrowseAsync must not read the profile.");
+        public Task<string> GetProfileAsync(Guid u, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task UpsertProfileAsync(Guid u, ApplicationTracker.Core.Profile.StructuredProfile p, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task<IReadOnlyList<ApplicationTracker.Core.Profile.ProfileHistoryEntry>> GetHistoryAsync(Guid u, string f, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task RestoreHistoryAsync(Guid u, string f, int i, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task<ApplicationTracker.Core.Profile.InterviewPrepDocument> GetInterviewPrepAsync(Guid u, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task UpsertInterviewPrepAsync(Guid u, string? a, string? b, string? c, string? d, IReadOnlyList<ApplicationTracker.Core.Profile.QaEntry>? e, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task<IReadOnlyList<ApplicationTracker.Core.Profile.ProfileHistoryEntry>> GetInterviewPrepHistoryAsync(Guid u, string f, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task RestoreInterviewPrepHistoryAsync(Guid u, string f, int i, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task SetPresentationCuesAsync(Guid u, string f, IReadOnlyList<string> cues, CancellationToken ct = default) => throw new NotSupportedException();
     }
 
     private sealed class FakeState : IPoolJobStateRepository
@@ -93,7 +113,7 @@ public class PoolBrowseServiceTests
     private static (PoolBrowseService Svc, FakeScores S, FakePool P, FakeState T) Build()
     {
         var s = new FakeScores(); var p = new FakePool(); var t = new FakeState();
-        return (new PoolBrowseService(s, p, t), s, p, t);
+        return (new PoolBrowseService(s, p, t, new UnusedProfiles()), s, p, t);
     }
 
     // ── Eligibility comes from the user's own rows ──────────────────────────

@@ -169,6 +169,12 @@ services:
   # One company at a time (prefetch 1), acking only after the Mongo write. A
   # company that fails goes to the dead-letter queue rather than back onto the
   # queue: requeueing a 429 is a hot loop that also blocks every other company.
+  #
+  # It is also the only Greenhouse service that calls the API (the ingest AI
+  # reads, at Api__BaseUrl in .env.greenhouse). That value is OPTIONAL to the
+  # process and load-bearing in fact: without it the consumer runs, embeds and
+  # stores factless postings after one warning, and the hash skip means nothing
+  # re-reads them. See the note in .env.example before editing that file.
   greenhouse-consumer:
     image: ghcr.io/ozshpigel/greenhouse:latest
     command: ["consume"]
@@ -177,6 +183,12 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
+      # Not a correctness guard -- the client retries and a company that fails
+      # dead-letters rather than losing its embeddings. It just stops every
+      # posting of the first run after a full restart from being stored
+      # factless because the API had not come up yet.
+      api:
+        condition: service_started
 
   loki:
     image: grafana/loki:3.0.0

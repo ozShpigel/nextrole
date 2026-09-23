@@ -28,6 +28,17 @@ must survive a session where you are *not* deploying stayed behind.
   `API_URL`/`SCRAPER_URL` are Docker DNS **service names**, resolved at runtime
   by `client/nginx.conf`, and it is manual config on the box that no `git pull`
   will fix.
+- **`.env.greenhouse` needs `Api__BaseUrl`, and omitting it is silent.** The
+  consumer's ingest AI reads are optional to the process and load-bearing in
+  fact: unset, it still fetches, embeds and writes — one startup warning, then
+  every posting stored with an empty `extracted` and no `parsed`, permanently,
+  because the AI passes only run over postings whose content *changed*. It was
+  unset on the box for the whole life of the source. Set it to the API's Docker
+  **service** name and container port (`http://api:8080`), never localhost;
+  add `Api__ApiKey` too if the instance-wide gate is on. After setting it, the
+  `extract_attempts: 0` backfill drains the backlog at 100 postings per board
+  per run, so verify with a count of those rather than assuming one run fixed
+  it. Full note in `deploy/.env.example`.
 - **Atlas credentials are scoped per database pair** (`docs/hosting.md`
   prescribes `readWrite` on exactly two databases, and tells you to verify the
   isolation). **Repointing a database without repointing the credential fails at

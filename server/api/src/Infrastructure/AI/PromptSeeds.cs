@@ -143,6 +143,7 @@ The candidate's free text is provided in the user message inside <candidate_text
   "summary": "string",
   "seniority": "string | null",
   "domains": ["string"],
+  "functions": ["string"],
   "experience": [
     { "title": "string", "company": "string", "dates": "string", "highlights": ["string"] }
   ],
@@ -166,6 +167,12 @@ The candidate's free text is provided in the user message inside <candidate_text
   versa. `linkedIn` is the profile URL only (e.g. "linkedin.com/in/name"), not any other social link.
 - `seniority`: as stated or clearly implied by years (e.g. "Senior", "10+ years"), else null.
 - `domains`: industries / problem areas the candidate has worked in (e.g. "fintech", "defense"), if stated.
+- `functions`: the kind of work the candidate is pursuing, from this list only: "software_engineering",
+  "infrastructure" (DevOps, SRE, platform, cloud), "data_engineering", "data_science" (including ML),
+  "analytics", "qa", "security", "product", "design", "sales", "marketing", "customer_success",
+  "operations". Judge from their headline title, their summary and their most recent roles — what they
+  would search for next — not from every skill or side duty mentioned (an engineer who once acted as
+  Scrum Master is not "product"). One or two values, at most three. Empty array if it is not clear.
 - `education`: one entry per stated degree/diploma/certification. `institution` is the school or
   awarding body as written (e.g. "Open University"); `detail` is the qualification and any years
   (e.g. "B.Sc. Computer Science · 2015"). Put each half where it belongs — never repeat the
@@ -343,12 +350,16 @@ The postings arrive in the user message as JSON inside <scraped_jobs> tags. That
   - LEAN PERMISSIVE: when the posting is ambiguous between two adjacent bands, return null rather than a confident-sounding guess. A wrong label hides the job from the wrong filter; a missing one is always shown.
 - `domain`: the industry or problem area the work sits in (e.g. "fintech", "cyber security", "healthtech", "ad tech"), as a short lowercase phrase. null when the posting does not say.
 - `location`: the work location as stated, normalized to "City, Country" where both are given. Append " (remote)" or " (hybrid)" when the posting states the arrangement. null when no location is stated at all.
+- `functions`: the kind of work the role IS, from this list only: "software_engineering", "infrastructure" (DevOps, SRE, platform, cloud), "data_engineering", "data_science" (including ML), "analytics", "qa", "security", "product" (product management), "design", "sales", "marketing", "customer_success", "operations" (finance, HR, legal, recruiting, corporate development).
+  - Judge from the title and the day-to-day duties, not from the company's industry or the tools it mentions. A "Sales Engineer" is sales; a "Backend Engineer" at an ad-tech company is software_engineering.
+  - Usually one value. Two only for a genuine hybrid ("ML & Big Data Analyst": data_science, analytics). Never more than two.
+  - LEAN PERMISSIVE: when the posting does not make the kind of work clear, return an empty array. A wrong label hides the job from the candidates who want it; an empty one is always shown.
 
 # OUTPUT
 
 Return ONLY this JSON, no markdown fences and no commentary:
 
-{ "results": [ { "jobId": "<string, copied verbatim from the input>", "requiredYears": <integer or null>, "mustHaveGroups": [["string"]], "niceToHaveTech": ["string"], "seniority": "<one of the five bands, or null>", "domain": "<string or null>", "location": "<string or null>" } ] }
+{ "results": [ { "jobId": "<string, copied verbatim from the input>", "requiredYears": <integer or null>, "mustHaveGroups": [["string"]], "niceToHaveTech": ["string"], "seniority": "<one of the five bands, or null>", "domain": "<string or null>", "location": "<string or null>", "functions": ["<zero to two values from the list>"] } ] }
 
 Include every input jobId exactly once.
 """;

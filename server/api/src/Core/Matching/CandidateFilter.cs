@@ -22,6 +22,9 @@ public sealed record CandidateFilter
     public IReadOnlyList<string> SeniorityBands { get; init; } = [];
     // The candidate's own technologies, lowercased. Empty = no constraint.
     public IReadOnlyList<string> Tech { get; init; } = [];
+    // Job functions this candidate accepts: their own, widened by neighbours
+    // (JobFunctions.AcceptedFor). Empty = no constraint.
+    public IReadOnlyList<string> Functions { get; init; } = [];
 
     /// <summary>
     /// The rendered profile, for a candidate source that retrieves by meaning
@@ -76,6 +79,7 @@ public sealed record CandidateFilter
         LocationText = profile.Location,
         SeniorityBands = BandsFor(profile.Seniority),
         Tech = TechOf(profile),
+        Functions = JobFunctions.AcceptedFor(profile.Functions),
     };
 
     // The country, not the city: a Tel Aviv candidate should see Herzliya and

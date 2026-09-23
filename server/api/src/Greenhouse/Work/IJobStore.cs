@@ -82,7 +82,8 @@ public interface IJobStore
         string boardToken, int limit, CancellationToken ct);
 
     /// <summary>
-    /// Open postings whose facts were read before requirement groups existed.
+    /// Open postings whose facts were read before requirement groups, or job
+    /// functions, existed.
     /// </summary>
     /// <remarks>
     /// Their <c>must_have_tech</c> is a flat list, so "Go, Ruby, or Python" is

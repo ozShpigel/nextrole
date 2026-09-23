@@ -740,7 +740,14 @@ public sealed class ClaudeClient : IClaudeClient
         results = [.. results.Select(r =>
         {
             var groups = RequirementGroups.From(r.MustHaveGroups, r.MustHaveTech);
-            return r with { MustHaveGroups = groups, MustHaveTech = RequirementGroups.Flatten(groups) };
+            return r with
+            {
+                MustHaveGroups = groups,
+                MustHaveTech = RequirementGroups.Flatten(groups),
+                // Off-list values are dropped here, so storage only ever holds
+                // the fixed list the filter compares against.
+                Functions = JobFunctions.Normalize(r.Functions, JobFunctions.MaxPerJob),
+            };
         })];
 
         // A job with no facts is not dropped: the pool keeps it and the caller
@@ -917,6 +924,10 @@ public sealed class ClaudeClient : IClaudeClient
         var json = ExtractJson(content, "normalize-profile");
         var result = JsonSerializer.Deserialize<NormalizedProfile>(json, CaseInsensitive)
             ?? throw new InvalidOperationException("Failed to deserialize NormalizedProfile");
+
+        // The same closed list the postings are tagged from, and the same cap
+        // the prompt states -- checked here, since the prompt alone is not.
+        result = result with { Functions = JobFunctions.Normalize(result.Functions, JobFunctions.MaxPerProfile) };
 
         _logger.LogInformation("Normalized profile: {Roles} role(s)", result.Experience.Length);
         return result;

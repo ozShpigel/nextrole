@@ -86,14 +86,26 @@ public sealed class GreenhouseJobRepository : IPoolJobRepository
     /// </remarks>
     public const int DefaultMaxCandidatesPerScan = 10;
 
+    /// <summary>Whether postings of another kind of work are dropped, or only counted.</summary>
+    /// <remarks>
+    /// Off by default, deliberately. A confident wrong function label hides a
+    /// job with no symptom, and there is no exact check for "right label"
+    /// (<see cref="JobFunctions"/>). So the filter runs either way and logs what
+    /// it WOULD drop; the labels on stored postings are read first, and only
+    /// then is <c>Greenhouse:FilterByFunction</c> switched on.
+    /// </remarks>
+    private readonly bool _filterByFunction;
+
     public GreenhouseJobRepository(
         IMongoCollection<BsonDocument> jobs, ICandidateJobStore vectors,
         ILogger<GreenhouseJobRepository> log,
-        int maxCandidatesPerScan = DefaultMaxCandidatesPerScan)
+        int maxCandidatesPerScan = DefaultMaxCandidatesPerScan,
+        bool filterByFunction = false)
     {
         _jobs = jobs;
         _vectors = vectors;
         _log = log;
+        _filterByFunction = filterByFunction;
         MaxCandidatesPerScan = maxCandidatesPerScan > 0
             ? maxCandidatesPerScan
             : DefaultMaxCandidatesPerScan;
@@ -145,13 +157,28 @@ public sealed class GreenhouseJobRepository : IPoolJobRepository
         // to 6" when the limit did most of the cutting -- measured once at 44
         // matched and 6 returned, off by a factor of seven for anyone
         // diagnosing recall.
-        var matched = docs
+        var located = docs
             .Select(ToPoolJob)
             .Where(j => !exclude.Contains(j.Id))
             .Where(j => MatchesLocation(j, filter.LocationTerm, filter.LocationText))
             .Where(j => MatchesSeniority(j, filter.SeniorityBands))
             .OrderBy(j => rank.TryGetValue(j.Id, out var r) ? r : int.MaxValue)
             .ToList();
+
+        // Computed whether or not it is applied: the count is the evidence for
+        // switching it on, and afterwards the evidence that it is not hiding
+        // too much.
+        var otherWork = located.Where(j => !JobFunctions.Matches(j.Functions, filter.Functions)).ToList();
+        if (otherWork.Count > 0)
+            _log.LogInformation(
+                "Greenhouse function filter ({State}): {Count} of {Total} posting(s) are outside {Accepted} -- {Postings}",
+                _filterByFunction ? "applied" : "counting only",
+                otherWork.Count, located.Count, string.Join("/", filter.Functions),
+                // Titles with their labels, so a wrong label is readable in the
+                // log -- which is how the labels get checked before this is on.
+                string.Join("; ", otherWork.Take(20).Select(j => $"{j.Title} [{string.Join("+", j.Functions)}]")));
+
+        List<PoolJob> matched = _filterByFunction ? [.. located.Except(otherWork)] : located;
 
         var candidates = matched.Take(limit).ToList();
 
@@ -389,6 +416,7 @@ public sealed class GreenhouseJobRepository : IPoolJobRepository
         MustHaveGroups = RequirementGroups.From(
             ExtractedGroups(d, "must_have_groups"), ExtractedStrings(d, "must_have_tech")),
         Seniority = ExtractedStr(d, "seniority"),
+        Functions = ExtractedStrings(d, "functions"),
         NiceToHaveTech = ExtractedStrings(d, "nice_to_have_tech"),
         // The ingest's Analyst read. Null falls through to an inline parse for
         // that job alone -- the behaviour that existed before the cache, so a

@@ -98,11 +98,16 @@ public static class GreenhouseExtensions
                 "Greenhouse:MaxCandidatesPerScan",
                 GreenhouseJobRepository.DefaultMaxCandidatesPerScan);
 
+            // Off until the function labels on stored postings have been read
+            // by eye; until then the repository only logs what it would drop.
+            var filterByFunction = configuration.GetValue("Greenhouse:FilterByFunction", false);
+
             services.AddScoped<IPoolJobRepository>(sp => new GreenhouseJobRepository(
                 sp.GetRequiredKeyedService<IMongoCollection<BsonDocument>>(CollectionKey),
                 sp.GetRequiredService<ICandidateJobStore>(),
                 sp.GetRequiredService<ILogger<GreenhouseJobRepository>>(),
-                maxCandidates));
+                maxCandidates,
+                filterByFunction));
         }
 
         return services;

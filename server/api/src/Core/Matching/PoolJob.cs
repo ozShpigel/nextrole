@@ -24,6 +24,10 @@ public sealed record PoolJob
     // posting did not make it clear. Read by the in-memory seniority filter of
     // a source that cannot filter in its query (GreenhouseJobRepository).
     public string? Seniority { get; init; }
+    // extracted.functions: the kind of work, from JobFunctions.All. Empty when
+    // the posting did not make it clear or has not been read yet -- and empty
+    // always passes the function filter.
+    public string[] Functions { get; init; } = [];
     public string[] NiceToHaveTech { get; init; } = [];
     // The same must-haves as requirements, alternatives kept together
     // (RequirementGroups). What scoring counts; the flat list above is what the

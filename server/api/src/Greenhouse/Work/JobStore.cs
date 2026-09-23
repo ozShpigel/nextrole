@@ -292,7 +292,11 @@ public sealed class JobStore : IJobStore
             Builders<BsonDocument>.Filter.Eq(GreenhouseJobFields.BoardToken, boardToken),
             Builders<BsonDocument>.Filter.Eq(GreenhouseJobFields.ClosedAt, BsonNull.Value),
             Builders<BsonDocument>.Filter.Type(GreenhouseJobFields.Extracted, BsonType.Document),
-            Builders<BsonDocument>.Filter.Exists(GreenhouseJobFields.ExtractedMustHaveGroups, false),
+            // Owed either field the current read produces. One re-read writes
+            // the whole extracted document, so it settles both at once.
+            Builders<BsonDocument>.Filter.Or(
+                Builders<BsonDocument>.Filter.Exists(GreenhouseJobFields.ExtractedMustHaveGroups, false),
+                Builders<BsonDocument>.Filter.Exists(GreenhouseJobFields.ExtractedFunctions, false)),
             Builders<BsonDocument>.Filter.Gt(GreenhouseJobFields.ExtractAttempts, 0),
             Builders<BsonDocument>.Filter.Lt(GreenhouseJobFields.ExtractAttempts, MaxFactsReReadAttempts));
 

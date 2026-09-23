@@ -45,6 +45,9 @@ export interface StructuredProfile {
   summary: string;
   seniority?: string | null;
   domains: string[];
+  // Kinds of work the candidate is pursuing (server's JobFunctions list), set
+  // from the CV. Optional: profiles saved before it existed do not carry it.
+  functions?: string[];
   experience: ExperienceItem[];
   skills: SkillGroup[];
   // One entry per degree/certification. Institution is kept apart from the detail
@@ -77,6 +80,7 @@ export interface NormalizedProfile {
   summary: string;
   seniority?: string | null;
   domains: string[];
+  functions?: string[];
   experience: ExperienceItem[];
   skills: SkillGroup[];
   education: CredentialItem[];

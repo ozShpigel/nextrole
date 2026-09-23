@@ -201,6 +201,10 @@ public sealed class IngestAiClient
                 { "seniority", (BsonValue?)Str(r, "seniority") ?? BsonNull.Value },
                 { "domain", (BsonValue?)Str(r, "domain") ?? BsonNull.Value },
                 { "location", (BsonValue?)Str(r, "location") ?? BsonNull.Value },
+                // Same rule as must_have_groups: an absent functions field is
+                // what marks a row as owed a re-read, so it is written only when
+                // the API sent it. An empty array means "read, and unclear".
+                { "functions", Strings(r, "functions"), r.TryGetProperty("functions", out _) },
             };
         }
         return facts;

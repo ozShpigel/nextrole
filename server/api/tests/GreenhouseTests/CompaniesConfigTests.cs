@@ -216,12 +216,14 @@ public class CompaniesConfigTests
             $$"""{ "companies": ["alpha-co"], "logo_url_template": "{{template}}" }"""));
     }
 
-    [Fact]
-    public void The_shipped_file_loads()
+    [Theory]
+    [InlineData("companies.json")]
+    [InlineData("companies.dev.json")]   // the local default (docker-compose.yml)
+    public void The_shipped_file_loads(string file)
     {
         // The real file is the one config a typo in it would break in
         // production, so it is parsed here rather than trusted.
-        var relative = Path.Combine("server", "api", "src", "Greenhouse", "config", "companies.json");
+        var relative = Path.Combine("server", "api", "src", "Greenhouse", "config", file);
         var dir = AppContext.BaseDirectory;
         while (dir is not null && !File.Exists(Path.Combine(dir, relative)))
             dir = Path.GetDirectoryName(dir);

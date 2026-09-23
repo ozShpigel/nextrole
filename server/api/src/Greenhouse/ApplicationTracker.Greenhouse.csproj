@@ -31,6 +31,8 @@
          no hand-placed file. Manual state on the box is what no `git pull`
          fixes (AGENTS.md). -->
     <None Update="config/companies.json" CopyToOutputDirectory="PreserveNewest" />
+    <!-- One small board for local runs (the root docker-compose.yml default). -->
+    <None Update="config/companies.dev.json" CopyToOutputDirectory="PreserveNewest" />
     <None Update="appsettings.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 

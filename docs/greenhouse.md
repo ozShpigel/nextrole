@@ -477,6 +477,22 @@ docker compose --profile cron run --rm greenhouse publish
 docker compose up -d greenhouse-consumer
 ```
 
+**Locally, one board.** The root `docker-compose.yml` sets
+`Companies__ConfigPath=config/companies.dev.json` for both services — `similarweb`
+only, 66 postings measured 2026-09-23. Every new posting costs a facts read and an
+Analyst parse (~712 output tokens measured), roughly half a cent each: about **$0.45
+for a full run live, ~$0.25 with `Greenhouse__UseBatchApi`**. The real list is one
+variable away, deliberately not the default — a day of local runs over every board
+cost $6.25:
+
+```bash
+GREENHOUSE_COMPANIES_CONFIG=config/companies.json docker compose --profile cron run --rm greenhouse publish
+```
+
+Outside Docker, set `Companies__ConfigPath=config/companies.dev.json` yourself. Never
+shrink a board by capping postings: the close diff would close everything beyond
+the cap.
+
 Production: `deploy/systemd/nextrole-greenhouse.timer` (06:15 UTC) runs the
 `publish` container; the consumer is `restart: unless-stopped`.
 

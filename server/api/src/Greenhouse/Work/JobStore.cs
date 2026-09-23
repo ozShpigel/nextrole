@@ -351,6 +351,24 @@ public sealed class JobStore : IJobStore
     private static string? Str(BsonDocument d, string field) =>
         d.TryGetValue(field, out var v) && v.IsString ? v.AsString : null;
 
+    /// <inheritdoc />
+    public async Task<long> StampCompanyLogoAsync(string boardToken, string? logoUrl, CancellationToken ct)
+    {
+        BsonValue value = logoUrl is null ? BsonNull.Value : new BsonString(logoUrl);
+
+        // Only rows that differ, so a stable config writes nothing. $ne matches
+        // a missing field too, which is what reaches rows stored before logos
+        // existed.
+        var result = await _jobs.UpdateManyAsync(
+            Builders<BsonDocument>.Filter.And(
+                Builders<BsonDocument>.Filter.Eq(GreenhouseJobFields.BoardToken, boardToken),
+                Builders<BsonDocument>.Filter.Ne(GreenhouseJobFields.CompanyLogo, value)),
+            Builders<BsonDocument>.Update.Set(GreenhouseJobFields.CompanyLogo, value),
+            cancellationToken: ct);
+
+        return result.ModifiedCount;
+    }
+
     public async Task<long> CloseMissingAsync(
         string boardToken, IReadOnlyCollection<long> seenIds, int emptyResponseGuardThreshold,
         DateTime now, CancellationToken ct)

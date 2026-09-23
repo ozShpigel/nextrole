@@ -194,6 +194,8 @@ public sealed class CompanyHandler
         // closed and came back unchanged reopens without being re-embedded.
         await _store.TouchAsync(boardToken, unchanged, runId, now, ct);
 
+        await StampLogoAsync(boardToken, ct);
+
         // GUARD 2 is inside CloseMissingAsync: an empty response against a large
         // stored count logs and skips the diff rather than closing the board.
         var closed = await _store.CloseMissingAsync(
@@ -342,6 +344,29 @@ public sealed class CompanyHandler
             _log.LogError(e,
                 "Board {Board}: the ingest AI passes failed; jobs are stored without facts or a parse "
                 + "and the per-user scan will parse them inline", boardToken);
+        }
+    }
+
+    /// <summary>
+    /// Stamp the board's configured logo onto its rows.
+    /// </summary>
+    /// <remarks>
+    /// Never throws. A logo is display-only, and failing the company over it
+    /// would nack a message whose embeddings are already written and paid for.
+    /// The next run stamps it again.
+    /// </remarks>
+    private async Task StampLogoAsync(string boardToken, CancellationToken ct)
+    {
+        var logo = _config.LogoUrlFor(boardToken);
+        try
+        {
+            var stamped = await _store.StampCompanyLogoAsync(boardToken, logo, ct);
+            if (stamped > 0)
+                _log.LogInformation("Board {Board}: set the company logo on {Count} row(s)", boardToken, stamped);
+        }
+        catch (Exception e) when (e is not OperationCanceledException)
+        {
+            _log.LogError(e, "Board {Board}: could not set the company logo", boardToken);
         }
     }
 

@@ -173,6 +173,15 @@ public static class GreenhouseJobFields
     /// <summary>Which ingest wrote this row. Constant for now; a second source would not be.</summary>
     public const string Source = "source";
 
+    /// <summary>The company's logo URL, or null when its domain is not configured.</summary>
+    /// <remarks>
+    /// Named as the pool names it, so the tracker, the match cards and the
+    /// Messages list read it the same way whichever source a job came from. A
+    /// fact about the company rather than the posting: every row on a board
+    /// carries the same value, restamped each run (<c>JobStore.StampCompanyLogoAsync</c>).
+    /// </remarks>
+    public const string CompanyLogo = "company_logo";
+
     /// <summary>The collection these fields live in.</summary>
     /// <remarks>
     /// Entirely separate from <c>discovered_jobs</c>. Nothing merges the two

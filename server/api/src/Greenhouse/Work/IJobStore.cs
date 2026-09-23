@@ -94,6 +94,17 @@ public interface IJobStore
     Task<IReadOnlyList<StoredJobContent>> NeedingFactsReReadAsync(
         string boardToken, int limit, CancellationToken ct);
 
+    /// <summary>
+    /// Set this board's logo on every row it has, open or closed.
+    /// </summary>
+    /// <remarks>
+    /// Per board, not per posting, and not part of the upsert: the hash skip
+    /// means an unchanged posting is never rewritten, so a logo carried on the
+    /// upsert would reach only postings that changed after it was configured.
+    /// Null clears it, so removing a domain from the config removes the logo.
+    /// </remarks>
+    Task<long> StampCompanyLogoAsync(string boardToken, string? logoUrl, CancellationToken ct);
+
     Task<long> CloseMissingAsync(
         string boardToken, IReadOnlyCollection<long> seenIds, int emptyResponseGuardThreshold,
         DateTime now, CancellationToken ct);

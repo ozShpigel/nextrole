@@ -315,6 +315,78 @@ public class CompanyHandlerTests
         Assert.Empty(store.LastCloseSeenIds!);
     }
 
+    // ---- the company logo --------------------------------------------------
+
+    private static CompaniesConfig WithDomain() => CompaniesConfig.Parse($$"""
+        {
+          "companies": ["{{Build.Token}}"],
+          "company_domains": { "{{Build.Token}}": "example.com" },
+          "logo_url_template": "https://logos.test/{domain}"
+        }
+        """);
+
+    [Fact]
+    public async Task Stamps_the_logo_even_when_every_posting_is_unchanged()
+    {
+        // The case that matters: a board stored before logos existed. Its hashes
+        // are all unchanged, so nothing is upserted -- a logo carried on the
+        // upsert would never reach these rows.
+        var json = Build.BoardJson((1, "Backend Engineer", LongContent));
+        var store = new FakeJobStore();
+        await Build.Handler(new StubHandler().EnqueueJson(HttpStatusCode.OK, json),
+            new FakeEmbeddingClient(), store).HandleCompanyAsync(Build.Token);
+
+        var result = await Build.Handler(new StubHandler().EnqueueJson(HttpStatusCode.OK, json),
+            new FakeEmbeddingClient(), store, WithDomain()).HandleCompanyAsync(Build.Token);
+
+        Assert.Equal(1, result.Skipped);
+        Assert.Equal("https://logos.test/example.com", store.StampedLogos[Build.Token]);
+    }
+
+    [Fact]
+    public async Task Clears_the_logo_when_the_company_has_no_domain()
+    {
+        // Removing a domain from the config must remove the logo, not leave the
+        // last one in place forever.
+        var store = new FakeJobStore();
+        await Build.Handler(
+                new StubHandler().EnqueueJson(HttpStatusCode.OK, Build.BoardJson((1, "Backend Engineer", LongContent))),
+                new FakeEmbeddingClient(), store)
+            .HandleCompanyAsync(Build.Token);
+
+        Assert.True(store.StampedLogos.ContainsKey(Build.Token));
+        Assert.Null(store.StampedLogos[Build.Token]);
+    }
+
+    [Fact]
+    public async Task A_failed_logo_write_does_not_fail_the_company()
+    {
+        // Display-only. Failing here would nack a company whose embeddings are
+        // already written and paid for, and skip the close diff with it.
+        var store = new FakeJobStore { StampThrows = new InvalidOperationException("write failed") };
+
+        var result = await Build.Handler(
+                new StubHandler().EnqueueJson(HttpStatusCode.OK, Build.BoardJson((1, "Backend Engineer", LongContent))),
+                new FakeEmbeddingClient(), store, WithDomain())
+            .HandleCompanyAsync(Build.Token);
+
+        Assert.Equal(1, result.Embedded);
+        Assert.Equal(1, store.CloseCalls);
+    }
+
+    [Fact]
+    public async Task A_failed_fetch_stamps_nothing()
+    {
+        var store = new FakeJobStore();
+
+        await Assert.ThrowsAnyAsync<Exception>(() => Build.Handler(
+                new StubHandler().EnqueueJson(HttpStatusCode.InternalServerError, "{}"),
+                new FakeEmbeddingClient(), store, WithDomain())
+            .HandleCompanyAsync(Build.Token));
+
+        Assert.Empty(store.StampedLogos);
+    }
+
     [Fact]
     public async Task Refuses_a_blank_board_token()
     {

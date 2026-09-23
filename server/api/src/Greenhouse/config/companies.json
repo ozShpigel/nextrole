@@ -8,6 +8,14 @@
     "deliveroo"
   ],
 
+  "_domains_comment": "Each company's own web domain, for its logo -- the boards API returns none. The token is a Greenhouse slug, not a domain, so it is written down rather than derived. Optional: a company with no domain gets its initial on the card. A domain for a token that is not in companies is fatal (a typo in one of the two). The ingest resolves logo_url_template per domain and stamps the URL on every row of that board, so the API never reads this file. Swapping the service -- e.g. to logo.dev, https://img.logo.dev/{domain}?token=pk_... -- is an edit to the template; the next run restamps every row.",
+  "company_domains": {
+    "similarweb": "similarweb.com",
+    "monzo": "monzo.com",
+    "deliveroo": "deliveroo.co.uk"
+  },
+  "logo_url_template": "https://www.google.com/s2/favicons?domain={domain}&sz=128",
+
   "_limits_comment": "Embedding batch packing, and ONLY that. The model and its dimensions are deliberately NOT here: this file ships inside the ingestion image and the API cannot read it, so a model named here could differ from the one retrieval uses, and that failure is silent. They live in Greenhouse:Embedding (GreenhouseEmbeddingOptions), which both halves bind.",
   "_budget_comment": "The token budget is what a batch is FILLED to; max_batch_items caps how many texts go in one request regardless of size. voyage-4's real ceiling is 320K tokens -- over three times this -- so split-and-retry should never fire in production. It is implemented and tested anyway, because the 120K-limit families (voyage-4-large, voyage-3-large, voyage-code-3) are one config edit away, and then this number is the only thing between a run and a hard 400.",
   "embed_batch_token_budget": 100000,

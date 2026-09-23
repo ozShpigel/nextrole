@@ -111,4 +111,25 @@ public class FactsReReadTests
         Assert.False(facts["7"].Contains("must_have_groups"));
         Assert.Equal(["Go"], facts["7"]["must_have_tech"].AsBsonArray.Select(v => v.AsString));
     }
+    [Fact]
+    public async Task Functions_are_stored_only_when_the_api_sent_them()
+    {
+        // An absent functions field is what marks a row as owed a re-read, the
+        // same rule as must_have_groups. An empty array means "read, unclear".
+        const string NewApiFacts = """
+            { "results": [
+                { "jobId": "7", "mustHaveTech": [], "niceToHaveTech": [], "functions": ["infrastructure"] },
+                { "jobId": "8", "mustHaveTech": [], "niceToHaveTech": [], "functions": [] },
+                { "jobId": "9", "mustHaveTech": [], "niceToHaveTech": [] } ] }
+            """;
+        var facts = await Client(new StubHandler().EnqueueJson(HttpStatusCode.OK, NewApiFacts))
+            .ExtractFactsAsync(
+                [new IngestJob("7", "t", "c", null, "body"), new IngestJob("8", "t", "c", null, "body"),
+                 new IngestJob("9", "t", "c", null, "body")],
+                CancellationToken.None);
+
+        Assert.Equal(["infrastructure"], facts["7"]["functions"].AsBsonArray.Select(v => v.AsString));
+        Assert.Empty(facts["8"]["functions"].AsBsonArray);
+        Assert.False(facts["9"].Contains("functions"));
+    }
 }

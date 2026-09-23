@@ -211,6 +211,42 @@ One deliberate divergence: the pool matches location by regex, and a vector
 search filter cannot express one. This matches exact values, or leave it empty
 and let the vector do the work — location is in the embedded text.
 
+### Job functions
+
+Boards are kept whole, so an Israeli search reached every Israeli posting in the
+collection -- sales, design and M&A included -- and each cost a Claude call to
+score near zero. The LinkedIn pool never had this: it only scraped the titles it
+searched for.
+
+- **The list** is fixed in code (`JobFunctions.All`: software_engineering,
+  infrastructure, data_engineering, data_science, analytics, qa, security,
+  product, design, sales, marketing, customer_success, operations). Free text
+  would repeat the location problem.
+- **Postings** get up to two in `extracted.functions`, from the job-facts read.
+  Off-list values are dropped server-side. An absent field marks a row as owed a
+  facts re-read (same rule as `must_have_groups`), so stored postings are
+  labelled by the existing re-read; an empty array means "read, unclear".
+- **Profiles** get up to three in `StructuredProfile.Functions`, from the CV
+  read. Not rendered into prompts, so scores do not move. A profile saved before
+  this has none until the CV is uploaded again.
+- **Matching** widens the profile's functions by fixed neighbours
+  (`infrastructure` also accepts `software_engineering`, `data_engineering`,
+  `security`) and keeps a posting when any of its functions is accepted.
+  **Empty passes on both sides**: an unread or unclear posting is always shown,
+  and a profile with no functions filters nothing.
+- **Off by default** (`Greenhouse__FilterByFunction`). A confident wrong label
+  hides a job with no symptom, and "is this the right label" has no exact check.
+  Until it is switched on, every scan logs what it *would* drop, with titles:
+  `Greenhouse function filter (counting only): N of M posting(s) are outside ...`.
+  Read those, and the stored labels, before turning it on:
+
+  ```js
+  db.greenhouse_jobs.find({ closedAt: null }, { title: 1, "extracted.functions": 1 })
+  ```
+
+Applied after the vector search, like seniority -- not in the index. The unscored
+band on Matches is not filtered yet.
+
 ## One model, one set of dimensions
 
 `GreenhouseEmbeddingOptions` (`Greenhouse:Embedding`) is bound by **both** the

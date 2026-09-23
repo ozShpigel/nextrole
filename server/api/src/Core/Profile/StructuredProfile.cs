@@ -30,6 +30,12 @@ public sealed record StructuredProfile
     public string Summary { get; init; } = "";
     public string? Seniority { get; init; }
     public string[] Domains { get; init; } = [];
+    // The kinds of work the candidate is pursuing, from JobFunctions.All. Set
+    // from the CV and editable; the Greenhouse candidate search matches
+    // postings' functions against these widened by their neighbours
+    // (JobFunctions.AcceptedFor). Not rendered into prompts -- scoring is
+    // unchanged by it. Empty constrains nothing.
+    public string[] Functions { get; init; } = [];
     public ExperienceItem[] Experience { get; init; } = [];
     public SkillGroup[] Skills { get; init; } = [];
     // One entry per degree/certification.
@@ -97,6 +103,7 @@ public sealed record NormalizedProfile
     public string Summary { get; init; } = "";
     public string? Seniority { get; init; }
     public string[] Domains { get; init; } = [];
+    public string[] Functions { get; init; } = [];
     public ExperienceItem[] Experience { get; init; } = [];
     public SkillGroup[] Skills { get; init; } = [];
     public CredentialItem[] Education { get; init; } = [];

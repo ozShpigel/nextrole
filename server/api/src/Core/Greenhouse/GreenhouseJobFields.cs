@@ -98,6 +98,9 @@ public static class GreenhouseJobFields
     /// </summary>
     public const string ExtractedMustHaveGroups = "extracted.must_have_groups";
 
+    /// <summary>The kind of work, from <c>JobFunctions.All</c>. Absent until read.</summary>
+    public const string ExtractedFunctions = "extracted.functions";
+
     public const string ExtractedAt = "extracted_at";
 
     /// <summary>

@@ -39,6 +39,7 @@ export function mergeNormalizedProfile(profile: StructuredProfile, n: Normalized
     summary: n.summary ?? '',
     seniority: n.seniority ?? '',
     domains: n.domains ?? [],
+    functions: n.functions ?? [],
     experience: n.experience ?? [],
     skills: n.skills ?? [],
     education: n.education ?? [],

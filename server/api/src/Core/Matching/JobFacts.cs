@@ -56,4 +56,8 @@ public sealed record JobFacts
     // Normalized work location as the posting states it, including a remote or
     // hybrid marker when present.
     public string? Location { get; init; }
+    // The kind of work: up to JobFunctions.MaxPerJob values from the fixed list,
+    // empty when the posting does not make it clear. Normalized server-side, so
+    // a value off the list never reaches storage.
+    public string[] Functions { get; init; } = [];
 }

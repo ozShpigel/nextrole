@@ -51,11 +51,13 @@ public class PoolBrowseServiceTests
     {
         public List<PoolJobListItem> Rows = [];
         public IReadOnlyCollection<string>? LastIds;
+        public PoolBrowseQuery? LastQuery;
 
         public Task<List<PoolJobListItem>> BrowseAsync(
             IReadOnlyCollection<string> jobIds, PoolBrowseQuery query, CancellationToken ct = default)
         {
             LastIds = jobIds;
+            LastQuery = query;
             return Task.FromResult(Rows.Where(r => jobIds.Contains(r.Id)).ToList());
         }
 
@@ -72,13 +74,15 @@ public class PoolBrowseServiceTests
     }
 
     /// <summary>
-    /// BandAsync's dependency. These tests drive BrowseAsync, which never
-    /// reads a profile — so this throws rather than pretending to have one.
+    /// The profile, for its job functions. Everything else throws: browsing
+    /// reads the profile and never writes it.
     /// </summary>
-    private sealed class UnusedProfiles : ApplicationTracker.Core.Profile.IProfileProvider
+    private sealed class FakeProfiles : ApplicationTracker.Core.Profile.IProfileProvider
     {
+        public ApplicationTracker.Core.Profile.StructuredProfile Profile = new();
+
         public Task<ApplicationTracker.Core.Profile.ProfileDocument> GetProfileDocumentAsync(Guid u, CancellationToken ct = default) =>
-            throw new NotSupportedException("BrowseAsync must not read the profile.");
+            Task.FromResult(new ApplicationTracker.Core.Profile.ProfileDocument { Structured = Profile });
         public Task<string> GetProfileAsync(Guid u, CancellationToken ct = default) => throw new NotSupportedException();
         public Task UpsertProfileAsync(Guid u, ApplicationTracker.Core.Profile.StructuredProfile p, CancellationToken ct = default) => throw new NotSupportedException();
         public Task<IReadOnlyList<ApplicationTracker.Core.Profile.ProfileHistoryEntry>> GetHistoryAsync(Guid u, string f, CancellationToken ct = default) => throw new NotSupportedException();
@@ -113,7 +117,7 @@ public class PoolBrowseServiceTests
     private static (PoolBrowseService Svc, FakeScores S, FakePool P, FakeState T) Build()
     {
         var s = new FakeScores(); var p = new FakePool(); var t = new FakeState();
-        return (new PoolBrowseService(s, p, t, new UnusedProfiles()), s, p, t);
+        return (new PoolBrowseService(s, p, t, new FakeProfiles()), s, p, t);
     }
 
     // ── Eligibility comes from the user's own rows ──────────────────────────
@@ -275,5 +279,36 @@ public class PoolBrowseServiceTests
         Assert.Equal(70, s.LastQuery!.Value.MinScore);
         Assert.Equal(["STRONG_YES"], s.LastQuery!.Value.Verdicts);
         Assert.Equal(["a"], result.Jobs.Select(j => j.Id));
+    }
+
+    [Fact]
+    public async Task Hands_the_profiles_accepted_functions_to_the_source()
+    {
+        // Already-scored postings of another kind of work stayed on the board
+        // after the function filter was switched on, because only the scan
+        // applied it. The browse now carries the same accepted set.
+        var s = new FakeScores(); var p = new FakePool(); var t = new FakeState();
+        var profiles = new FakeProfiles
+        {
+            Profile = new ApplicationTracker.Core.Profile.StructuredProfile { Functions = ["infrastructure"] },
+        };
+        s.Rows.Add(Score("a", 50));
+        p.Rows.Add(Job("a"));
+
+        await new PoolBrowseService(s, p, t, profiles).BrowseAsync(User, new PoolBrowseQuery());
+
+        Assert.Equal(JobFunctions.AcceptedFor(["infrastructure"]), p.LastQuery!.Functions);
+    }
+
+    [Fact]
+    public async Task A_profile_with_no_functions_constrains_nothing()
+    {
+        var (svc, s, p, _) = Build();
+        s.Rows.Add(Score("a", 50));
+        p.Rows.Add(Job("a"));
+
+        await svc.BrowseAsync(User, new PoolBrowseQuery());
+
+        Assert.Empty(p.LastQuery!.Functions);
     }
 }

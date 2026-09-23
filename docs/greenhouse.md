@@ -244,8 +244,13 @@ searched for.
   db.greenhouse_jobs.find({ closedAt: null }, { title: 1, "extracted.functions": 1 })
   ```
 
-Applied after the vector search, like seniority -- not in the index. The unscored
-band on Matches is not filtered yet.
+Applied after the vector search, like seniority -- not in the index -- and in
+three places, all behind the same flag: the scan (what gets scored), the band
+(unscored cards, which go through the same candidate search), and the browse of
+already-scored cards (`PoolBrowseService` passes the profile's accepted set to
+`BrowseAsync`). The last one matters because the counting-only scans still score
+what they log: without it, those postings stay on the board after the switch. It
+filters at read time, so switching the flag off brings them back.
 
 ## One model, one set of dimensions
 

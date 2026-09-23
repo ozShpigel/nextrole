@@ -97,7 +97,15 @@ public sealed class PoolBrowseService : IPoolBrowseService
         }).ToList();
         if (eligible.Count == 0) return empty;
 
-        // 3. The posting-level filters, against what survived.
+        // 3. The posting-level filters, against what survived -- including the
+        //    profile's job functions. Without them, the function filter only
+        //    stopped NEW scoring: postings already scored before it was on
+        //    (the counting-only scans still scored them) stayed on the board,
+        //    Sales Manager at 3 included. Applied at read time, so switching
+        //    the flag off brings them back; no score is deleted.
+        var structured = (await _profiles.GetProfileDocumentAsync(userId, ct)).Structured;
+        query = query with { Functions = JobFunctions.AcceptedFor(structured.Functions) };
+
         var jobs = await _pool.BrowseAsync(eligible, query, ct);
 
         // 4. Merge this user's half back in, under the names the client reads.

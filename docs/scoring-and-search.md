@@ -190,8 +190,9 @@ Two separate faults, both in `ClaimGrounding` now:
 the Core Stack cap, and the model wrote it in the same response as the claim.
 Zscaler: 12 required technologies absent from the profile, **1** self-reported
 gap, Core Stack 20/20, and the cap never fired. `RequiredButAbsent` computes
-the list from `must_have_tech` (extracted once at ingest, user-independent —
-`docs/job-pool.md`) against the profile; the Analyst's `NamedTechnologies`
+the list from `must_have_groups` (extracted once at ingest, user-independent —
+`docs/job-pool.md`) against the profile, one gap per unmet requirement: a group
+is met by any of its alternatives, and an unmet one reads "Go / Ruby / Python"; the Analyst's `NamedTechnologies`
 minus its nice-to-haves is the fallback on the manual page. Aliases collapse
 (`EKS` is not a second gap beside `Kubernetes`), and a nice-to-have is never a
 gap. The model still fills the field and a divergence of 2+ is logged — the

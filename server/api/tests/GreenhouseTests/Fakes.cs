@@ -129,6 +129,12 @@ public sealed class FakeJobStore : IJobStore
 
     public List<long> SavedAiFor { get; } = [];
 
+    /// <summary>The facts document each save wrote, by job id.</summary>
+    public Dictionary<long, MongoDB.Bson.BsonDocument> SavedFacts { get; } = [];
+
+    /// <summary>Job ids a save wrote a parse for.</summary>
+    public List<long> SavedParsedFor { get; } = [];
+
     public Task<long> SaveIngestAiAsync(
         string boardToken,
         IReadOnlyDictionary<long, MongoDB.Bson.BsonDocument> facts,
@@ -136,6 +142,8 @@ public sealed class FakeJobStore : IJobStore
         string? parseVersion, DateTime now, CancellationToken ct)
     {
         SavedAiFor.AddRange(facts.Keys.Union(parsed.Keys));
+        foreach (var (id, f) in facts) SavedFacts[id] = f;
+        SavedParsedFor.AddRange(parsed.Keys);
         return Task.FromResult((long)SavedAiFor.Count);
     }
 
@@ -151,6 +159,18 @@ public sealed class FakeJobStore : IJobStore
         NeedingAiCalls++;
         LastNeedingAiLimit = limit;
         return Task.FromResult<IReadOnlyList<StoredJobContent>>([.. NeedingAi.Take(limit)]);
+    }
+
+    /// <summary>Postings the facts re-read should find. Empty by default.</summary>
+    public List<StoredJobContent> NeedingFactsReRead { get; } = [];
+
+    public int NeedingFactsReReadCalls { get; private set; }
+
+    public Task<IReadOnlyList<StoredJobContent>> NeedingFactsReReadAsync(
+        string boardToken, int limit, CancellationToken ct)
+    {
+        NeedingFactsReReadCalls++;
+        return Task.FromResult<IReadOnlyList<StoredJobContent>>([.. NeedingFactsReRead.Take(limit)]);
     }
 
     public Task<long> CloseMissingAsync(

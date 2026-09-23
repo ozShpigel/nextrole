@@ -251,6 +251,8 @@ public sealed class PoolJobRepository : IPoolJobRepository
             : null,
         FirstSeenAt = d.TryGetValue("first_seen_at", out var f) && f.IsValidDateTime ? f.ToUniversalTime() : null,
         MustHaveTech = ExtractedStrings(d, "must_have_tech"),
+        MustHaveGroups = RequirementGroups.From(
+            ExtractedGroups(d, "must_have_groups"), ExtractedStrings(d, "must_have_tech")),
         NiceToHaveTech = ExtractedStrings(d, "nice_to_have_tech"),
         CompanyNews = NewsFrom(d),
         GlassdoorData = GlassdoorFrom(d),
@@ -371,6 +373,17 @@ public sealed class PoolJobRepository : IPoolJobRepository
     // pool's extraction step, and on rows whose extraction was abandoned after
     // its retry cap — an empty list, which scoring reads as "the posting states
     // no requirements" and falls back to the Analyst for.
+    // extracted.must_have_groups as written by the ingest: an array of string
+    // arrays. Anything else in it is skipped rather than guessed at.
+    private static string[][] ExtractedGroups(BsonDocument d, string field)
+    {
+        if (!d.TryGetValue("extracted", out var e) || !e.IsBsonDocument) return [];
+        if (!e.AsBsonDocument.TryGetValue(field, out var v) || !v.IsBsonArray) return [];
+        return [.. v.AsBsonArray
+            .Where(g => g.IsBsonArray)
+            .Select(g => g.AsBsonArray.Where(x => x.IsString).Select(x => x.AsString).ToArray())];
+    }
+
     private static string[] ExtractedStrings(BsonDocument d, string field)
     {
         if (!d.TryGetValue("extracted", out var e) || !e.IsBsonDocument) return [];

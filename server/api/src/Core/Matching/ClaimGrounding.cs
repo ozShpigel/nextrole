@@ -107,18 +107,44 @@ public static class ClaimGrounding
     // evidence, de-duplicated across aliases. Order follows the posting, so the
     // list reads like the requirement list it came from.
     public static string[] RequiredButAbsent(
-        IEnumerable<string> requiredTech, List<string[]> profileEvidence)
+        IEnumerable<string> requiredTech, List<string[]> profileEvidence) =>
+        RequiredGroupsButAbsent(
+            requiredTech.Where(t => !string.IsNullOrWhiteSpace(t)).Select(t => new[] { t }),
+            profileEvidence);
+
+    // The same over requirements rather than names: a group is met when the
+    // profile evidences ANY of its members, and an unmet group is ONE gap,
+    // labelled with its alternatives ("Go / Ruby / Python"). This is what makes
+    // "Go, Ruby, or Python" cost a Python candidate nothing instead of two gaps.
+    public static string[] RequiredGroupsButAbsent(
+        IEnumerable<string[]> requiredGroups, List<string[]> profileEvidence)
     {
         var seen = new HashSet<string>(StringComparer.Ordinal);
         var gaps = new List<string>();
-        foreach (var tech in requiredTech)
+        foreach (var raw in requiredGroups)
         {
-            if (string.IsNullOrWhiteSpace(tech)) continue;
-            if (Evidenced(tech, profileEvidence)) continue;
-            if (seen.Add(AliasKey(tech))) gaps.Add(tech.Trim());
+            var group = raw.Where(t => !string.IsNullOrWhiteSpace(t)).Select(t => t.Trim()).ToArray();
+            if (group.Length == 0) continue;
+            if (group.Any(t => Evidenced(t, profileEvidence))) continue;
+            if (seen.Add(GroupKey(group))) gaps.Add(RequirementGroups.Label(group));
         }
         return gaps.ToArray();
     }
+
+    // Alias-deduplicated count of requirements when alternatives are grouped:
+    // the denominator for the coverage ratio, on the same basis as the gap list.
+    public static int GroupRequirementCount(IEnumerable<string[]> requiredGroups) =>
+        requiredGroups
+            .Select(g => g.Where(t => !string.IsNullOrWhiteSpace(t)).ToArray())
+            .Where(g => g.Length > 0)
+            .Select(GroupKey)
+            .Distinct(StringComparer.Ordinal)
+            .Count();
+
+    // A group's identity under the alias rules, so ["EKS"] and ["Kubernetes"]
+    // are one requirement, exactly as the flat count treated them.
+    private static string GroupKey(string[] group) =>
+        string.Join("\u0001", group.Select(AliasKey).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal));
 
     // Words that make a mention an absence rather than a claim. Checked per
     // clause, not per line: "Python strong; Kubernetes new but adjacent"

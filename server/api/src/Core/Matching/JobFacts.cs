@@ -35,7 +35,19 @@ public sealed record JobFacts
     public int? RequiredYears { get; init; }
     // Technologies stated as requirements vs. stated as a plus. A posting that
     // does not separate them puts everything in mustHaveTech.
+    //
+    // mustHaveTech is the FLAT list, kept because the pool's candidate filter
+    // asks "does the posting name any tech this candidate has" with an $in over
+    // it. It is derived from MustHaveGroups whenever groups are present
+    // (JobFactsGroups.Normalize) and never read for counting.
     public string[] MustHaveTech { get; init; } = [];
+    // The same requirements with their alternatives kept together: one inner
+    // array is ONE requirement, met by any of its members. "Go, Ruby, or
+    // Python" is [["Go","Ruby","Python"]] -- one requirement, not three. Stored
+    // flat, a candidate with Python was counted as missing two requirements
+    // the posting never made, and the Core Stack cap fired on a job they fit.
+    [System.Text.Json.Serialization.JsonConverter(typeof(RequirementGroupsJsonConverter))]
+    public string[][] MustHaveGroups { get; init; } = [];
     public string[] NiceToHaveTech { get; init; } = [];
     // One of the fixed bands, or null when the posting does not make it clear.
     public string? Seniority { get; init; }

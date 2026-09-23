@@ -91,6 +91,13 @@ public static class GreenhouseJobFields
     /// <summary>Technologies stated as requirements. <c>extracted.must_have_tech</c>.</summary>
     public const string ExtractedMustHaveTech = "extracted.must_have_tech";
 
+    /// <summary>
+    /// The must-haves as requirements, alternatives kept together
+    /// (<c>RequirementGroups</c>). Absent on rows read before it existed, which
+    /// is what the facts re-read selects on.
+    /// </summary>
+    public const string ExtractedMustHaveGroups = "extracted.must_have_groups";
+
     public const string ExtractedAt = "extracted_at";
 
     /// <summary>

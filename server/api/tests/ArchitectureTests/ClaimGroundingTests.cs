@@ -273,4 +273,56 @@ public class ClaimGroundingTests
         Assert.Equal(4, ClaimGrounding.RequirementCount(required));
         Assert.Equal(2, ClaimGrounding.RequiredButAbsent(required, Evidence()).Length);
     }
+
+    // ---- alternatives are one requirement ----------------------------------
+
+    // Deliveroo, "Software Engineer" (London), verbatim: "backend services ...
+    // using languages such as Go, Ruby, or Python", "any modern language (Go,
+    // Ruby/Rails, Python, Scala, or Rust)", "relational databases (such as
+    // PostgreSQL or MySQL)", and "Exposure to ... Redis, DynamoDB, or
+    // ElasticSearch". Extracted flat, it read as eight requirements; scored in
+    // production as 6 absent of 8, Core Stack capped 12 -> 4, Technical 15/35.
+    private static readonly string[] DeliverooFlat =
+        ["Go", "Ruby", "Python", "PostgreSQL", "MySQL", "Redis", "DynamoDB", "ElasticSearch"];
+
+    private static readonly string[][] DeliverooGroups =
+        [["Go", "Ruby", "Rails", "Python", "Scala", "Rust"], ["PostgreSQL", "MySQL"]];
+
+    [Fact]
+    public void Read_flat_the_Deliveroo_posting_caps_a_candidate_who_meets_it()
+    {
+        // The bug, pinned: this profile has Python, Scala and PostgreSQL, which
+        // is every requirement the posting actually states.
+        var gaps = ClaimGrounding.RequiredButAbsent(DeliverooFlat, Evidence());
+        Assert.True(gaps.Length >= CoreStackCap.GapThreshold, string.Join(", ", gaps));
+        Assert.True(CoreStackCap.For(gaps.Length, ClaimGrounding.RequirementCount(DeliverooFlat)) < CoreStackCap.MaxScore);
+    }
+
+    [Fact]
+    public void Read_as_groups_the_same_posting_has_no_gaps_and_no_cap()
+    {
+        var gaps = ClaimGrounding.RequiredGroupsButAbsent(DeliverooGroups, Evidence());
+        Assert.Empty(gaps);
+        Assert.Equal(2, ClaimGrounding.GroupRequirementCount(DeliverooGroups));
+        Assert.Equal(CoreStackCap.MaxScore, CoreStackCap.For(gaps.Length, 2));
+    }
+
+    [Fact]
+    public void An_unmet_group_is_one_gap_named_by_its_alternatives()
+    {
+        string[][] groups = [["Go", "Ruby"], ["Kubernetes"], ["Python"]];
+        Assert.Equal(["Go / Ruby", "Kubernetes"], ClaimGrounding.RequiredGroupsButAbsent(groups, Evidence()));
+    }
+
+    [Fact]
+    public void Groups_of_one_count_exactly_as_the_flat_list_did()
+    {
+        // Rows extracted before groups existed read as groups of one. They must
+        // score identically, or the change would move scores it never meant to.
+        string[] flat = ["AWS", "Kubernetes", "EKS", "Terraform", "Python"];
+        var singles = RequirementGroups.From(null, flat);
+        Assert.Equal(ClaimGrounding.RequirementCount(flat), ClaimGrounding.GroupRequirementCount(singles));
+        Assert.Equal(ClaimGrounding.RequiredButAbsent(flat, Evidence()),
+                     ClaimGrounding.RequiredGroupsButAbsent(singles, Evidence()));
+    }
 }

@@ -187,6 +187,7 @@ public sealed class CompanyHandler
         if (_ai is not null)
         {
             await BackfillIngestAiAsync(boardToken, now, ct);
+            await ReReadFactsAsync(boardToken, now, ct);
         }
 
         // Presence for the ones we skipped. Also clears closedAt, so a job that
@@ -270,6 +271,45 @@ public sealed class CompanyHandler
         }
 
         await RunIngestAiAsync(boardToken, aiJobs, now, ct);
+    }
+
+    /// <summary>
+    /// Re-read the facts of postings read before requirement groups existed.
+    /// </summary>
+    /// <remarks>
+    /// Facts only, never the parse: the parse did not change and costs several
+    /// times more. Same per-board bound as the backfill, so a board of any size
+    /// drains over successive runs rather than in one bill. Never throws, for
+    /// the same reason the backfill does not.
+    /// </remarks>
+    private async Task ReReadFactsAsync(string boardToken, DateTime now, CancellationToken ct)
+    {
+        try
+        {
+            var pending = await _store.NeedingFactsReReadAsync(boardToken, BackfillBatchSize, ct);
+            if (pending.Count == 0) return;
+
+            _log.LogInformation(
+                "Board {Board}: {Count} stored posting(s) have facts from before requirement groups; re-reading the facts",
+                boardToken, pending.Count);
+
+            List<IngestJob> jobs = [.. pending.Select(p => new IngestJob(
+                p.GreenhouseJobId.ToString(), p.Title, p.Company, p.Location, p.Content))];
+
+            var facts = await ChunkedAsync(jobs, IngestAiClient.FactsChunkSize,
+                chunk => _ai!.ExtractFactsAsync(chunk, ct));
+
+            var saved = await _store.SaveIngestAiAsync(
+                boardToken, ByJobId(facts), new Dictionary<long, BsonDocument>(), null, now, ct);
+
+            _log.LogInformation(
+                "Board {Board}: re-read {Facts} fact read(s) over {Rows} row(s)",
+                boardToken, facts.Count, saved);
+        }
+        catch (Exception e)
+        {
+            _log.LogError(e, "Board {Board}: the facts re-read failed; the old facts stay in place", boardToken);
+        }
     }
 
     private async Task RunIngestAiAsync(

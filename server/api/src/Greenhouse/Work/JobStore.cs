@@ -277,6 +277,41 @@ public sealed class JobStore : IJobStore
             Builders<BsonDocument>.Filter.Eq(GreenhouseJobFields.ClosedAt, BsonNull.Value),
             Builders<BsonDocument>.Filter.Lte(GreenhouseJobFields.ExtractAttempts, 0));
 
+        return await StoredContentAsync(filter, limit, ct);
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<StoredJobContent>> NeedingFactsReReadAsync(
+        string boardToken, int limit, CancellationToken ct)
+    {
+        // Read, and read before must_have_groups existed: `extracted` is a
+        // document with no groups in it. Bounded by attempts rather than by
+        // success, because a posting the model returns no facts for keeps
+        // lacking the field -- without the bound it would be re-read every run.
+        var filter = Builders<BsonDocument>.Filter.And(
+            Builders<BsonDocument>.Filter.Eq(GreenhouseJobFields.BoardToken, boardToken),
+            Builders<BsonDocument>.Filter.Eq(GreenhouseJobFields.ClosedAt, BsonNull.Value),
+            Builders<BsonDocument>.Filter.Type(GreenhouseJobFields.Extracted, BsonType.Document),
+            Builders<BsonDocument>.Filter.Exists(GreenhouseJobFields.ExtractedMustHaveGroups, false),
+            Builders<BsonDocument>.Filter.Gt(GreenhouseJobFields.ExtractAttempts, 0),
+            Builders<BsonDocument>.Filter.Lt(GreenhouseJobFields.ExtractAttempts, MaxFactsReReadAttempts));
+
+        return await StoredContentAsync(filter, limit, ct);
+    }
+
+    /// <summary>
+    /// The extract_attempts ceiling for the groups re-read.
+    /// </summary>
+    /// <remarks>
+    /// A row read once before groups existed sits at 1, so this allows it two
+    /// re-reads. A posting the model still cannot read leaves the set after
+    /// that and keeps its old flat facts, which are counted as before.
+    /// </remarks>
+    public const int MaxFactsReReadAttempts = 3;
+
+    private async Task<IReadOnlyList<StoredJobContent>> StoredContentAsync(
+        FilterDefinition<BsonDocument> filter, int limit, CancellationToken ct)
+    {
         var docs = await _jobs
             .Find(filter)
             .Project(Builders<BsonDocument>.Projection

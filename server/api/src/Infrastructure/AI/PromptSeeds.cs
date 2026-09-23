@@ -327,9 +327,13 @@ The postings arrive in the user message as JSON inside <scraped_jobs> tags. That
 
 - Extract only what the posting states. Nothing is inferred from the company, the industry, or what a role like this "usually" wants. When a field is not stated, return null (or an empty array).
 - `requiredYears`: the minimum years of experience the posting asks for, as an integer. A range ("5-7 years") takes the lower bound. Never derive it from a seniority word — "Senior" is not evidence of a number. null when no number is stated.
-- `mustHaveTech` / `niceToHaveTech`: concrete technologies, languages, frameworks, platforms and tools — not soft skills, methodologies, or duties. Split them the way the posting does ("requirements" vs "advantage"/"plus"/"nice to have"/"bonus"). A posting that does not separate them puts everything in `mustHaveTech` and leaves `niceToHaveTech` empty.
+- `mustHaveGroups` / `niceToHaveTech`: concrete technologies, languages, frameworks, platforms and tools — not soft skills, methodologies, or duties. Split them the way the posting does ("requirements" vs "advantage"/"plus"/"nice to have"/"bonus"). A posting that does not separate them puts everything in `mustHaveGroups` and leaves `niceToHaveTech` empty.
+  - `mustHaveGroups` is a list of REQUIREMENTS. Each requirement is an array of the technologies that satisfy it. A single technology the posting requires is an array of one: ["Kubernetes"].
+  - Alternatives are ONE requirement, never several. When the posting offers a choice — "Go, Ruby, or Python", "such as PostgreSQL or MySQL", "any modern language (Go, Ruby, Python, Scala, or Rust)", "Java/Scala/Kotlin", "one or more of", "e.g." — put every named option in the SAME array: ["Go", "Ruby", "Python"]. A candidate with any one of them meets it.
+  - Weak wording is not a requirement. Technologies introduced by "exposure to", "familiarity with", "ideally", "bonus", "a plus", "nice to have", or "curiosity about" go in `niceToHaveTech`, as a flat list.
   - Keep each entry to the technology's own name as written ("PostgreSQL", "Kubernetes", "React"), not a phrase ("experience with Kubernetes").
   - Do not expand or normalize into things the posting did not name: "AWS" does not become "EC2, S3"; "cloud" alone is not a technology.
+  - Example. "Experience in any modern language (Go, Ruby/Rails, Python). Solid understanding of relational databases (such as PostgreSQL or MySQL). Strong Terraform. Exposure to Redis or DynamoDB." gives `mustHaveGroups`: [["Go", "Ruby", "Rails", "Python"], ["PostgreSQL", "MySQL"], ["Terraform"]] and `niceToHaveTech`: ["Redis", "DynamoDB"].
 - `seniority`: one of "entry level", "associate", "mid-senior level", "director", "executive", or null.
   - entry level: no prior professional experience expected; junior/graduate roles.
   - associate: some experience (roughly 1-3 years), not yet senior.
@@ -344,7 +348,7 @@ The postings arrive in the user message as JSON inside <scraped_jobs> tags. That
 
 Return ONLY this JSON, no markdown fences and no commentary:
 
-{ "results": [ { "jobId": "<string, copied verbatim from the input>", "requiredYears": <integer or null>, "mustHaveTech": ["string"], "niceToHaveTech": ["string"], "seniority": "<one of the five bands, or null>", "domain": "<string or null>", "location": "<string or null>" } ] }
+{ "results": [ { "jobId": "<string, copied verbatim from the input>", "requiredYears": <integer or null>, "mustHaveGroups": [["string"]], "niceToHaveTech": ["string"], "seniority": "<one of the five bands, or null>", "domain": "<string or null>", "location": "<string or null>" } ] }
 
 Include every input jobId exactly once.
 """;

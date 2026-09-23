@@ -139,13 +139,46 @@ public sealed class FakeJobStore : IJobStore
         string boardToken,
         IReadOnlyDictionary<long, MongoDB.Bson.BsonDocument> facts,
         IReadOnlyDictionary<long, MongoDB.Bson.BsonDocument> parsed,
-        string? parseVersion, DateTime now, CancellationToken ct)
+        string? parseVersion, DateTime now, CancellationToken ct, bool countAttempt = true)
     {
+        if (!countAttempt) UncountedSaves++;
+        LastParseVersion = parseVersion ?? LastParseVersion;
         SavedAiFor.AddRange(facts.Keys.Union(parsed.Keys));
         foreach (var (id, f) in facts) SavedFacts[id] = f;
         SavedParsedFor.AddRange(parsed.Keys);
         return Task.FromResult((long)SavedAiFor.Count);
     }
+
+    /// <summary>Saves made with countAttempt: false (batch parses).</summary>
+    public int UncountedSaves { get; private set; }
+    public string? LastParseVersion { get; private set; }
+
+    /// <summary>Pending markers: (kind, job id) -> batch id.</summary>
+    public Dictionary<(string Kind, long Id), string> Pending { get; } = [];
+
+    public Task MarkAiPendingAsync(
+        string boardToken, IReadOnlyCollection<long> ids, string kind, string batchId, CancellationToken ct)
+    {
+        foreach (var id in ids) Pending[(kind, id)] = batchId;
+        return Task.CompletedTask;
+    }
+
+    public Task ClearAiPendingAsync(
+        string boardToken, IReadOnlyCollection<long> ids, string kind, string batchId, CancellationToken ct)
+    {
+        foreach (var id in ids)
+            if (Pending.TryGetValue((kind, id), out var owner) && owner == batchId)
+                Pending.Remove((kind, id));
+        return Task.CompletedTask;
+    }
+
+    /// <summary>What StoredContentForAsync returns, by id.</summary>
+    public Dictionary<long, StoredJobContent> Stored { get; } = [];
+
+    public Task<IReadOnlyList<StoredJobContent>> StoredContentForAsync(
+        string boardToken, IReadOnlyCollection<long> ids, CancellationToken ct) =>
+        Task.FromResult<IReadOnlyList<StoredJobContent>>(
+            [.. ids.Where(Stored.ContainsKey).Select(i => Stored[i])]);
 
     /// <summary>Postings the backfill sweep should find. Empty by default.</summary>
     public List<StoredJobContent> NeedingAi { get; } = [];

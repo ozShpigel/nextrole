@@ -199,7 +199,8 @@ public sealed class JobStore : IJobStore
         IReadOnlyDictionary<long, BsonDocument> parsed,
         string? parseVersion,
         DateTime now,
-        CancellationToken ct)
+        CancellationToken ct,
+        bool countAttempt = true)
     {
         var ids = facts.Keys.Union(parsed.Keys).ToList();
         if (ids.Count == 0) return 0;
@@ -224,15 +225,15 @@ public sealed class JobStore : IJobStore
                     parseVersion is null ? BsonNull.Value : new BsonString(parseVersion));
             }
 
+            var update = new BsonDocument { { "$set", set } };
+            if (countAttempt)
+                update.Add("$inc", new BsonDocument { { GreenhouseJobFields.ExtractAttempts, 1 } });
+
             writes.Add(new UpdateOneModel<BsonDocument>(
                 Builders<BsonDocument>.Filter.And(
                     Builders<BsonDocument>.Filter.Eq(GreenhouseJobFields.BoardToken, boardToken),
                     Builders<BsonDocument>.Filter.Eq(GreenhouseJobFields.GreenhouseJobId, id)),
-                new BsonDocument
-                {
-                    { "$set", set },
-                    { "$inc", new BsonDocument { { GreenhouseJobFields.ExtractAttempts, 1 } } },
-                }));
+                update));
         }
 
         var result = await _jobs.BulkWriteAsync(writes, new BulkWriteOptions { IsOrdered = false }, ct);
@@ -275,7 +276,10 @@ public sealed class JobStore : IJobStore
         var filter = Builders<BsonDocument>.Filter.And(
             Builders<BsonDocument>.Filter.Eq(GreenhouseJobFields.BoardToken, boardToken),
             Builders<BsonDocument>.Filter.Eq(GreenhouseJobFields.ClosedAt, BsonNull.Value),
-            Builders<BsonDocument>.Filter.Lte(GreenhouseJobFields.ExtractAttempts, 0));
+            Builders<BsonDocument>.Filter.Lte(GreenhouseJobFields.ExtractAttempts, 0),
+            // Already in an open batch: submitting again would pay twice.
+            Builders<BsonDocument>.Filter.Eq(GreenhouseJobFields.AiPendingFacts, BsonNull.Value),
+            Builders<BsonDocument>.Filter.Eq(GreenhouseJobFields.AiPendingParse, BsonNull.Value));
 
         return await StoredContentAsync(filter, limit, ct);
     }
@@ -298,7 +302,8 @@ public sealed class JobStore : IJobStore
                 Builders<BsonDocument>.Filter.Exists(GreenhouseJobFields.ExtractedMustHaveGroups, false),
                 Builders<BsonDocument>.Filter.Exists(GreenhouseJobFields.ExtractedFunctions, false)),
             Builders<BsonDocument>.Filter.Gt(GreenhouseJobFields.ExtractAttempts, 0),
-            Builders<BsonDocument>.Filter.Lt(GreenhouseJobFields.ExtractAttempts, MaxFactsReReadAttempts));
+            Builders<BsonDocument>.Filter.Lt(GreenhouseJobFields.ExtractAttempts, MaxFactsReReadAttempts),
+            Builders<BsonDocument>.Filter.Eq(GreenhouseJobFields.AiPendingFacts, BsonNull.Value));
 
         return await StoredContentAsync(filter, limit, ct);
     }
@@ -354,6 +359,51 @@ public sealed class JobStore : IJobStore
 
     private static string? Str(BsonDocument d, string field) =>
         d.TryGetValue(field, out var v) && v.IsString ? v.AsString : null;
+
+    /// <inheritdoc />
+    public Task<IReadOnlyList<StoredJobContent>> StoredContentForAsync(
+        string boardToken, IReadOnlyCollection<long> ids, CancellationToken ct) =>
+        ids.Count == 0
+            ? Task.FromResult<IReadOnlyList<StoredJobContent>>([])
+            : StoredContentAsync(
+                Builders<BsonDocument>.Filter.And(
+                    Builders<BsonDocument>.Filter.Eq(GreenhouseJobFields.BoardToken, boardToken),
+                    Builders<BsonDocument>.Filter.In(GreenhouseJobFields.GreenhouseJobId, ids.Select(i => (BsonValue)i))),
+                ids.Count, ct);
+
+    /// <inheritdoc />
+    public async Task MarkAiPendingAsync(
+        string boardToken, IReadOnlyCollection<long> ids, string kind, string batchId, CancellationToken ct)
+    {
+        if (ids.Count == 0) return;
+        await _jobs.UpdateManyAsync(
+            Builders<BsonDocument>.Filter.And(
+                Builders<BsonDocument>.Filter.Eq(GreenhouseJobFields.BoardToken, boardToken),
+                Builders<BsonDocument>.Filter.In(GreenhouseJobFields.GreenhouseJobId, ids.Select(i => (BsonValue)i))),
+            Builders<BsonDocument>.Update.Set(PendingField(kind), batchId),
+            cancellationToken: ct);
+    }
+
+    /// <inheritdoc />
+    public async Task ClearAiPendingAsync(
+        string boardToken, IReadOnlyCollection<long> ids, string kind, string batchId, CancellationToken ct)
+    {
+        if (ids.Count == 0) return;
+        var field = PendingField(kind);
+        await _jobs.UpdateManyAsync(
+            Builders<BsonDocument>.Filter.And(
+                Builders<BsonDocument>.Filter.Eq(GreenhouseJobFields.BoardToken, boardToken),
+                Builders<BsonDocument>.Filter.In(GreenhouseJobFields.GreenhouseJobId, ids.Select(i => (BsonValue)i)),
+                // Only this batch's marker. A posting resubmitted since belongs
+                // to the newer batch, which clears it when it lands.
+                Builders<BsonDocument>.Filter.Eq(field, batchId)),
+            Builders<BsonDocument>.Update.Unset(field),
+            cancellationToken: ct);
+    }
+
+    private static string PendingField(string kind) => kind == AiBatchRecord.Facts
+        ? GreenhouseJobFields.AiPendingFacts
+        : GreenhouseJobFields.AiPendingParse;
 
     /// <inheritdoc />
     public async Task<long> StampCompanyLogoAsync(string boardToken, string? logoUrl, CancellationToken ct)

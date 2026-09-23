@@ -84,6 +84,39 @@ company: a logo is display-only, and a nack would throw away paid embeddings.
 Swapping services (e.g. logo.dev) is an edit to the template; the next run
 restamps every row.
 
+### The reads through the Message Batches API
+
+job-facts and job-parse were about three quarters of the production Anthropic
+bill (measured 2026-09-23: parse 46%, facts 31%, scoring 24%), and nothing waits
+on them. With `Greenhouse__UseBatchApi=true` the consumer submits them to the
+Message Batches API instead -- **same prompts, model and chunks** (the API builds
+the live and batch requests from one builder), at half the price, answered within
+minutes to hours.
+
+- **Submit** (`IngestBatcher`, from `CompanyHandler`): changed + never-read
+  postings get facts and parse batches; re-read postings get facts only. A row in
+  `greenhouse_ai_batches` is written right after the submit (a batch with no row
+  is paid for and never collected), then each posting is marked
+  `ai_pending_facts` / `ai_pending_parse` with the batch id.
+- **Pending postings** are skipped by the backfill and re-read selectors (no
+  paying twice), and a posting with `ai_pending_parse` is skipped by the
+  candidate search: scored now, it would be parsed inline at full price per user,
+  and a new one would be scored before its facts could filter it.
+- **Collect**: a loop in the consumer, every 5 minutes. Ended batches are stored
+  with the same `SaveIngestAiAsync` the live path uses -- a parse is verified
+  against the stored posting text first (the API keeps nothing between calls) and
+  does not count an `extract_attempts` (a live read counted facts + parse once).
+  A marker is cleared only by the batch that set it. A batch older than 48h is
+  abandoned and its postings are read again.
+- **The collector runs whether or not the flag is on**, so switching it off never
+  strands open batches (and their hidden postings).
+- API: `POST /api/match/job-facts/batches`, `GET .../job-facts/batches/{id}`,
+  `POST /api/match/job-parse/batches`, `POST .../job-parse/batches/{id}/collect`.
+  Same limits as the live endpoints; 200 postings per submission. The LinkedIn
+  pool ingest still uses the live endpoints.
+- Cost stays visible: every result logs `Claude job-facts-batch usage` /
+  `job-parse-batch usage`, the same shape as the live lines.
+
 ### The two guards
 
 | | |
@@ -364,6 +397,9 @@ and the process exited 127. systemd would have reported a failed job every day
 while the run itself was fine.
 
 ## Configuration
+
+`Greenhouse__UseBatchApi` (consumer, default `false`) sends the two reads
+through the Message Batches API — see above.
 
 `server/api/src/Greenhouse/config/companies.json` — board tokens, each
 company's domain for its logo, and batch limits. Loaded like `roles.json` and **fatal** on a missing

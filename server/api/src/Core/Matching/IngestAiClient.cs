@@ -156,6 +156,112 @@ public sealed class IngestAiClient
         }
     }
 
+    // ── The same reads through the Message Batches API (IngestBatch.cs) ─────
+    //
+    // Submit returns null on any failure and never throws: the postings simply
+    // stay unread, and the next run's backfill submits them again. Collect
+    // returns null when the API could not be reached -- try again next poll --
+    // and otherwise the status plus, once ended, the reads in exactly the
+    // shape the live calls return, so storing them is the same code.
+
+    /// <summary>Postings per submission. The endpoints reject more than 200.</summary>
+    public const int BatchSubmitSize = 200;
+
+    public Task<IngestBatchSubmitted?> SubmitFactsBatchAsync(IReadOnlyList<IngestJob> jobs, CancellationToken ct) =>
+        SubmitBatchAsync("/api/match/job-facts/batches", FactsBody(jobs), "job-facts", jobs.Count, ct);
+
+    public Task<IngestBatchSubmitted?> SubmitParseBatchAsync(IReadOnlyList<IngestJob> jobs, CancellationToken ct) =>
+        SubmitBatchAsync("/api/match/job-parse/batches", ParseBody(jobs), "job-parse", jobs.Count, ct);
+
+    public async Task<(string Status, Dictionary<string, BsonDocument> Facts)?> CollectFactsBatchAsync(
+        string batchId, CancellationToken ct)
+    {
+        var payload = await CollectAsync(HttpMethod.Get, $"/api/match/job-facts/batches/{batchId}", null, batchId, ct);
+        return payload is { } p ? (StatusOf(p), FactsFrom(p)) : null;
+    }
+
+    public async Task<(string Status, Dictionary<string, BsonDocument> Parsed)?> CollectParseBatchAsync(
+        string batchId, IReadOnlyList<IngestJob> jobs, CancellationToken ct)
+    {
+        var payload = await CollectAsync(
+            HttpMethod.Post, $"/api/match/job-parse/batches/{batchId}/collect", ParseBody(jobs), batchId, ct);
+        return payload is { } p ? (StatusOf(p), ParsedFrom(p)) : null;
+    }
+
+    private static object FactsBody(IReadOnlyList<IngestJob> jobs) => new
+    {
+        jobs = jobs.Select(j => new
+        {
+            jobId = j.JobId,
+            title = j.Title,
+            company = j.Company,
+            location = j.Location,
+            description = j.Description,
+        }),
+    };
+
+    private static object ParseBody(IReadOnlyList<IngestJob> jobs) => new
+    {
+        jobs = jobs.Select(j => new
+        {
+            jobId = j.JobId,
+            title = j.Title,
+            company = j.Company,
+            description = j.Description,
+        }),
+    };
+
+    private async Task<IngestBatchSubmitted?> SubmitBatchAsync(
+        string path, object body, string kind, int count, CancellationToken ct)
+    {
+        if (count == 0) return null;
+        try
+        {
+            using var response = await _http.PostAsJsonAsync(path, body, ct);
+            if (!response.IsSuccessStatusCode)
+            {
+                _log.LogWarning("{Kind} batch submit returned {Status} for {Count} posting(s); read again next run",
+                    kind, (int)response.StatusCode, count);
+                return null;
+            }
+
+            var submitted = await response.Content.ReadFromJsonAsync<IngestBatchSubmitted>(cancellationToken: ct);
+            return string.IsNullOrEmpty(submitted?.BatchId) ? null : submitted;
+        }
+        catch (Exception e) when (e is HttpRequestException or TaskCanceledException or JsonException)
+        {
+            _log.LogWarning(e, "{Kind} batch submit failed for {Count} posting(s); read again next run", kind, count);
+            return null;
+        }
+    }
+
+    private async Task<JsonElement?> CollectAsync(
+        HttpMethod method, string path, object? body, string batchId, CancellationToken ct)
+    {
+        try
+        {
+            using var request = new HttpRequestMessage(method, path);
+            if (body is not null) request.Content = JsonContent.Create(body);
+            using var response = await _http.SendAsync(request, ct);
+            if (!response.IsSuccessStatusCode)
+            {
+                _log.LogWarning("Collecting batch {BatchId} returned {Status}; tried again next poll",
+                    batchId, (int)response.StatusCode);
+                return null;
+            }
+
+            return await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: ct);
+        }
+        catch (Exception e) when (e is HttpRequestException or TaskCanceledException or JsonException)
+        {
+            _log.LogWarning(e, "Collecting batch {BatchId} failed; tried again next poll", batchId);
+            return null;
+        }
+    }
+
+    private static string StatusOf(JsonElement payload) =>
+        Str(payload, "status") ?? IngestBatchStatus.InProgress;
+
     /// <summary>Chunk size for <see cref="ExtractFactsAsync"/>. The endpoint rejects more than 200.</summary>
     public const int FactsChunkSize = 50;
 

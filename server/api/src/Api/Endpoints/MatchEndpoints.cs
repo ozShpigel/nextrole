@@ -406,6 +406,106 @@ public static class MatchEndpoints
         .WithName("ParsePoolJobs")
         .WithSummary("Parse postings for the shared pool (user-independent, once per job)");
 
+        // The same two reads through the Message Batches API, at half the
+        // price, for a caller that is not waiting: the Greenhouse ingest
+        // submits, records the id, and collects on a later poll
+        // (Core/Matching/IngestBatch.cs). Same limits as the live endpoints, so
+        // the batch path cannot drive more spend than they can; 200 postings
+        // per submission for both, since a batch answer is not bounded by one
+        // response the way a live parse is.
+        app.MapPost("/api/match/job-facts/batches", async (
+            [FromBody] JobFactsRequest request,
+            ApplicationTracker.Core.AI.IClaudeClient claude,
+            ILogger<Program> logger,
+            CancellationToken ct) =>
+        {
+            if (IngestBatchInvalid(request?.Jobs?.Select(j => (j.JobId, j.Title, j.Description)).ToList()) is { } invalid)
+                return invalid;
+            try
+            {
+                return Results.Ok(await claude.SubmitJobFactsBatchAsync(request!, ct));
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Error submitting a job-facts batch");
+                return Results.Problem(detail: "An error occurred while submitting the batch", statusCode: 500);
+            }
+        })
+        .RequireRateLimiting("discovery")
+        .WithName("SubmitJobFactsBatch")
+        .WithSummary("Submit job-facts reads as a Message Batch (half price, collected later)");
+
+        app.MapGet("/api/match/job-facts/batches/{batchId}", async (
+            string batchId,
+            ApplicationTracker.Core.AI.IClaudeClient claude,
+            ILogger<Program> logger,
+            CancellationToken ct) =>
+        {
+            if (!IsBatchId(batchId)) return Results.BadRequest(new { error = "not a batch id" });
+            try
+            {
+                return Results.Ok(await claude.CollectJobFactsBatchAsync(batchId, ct));
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Error collecting job-facts batch {BatchId}", batchId);
+                return Results.Problem(detail: "An error occurred while collecting the batch", statusCode: 500);
+            }
+        })
+        .RequireRateLimiting("discovery")
+        .WithName("CollectJobFactsBatch")
+        .WithSummary("Collect a job-facts batch: in_progress, or the facts");
+
+        app.MapPost("/api/match/job-parse/batches", async (
+            [FromBody] JobParseRequest request,
+            ApplicationTracker.Core.AI.IClaudeClient claude,
+            ILogger<Program> logger,
+            CancellationToken ct) =>
+        {
+            if (IngestBatchInvalid(request?.Jobs?.Select(j => (j.JobId, j.Title ?? "", j.Description)).ToList()) is { } invalid)
+                return invalid;
+            try
+            {
+                return Results.Ok(await claude.SubmitJobParseBatchAsync(request!, ct));
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Error submitting a job-parse batch");
+                return Results.Problem(detail: "An error occurred while submitting the batch", statusCode: 500);
+            }
+        })
+        .RequireRateLimiting("discovery")
+        .WithName("SubmitJobParseBatch")
+        .WithSummary("Submit ingest-time Analyst parses as a Message Batch (half price, collected later)");
+
+        // POST, not GET: collecting a parse needs the postings it was made
+        // from. The fabricated-cultural-signal check and the title/company
+        // overrides run against them before anything is returned for storage --
+        // the same guards the live endpoint applies.
+        app.MapPost("/api/match/job-parse/batches/{batchId}/collect", async (
+            string batchId,
+            [FromBody] JobParseRequest request,
+            ApplicationTracker.Core.AI.IClaudeClient claude,
+            ILogger<Program> logger,
+            CancellationToken ct) =>
+        {
+            if (!IsBatchId(batchId)) return Results.BadRequest(new { error = "not a batch id" });
+            if (IngestBatchInvalid(request?.Jobs?.Select(j => (j.JobId, j.Title ?? "", j.Description)).ToList()) is { } invalid)
+                return invalid;
+            try
+            {
+                return Results.Ok(await claude.CollectJobParseBatchAsync(batchId, request!, ct));
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Error collecting job-parse batch {BatchId}", batchId);
+                return Results.Problem(detail: "An error occurred while collecting the batch", statusCode: 500);
+            }
+        })
+        .RequireRateLimiting("discovery")
+        .WithName("CollectJobParseBatch")
+        .WithSummary("Collect a job-parse batch: in_progress, or the verified parses");
+
         // Narrative enrichment: on-demand upgrade of a scored job's narrative
         // fields (honestAssessment/recommendation/companyNewsAnalysis/
         // employeeReviewsAnalysis) from ingest-time terse to full detail —
@@ -934,6 +1034,28 @@ public static class MatchEndpoints
 
         return app;
     }
+
+    /// <summary>Max postings per batch submission, for both reads.</summary>
+    public const int MaxIngestBatchJobs = 200;
+
+    private static IResult? IngestBatchInvalid(List<(string JobId, string Title, string? Description)>? jobs)
+    {
+        if (jobs is null || jobs.Count == 0)
+            return Results.BadRequest(new { error = "at least one job is required" });
+        if (jobs.Count > MaxIngestBatchJobs)
+            return Results.BadRequest(new { error = $"too many jobs (max {MaxIngestBatchJobs})" });
+        if (jobs.Any(j => string.IsNullOrWhiteSpace(j.JobId)))
+            return Results.BadRequest(new { error = "jobId is required for every job" });
+        if (jobs.Any(j => j.Title.Length > 500))
+            return Results.BadRequest(new { error = "a title exceeds maximum length of 500 characters" });
+        if (jobs.Any(j => (j.Description?.Length ?? 0) > 50_000))
+            return Results.BadRequest(new { error = "a description exceeds maximum length of 50,000 characters" });
+        return null;
+    }
+
+    // Goes into the SDK's request path, so it is checked, not trusted.
+    private static bool IsBatchId(string id) =>
+        System.Text.RegularExpressions.Regex.IsMatch(id, "^msgbatch_[A-Za-z0-9]{1,100}$");
 }
 
 /// <summary>Body of POST /api/match/score-jobs.</summary>

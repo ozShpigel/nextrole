@@ -66,6 +66,14 @@ public interface IClaudeClient
     // The stamp the parses above are produced under — see ParseVersioning.
     string ParseVersion { get; }
 
+    // The same two reads through the Message Batches API: submitted now,
+    // collected later, at half the price (IngestBatch.cs). Collect returns
+    // Status in_progress until every request has ended.
+    Task<IngestBatchSubmitted> SubmitJobFactsBatchAsync(JobFactsRequest request, CancellationToken cancellationToken = default);
+    Task<IngestBatchSubmitted> SubmitJobParseBatchAsync(JobParseRequest request, CancellationToken cancellationToken = default);
+    Task<JobFactsBatchResponse> CollectJobFactsBatchAsync(string batchId, CancellationToken cancellationToken = default);
+    Task<JobParseBatchResponse> CollectJobParseBatchAsync(string batchId, JobParseRequest request, CancellationToken cancellationToken = default);
+
     // Role canonicalisation for the shared pool daily search: which single
     // search term covers this candidate work. Prefers a role already being
     // searched; invents one only when none fits. See PoolRoleService.

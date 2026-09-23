@@ -1,4 +1,4 @@
-import { toDateTimeLocalValue } from './format';
+import { cityCountry, toDateTimeLocalValue } from './format';
 
 describe('toDateTimeLocalValue', () => {
   it('produces a datetime-local string that parses back to the same instant', () => {
@@ -26,5 +26,25 @@ describe('toDateTimeLocalValue', () => {
     expect(toDateTimeLocalValue(undefined)).toBe('');
     expect(toDateTimeLocalValue('')).toBe('');
     expect(toDateTimeLocalValue('not a date')).toBe('');
+  });
+});
+
+describe('cityCountry', () => {
+  it('keeps the city and the country, dropping the region between them', () => {
+    expect(cityCountry('Tel Aviv-Yafo, Tel Aviv District, Israel')).toBe('Tel Aviv-Yafo, Israel');
+  });
+
+  it('keeps a two-part location whole', () => {
+    expect(cityCountry('London, United Kingdom')).toBe('London, United Kingdom');
+  });
+
+  it('leaves a single part alone and ignores empty parts', () => {
+    expect(cityCountry('London')).toBe('London');
+    expect(cityCountry(' London , ')).toBe('London');
+  });
+
+  it('returns null for nothing', () => {
+    expect(cityCountry(null)).toBeNull();
+    expect(cityCountry(' , ')).toBeNull();
   });
 });

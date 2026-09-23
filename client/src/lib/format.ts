@@ -89,10 +89,15 @@ export function isNew(discoveredAt: string | null | undefined): boolean {
   return Date.now() - d.getTime() < 24 * 60 * 60 * 1000;
 }
 
-export function cityOnly(location: string | null | undefined): string | null {
+// City and country: the first and last comma-separated parts. Drops the
+// middle (LinkedIn's "Tel Aviv-Yafo, Tel Aviv District, Israel" becomes
+// "Tel Aviv-Yafo, Israel"), keeps "London, United Kingdom" whole, and leaves a
+// single part alone.
+export function cityCountry(location: string | null | undefined): string | null {
   if (!location) return null;
-  const city = location.split(',')[0]?.trim();
-  return city || null;
+  const parts = location.split(',').map((p) => p.trim()).filter(Boolean);
+  if (parts.length === 0) return null;
+  return parts.length === 1 ? parts[0] : `${parts[0]}, ${parts[parts.length - 1]}`;
 }
 
 // Calendar-day difference (midnight-to-midnight), not raw elapsed hours —

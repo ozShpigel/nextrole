@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import type { DiscoveredJobSummary } from '../lib/types';
 import { CompanyAvatar } from './CompanyAvatar';
-import { cityOnly, formatPostedAgo } from '../lib/format';
+import { cityCountry, formatPostedAgo } from '../lib/format';
 
 /**
  * A retrieved posting that has not been scored for this user yet.
@@ -100,7 +100,7 @@ export function UnscoredCard({
       <div>
         <p className="text-[13px] text-[var(--ed-ink-faint)]">
           {job.company}
-          {job.location ? <span className="pl-2">{cityOnly(job.location)}</span> : null}
+          {job.location ? <span className="pl-2">{cityCountry(job.location)}</span> : null}
         </p>
         <p className="text-[16px] font-medium text-[var(--ed-ink-soft)] leading-snug">
           {job.title}

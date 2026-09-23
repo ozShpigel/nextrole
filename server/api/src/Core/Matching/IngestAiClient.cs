@@ -192,6 +192,11 @@ public sealed class IngestAiClient
             {
                 { "required_years", Num(r, "requiredYears") },
                 { "must_have_tech", Strings(r, "mustHaveTech") },
+                // Written only when the API sent it. An API older than this
+                // field sends none, and an absent must_have_groups is what
+                // marks a row as owed a re-read (JobStore.NeedingFactsReReadAsync)
+                // -- an empty array would claim the new read had happened.
+                { "must_have_groups", Groups(r, "mustHaveGroups"), r.TryGetProperty("mustHaveGroups", out _) },
                 { "nice_to_have_tech", Strings(r, "niceToHaveTech") },
                 { "seniority", (BsonValue?)Str(r, "seniority") ?? BsonNull.Value },
                 { "domain", (BsonValue?)Str(r, "domain") ?? BsonNull.Value },
@@ -230,6 +235,21 @@ public sealed class IngestAiClient
         e.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.Number
             ? new BsonInt32(v.GetInt32())
             : BsonNull.Value;
+
+    private static BsonArray Groups(JsonElement e, string name)
+    {
+        var groups = new BsonArray();
+        if (!e.TryGetProperty(name, out var v) || v.ValueKind != JsonValueKind.Array) return groups;
+        foreach (var g in v.EnumerateArray())
+        {
+            if (g.ValueKind != JsonValueKind.Array) continue;
+            var members = new BsonArray();
+            foreach (var m in g.EnumerateArray())
+                if (m.ValueKind == JsonValueKind.String) members.Add(m.GetString());
+            if (members.Count > 0) groups.Add(members);
+        }
+        return groups;
+    }
 
     private static BsonArray Strings(JsonElement e, string name)
     {

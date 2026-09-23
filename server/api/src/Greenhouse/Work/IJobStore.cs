@@ -81,6 +81,19 @@ public interface IJobStore
     Task<IReadOnlyList<StoredJobContent>> NeedingIngestAiAsync(
         string boardToken, int limit, CancellationToken ct);
 
+    /// <summary>
+    /// Open postings whose facts were read before requirement groups existed.
+    /// </summary>
+    /// <remarks>
+    /// Their <c>must_have_tech</c> is a flat list, so "Go, Ruby, or Python" is
+    /// stored as three requirements and scored as three gaps against a Python
+    /// candidate. Only the FACTS are re-read: the parse, the content hash and
+    /// the vector are all still valid, and re-running the parse would pay
+    /// roughly five times the facts cost for an identical result.
+    /// </remarks>
+    Task<IReadOnlyList<StoredJobContent>> NeedingFactsReReadAsync(
+        string boardToken, int limit, CancellationToken ct);
+
     Task<long> CloseMissingAsync(
         string boardToken, IReadOnlyCollection<long> seenIds, int emptyResponseGuardThreshold,
         DateTime now, CancellationToken ct);

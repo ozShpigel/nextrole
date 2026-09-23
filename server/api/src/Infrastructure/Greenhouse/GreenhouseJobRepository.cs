@@ -328,6 +328,8 @@ public sealed class GreenhouseJobRepository : IPoolJobRepository
         JobUrl = Str(d, GreenhouseJobFields.AbsoluteUrl),
         FirstSeenAt = Date(d, GreenhouseJobFields.FirstSeenAt),
         MustHaveTech = ExtractedStrings(d, "must_have_tech"),
+        MustHaveGroups = RequirementGroups.From(
+            ExtractedGroups(d, "must_have_groups"), ExtractedStrings(d, "must_have_tech")),
         NiceToHaveTech = ExtractedStrings(d, "nice_to_have_tech"),
         // The ingest's Analyst read. Null falls through to an inline parse for
         // that job alone -- the behaviour that existed before the cache, so a
@@ -387,6 +389,17 @@ public sealed class GreenhouseJobRepository : IPoolJobRepository
         && e.AsBsonDocument.TryGetValue(field, out var v) && v.IsString
             ? v.AsString
             : null;
+
+    // extracted.must_have_groups as written by the ingest: an array of string
+    // arrays. Anything else in it is skipped rather than guessed at.
+    private static string[][] ExtractedGroups(BsonDocument d, string field)
+    {
+        if (!d.TryGetValue("extracted", out var e) || !e.IsBsonDocument) return [];
+        if (!e.AsBsonDocument.TryGetValue(field, out var v) || !v.IsBsonArray) return [];
+        return [.. v.AsBsonArray
+            .Where(g => g.IsBsonArray)
+            .Select(g => g.AsBsonArray.Where(x => x.IsString).Select(x => x.AsString).ToArray())];
+    }
 
     private static string[] ExtractedStrings(BsonDocument d, string field)
     {

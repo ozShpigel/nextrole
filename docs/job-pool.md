@@ -80,7 +80,8 @@ states:
 | Field | |
 |---|---|
 | `required_years` | the minimum stated, integer; lower bound of a range. Never derived from a seniority word |
-| `must_have_tech` / `nice_to_have_tech` | split the way the posting splits them; everything is must-have when it does not |
+| `must_have_tech` / `nice_to_have_tech` | split the way the posting splits them; everything is must-have when it does not. "Exposure to" / "familiarity with" / "ideally" is nice-to-have |
+| `must_have_groups` | the same must-haves as **requirements**: each inner array is one requirement, met by any of its members. `must_have_tech` is its flattening and exists only for the candidate filter's `$in` |
 | `seniority` | one of the five bands, or null when ambiguous (lean permissive) |
 | `domain` | industry / problem area |
 | `location` | normalized, with a `(remote)` / `(hybrid)` marker when stated |
@@ -88,7 +89,18 @@ states:
 Stored on the job as `extracted`, beside the raw posting. It is **user-independent
 by construction** — the endpoint reads no profile and scores nothing — which is
 what makes one stored result valid for every user. It is never recomputed: an
-already-present job is only touched for presence.
+already-present job is only touched for presence. The one exception is the
+Greenhouse source's facts-only re-read of rows that predate `must_have_groups`
+(`JobStore.NeedingFactsReReadAsync`, 100 per board per run, at most two tries).
+
+**Why groups.** Stored flat, "languages such as Go, Ruby, or Python" and
+"PostgreSQL or MySQL" were five requirements, and a Python + PostgreSQL
+candidate was counted as missing three. On Deliveroo's "Software Engineer" that
+was 6 of 8 "absent", Core Stack capped 12 → 4, Technical 15/35, for a
+candidate who met every stated requirement. Re-extracted, the 29 Deliveroo UK
+engineering postings went from up to 11 names to at most 4 requirements each.
+Rows without groups read each flat name as a group of one — exactly how they
+were counted before.
 
 The call lives in the API (`POST /api/match/job-facts`) like every other
 Claude call; the scraper delegates over HTTP. It takes no user identity, shares

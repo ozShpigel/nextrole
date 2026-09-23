@@ -733,6 +733,16 @@ public sealed class ClaudeClient : IClaudeClient
             cancellationToken,
             JobFactsChunkSize);
 
+        // Groups are the source of truth for what is required; the flat list
+        // is derived from them so the two can never disagree. A model that
+        // ignored the new field and answered only the flat list gets each name
+        // as its own requirement -- the old behaviour, never a worse one.
+        results = [.. results.Select(r =>
+        {
+            var groups = RequirementGroups.From(r.MustHaveGroups, r.MustHaveTech);
+            return r with { MustHaveGroups = groups, MustHaveTech = RequirementGroups.Flatten(groups) };
+        })];
+
         // A job with no facts is not dropped: the pool keeps it and the caller
         // records that extraction is still owed, so a bad run costs a retry
         // rather than a posting.

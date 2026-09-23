@@ -41,6 +41,9 @@ public sealed record MatchBatchItem
     // where JobMatchService falls back to the Analyst's own reading.
     public string[]? MustHaveTech { get; init; }
     public string[]? NiceToHaveTech { get; init; }
+    // The must-haves as requirements (RequirementGroups). When present, the gap
+    // count and the Core Stack cap count these, not the flat names.
+    public string[][]? MustHaveGroups { get; init; }
     // The pool's stored Analyst read of this posting, when there is one. The
     // Analyst takes no profile, so its output cannot differ between users —
     // supplying it here skips a call that would recompute an identical result.

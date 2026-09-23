@@ -33,18 +33,26 @@ public sealed class JobMatchService : IJobMatchService
     // fallback for the manual page and for pool rows that entered before
     // extraction existed; it does not make that distinction, so the
     // nice-to-have half is subtracted by name.
-    private static string[] RequiredTechFrom(MatchBatchItem? item, ParsedJob parsedJob)
+    //
+    // Returned as REQUIREMENTS (RequirementGroups): a group is met by any one
+    // of its members, so "Go, Ruby, or Python" is one requirement. Rows
+    // extracted before groups existed, and the Analyst fallback, have no
+    // alternatives to keep together and come back as groups of one -- counted
+    // exactly as they always were.
+    private static string[][] RequiredGroupsFrom(MatchBatchItem? item, ParsedJob parsedJob)
     {
-        if (item?.MustHaveTech is { Length: > 0 } must) return must;
+        var groups = RequirementGroups.From(item?.MustHaveGroups, item?.MustHaveTech);
+        if (groups.Length > 0) return groups;
         var optional = new HashSet<string>(parsedJob.NiceToHaveSkills, StringComparer.OrdinalIgnoreCase);
-        return parsedJob.NamedTechnologies.Where(t => !optional.Contains(t)).ToArray();
+        return RequirementGroups.From(null, parsedJob.NamedTechnologies.Where(t => !optional.Contains(t)));
     }
 
     // Nice-to-haves are not gaps, but a rationale may not claim them either.
     private static string[] OptionalTechFrom(MatchBatchItem? item, ParsedJob parsedJob)
     {
         if (item?.NiceToHaveTech is { Length: > 0 } nice) return nice;
-        var required = new HashSet<string>(RequiredTechFrom(item, parsedJob), StringComparer.OrdinalIgnoreCase);
+        var required = new HashSet<string>(
+            RequirementGroups.Flatten(RequiredGroupsFrom(item, parsedJob)), StringComparer.OrdinalIgnoreCase);
         return parsedJob.NiceToHaveSkills
             .Concat(parsedJob.NamedTechnologies)
             .Where(t => !required.Contains(t))
@@ -89,7 +97,7 @@ public sealed class JobMatchService : IJobMatchService
         var corrected = Correct(
             matchResponse, _scoring, ReviewCap(request.GlassdoorData?.ReviewCount), parsedJob,
             request.GlassdoorData, redFlags, structured,
-            RequiredTechFrom(null, parsedJob), OptionalTechFrom(null, parsedJob)) with
+            RequiredGroupsFrom(null, parsedJob), OptionalTechFrom(null, parsedJob)) with
         {
             JobTitle = parsedJob.JobTitle,
             Company = parsedJob.Company,
@@ -175,7 +183,7 @@ public sealed class JobMatchService : IJobMatchService
             var corrected = Correct(
                 raw, _scoring, ReviewCap(p.Item.GlassdoorData?.ReviewCount), p.ParsedJob,
                 p.Item.GlassdoorData, redFlags, structured,
-                RequiredTechFrom(p.Item, p.ParsedJob), OptionalTechFrom(p.Item, p.ParsedJob)) with
+                RequiredGroupsFrom(p.Item, p.ParsedJob), OptionalTechFrom(p.Item, p.ParsedJob)) with
             {
                 JobTitle = p.ParsedJob.JobTitle,
                 Company = p.ParsedJob.Company,
@@ -234,18 +242,18 @@ public sealed class JobMatchService : IJobMatchService
 
     // Re-derive verdict from the numeric score (authoritative bands) and recompute
     // shouldApply from the save threshold — the AI's own verdict/flag are advisory.
-    // `profile` and `requiredTech` are what make the gap count and the claim
+    // `profile` and `requiredGroups` are what make the gap count and the claim
     // check possible: the posting's stated requirements are compared against
     // the candidate's own profile here, on the server, instead of being taken
     // from the model's account of itself.
     private MatchResponse Correct(
         MatchResponse r, ScoringConfig cfg, int reviewCap, ParsedJob parsedJob,
         GlassdoorData? glassdoorData, string[] redFlags,
-        StructuredProfile profile, string[] requiredTech, string[] optionalTech)
+        StructuredProfile profile, string[][] requiredGroups, string[] optionalTech)
     {
         r = EnforceReviewCaps(r, reviewCap);
-        r = GroundClaims(r, profile, requiredTech, optionalTech);
-        r = EnforceStackedGapsCap(r, requiredTech);
+        r = GroundClaims(r, profile, requiredGroups, optionalTech);
+        r = EnforceStackedGapsCap(r, requiredGroups);
         r = EnforceScoreBounds(r);
         r = EnforceEvidenceCaps(r, parsedJob, glassdoorData);
         r = EnforceQuickHighlightsLength(r);
@@ -288,12 +296,12 @@ public sealed class JobMatchService : IJobMatchService
     // leaves the model's list alone: there is nothing to check against, and
     // EnforceEvidenceCaps already handles "the JD said nothing".
     private MatchResponse GroundClaims(
-        MatchResponse r, StructuredProfile profile, string[] requiredTech, string[] optionalTech)
+        MatchResponse r, StructuredProfile profile, string[][] requiredGroups, string[] optionalTech)
     {
-        if (requiredTech.Length == 0 && optionalTech.Length == 0) return r;
+        if (requiredGroups.Length == 0 && optionalTech.Length == 0) return r;
 
         var evidence = ClaimGrounding.ProfileEvidence(profile);
-        var gaps = ClaimGrounding.RequiredButAbsent(requiredTech, evidence);
+        var gaps = ClaimGrounding.RequiredGroupsButAbsent(requiredGroups, evidence);
 
         // The model's own list is not used, but a divergence is worth seeing:
         // it is the cheapest signal that the Evaluator is talking itself out of
@@ -307,7 +315,9 @@ public sealed class JobMatchService : IJobMatchService
         // Nice-to-have technologies are not gaps (the prompt's own rule) but a
         // rationale still must not claim them, so both lists feed the claim check.
         var claims = ClaimGrounding.Find(
-            r with { StackedGaps = gaps }, requiredTech.Concat(optionalTech), profile);
+            // Every alternative is checked by name: a rationale claiming Go for
+            // a Python candidate is unsupported even though Python met the group.
+            r with { StackedGaps = gaps }, RequirementGroups.Flatten(requiredGroups).Concat(optionalTech), profile);
         foreach (var c in claims)
             _logger.LogWarning(
                 "Unsupported claim: technology={Technology} field={Field} text=\"{Text}\"",
@@ -325,10 +335,10 @@ public sealed class JobMatchService : IJobMatchService
     // server-side rather than trust the model to self-discount it.
     // The ceiling itself is CoreStackCap.For - flat at 11 until it was measured
     // and found to charge the same for 4 missing requirements as for 14.
-    private MatchResponse EnforceStackedGapsCap(MatchResponse r, string[] requiredTech)
+    private MatchResponse EnforceStackedGapsCap(MatchResponse r, string[][] requiredGroups)
     {
         var gaps = r.StackedGaps.Length;
-        var required = ClaimGrounding.RequirementCount(requiredTech);
+        var required = ClaimGrounding.GroupRequirementCount(requiredGroups);
         var ceiling = CoreStackCap.For(gaps, required);
         if (ceiling >= CoreStackCap.MaxScore) return r;
 

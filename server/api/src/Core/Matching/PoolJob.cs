@@ -21,6 +21,11 @@ public sealed record PoolJob
     // against the profile instead of trusting the model's account of them.
     public string[] MustHaveTech { get; init; } = [];
     public string[] NiceToHaveTech { get; init; } = [];
+    // The same must-haves as requirements, alternatives kept together
+    // (RequirementGroups). What scoring counts; the flat list above is what the
+    // candidate filter matches. A row extracted before groups existed reads
+    // each flat entry as a group of one.
+    public string[][] MustHaveGroups { get; init; } = [];
 
     // Company enrichment the ingest already scraped and stored on the pool
     // document. It is user-independent — a company's news and its employee

@@ -335,6 +335,7 @@ public sealed class PoolScanService : IPoolScanService
                 // same facts to ground the rationale against the profile.
                 MustHaveTech = j.MustHaveTech,
                 NiceToHaveTech = j.NiceToHaveTech,
+                MustHaveGroups = j.MustHaveGroups,
                 // Review evidence, on the documents that still have any. NOTHING
                 // PRODUCES IT ANY MORE: the DDG-based Glassdoor scraper was
                 // deleted with the criteria path, having succeeded for 49 of 875

@@ -4,6 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { createPortal } from 'react-dom';
 import { X, SlidersHorizontal, Plus, Check, Search } from 'lucide-react';
 import { useScoredJobs, usePoolScan, usePoolBand, useScoreJobs } from '../lib/queries';
+import { matchesBandFilters } from '../lib/bandFilters';
 import { useSaveJob, useDismissJob, useMarkViewed } from '../lib/mutations';
 import type { DiscoveredJobSummary } from '../lib/types';
 import { VERDICT_LABELS } from '../lib/scoring';
@@ -548,8 +549,12 @@ export default function SearchPage() {
   const unscoredBand = useMemo(
     () => (bandQuery.data?.jobs ?? []).filter(
       (j) => j.score === null || j.score === undefined,
-    ).filter((j) => !scoredIds.has(j.id) && !dismissedIds.has(j.id)),
-    [bandQuery.data, scoredIds, dismissedIds],
+    ).filter((j) => !scoredIds.has(j.id) && !dismissedIds.has(j.id))
+      // The panel's filters, which the band otherwise arrives without.
+      .filter((j) => matchesBandFilters(j, {
+        levels, isRemote, location: locationDebounced, text: searchDebounced,
+      })),
+    [bandQuery.data, scoredIds, dismissedIds, levels, isRemote, locationDebounced, searchDebounced],
   );
 
   function flushQueue(): void {

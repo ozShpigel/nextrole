@@ -149,6 +149,7 @@ public sealed class GreenhouseJobRepository : IPoolJobRepository
             .Select(ToPoolJob)
             .Where(j => !exclude.Contains(j.Id))
             .Where(j => MatchesLocation(j, filter.LocationTerm, filter.LocationText))
+            .Where(j => MatchesSeniority(j, filter.SeniorityBands))
             .OrderBy(j => rank.TryGetValue(j.Id, out var r) ? r : int.MaxValue)
             .ToList();
 
@@ -156,11 +157,30 @@ public sealed class GreenhouseJobRepository : IPoolJobRepository
 
         _log.LogInformation(
             "Greenhouse candidates: {Fetched} vector hit(s), {Excluded} already scored, "
-            + "{Matched} in {Term}, returning top {Returned} of those (limit {Limit})",
+            + "{Matched} in {Term} at {Bands}, returning top {Returned} of those (limit {Limit})",
             ids.Count, exclude.Count, matched.Count, filter.LocationTerm ?? "(any)",
+            filter.SeniorityBands.Count > 0 ? string.Join("/", filter.SeniorityBands) : "(any level)",
             candidates.Count, limit);
 
         return candidates;
+    }
+
+    /// <summary>
+    /// Whether a posting's extracted seniority is one the candidate would want.
+    /// </summary>
+    /// <remarks>
+    /// The same rule the LinkedIn pool applies in its Mongo query
+    /// (<c>PoolJobRepository</c>): the band must be one of
+    /// <see cref="CandidateFilter.SeniorityBands"/> -- the candidate's own and
+    /// one either side -- and a posting with no stated band passes. It was
+    /// missing here, so a senior engineer's board carried "New Grad" roles, and
+    /// each one cost a Claude call when the reader scrolled to it.
+    /// </remarks>
+    public static bool MatchesSeniority(PoolJob job, IReadOnlyList<string> bands)
+    {
+        if (bands.Count == 0) return true;
+        if (string.IsNullOrWhiteSpace(job.Seniority)) return true;   // unstated passes
+        return bands.Contains(job.Seniority.Trim(), StringComparer.OrdinalIgnoreCase);
     }
 
     /// <summary>
@@ -256,11 +276,44 @@ public sealed class GreenhouseJobRepository : IPoolJobRepository
         var ids = jobIds.Where(IsObjectId).Select(ObjectId.Parse).ToList();
         if (ids.Count == 0) return [];
 
+        var b = Builders<BsonDocument>.Filter;
         var clauses = new List<FilterDefinition<BsonDocument>>
         {
-            Builders<BsonDocument>.Filter.In("_id", ids),
+            b.In("_id", ids),
             Open,
         };
+
+        // The Matches filters, which this source used to ignore silently: the
+        // client sent them, the text search was the only one applied, and the
+        // chips appeared to work while filtering nothing. Same meanings as
+        // PoolJobRepository.BrowseAsync, over this collection's fields.
+        //
+        // DaysBack is deliberately NOT applied. It means "first seen within N
+        // days" and defaults to 14, which suited LinkedIn listings that aged
+        // out; a Greenhouse board keeps a role open for months, so honouring it
+        // would drop every scored job older than two weeks from the default
+        // board. It needs a meaning for this source first (and the band, which
+        // calls this with the default query, would need exempting).
+
+        if (!string.IsNullOrWhiteSpace(query.Location))
+        {
+            var location = ContainsText(query.Location);
+            clauses.Add(b.Or(
+                b.Regex(GreenhouseJobFields.ExtractedLocation, location),
+                b.Regex(GreenhouseJobFields.Location, location)));
+        }
+
+        // No is_remote field on this source: the extraction writes the
+        // arrangement into the location ("London, UK (remote)"), so that is the
+        // only place the answer exists.
+        if (query.IsRemote is { } remote)
+        {
+            var isRemote = b.Regex(GreenhouseJobFields.ExtractedLocation, new BsonRegularExpression("remote", "i"));
+            clauses.Add(remote ? isRemote : b.Not(isRemote));
+        }
+
+        if (query.Levels.Count > 0)
+            clauses.Add(b.In(GreenhouseJobFields.ExtractedSeniority, query.Levels.Select(l => (BsonValue)l)));
 
         if (!string.IsNullOrWhiteSpace(query.Text))
         {
@@ -282,6 +335,9 @@ public sealed class GreenhouseJobRepository : IPoolJobRepository
 
         return [.. docs.Select(ToListItem)];
     }
+
+    private static BsonRegularExpression ContainsText(string value) =>
+        new(System.Text.RegularExpressions.Regex.Escape(value.Trim()), "i");
 
     /// <summary>
     /// Greenhouse ids sharing a posting URL.
@@ -330,6 +386,7 @@ public sealed class GreenhouseJobRepository : IPoolJobRepository
         MustHaveTech = ExtractedStrings(d, "must_have_tech"),
         MustHaveGroups = RequirementGroups.From(
             ExtractedGroups(d, "must_have_groups"), ExtractedStrings(d, "must_have_tech")),
+        Seniority = ExtractedStr(d, "seniority"),
         NiceToHaveTech = ExtractedStrings(d, "nice_to_have_tech"),
         // The ingest's Analyst read. Null falls through to an inline parse for
         // that job alone -- the behaviour that existed before the cache, so a

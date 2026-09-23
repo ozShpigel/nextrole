@@ -20,6 +20,10 @@ public sealed record PoolJob
     // reads both, to compute the gap list and to check the rationale's claims
     // against the profile instead of trusting the model's account of them.
     public string[] MustHaveTech { get; init; } = [];
+    // extracted.seniority: one of CandidateFilter's five bands, or null when the
+    // posting did not make it clear. Read by the in-memory seniority filter of
+    // a source that cannot filter in its query (GreenhouseJobRepository).
+    public string? Seniority { get; init; }
     public string[] NiceToHaveTech { get; init; } = [];
     // The same must-haves as requirements, alternatives kept together
     // (RequirementGroups). What scoring counts; the flat list above is what the

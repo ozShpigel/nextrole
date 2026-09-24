@@ -5,13 +5,14 @@ import { createPortal } from 'react-dom';
 import { X, SlidersHorizontal, Plus, Check, Search } from 'lucide-react';
 import { useScoredJobs, usePoolScan, usePoolBand, useScoreJobs } from '../lib/queries';
 import { matchesBandFilters } from '../lib/bandFilters';
+import { stableOrder } from '../lib/boardOrder';
+import { useDwell } from '../lib/useDwell';
 import { useSaveJob, useDismissJob, useMarkViewed } from '../lib/mutations';
 import type { DiscoveredJobSummary } from '../lib/types';
 import { VERDICT_LABELS } from '../lib/scoring';
 import { cityCountry, formatPostedAgo, isNew, hasRealJobUrl } from '../lib/format';
 import AnalysisCard, { edVerdictColor } from '../components/AnalysisCard';
 import { CompanyAvatar } from '../components/CompanyAvatar';
-import { UnscoredCard } from '../components/UnscoredCard';
 import { JobDescriptionText } from '../components/JobDescriptionText';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -124,8 +125,28 @@ function RationaleTooltip({ anchorRef, highlights }: { anchorRef: React.RefObjec
 // Everything else on the row is neutral ink, so this is the one thing that
 // pops while scanning. Hovering it reveals the green/red flags + a honest-
 // assessment excerpt as a floating panel.
-function MatchScore({ job, align = 'end' }: { job: DiscoveredJobSummary; align?: 'start' | 'end' }) {
+function MatchScore({ job, align = 'end', pulse = true }: { job: DiscoveredJobSummary; align?: 'start' | 'end'; pulse?: boolean }) {
   const tone = edVerdictColor(job.verdict);
+
+  // Not scored yet: a quiet block the size of the number, never a number.
+  // Retrieval similarity is the only figure available here for free, and it
+  // orders the field, not the leaderboard (+0.65 against real scores overall,
+  // -0.15 within the top ten) — shown as a score it would reshuffle the moment
+  // the real one arrived. The card otherwise looks exactly like a scored one,
+  // so scoring happens without the board announcing it.
+  if (job.score === null || job.score === undefined) {
+    return (
+      <div className={`relative shrink-0 flex w-[4.5rem] ${align === 'start' ? 'justify-start' : 'justify-end'}`}>
+        <span
+          aria-hidden="true"
+          data-testid="score-placeholder"
+          className={`block w-[3.25rem] h-[40px] rounded-lg bg-[var(--ed-rule)] opacity-60 ${pulse ? 'animate-pulse' : ''}`}
+        />
+        <span className="sr-only">Not scored yet</span>
+      </div>
+    );
+  }
+
   // Absent on jobs scored before this field existed — no tooltip for those,
   // rather than showing an empty box on hover.
   const highlights = job.match_analysis?.quickHighlights;
@@ -140,8 +161,8 @@ function MatchScore({ job, align = 'end' }: { job: DiscoveredJobSummary; align?:
       onMouseEnter={() => hasHighlights && setOpen(true)}
       onMouseLeave={() => setOpen(false)}
     >
-      <span className="text-[40px] font-medium leading-none tabular-nums" style={{ color: tone }}>
-        {job.score ?? '—'}
+      <span className="text-[40px] font-medium leading-none tabular-nums animate-in fade-in duration-500" style={{ color: tone }}>
+        {job.score}
       </span>
       {open && hasHighlights && <RationaleTooltip anchorRef={anchorRef} highlights={highlights!} />}
     </div>
@@ -156,16 +177,28 @@ interface MatchCardProps {
   onSelect: (id: string) => void;
   onSave: (jobId: string) => void;
   onDismiss: (jobId: string) => void;
+  /** Unscored cards only: called once the card has dwelled in view, to score it. */
+  onVisible?: (jobId: string) => void;
+  /** False once today's scoring budget is used up: the placeholder stops pulsing. */
+  pulse?: boolean;
 }
 
 // Default browse view — a full card. Clicking one switches the whole page
 // into the master-detail (list + JD/analysis panel) view, it doesn't expand
 // in place.
-function MatchCard({ job, index, saved, dismissed, onSelect, onSave, onDismiss }: MatchCardProps) {
+function MatchCard({ job, index, saved, dismissed, onSelect, onSave, onDismiss, onVisible, pulse }: MatchCardProps) {
   const clickable = !!job.match_analysis;
+
+  // An unscored card asks to be scored when the reader reaches it. Not once it
+  // is scored, added (the save scores it) or dismissed (× skips the call).
+  const ref = useRef<HTMLElement>(null);
+  const unscored = job.score === null || job.score === undefined;
+  useDwell(ref, job.id, unscored && !saved && !dismissed ? onVisible : undefined);
 
   return (
     <article
+      ref={ref}
+      data-job-id={job.id}
       className={`ed-rise group border rounded-2xl p-5 flex flex-col gap-3 transition-colors ${dismissed ? 'opacity-40' : ''} border-[var(--ed-rule)] ${
         clickable ? 'cursor-pointer hover:border-[var(--ed-ink-faint)]' : ''
       }`}
@@ -182,7 +215,7 @@ function MatchCard({ job, index, saved, dismissed, onSelect, onSave, onDismiss }
     >
       <div className="flex items-start justify-between gap-3">
         <CompanyAvatar name={job.company} logo={job.company_logo} size={36} />
-        <MatchScore job={job} />
+        <MatchScore job={job} pulse={pulse} />
       </div>
 
       <div className="min-w-0">
@@ -549,12 +582,25 @@ export default function SearchPage() {
   const unscoredBand = useMemo(
     () => (bandQuery.data?.jobs ?? []).filter(
       (j) => j.score === null || j.score === undefined,
-    ).filter((j) => !scoredIds.has(j.id) && !dismissedIds.has(j.id))
+    ).filter((j) => !scoredIds.has(j.id))
       // The panel's filters, which the band otherwise arrives without.
       .filter((j) => matchesBandFilters(j, {
         levels, isRemote, location: locationDebounced, text: searchDebounced,
       })),
-    [bandQuery.data, scoredIds, dismissedIds, levels, isRemote, locationDebounced, searchDebounced],
+    [bandQuery.data, scoredIds, levels, isRemote, locationDebounced, searchDebounced],
+  );
+
+  // One board, scored and unscored together, each card staying where it was
+  // first shown (boardOrder.ts). A fresh memory per query, so a filter or a
+  // search re-sorts; the same one otherwise, so a score landing moves nothing.
+  // Positions are only handed out once both halves have arrived: the band is
+  // cheap and usually first, and remembering it before the scored jobs would
+  // push every scored card below it.
+  const positions = useMemo(() => new Map<string, number>(), [query]);
+  const bothLoaded = !!jobsQuery.data && !!bandQuery.data;
+  const board = useMemo(
+    () => (bothLoaded ? stableOrder([...jobs, ...unscoredBand], positions) : [...jobs, ...unscoredBand]),
+    [bothLoaded, jobs, unscoredBand, positions],
   );
 
   function flushQueue(): void {
@@ -634,11 +680,20 @@ export default function SearchPage() {
     });
   }
 
+  // Shown as added at once. A card without a score is scored by the save
+  // before it lands in Active (ScoreBeforeSave on the server), which takes
+  // seconds — waiting on it here would make Add the one place the scoring
+  // shows. Rolled back if the save fails.
   async function handleSave(jobId: string): Promise<void> {
+    setSavedIds((prev) => new Set(prev).add(jobId));
     try {
       await saveJob.mutateAsync(jobId);
-      setSavedIds((prev) => new Set(prev).add(jobId));
     } catch (e) {
+      setSavedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(jobId);
+        return next;
+      });
       alert('Save failed: ' + (e as Error).message);
     }
   }
@@ -681,6 +736,8 @@ export default function SearchPage() {
     daysBack !== 14 || location.trim() !== '' || isRemote !== undefined ||
     levels.size > 0 || verdicts.size > 0 || minScore.trim() !== '';
 
+  const filtering = hasActiveFilters || searchDebounced.trim() !== '';
+
   const activeFilterCount =
     (daysBack !== 14 ? 1 : 0) + (location.trim() !== '' ? 1 : 0) + (isRemote !== undefined ? 1 : 0) +
     levels.size + verdicts.size + (minScore.trim() !== '' ? 1 : 0);
@@ -702,9 +759,6 @@ export default function SearchPage() {
             Matches
           </h1>
           <div className="flex items-center gap-3">
-            {scanning && (
-              <span className="text-[13px] text-[var(--ed-ink-faint)]">Scoring new jobs…</span>
-            )}
             {moreToScore && !scanning && (
               <button
                 type="button"
@@ -714,16 +768,14 @@ export default function SearchPage() {
                 Score more
               </button>
             )}
-            {jobsQuery.data && (
-              /* Two numbers, kept apart. "15 matches" reads as the size of the
-                 result set when it is really the size of what has been judged
-                 so far -- which is how a first visit looked like five bad jobs
-                 rather than five of dozens. They are not phrased as "15 of 40"
-                 either: that implies a progress bar toward scoring everything,
-                 which is not the goal and not something to spend on. */
+            {filtering && bothLoaded && (
+              /* Only while filtering, and one total. A scored/unscored split
+                 described the machinery, not the result -- scored and unscored
+                 cards now look alike on purpose. With no filter the grid is the
+                 answer and a count adds nothing; with one, the count is what
+                 says the filter did something. */
               <span className="text-[13px] font-medium text-[var(--ed-ink-faint)] tabular-nums">
-                {jobsQuery.data.total} scored
-                {unscoredBand.length > 0 ? ` · ${unscoredBand.length} more` : ''}
+                {board.length} result{board.length === 1 ? '' : 's'}
               </span>
             )}
           </div>
@@ -865,7 +917,7 @@ export default function SearchPage() {
             <p className={EMPTY_STATE}>
               Loading matches…
             </p>
-          ) : jobs.length === 0 && unscoredBand.length === 0 ? (
+          ) : board.length === 0 ? (
             /* Four different reasons the board can be empty, and they need
                different answers. Telling someone to "relax the filters" when
                they have not uploaded a CV, or when scoring is still running,
@@ -939,7 +991,12 @@ export default function SearchPage() {
           ) : (
             /* Default browse view — full card grid. */
             <div className={`flex-1 min-w-0 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 ${!filtersOpen ? '2xl:grid-cols-5' : ''}`}>
-              {jobs.map((job, idx) => (
+              {/* Scored and unscored in one grid, identical but for the score
+                  slot. The unscored ones are the rest of the band — retrieved,
+                  relevant, not yet judged — shown because retrieval is nearly
+                  free and the board would otherwise look five jobs long. Each
+                  scores itself when the reader reaches it. */}
+              {board.map((job, idx) => (
                 <MatchCard
                   key={job.id}
                   job={job}
@@ -949,20 +1006,8 @@ export default function SearchPage() {
                   onSelect={handleSelect}
                   onSave={handleSave}
                   onDismiss={handleDismiss}
-                />
-              ))}
-
-              {/* The rest of the band: retrieved, relevant, not yet judged.
-                  Shown because the alternative is pretending the board is
-                  five jobs long when the retrieval found dozens — and the
-                  retrieval is nearly free, so there is no reason to hide it.
-                  Each card scores itself when the reader reaches it. */}
-              {unscoredBand.map((job) => (
-                <UnscoredCard
-                  key={job.id}
-                  job={job}
-                  pending={pendingIds.has(job.id)}
                   onVisible={handleCardVisible}
+                  pulse={!budgetGone}
                 />
               ))}
             </div>
@@ -973,11 +1018,12 @@ export default function SearchPage() {
         {/* Outside the filters/grid flex row on purpose: as a sibling of the
             grid it became a flex item and squeezed the cards into one
             overlapping column. Said once, under everything. */}
-        {!selectedJob && unscoredBand.length > 0 && (
+        {/* Said only when it changes what the reader sees: past the daily
+            budget, blank score slots stay blank until tomorrow, and without
+            this they would look like scores that never arrived. */}
+        {!selectedJob && budgetGone && unscoredBand.length > 0 && (
           <p className="pt-5 text-[13px] text-[var(--ed-ink-faint)] text-center">
-            {budgetGone
-              ? `${unscoredBand.length} more role${unscoredBand.length === 1 ? '' : 's'} retrieved — today's scoring budget is used up, so these stay unscored until tomorrow.`
-              : `${unscoredBand.length} more role${unscoredBand.length === 1 ? '' : 's'} retrieved — scored as you scroll.`}
+            Today's scoring limit is reached — the {unscoredBand.length} role{unscoredBand.length === 1 ? '' : 's'} without a score get one tomorrow.
           </p>
         )}
       </div>

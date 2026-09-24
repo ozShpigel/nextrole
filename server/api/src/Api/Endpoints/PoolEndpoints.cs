@@ -161,6 +161,7 @@ public static class PoolEndpoints
             IApplicationRepository apps,
             IMatchSnapshotRepository snapshots,
             IStatusUpdateRepository statusRepo,
+            IPoolScanService scan,
             ILogger<Program> logger,
             CancellationToken ct) =>
         {
@@ -177,10 +178,27 @@ public static class PoolEndpoints
             // silently dropped the verdict the user was looking at when they
             // clicked Add, and the Active board promises that breakdown.
             //
-            // A missing row means this job was never scored for this user. Add
-            // is reachable only from a listing of scored jobs, so that is the
-            // unusual path — save it unscored rather than refuse.
+            // A missing row means this job was never scored for this user --
+            // the ordinary case now that unscored cards carry the same Add
+            // button. Score it first (ScoreBeforeSave explains why, and the
+            // in-flight wait); with no score to be had, save it unscored rather
+            // than refuse.
             var score = (await scores.GetByJobIdsAsync(user.UserId, [jobId], ct)).FirstOrDefault();
+            if (score is null)
+            {
+                try
+                {
+                    score = await ScoreBeforeSave.EnsureAsync(
+                        c => scan.ScoreByIdsAsync(user.UserId, [jobId], c),
+                        async c => (await scores.GetByJobIdsAsync(user.UserId, [jobId], c)).FirstOrDefault(),
+                        Task.Delay,
+                        ct);
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    logger.LogWarning(ex, "Scoring {JobId} before saving it failed; saving it unscored", jobId);
+                }
+            }
 
             // The mapping is a pure function so the join above can be pinned by
             // tests -- it has gone wrong once already. See PoolJobApplication.

@@ -55,6 +55,9 @@ export function useDismissJob() {
       poolApi(`/jobs/${jobId}/dismiss`, { method: 'POST' }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['discovery'] });
+      // The band too: an unscored card is dismissed from the same board, and
+      // should leave it the way a scored one does.
+      queryClient.invalidateQueries({ queryKey: ['match', 'pool-band'] });
     },
   });
 }

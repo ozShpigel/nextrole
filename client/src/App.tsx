@@ -3,13 +3,13 @@ import { Navigate, NavLink, Outlet, useLocation, useNavigationType } from 'react
 import { Search, Kanban, Mail, GraduationCap, User } from 'lucide-react';
 import { useHasProfile, useProfile, useResumeFile } from './lib/queries';
 import { NoticeBanner } from './components/NoticeBanner';
+import { isCvUploadInProgress, useCvUpload } from './lib/cvUpload';
 import { BrandMark } from './components/BrandMark';
 
 // Routes exempt from the onboarding redirect: "/" is the onboarding screen
 // itself (nowhere to redirect to), "/settings" is where profile setup
 // actually happens, "/score" works standalone without a saved profile,
-// "/processing" is the post-upload beat — the profile queries may not have
-// refetched yet when it mounts, and it always hands off to "/search" itself.
+// "/processing" is the retired post-upload page, kept only as a redirect.
 const ONBOARDING_EXEMPT_PATHS = new Set(['/', '/settings', '/score', '/processing']);
 
 // A brand-new profile means every other page (Matches, Active, Applications,
@@ -21,8 +21,13 @@ function OnboardingGate() {
   const profileQuery = useProfile();
   const resumeQuery = useResumeFile();
   const hasProfile = useHasProfile();
+  const upload = useCvUpload();
 
   if (ONBOARDING_EXEMPT_PATHS.has(pathname)) return <Outlet />;
+  // A résumé being read right now: there is no profile YET, and redirecting
+  // to "/" would bounce the reader off the Matches skeleton they were just
+  // sent to (cvUpload.ts).
+  if (isCvUploadInProgress(upload)) return <Outlet />;
   // undefined is "still loading" OR "errored" — useHasProfile collapses both,
   // and they differ here. Fail OPEN on the error: a transient cold-start or
   // network blip must never lock a real user out by misreading "errored" as

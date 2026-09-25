@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef, useLayoutEffect } from 'react';
-import { useLocation } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { createPortal } from 'react-dom';
 import { X, SlidersHorizontal, Plus, Check, Search } from 'lucide-react';
@@ -7,6 +7,7 @@ import { useScoredJobs, usePoolScan, usePoolBand, useScoreJobs } from '../lib/qu
 import { matchesBandFilters } from '../lib/bandFilters';
 import { stableOrder } from '../lib/boardOrder';
 import { useDwell } from '../lib/useDwell';
+import { isCvUploadInProgress, isScoringHeld, useCvUpload } from '../lib/cvUpload';
 import { useSaveJob, useDismissJob, useMarkViewed } from '../lib/mutations';
 import type { DiscoveredJobSummary } from '../lib/types';
 import { VERDICT_LABELS } from '../lib/scoring';
@@ -140,7 +141,7 @@ function MatchScore({ job, align = 'end', pulse = true }: { job: DiscoveredJobSu
         <span
           aria-hidden="true"
           data-testid="score-placeholder"
-          className={`block w-[3.25rem] h-[40px] rounded-lg bg-[var(--ed-rule)] opacity-60 ${pulse ? 'animate-pulse' : ''}`}
+          className={`block w-[3.25rem] h-[40px] rounded-lg ${pulse ? 'ed-shimmer' : 'bg-[var(--ed-rule)]'}`}
         />
         <span className="sr-only">Not scored yet</span>
       </div>
@@ -264,6 +265,42 @@ function MatchCard({ job, index, saved, dismissed, onSelect, onSave, onDismiss, 
     </article>
   );
 }
+
+// The card before there is anything to put on it: the upload is still being
+// read, or the first retrieval has not come back. Same frame and proportions
+// as MatchCard so the real cards replace these without the grid shifting.
+// Every block shares one shine sweeping across the grid (.ed-shimmer), the
+// same one the score slot of a card still being scored uses.
+function MatchCardSkeleton({ index }: { index: number }) {
+  const block = 'block ed-shimmer';
+  return (
+    <div
+      aria-hidden="true"
+      data-testid="match-card-skeleton"
+      className="border border-[var(--ed-rule)] rounded-2xl p-5 flex flex-col gap-3"
+      data-index={index}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <span className={`${block} w-9 h-9 rounded-full`} />
+        <span className={`${block} w-[3.25rem] h-[40px] rounded-lg`} />
+      </div>
+      <div className="flex flex-col gap-2">
+        <div className="flex gap-2">
+          <span className={`${block} h-[13px] w-[35%] rounded-full`} />
+          <span className={`${block} h-[13px] w-[30%] rounded-full`} />
+        </div>
+        <span className={`${block} h-[16px] w-[85%] rounded-full`} />
+        <span className={`${block} h-[16px] w-[55%] rounded-full`} />
+      </div>
+      <div className="mt-auto flex items-center pt-2">
+        <span className={`${block} w-8 h-8 rounded-full`} />
+        <span className={`${block} ml-auto w-[4.5rem] h-[34px] rounded-full`} />
+      </div>
+    </div>
+  );
+}
+
+const SKELETON_CARDS = 10;
 
 // Compact, flat score badge for list rows — same edVerdictColor() mapping as
 // the 40px hero MatchScore, just small and border-only (no ring/gradient).
@@ -530,13 +567,13 @@ export default function SearchPage() {
   //
   // Once per mount, not on every filter change: a scan costs Claude calls,
   // and the filters above are a view over what has already been scored.
-  // Skipped when ProcessingPage sends us here straight after an upload:
-  // it started a scan of its own and waited for its first results, and that
-  // scan is still running. A second one would exclude everything the first has
-  // already scored and take the NEXT fifty candidates instead — an entire
-  // extra scan's spend on a board the user has not looked at yet.
-  const scanAlreadyRunning = !!(useLocation().state as { scanning?: boolean } | null)?.scanning;
-  const poolScan = usePoolScan(!scanAlreadyRunning);
+  // Held while a résumé upload is in flight (cvUpload.ts). Scoring waits for
+  // the FULL profile, not just the essentials the board fills from: the
+  // Evaluator and ClaimGrounding check claims against the whole of it.
+  const upload = useCvUpload();
+  const uploading = isCvUploadInProgress(upload);
+  const scoringHeld = isScoringHeld(upload);
+  const poolScan = usePoolScan(!scoringHeld);
   const scan = poolScan.data;
   const scanning = poolScan.isFetching;
 
@@ -560,7 +597,7 @@ export default function SearchPage() {
   // render as quiet cards and are scored in batches of five when the reader
   // actually reaches them — which is what keeps spend proportional to how much
   // of the board someone reads, rather than to how many postings exist.
-  const bandQuery = usePoolBand(true);
+  const bandQuery = usePoolBand(!uploading);
   const scoreJobs = useScoreJobs();
 
   // Ids we have already sent. Not derived from the band: the band refetches
@@ -604,6 +641,9 @@ export default function SearchPage() {
   );
 
   function flushQueue(): void {
+    // Cards seen while the full profile is still being read stay queued, and
+    // are sent by the effect below once it is saved.
+    if (scoringHeld) return;
     if (inFlightRef.current >= MAX_IN_FLIGHT_BATCHES) return;
 
     const batch = queuedRef.current.splice(0, PREFETCH_BATCH);
@@ -648,7 +688,7 @@ export default function SearchPage() {
     if (queuedRef.current.length === 0 || budgetGone) return;
     const timer = setTimeout(() => flushQueue(), 1200);
     return () => clearTimeout(timer);
-  }, [pendingIds, unscoredBand.length, budgetGone]);
+  }, [pendingIds, unscoredBand.length, budgetGone, scoringHeld]);
   const selectedJob = jobs.find((j) => j.id === selectedId) ?? null;
 
   // A filter change can drop the currently-selected job out of the list —
@@ -913,10 +953,26 @@ export default function SearchPage() {
             </div>
           )}
 
-          {jobsQuery.isLoading ? (
+          {upload?.phase === 'error' ? (
             <p className={EMPTY_STATE}>
-              Loading matches…
+              Couldn’t read your résumé: {upload.error}{' '}
+              <Link to="/" className="underline underline-offset-4 hover:text-[var(--ed-ink)]">Try another file</Link>
             </p>
+          ) : uploading || jobsQuery.isLoading || (board.length === 0 && (scanning || bandQuery.isLoading)) ? (
+            /* Skeleton cards while there is nothing real to show: the résumé
+               is being read, or the first retrieval and scores are on their
+               way. They are replaced in place by real cards, whose own score
+               slots then fill in as each is scored. */
+            <div className="flex-1 min-w-0 flex flex-col gap-3">
+              {uploading && (
+                <p className="text-[13px] text-[var(--ed-ink-faint)]" role="status" aria-live="polite">
+                  {upload?.phase === 'reading' ? 'Reading your résumé…' : 'Finding your matches…'}
+                </p>
+              )}
+              <div className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 ${!filtersOpen ? '2xl:grid-cols-5' : ''}`}>
+                {Array.from({ length: SKELETON_CARDS }, (_, i) => <MatchCardSkeleton key={i} index={i} />)}
+              </div>
+            </div>
           ) : board.length === 0 ? (
             /* Four different reasons the board can be empty, and they need
                different answers. Telling someone to "relax the filters" when

@@ -1083,17 +1083,17 @@ public sealed class ClaudeClient : IClaudeClient
         return corrected;
     }
 
-    public async Task<NormalizedProfile> NormalizeProfileAsync(string text, CancellationToken cancellationToken = default)
+    public async Task<NormalizedProfile> NormalizeProfileAsync(string text, CancellationToken cancellationToken = default, bool essentialsOnly = false)
     {
         _logger.LogInformation("Normalizing profile free-text ({Length} chars)", text.Length);
 
         // The candidate's own pasted text — wrapped in XML and labelled as data,
         // consistent with the project's system/user separation convention.
         var userMessage = new Message(RoleType.User, $"<candidate_text>\n{text.Trim()}\n</candidate_text>");
-        return await NormalizeProfileCoreAsync(userMessage, cancellationToken);
+        return await NormalizeProfileCoreAsync(userMessage, essentialsOnly, cancellationToken);
     }
 
-    public async Task<NormalizedProfile> NormalizeProfileFromPdfAsync(byte[] pdfBytes, CancellationToken cancellationToken = default)
+    public async Task<NormalizedProfile> NormalizeProfileFromPdfAsync(byte[] pdfBytes, CancellationToken cancellationToken = default, bool essentialsOnly = false)
     {
         _logger.LogInformation("Normalizing profile from PDF résumé ({Bytes} bytes)", pdfBytes.Length);
 
@@ -1120,36 +1120,63 @@ public sealed class ClaudeClient : IClaudeClient
                 },
             },
         };
-        return await NormalizeProfileCoreAsync(userMessage, cancellationToken);
+        return await NormalizeProfileCoreAsync(userMessage, essentialsOnly, cancellationToken);
     }
 
     // Shared normalize call + parse: the user Message differs (pasted text vs PDF
     // document block) but the system prompt, model/config, and JSON tail are the same.
-    private async Task<NormalizedProfile> NormalizeProfileCoreAsync(Message userMessage, CancellationToken cancellationToken)
+    //
+    // essentialsOnly: the short read that lets matching start before the full
+    // one lands (NormalizeProfileEssentials). Same prompt plus an addendum, so
+    // every field keeps ONE definition; far less output, which is where the
+    // time goes -- output tokens, not the PDF.
+    private async Task<NormalizedProfile> NormalizeProfileCoreAsync(
+        Message userMessage, bool essentialsOnly, CancellationToken cancellationToken)
     {
         var cfg = _scoring.Analyst;
+        var label = essentialsOnly ? "normalize-profile-essentials" : "normalize-profile";
 
         var parameters = new MessageParameters
         {
-            System = new List<SystemMessage> { new(PromptSeeds.NormalizeProfile) },
+            System = new List<SystemMessage>
+            {
+                new(essentialsOnly
+                    ? PromptSeeds.NormalizeProfile + PromptSeeds.NormalizeProfileEssentials
+                    : PromptSeeds.NormalizeProfile),
+            },
             Messages = new List<Message> { userMessage },
-            MaxTokens = 4096,
+            MaxTokens = essentialsOnly ? 1536 : 4096,
             Model = cfg.Model,
             Temperature = cfg.Temperature,
             Stream = false
         };
 
+        var clock = System.Diagnostics.Stopwatch.StartNew();
         var response = await ResolveClient().Messages.GetClaudeMessageAsync(parameters, cancellationToken);
+        // The CV read had no usage line at all, so neither its cost nor its
+        // latency -- the whole wait after an upload -- was visible anywhere.
+        _logger.LogInformation(
+            "Claude {Label} usage — input={Input} output={Output} ms={Ms}",
+            label, response.Usage?.InputTokens, response.Usage?.OutputTokens, clock.ElapsedMilliseconds);
+        ThrowIfTruncated(response, label, 1);
+
         var content = response.Message?.ToString()?.Trim()
             ?? throw new InvalidOperationException("Empty response from Claude API");
 
-        var json = ExtractJson(content, "normalize-profile");
+        var json = ExtractJson(content, label);
         var result = JsonSerializer.Deserialize<NormalizedProfile>(json, CaseInsensitive)
             ?? throw new InvalidOperationException("Failed to deserialize NormalizedProfile");
 
         // The same closed list the postings are tagged from, and the same cap
         // the prompt states -- checked here, since the prompt alone is not.
         result = result with { Functions = JobFunctions.Normalize(result.Functions, JobFunctions.MaxPerProfile) };
+
+        // The addendum asks for the essentials only; this makes it so. The
+        // client merges this read into the profile field by field, and a field
+        // present here but empty would read as "the CV says nothing" and wipe
+        // what the profile had -- so everything outside the essentials is
+        // cleared, never passed through half-filled.
+        if (essentialsOnly) result = NormalizedProfileEssentials.Keep(result);
 
         _logger.LogInformation("Normalized profile: {Roles} role(s)", result.Experience.Length);
         return result;

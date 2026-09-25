@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
+import { startCvUpload, useCvUpload, type CvUploadState } from '../lib/cvUpload';
 import { Link, useNavigate } from 'react-router-dom';
-import { Upload } from 'lucide-react';
+import { Check, Upload } from 'lucide-react';
 import { apiUrl } from '../lib/api';
 import { useAuthStatus, useHasProfile } from '../lib/queries';
 
@@ -10,6 +11,88 @@ import { useAuthStatus, useHasProfile } from '../lib/queries';
 // outer frame is needed around them.
 // `disc` draws the white backing the marquee needs; the sign-in link sits on
 // the page background and takes the bare glyph.
+// How long what was found stays on screen before Matches takes over. Long
+// enough to read a title and a few skills; short against a ~20s read.
+const REVEAL_MS = 1600;
+
+// The read's meter. There is no honest percentage for a model reading a PDF,
+// so the width is not presented as one: it eases toward CREEP_TO over about a
+// full read's length — fast at first, then ever slower, never arriving — and
+// only a real milestone, the essentials landing, takes it to the end. Always
+// moving, so the wait never looks stuck; never claiming ground the work has
+// not taken. (The retired processing page kept the same rule: progress only
+// moves to done when something actually completed.)
+const CREEP_TO = 88;
+const CREEP_MS = 18_000;
+
+function ReadMeter({ done }: { done: boolean }) {
+  // Starts at 0 and is set to the creep target one frame after mount, so the
+  // long transition has a start to animate from.
+  const [started, setStarted] = useState(false);
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => setStarted(true));
+    return () => cancelAnimationFrame(frame);
+  }, []);
+
+  const width = done ? 100 : started ? CREEP_TO : 0;
+  const transition = done
+    ? 'width 450ms cubic-bezier(.2,.8,.2,1)'
+    : `width ${CREEP_MS}ms cubic-bezier(.08,.72,.18,1)`;
+
+  return (
+    <div className="ed-meter" role="progressbar" aria-label="Reading your résumé" data-testid="upload-progress">
+      <div className="ed-meter__fill" style={{ width: `${width}%`, transition }} />
+    </div>
+  );
+}
+
+// The upload, in place of the upload button: the meter while the résumé is
+// read, then — the moment the essentials are saved — the meter completes and
+// the card shows what was actually found, as the hand-over to Matches.
+function UploadCard({ upload }: { upload: CvUploadState }) {
+  const found = upload.phase === 'matching' || upload.phase === 'done' ? upload.found : undefined;
+  const headline = found
+    ? [found.experience?.[0]?.title, found.seniority].filter(Boolean).join(' · ')
+    : '';
+  const skills = found
+    ? [...new Set((found.skills ?? []).flatMap((g) => g.items))].slice(0, 5)
+    : [];
+
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      data-testid="upload-card"
+      className="w-full max-w-[26rem] text-left rounded-2xl border border-[var(--ed-rule)] bg-[var(--ed-panel)] p-5 flex flex-col gap-3 animate-in fade-in duration-300"
+    >
+      <ReadMeter done={!!found} />
+      {found ? (
+        <>
+          <p className="flex items-center gap-2 text-[16px] font-medium text-[var(--ed-ink)] animate-in fade-in duration-300">
+            <Check size={16} className="shrink-0 text-[var(--ed-accent)]" aria-hidden="true" />
+            <span className="truncate">{headline || 'Résumé read'}</span>
+          </p>
+          {skills.length > 0 && (
+            <ul className="flex flex-wrap gap-2" aria-label="Skills found">
+              {skills.map((s) => (
+                <li key={s} className="rounded-full border border-[var(--ed-rule)] px-[0.6rem] py-[0.15rem] text-[13px] text-[var(--ed-ink-soft)] animate-in fade-in duration-500">
+                  {s}
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="text-[13px] text-[var(--ed-ink-faint)]">Finding your matches…</p>
+        </>
+      ) : (
+        <>
+          <p className="text-[16px] font-medium text-[var(--ed-ink)]">Reading your résumé…</p>
+          <p className="text-[13px] text-[var(--ed-ink-faint)]">Roles, skills, seniority</p>
+        </>
+      )}
+    </div>
+  );
+}
+
 function GoogleMark({ disc = false, size = '100%' }: { disc?: boolean; size?: string }) {
   return (
     <svg width={size} height={size} viewBox="0 0 48 48" aria-hidden="true" className="shrink-0">
@@ -172,18 +255,36 @@ export default function Landing() {
   // on its profile load, as this used to do) burns through the browser's
   // "user activation" window and the native picker silently refuses to open.
   //
-  // The actual parse (a real Claude API call — 10-20s for a résumé PDF) does
-  // NOT run here: navigate to /processing immediately with the file handed
-  // off via route state, and ProcessingPage runs the real upload underneath
-  // its animation. Doing the real work here first and only navigating after
-  // it resolved left users staring at a small button spinner for the full
-  // wait, with the "processing" page only flashing by at the very end.
+  // The actual parse (a real Claude API call — 10-20s for a résumé PDF) is
+  // not awaited here: it starts from this handler and runs outside any page
+  // (cvUpload.ts), and the reader goes straight to Matches, which shows
+  // skeleton cards until the profile is saved. Awaiting it here left users
+  // staring at a small button spinner for the whole wait.
   function onResumeFile(e: React.ChangeEvent<HTMLInputElement>): void {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
-    navigate('/processing', { state: { file } });
+    startedHereRef.current = file;
+    void startCvUpload(file);
   }
+
+  // The first part of the wait belongs here: it is about the reader's CV, not
+  // about jobs, and a grid of job skeletons would promise what cannot exist
+  // yet. Matches takes over the moment there is a profile to retrieve
+  // against — the essentials read, a few seconds in.
+  const upload = useCvUpload();
+  const startedHereRef = useRef<File | null>(null);
+  const ours = upload && upload.file === startedHereRef.current ? upload : null;
+  const reading = ours?.phase === 'reading';
+  const found = ours && (ours.phase === 'matching' || ours.phase === 'done') ? ours : null;
+  useEffect(() => {
+    // Navigating on a state change, not firing a mutation: the upload itself
+    // was started by the file picker's handler above. A short beat first, so
+    // what was found can be read before Matches takes over.
+    if (!found) return;
+    const handoff = setTimeout(() => navigate('/search'), REVEAL_MS);
+    return () => clearTimeout(handoff);
+  }, [found, navigate]);
 
   function onUploadClick(): void {
     fileInputRef.current?.click();
@@ -203,19 +304,29 @@ export default function Landing() {
           </span>
         </h1>
 
-        <p className="ed-display mt-[1.6rem] text-[clamp(1rem,1.5vw,1.15rem)] text-[var(--ed-ink-soft)] font-normal">
-          Find it. Know it fits. Apply.
-        </p>
+        {ours?.phase === 'error' ? (
+          <p role="alert" className="ed-display mt-[1.6rem] text-[clamp(1rem,1.5vw,1.15rem)] text-[var(--ed-no)] font-normal">
+            Couldn’t read that résumé — try another file.
+          </p>
+        ) : (
+          <p className="ed-display mt-[1.6rem] text-[clamp(1rem,1.5vw,1.15rem)] text-[var(--ed-ink-soft)] font-normal">
+            Find it. Know it fits. Apply.
+          </p>
+        )}
 
         <div className="mt-9 flex flex-wrap items-center justify-center gap-5">
+          {reading || found ? (
+            <UploadCard upload={(reading ? ours : found)!} />
+          ) : (
           <button
             type="button"
             onClick={onUploadClick}
             className="group inline-flex items-center gap-2 rounded-full bg-[var(--ed-accent)] text-[var(--ed-paper)] px-6 py-[0.65rem] text-[0.74rem] font-semibold uppercase tracking-[0.08em] transition-all hover:bg-[var(--ed-accent-deep)] hover:-translate-y-[1px]"
           >
             <Upload size={14} className="transition-transform group-hover:-translate-y-0.5" aria-hidden="true" />
-            Upload your résumé
+            {ours?.phase === 'error' ? 'Try another file' : 'Upload your résumé'}
           </button>
+          )}
           <input
             ref={fileInputRef}
             type="file"
@@ -237,7 +348,7 @@ export default function Landing() {
               (gmail.readonly, a restricted scope) is deliberately NOT requested
               here — sign-in asks for openid/email/profile only.
  */}
-          {hasProfile === false && signInAvailable && (
+          {!reading && !found && hasProfile === false && signInAvailable && (
             <a
               href={apiUrl('/auth/google/start')}
               className="inline-flex items-center gap-2 text-[0.74rem] font-semibold uppercase tracking-[0.1em] text-[var(--ed-ink-soft)] transition-colors hover:text-[var(--ed-ink)]"
@@ -251,7 +362,7 @@ export default function Landing() {
               Matches has nothing to list until a profile exists to score
               against, and OnboardingGate sends them straight back here
               anyway. For a returning visitor it is the fastest route in. */}
-          {hasProfile && (
+          {!reading && !found && hasProfile && (
             <Link
               to="/search"
               className="inline-flex items-center gap-2 text-[0.74rem] font-semibold uppercase tracking-[0.1em] text-[var(--ed-ink-soft)] transition-colors hover:text-[var(--ed-ink)]"

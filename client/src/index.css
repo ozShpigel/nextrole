@@ -268,8 +268,54 @@
   animation: ed-confirm .4s cubic-bezier(.2,.7,.2,1) forwards;
 }
 
+/* loading shine — the placeholder blocks of a skeleton card, and the score
+   slot of a card still being scored. A highlight sweeps across the rule
+   colour. background-attachment: fixed measures the gradient against the
+   viewport rather than each block, so every block on screen shares ONE wave
+   instead of each running its own — the grid reads as loading together. */
+@keyframes ed-shimmer { from { background-position: 100vw 0; } to { background-position: -100vw 0; } }
+.ed-shimmer {
+  background-color: var(--ed-rule);
+  background-image: linear-gradient(
+    100deg,
+    transparent 30%,
+    color-mix(in oklab, var(--ed-ink-faint) 22%, transparent) 50%,
+    transparent 70%
+  );
+  background-size: 100vw 100%;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+  animation: ed-shimmer 1.8s ease-in-out infinite;
+}
+
+/* progress meter — fills left to right. A model reading a PDF reports no
+   percentage, so the width is not one: it creeps toward (never to) the end on
+   a decelerating curve, and only a real milestone takes it to 100%. The fill
+   is the accent — it marks the one thing actively happening — with a lit
+   leading edge and a sheen travelling across the filled part. */
+.ed-meter {
+  position: relative; height: 6px; border-radius: 9999px;
+  background: var(--ed-rule);
+}
+.ed-meter__fill {
+  position: relative; height: 100%; border-radius: inherit; overflow: hidden;
+  background: linear-gradient(90deg,
+    color-mix(in oklab, var(--ed-accent) 55%, transparent),
+    var(--ed-accent));
+  box-shadow: 0 0 14px color-mix(in oklab, var(--ed-accent) 45%, transparent);
+}
+@keyframes ed-sheen { from { transform: translateX(-120%); } to { transform: translateX(220%); } }
+.ed-meter__fill::after {
+  content: ""; position: absolute; inset: 0; width: 45%;
+  background: linear-gradient(90deg, transparent,
+    color-mix(in oklab, var(--ed-ink) 35%, transparent), transparent);
+  animation: ed-sheen 1.6s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .ed-rise, .ed-fill, .ed-confirm { animation: none; }
+  .ed-rise, .ed-fill, .ed-confirm, .ed-shimmer { animation: none; }
+  .ed-meter__fill::after { animation: none; display: none; }
+  .ed-meter__fill { transition-duration: .2s !important; }
   .ed-rise { opacity: 1; transform: none; }
   .ed-fill { transform: scaleX(var(--p, 0)); }
   .ed-confirm { opacity: 1; transform: none; }

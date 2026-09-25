@@ -123,18 +123,46 @@ describe("LandingPage", () => {
     clickSpy.mockRestore();
   });
 
-  it("selecting a résumé hands it off to the processing page immediately, without parsing it here", async () => {
-    // The real parse/save happens on ProcessingPage, underneath its
-    // animation — not here, and not before navigating (see ProcessingPage
-    // for why: it's a slow real API call and must not happen behind a
-    // small button spinner with the animation only flashing by at the end).
+  it("selecting a résumé shows the read here, in place, while it runs", async () => {
+    // The first part of the wait is about the CV, not jobs, so it happens on
+    // Landing — never behind a small button spinner, and never as a grid of
+    // job skeletons promising what cannot exist yet.
+    vi.mocked(matchApi).mockImplementation(() => new Promise(() => {}));
     renderWithRouter(<Landing />);
 
-    const file = new File(["resume bytes"], "resume.pdf", { type: "application/pdf" });
-    const input = screen.getByTestId("resume-file-input") as HTMLInputElement;
-    await userEvent.upload(input, file);
+    const file = new File(["resume bytes"], "resume-reading.pdf", { type: "application/pdf" });
+    await userEvent.upload(screen.getByTestId("resume-file-input") as HTMLInputElement, file);
 
-    expect(window.location.pathname).toBe("/processing");
+    expect(await screen.findByText("Reading your résumé…")).toBeInTheDocument();
+    expect(screen.getByTestId("upload-progress")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /upload your résumé/i })).not.toBeInTheDocument();
+    expect(window.location.pathname).toBe("/");
+  });
+
+  it("shows what was found, then moves to Matches", async () => {
+    // The short read lands first: its real result is shown back, then the
+    // board takes over while the full read is still running.
+    vi.mocked(matchApi).mockImplementation((path: string, options?: { method?: string }) => {
+      if (path === "/profile/normalize-file?scope=essentials") return Promise.resolve({
+        summary: "Infra engineer.", seniority: "Senior",
+        experience: [{ title: "Platform Developer", company: "Payoneer", dates: "2023", highlights: [] }],
+        skills: [{ category: "Platform", items: ["Kubernetes", "Terraform"] }],
+      });
+      if (path === "/profile/normalize-file") return new Promise(() => {});
+      if (path === "/profile" && options?.method === "PUT") return Promise.resolve({});
+      if (path === "/profile") return Promise.resolve({ content: "", structured: {} });
+      if (path === "/profile/resume-file") return Promise.reject(Object.assign(new Error("not found"), { status: 404 }));
+      return Promise.reject(new Error(`Unmocked matchApi() call: ${path}`));
+    });
+    renderWithRouter(<Landing />);
+
+    const file = new File(["resume bytes"], "resume-matching.pdf", { type: "application/pdf" });
+    await userEvent.upload(screen.getByTestId("resume-file-input") as HTMLInputElement, file);
+
+    expect(await screen.findByText("Platform Developer · Senior")).toBeInTheDocument();
+    expect(screen.getByText("Kubernetes")).toBeInTheDocument();
+    expect(window.location.pathname).toBe("/");
+    await waitFor(() => expect(window.location.pathname).toBe("/search"), { timeout: 3000 });
   });
 
 

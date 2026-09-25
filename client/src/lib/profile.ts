@@ -48,3 +48,26 @@ export function mergeNormalizedProfile(profile: StructuredProfile, n: Normalized
     spokenLanguages: n.spokenLanguages ?? [],
   };
 }
+
+// Merge the SHORT first read of an upload (the server's essentials read) —
+// only what retrieval needs, while the full read is still running.
+//
+// Never a replace, unlike mergeNormalizedProfile: this read is deliberately
+// partial, so a field it leaves empty means "not part of this read", not "the
+// CV says nothing". A returning user's profile keeps everything this read does
+// not carry — and keeps its detailed experience, since this read has titles
+// only — until the full read replaces it. If the full read then fails, nothing
+// has been lost.
+export function mergeEssentials(profile: StructuredProfile, e: NormalizedProfile): StructuredProfile {
+  const has = <T,>(xs: T[] | undefined | null): xs is T[] => !!xs && xs.length > 0;
+  return {
+    ...profile,
+    location: e.location || profile.location,
+    summary: e.summary || profile.summary,
+    seniority: e.seniority || profile.seniority,
+    domains: has(e.domains) ? e.domains : profile.domains,
+    functions: has(e.functions) ? e.functions : profile.functions,
+    skills: has(e.skills) ? e.skills : profile.skills,
+    experience: has(profile.experience) ? profile.experience : (e.experience ?? []),
+  };
+}

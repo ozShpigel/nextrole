@@ -650,6 +650,7 @@ public static class MatchEndpoints
         // no longer belongs in the demo analysisAllowlist (see Program.cs).
         app.MapPost("/api/match/profile/normalize-file", async (
             IFormFile file,
+            [FromQuery] string? scope,
             ApplicationTracker.Core.AI.IClaudeClient claude,
             IUserContext user,
             IResumeFileRepository resumeFileRepo,
@@ -667,6 +668,12 @@ public static class MatchEndpoints
             if (!isPdf && !isTxt)
                 return Results.BadRequest(new { error = "unsupported file type (PDF or TXT only)" });
 
+            // scope=essentials: the short first read an upload runs alongside
+            // the full one (NormalizedProfileEssentials). It persists nothing:
+            // the full read, running in parallel, stores the file -- two
+            // concurrent upserts of the same bytes would only race each other.
+            var essentialsOnly = string.Equals(scope, "essentials", StringComparison.OrdinalIgnoreCase);
+
             try
             {
                 ApplicationTracker.Core.Profile.NormalizedProfile normalized;
@@ -678,13 +685,14 @@ public static class MatchEndpoints
 
                     // Persist before parsing — the upload survives even if Claude
                     // parsing fails, so the user can retry without re-uploading.
-                    await resumeFileRepo.UpsertAsync(user.UserId, new ResumeFile
-                    {
-                        Bytes = bytes, FileName = name, ContentType = "application/pdf",
-                        PageCount = PdfPageCounter.CountPages(bytes),
-                    }, ct);
+                    if (!essentialsOnly)
+                        await resumeFileRepo.UpsertAsync(user.UserId, new ResumeFile
+                        {
+                            Bytes = bytes, FileName = name, ContentType = "application/pdf",
+                            PageCount = PdfPageCounter.CountPages(bytes),
+                        }, ct);
 
-                    normalized = await claude.NormalizeProfileFromPdfAsync(bytes, ct);
+                    normalized = await claude.NormalizeProfileFromPdfAsync(bytes, ct, essentialsOnly);
                 }
                 else
                 {
@@ -695,12 +703,13 @@ public static class MatchEndpoints
                     if (text.Length > 50_000)
                         text = text[..50_000];
 
-                    await resumeFileRepo.UpsertAsync(user.UserId, new ResumeFile
-                    {
-                        Bytes = System.Text.Encoding.UTF8.GetBytes(text), FileName = name, ContentType = "text/plain",
-                    }, ct);
+                    if (!essentialsOnly)
+                        await resumeFileRepo.UpsertAsync(user.UserId, new ResumeFile
+                        {
+                            Bytes = System.Text.Encoding.UTF8.GetBytes(text), FileName = name, ContentType = "text/plain",
+                        }, ct);
 
-                    normalized = await claude.NormalizeProfileAsync(text, ct);
+                    normalized = await claude.NormalizeProfileAsync(text, ct, essentialsOnly);
                 }
                 return Results.Ok(normalized);
             }

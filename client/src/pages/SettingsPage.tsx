@@ -116,8 +116,7 @@ export default function SettingsPage() {
   }
 
   // A real upload/replace (not the paste-text path, which reuses
-  // normalizeAndSave without this call) hands off to the processing page's
-  // fake beat before landing on Matches — see ProcessingPage.tsx. The
+  // normalizeAndSave without this call) lands on Matches once saved. The
   // homepage CTA no longer routes through here first (see LandingPage.tsx) —
   // opening a file input needs to happen synchronously within a genuine
   // click, and a cross-page navigation plus this page's own async profile
@@ -129,7 +128,7 @@ export default function SettingsPage() {
     e.target.value = ''; // allow re-selecting the same file
     if (!file) return;
     const ok = await normalizeAndSave(() => normalizeFileMutation.mutateAsync(file) as Promise<NormalizedProfile>);
-    if (ok) navigate('/processing');
+    if (ok) navigate('/search');
   }
 
   // A freshly-uploaded (or reloaded) résumé always starts back on page 1.

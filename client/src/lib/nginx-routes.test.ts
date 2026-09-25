@@ -35,8 +35,11 @@ function calledPaths(): string[] {
     const text = readFileSync(file, 'utf8');
     for (const m of text.matchAll(/matchApi\(\s*[`'"]([^`'"]*)[`'"]/g)) {
       // A template literal with an interpolation is not a fixed route; the
-      // proxied prefix is whatever precedes the first ${.
-      found.add(m[1]);
+      // proxied prefix is whatever precedes the first ${. The query string is
+      // dropped: nginx matches a location on the path alone, so
+      // "/profile/normalize-file?scope=essentials" is proxied by the same
+      // alternation entry as "/profile/normalize-file".
+      found.add(m[1].split('?')[0]);
     }
   }
   return [...found];

@@ -105,6 +105,23 @@ job is extraction only — never interpret or score here.
     // into the structured NormalizedProfile. Generic and objective — extraction
     // only, no fabrication, no scoring. Strengths and core values are NOT produced
     // here (they are explicit manual inputs).
+    // Appended to NormalizeProfile for the short first read after an upload
+    // (NormalizedProfileEssentials). Only what retrieval needs, so matching can
+    // start in a few seconds while the full read is still running.
+    public const string NormalizeProfileEssentials = """
+
+---
+
+# ESSENTIALS MODE
+
+This is a fast first read. Return the SAME JSON schema, but fill ONLY these fields, following the rules above:
+`location`, `summary`, `seniority`, `domains`, `functions`, `skills`, and `experience` with `title`, `company` and `dates` only.
+
+- Every experience entry's `highlights` MUST be an empty array.
+- `fullName`, `email`, `phone`, `linkedIn` are null; `education`, `militaryService`, `sideProjects`, `spokenLanguages` are empty arrays.
+- A separate full read fills everything else. Do not shorten or summarize the fields you do fill.
+""";
+
     public const string NormalizeProfile = """
 # ROLE
 

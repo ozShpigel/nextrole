@@ -96,11 +96,11 @@ public interface IClaudeClient
 
     // Normalization layer: convert a candidate's pasted free-text experience/skills
     // into the structured NormalizedProfile (extraction only, no scoring).
-    Task<ApplicationTracker.Core.Profile.NormalizedProfile> NormalizeProfileAsync(string text, CancellationToken cancellationToken = default);
+    Task<ApplicationTracker.Core.Profile.NormalizedProfile> NormalizeProfileAsync(string text, CancellationToken cancellationToken = default, bool essentialsOnly = false);
 
     // Same normalization, but from an uploaded PDF résumé handed to Claude as a
     // native document content block (no text extraction).
-    Task<ApplicationTracker.Core.Profile.NormalizedProfile> NormalizeProfileFromPdfAsync(byte[] pdfBytes, CancellationToken cancellationToken = default);
+    Task<ApplicationTracker.Core.Profile.NormalizedProfile> NormalizeProfileFromPdfAsync(byte[] pdfBytes, CancellationToken cancellationToken = default, bool essentialsOnly = false);
 
     // Generates a personalized "why do you want to work here?" interview answer
     // (one Hebrew paragraph) from the application's company/job context plus the

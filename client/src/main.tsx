@@ -1,6 +1,6 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClientProvider } from '@tanstack/react-query';
 import './index.css';
 import App from './App';
@@ -15,7 +15,6 @@ import MessagesPage from './pages/MessagesPage';
 import ApplicationDetailPage from './pages/ApplicationDetailPage';
 import ResumePackPage from './pages/ResumePackPage';
 import SettingsPage from './pages/SettingsPage';
-import ProcessingPage from './pages/ProcessingPage';
 import InterviewPrepPage from './pages/InterviewPrepPage';
 import MockInterviewPage from './pages/MockInterviewPage';
 import InterviewInsightsPage from './pages/InterviewInsightsPage';
@@ -40,7 +39,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
             <Route path="/practice-interview" element={<MockInterviewPage />} />
             <Route path="/interview-insights" element={<InterviewInsightsPage />} />
             <Route path="/settings" element={<SettingsPage />} />
-            <Route path="/processing" element={<ProcessingPage />} />
+            <Route path="/processing" element={<Navigate to="/search" replace />} />
             <Route path="*" element={<NotFoundPage />} />
           </Route>
         </Routes>

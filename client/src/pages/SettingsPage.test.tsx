@@ -233,9 +233,8 @@ describe('SettingsPage', () => {
         expect.objectContaining({ method: 'PUT', body: expect.stringContaining('Parsed Name') }),
       ),
     );
-    // A successful parse+save hands off to the fake processing beat instead
-    // of staying inline — see ProcessingPage.tsx.
-    await waitFor(() => expect(window.location.pathname).toBe('/processing'));
+    // A successful parse+save lands on Matches.
+    await waitFor(() => expect(window.location.pathname).toBe('/search'));
   });
 
   it('shows the stored résumé inline when one already exists', async () => {

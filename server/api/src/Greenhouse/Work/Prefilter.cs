@@ -65,6 +65,18 @@ public static class Prefilter
         "quality", "test", "tester", "machine learning", "ml", "ai", "platform", "infrastructure",
         "software", "technical", "technology", "it", "systems", "cloud", "network", "research");
 
+    // Words where Claude's own label is split, so no guess is safe: the
+    // posting is read. Measured on the box (2026-09-26, 121 postings checked
+    // against Claude's labels): "Senior Financial Crime Investigator" was
+    // guessed operations and labelled security -- a function infra users
+    // accept, so On would have hidden it; and three "Product Marketing"
+    // roles were labelled product, not marketing. Fraud, risk and compliance
+    // sit next to security the same way. Abstaining is the cheap side of the
+    // two errors: a wrong read costs cents, a wrong skip loses a job.
+    private static readonly Regex Ambiguous = Words(
+        "financial crime", "fincrime", "fraud", "aml", "anti-money laundering", "risk", "compliance",
+        "trust", "safety", "investigator", "investigations", "product marketing");
+
     // Checked in order; the first match wins. Design first, so "Product
     // Designer" and "Brand Designer" are design; marketing before product, so
     // "Product Marketing Manager" is marketing; product before operations, so
@@ -88,7 +100,7 @@ public static class Prefilter
         (JobFunctions.Operations, Words(
             "recruiter", "recruiting", "recruitment", "talent acquisition", "talent partner", "sourcer",
             "people partner", "people operations", "hr", "human resources", "legal", "counsel", "paralegal",
-            "attorney", "lawyer", "finance", "financial", "accountant", "accounting", "controller", "payroll",
+            "attorney", "lawyer", "finance", "accountant", "accounting", "controller", "payroll",
             "tax", "treasury", "fp&a", "office manager", "executive assistant", "workplace", "facilities",
             "procurement", "administrative", "receptionist")),
     ];
@@ -109,16 +121,17 @@ public static class Prefilter
     public static string? GuessFunction(string? title, IEnumerable<string?>? departments)
     {
         var t = title ?? "";
-        if (Technical.IsMatch(t)) return null;
+        if (Technical.IsMatch(t) || Ambiguous.IsMatch(t)) return null;
 
         var byTitle = FirstMatch(TitleRules, t);
         if (byTitle is not null) return byTitle;
 
         // The title said nothing either way ("Manager, EMEA"): the department
-        // decides, but only a department with no technical word in it -- a
-        // "Data & Engineering" department is read however its title reads.
+        // decides, but only a department with no technical or ambiguous word
+        // in it -- a "Data & Engineering" or "Risk & Compliance" department is
+        // read however its title reads.
         var guesses = (departments ?? [])
-            .Where(d => !string.IsNullOrWhiteSpace(d) && !Technical.IsMatch(d!))
+            .Where(d => !string.IsNullOrWhiteSpace(d) && !Technical.IsMatch(d!) && !Ambiguous.IsMatch(d!))
             .Select(d => FirstMatch(DepartmentRules, d!))
             .Distinct()
             .ToList();

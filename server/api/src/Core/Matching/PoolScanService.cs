@@ -203,11 +203,31 @@ public sealed class PoolScanService : IPoolScanService
         var toScore = more ? fetched.Take(cap).ToList() : fetched;
         var poolSize = await _pool.CountActiveAsync(ct);
 
-        _logger.LogInformation(
-            "Pool scan for {UserId}: {Pool} active, {New} new candidate(s) to score, {Done} already scored, more={More}",
-            userId, poolSize, toScore.Count, alreadyScored.Count, more);
+        // Claimed in the SAME in-flight set the scroll path claims in, so the
+        // two never pay for one posting twice. They overlap on every first
+        // visit: the scan scores the top candidates while those very cards sit
+        // on screen and fire score-jobs. With only its own per-user gate, the
+        // scan claimed nothing the scroll path could see, and the scroll path
+        // checked nothing the scan held -- measured in production, a new
+        // user's 6 candidates were scored twice (scan, then score-by-ids for
+        // the same 6 ids seconds later), every first visit paying double.
+        var inFlight = InFlight.GetOrAdd(userId, _ => new ConcurrentDictionary<string, byte>());
+        var claimed = toScore.Where(j => inFlight.TryAdd(j.Id, 0)).ToList();
 
-        var scored = await ScoreAllAsync(userId, toScore, ct);
+        _logger.LogInformation(
+            "Pool scan for {UserId}: {Pool} active, {New} new candidate(s) to score ({Busy} already being scored), "
+            + "{Done} already scored, more={More}",
+            userId, poolSize, claimed.Count, toScore.Count - claimed.Count, alreadyScored.Count, more);
+
+        int scored;
+        try
+        {
+            scored = await ScoreAllAsync(userId, claimed, ct);
+        }
+        finally
+        {
+            foreach (var job in claimed) inFlight.TryRemove(job.Id, out _);
+        }
 
         return new PoolScanResult
         {

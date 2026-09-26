@@ -124,6 +124,12 @@ public interface IJobStore
     Task<Dictionary<long, StoredFacts>> StoredFactsAsync(
         string boardToken, IReadOnlyCollection<long> ids, CancellationToken ct);
 
+    /// <summary>Open postings (no closedAt) per board token, across every board stored.</summary>
+    Task<Dictionary<string, long>> OpenCountsByBoardAsync(CancellationToken ct);
+
+    /// <summary>Close every open posting of these boards. Nothing is deleted.</summary>
+    Task<long> CloseBoardsAsync(IReadOnlyCollection<string> boardTokens, DateTime now, CancellationToken ct);
+
     Task<long> StampCompanyLogoAsync(string boardToken, string? logoUrl, CancellationToken ct);
 
     Task<long> CloseMissingAsync(

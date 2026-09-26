@@ -134,6 +134,22 @@ try
     {
         var runId = Guid.NewGuid().ToString();
 
+        // Before the fan-out: postings of a board no longer in companies.json
+        // are never fetched again, so nothing else would ever close them. Never
+        // fails the publish -- the day's ingest matters more than a cleanup the
+        // next run can do.
+        try
+        {
+            await new RemovedBoards(
+                    new JobStore(jobs, loggerFactory.CreateLogger<JobStore>()),
+                    loggerFactory.CreateLogger<RemovedBoards>())
+                .CloseAsync(companies.Companies, DateTime.UtcNow, ct);
+        }
+        catch (Exception e) when (e is not OperationCanceledException)
+        {
+            log.LogError(e, "Closing the postings of removed boards failed; the next publish retries");
+        }
+
         var publisher = new CompanyPublisher(
             connection, ledger, loggerFactory.CreateLogger<CompanyPublisher>());
 

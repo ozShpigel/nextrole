@@ -318,6 +318,29 @@ docker run --rm --env-file .env.api -v "$PWD/fill-pool-demand.js:/fill.js:ro" mo
 Its location split mirrors `PoolDemand.LocationTermsOf`; change both together,
 or the next profile save corrects the difference.
 
+### A board removed from companies.json is closed
+
+Postings close through the close diff of a board that was fetched. A board
+removed from `companies.json` is never fetched again, so its postings used to
+stay open forever -- retrieved, shown and scored while the links died. The
+publish now closes them first (`RemovedBoards`, before the fan-out): every open
+posting whose `boardToken` is no longer listed gets `closedAt`. Nothing is
+deleted.
+
+**Re-adding a company reopens it for free.** Its next run upserts or touches
+every posting still on the board, which clears `closedAt`; an unchanged content
+hash means no re-embedding and no re-read, and users' scores still apply.
+Postings that went while it was removed stay closed. The pre-read filter does
+not interfere: closed postings still count as stored.
+
+**The guard is against the wrong file, not a wrong token.** A typo closes one
+board, recoverably, and its fetch then fails loudly. The costly accident is the
+whole list being wrong -- the box started with `companies.dev.json` (one board)
+-- so a removal holding more than half of all open postings is refused and
+logged, with the manual `updateMany` in the message. Verified on a copy of the
+local data: removing monzo closed its 66, a one-board list was refused, and
+re-adding monzo reopened all 66 through the presence touch.
+
 ### The two guards
 
 | | |

@@ -441,6 +441,34 @@ public sealed class JobStore : IJobStore
     }
 
     /// <inheritdoc />
+    public async Task<Dictionary<string, long>> OpenCountsByBoardAsync(CancellationToken ct)
+    {
+        var rows = await _jobs.Aggregate()
+            .Match(Builders<BsonDocument>.Filter.Eq(GreenhouseJobFields.ClosedAt, BsonNull.Value))
+            .Group(new BsonDocument { { "_id", "$" + GreenhouseJobFields.BoardToken }, { "open", new BsonDocument("$sum", 1) } })
+            .ToListAsync(ct);
+
+        return rows
+            .Where(r => r["_id"].IsString)
+            .ToDictionary(r => r["_id"].AsString, r => r["open"].ToInt64());
+    }
+
+    /// <inheritdoc />
+    public async Task<long> CloseBoardsAsync(IReadOnlyCollection<string> boardTokens, DateTime now, CancellationToken ct)
+    {
+        if (boardTokens.Count == 0) return 0;
+
+        var result = await _jobs.UpdateManyAsync(
+            Builders<BsonDocument>.Filter.And(
+                Builders<BsonDocument>.Filter.In(GreenhouseJobFields.BoardToken, boardTokens),
+                // Only open ones: closedAt records when a posting FIRST went.
+                Builders<BsonDocument>.Filter.Eq(GreenhouseJobFields.ClosedAt, BsonNull.Value)),
+            Builders<BsonDocument>.Update.Set(GreenhouseJobFields.ClosedAt, now),
+            cancellationToken: ct);
+        return result.ModifiedCount;
+    }
+
+    /// <inheritdoc />
     public async Task<long> StampCompanyLogoAsync(string boardToken, string? logoUrl, CancellationToken ct)
     {
         BsonValue value = logoUrl is null ? BsonNull.Value : new BsonString(logoUrl);

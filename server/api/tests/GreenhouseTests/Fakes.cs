@@ -206,6 +206,21 @@ public sealed class FakeJobStore : IJobStore
         return Task.FromResult<IReadOnlyList<StoredJobContent>>([.. NeedingFactsReRead.Take(limit)]);
     }
 
+    /// <summary>What OpenCountsByBoardAsync returns.</summary>
+    public Dictionary<string, long> OpenByBoard { get; } = [];
+
+    /// <summary>Boards CloseBoardsAsync was asked to close.</summary>
+    public List<string> ClosedBoards { get; } = [];
+
+    public Task<Dictionary<string, long>> OpenCountsByBoardAsync(CancellationToken ct) =>
+        Task.FromResult(new Dictionary<string, long>(OpenByBoard));
+
+    public Task<long> CloseBoardsAsync(IReadOnlyCollection<string> boardTokens, DateTime now, CancellationToken ct)
+    {
+        ClosedBoards.AddRange(boardTokens);
+        return Task.FromResult(boardTokens.Sum(b => OpenByBoard.GetValueOrDefault(b)));
+    }
+
     /// <summary>The logo each stamp wrote, by board. A null value means it was cleared.</summary>
     public Dictionary<string, string?> StampedLogos { get; } = [];
 

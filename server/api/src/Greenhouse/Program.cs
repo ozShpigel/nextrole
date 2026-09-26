@@ -248,8 +248,19 @@ try
 
     var collector = batcher is null ? Task.CompletedTask : CollectForeverAsync(batcher, ct);
 
+    // Runs requested by profile saves that brought a new function or location
+    // (DemandTriggers). Every board, live reads, at most one per cooldown.
+    var triggerPublisher = new CompanyPublisher(connection, ledger, loggerFactory.CreateLogger<CompanyPublisher>());
+    var triggers = new DemandTriggers(
+        database,
+        (runId, token) => triggerPublisher.PublishAsync(companies.Companies, runId, token, live: true),
+        prefilter,
+        loggerFactory.CreateLogger<DemandTriggers>());
+    var triggerLoop = TriggerForeverAsync(triggers, log, ct);
+
     await consumer.RunAsync(ct);
     await collector;
+    await triggerLoop;
     return 0;
 }
 catch (Exception e)
@@ -271,6 +282,32 @@ static async Task CollectForeverAsync(IngestBatcher batcher, CancellationToken c
         {
             await batcher.CollectAsync(DateTime.UtcNow, ct);
             await Task.Delay(BatchCollectInterval, ct);
+        }
+    }
+    catch (OperationCanceledException)
+    {
+    }
+}
+
+// Looks for ingest requests until shutdown. One pass is a heartbeat and two
+// small queries. A failed pass is logged and retried next interval: a request
+// left pending is picked up then, never lost.
+static async Task TriggerForeverAsync(DemandTriggers triggers, ILogger log, CancellationToken ct)
+{
+    try
+    {
+        while (!ct.IsCancellationRequested)
+        {
+            try
+            {
+                await triggers.TickAsync(DateTime.UtcNow, ct);
+            }
+            catch (Exception e) when (e is not OperationCanceledException)
+            {
+                log.LogError(e, "Ingest request pass failed; retrying in {Seconds}s",
+                    DemandTriggers.PollInterval.TotalSeconds);
+            }
+            await Task.Delay(DemandTriggers.PollInterval, ct);
         }
     }
     catch (OperationCanceledException)

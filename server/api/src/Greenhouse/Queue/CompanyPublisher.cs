@@ -44,7 +44,7 @@ public sealed class CompanyPublisher
     /// </para>
     /// </remarks>
     public async Task<int> PublishAsync(
-        IReadOnlyList<string> boardTokens, string runId, CancellationToken ct)
+        IReadOnlyList<string> boardTokens, string runId, CancellationToken ct, bool live = false)
     {
         var day = RunLedger.DayOf(DateTime.UtcNow);
 
@@ -73,7 +73,7 @@ public sealed class CompanyPublisher
             await _ledger.MarkPendingAsync(day, token, runId, DateTime.UtcNow, ct);
 
             var body = JsonSerializer.SerializeToUtf8Bytes(
-                new CompanyMessage { BoardToken = token, Day = day, RunId = runId });
+                new CompanyMessage { BoardToken = token, Day = day, RunId = runId, Live = live });
 
             try
             {

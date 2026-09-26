@@ -284,4 +284,25 @@ public class IngestBatcherTests
         // Nothing was read live, so nothing was stored yet.
         Assert.Empty(store.SavedAiFor);
     }
+
+    [Fact]
+    public async Task A_triggered_run_reads_live_even_in_batch_mode()
+    {
+        // A user is waiting (DemandTriggers): a batch answers in minutes to
+        // hours, a live call in seconds.
+        var store = new FakeJobStore();
+        var api = new StubHandler();   // nothing queued: the live call fails, which the pass logs and survives
+        var batches = new FakeBatchStore();
+
+        var handler = new CompanyHandler(
+            Build.BoardClient(new StubHandler().EnqueueJson(HttpStatusCode.OK, Build.BoardJson((1, "Backend Engineer", LongContent)))),
+            new FakeEmbeddingClient(), store, CompaniesConfig.ForTesting(Build.Token),
+            NullLogger<CompanyHandler>.Instance, Client(api), Batcher(api, store, batches));
+
+        await handler.HandleCompanyAsync(Build.Token, liveReads: true);
+
+        Assert.Empty(batches.Rows);
+        Assert.NotEmpty(api.RequestUris);
+        Assert.DoesNotContain(api.RequestUris, u => u.EndsWith("/batches"));
+    }
 }

@@ -92,7 +92,12 @@ public sealed class CompanyHandler
         _log = log;
     }
 
-    public async Task<CompanyResult> HandleCompanyAsync(string boardToken, CancellationToken ct = default)
+    /// <param name="liveReads">
+    /// Read new postings with live calls even when the batch API is configured:
+    /// a triggered run, with a user waiting (<see cref="CompanyMessage.Live"/>).
+    /// </param>
+    public async Task<CompanyResult> HandleCompanyAsync(
+        string boardToken, CancellationToken ct = default, bool liveReads = false)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(boardToken);
 
@@ -197,7 +202,7 @@ public sealed class CompanyHandler
         //
         // Only for jobs whose content CHANGED. An unchanged posting keeps the
         // facts and parse it already has; that is the whole point of the hash.
-        if (_batcher is not null)
+        if (_batcher is not null && !(liveReads && _ai is not null))
         {
             await SubmitBatchedReadsAsync(boardToken, changed, now, ct);
         }

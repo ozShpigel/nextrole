@@ -34,20 +34,34 @@ public static class MatchEndpoints
             // a delay, not correctness.
             logger.LogError(ex, "Pool role sync failed for {UserId}", userId);
         }
+    }
 
-        // Separately, so a failed role classification (a Claude call) never
-        // stops the demand from being recorded. No AI here: the functions and
-        // the location are already on the profile.
+    // What this profile wants -- its functions and location terms -- recorded
+    // for the Greenhouse pre-read filter, and a run requested when any of it is
+    // new. Awaited inside the save, not fired and forgotten like the role
+    // sync: it is a few Mongo writes and no AI, and awaiting it means Matches
+    // can ask "are roles being collected for me?" the moment the save returns.
+    // Never fails the save.
+    private static async Task SyncPoolDemandAsync(
+        Guid userId, StructuredProfile profile, IPoolDemandRepository demand,
+        IDemandTriggerRepository triggers, ILogger logger, CancellationToken ct)
+    {
         try
         {
-            var demand = scope.ServiceProvider.GetRequiredService<IPoolDemandRepository>();
-            await demand.SyncAsync(
+            var added = await demand.SyncAsync(
                 userId,
                 JobFunctions.Normalize(profile.Functions, JobFunctions.MaxPerProfile),
                 PoolDemand.LocationTermsOf(profile.Location),
-                CancellationToken.None);
+                ct);
+
+            if (added.Count > 0)
+            {
+                await triggers.RequestAsync(userId, added, ct);
+                logger.LogInformation("New demand from {UserId}: {Values} -- ingest run requested",
+                    userId, string.Join(", ", added));
+            }
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             // Same eventual consistency as the roles. A missed sync can only
             // make the ingest skip postings this user wants, and only while the
@@ -573,6 +587,16 @@ public static class MatchEndpoints
             updated_at = doc.UpdatedAt
         };
 
+        // Whether a triggered ingest run is collecting roles for this user --
+        // their profile brought a function or location nobody had, so its
+        // postings were never read. Matches polls it to say so, and refreshes
+        // the board when it turns false. Two indexed reads, no AI.
+        app.MapGet("/api/match/collecting", async (
+            IUserContext user, IDemandTriggerRepository triggers, CancellationToken ct) =>
+            Results.Ok(new { collecting = await triggers.IsCollectingAsync(user.UserId, ct) }))
+        .WithName("GetCollecting")
+        .WithSummary("Whether an ingest run is collecting roles for this user's new function or location");
+
         app.MapGet("/api/match/profile", async (
             IUserContext user,
 
@@ -598,6 +622,8 @@ public static class MatchEndpoints
             [FromBody] StructuredProfile request,
             IUserContext user,
             IProfileProvider provider,
+            IPoolDemandRepository demand,
+            IDemandTriggerRepository triggers,
             IServiceScopeFactory scopeFactory,
             ILogger<Program> logger,
             CancellationToken ct) =>
@@ -609,6 +635,8 @@ public static class MatchEndpoints
             {
                 await provider.UpsertProfileAsync(user.UserId, request, ct);
                 var updated = await provider.GetProfileDocumentAsync(user.UserId, ct);
+
+                await SyncPoolDemandAsync(user.UserId, request, demand, triggers, logger, ct);
 
                 // The shared pool searches the roles its users are actually
                 // under, so a saved profile can add one (or release the last

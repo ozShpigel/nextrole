@@ -172,9 +172,29 @@ run would skip its presence touch and hand it to the close diff.
 
 **Nothing is lost for good.** A skipped posting is not stored, so every run sees
 it as new and asks again. When a user arrives with its function or location,
-the next run reads it -- no backfill. Until then that user sees little on
-Matches; triggering a run when a new function or location appears is the
-follow-up (Tasks.md), and only matters once the filter is On.
+the next run reads it -- no backfill -- and that run starts at once:
+
+**Triggered runs** (`DemandTriggers`). A profile save whose functions or
+location terms include one nobody had (`PoolDemandRepository` reports what it
+inserted) writes a request to `greenhouse_triggers`. The consumer looks every
+15 s; with the filter `on` it claims every pending request into one run and
+publishes every board with `live: true`, so new postings are read with live
+calls (seconds) instead of the batch API (minutes to hours). Fetching is free
+and the hash skip makes stored postings free, so the run pays only for what the
+new value made wanted. At most one triggered run per 10 minutes; requests
+meanwhile wait and share the next. A request closes when its run has no board
+left pending in `greenhouse_runs` (or after an hour). In `log`/`off` mode
+requests are closed without a run: nothing was skipped.
+
+Matches polls `GET /api/match/collecting` and shows "Collecting roles like
+yours" while the user has an open request **and** the consumer's heartbeat
+(`greenhouse_consumer`, written every pass) is fresh and says `On` -- a consumer
+in log mode, or down, never leaves the notice up. When it turns false the board
+refetches. Measured locally against Mongo with a stand-in publisher: request →
+claimed → open while boards pend → closed; a second request inside the cooldown
+waits; a log-mode consumer closes it and shows nothing. The time a real run
+takes is not measured yet -- read it from the consumer's `Triggered run ...: done
+after Ns` line on the first one.
 
 **`Greenhouse__Prefilter`**: `off` | `log` (default) | `on`. In `log` it skips
 nothing and writes two lines per board:

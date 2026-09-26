@@ -75,6 +75,20 @@ export function usePoolBand(enabled: boolean) {
   });
 }
 
+// Whether the ingest is collecting roles for this user right now: their
+// profile brought a kind of work or a location nobody here had, so the job
+// boards are being read for it (server: DemandTriggers). Polled faster while
+// it is true, so the board refreshes within ~20s of the run finishing.
+export function useCollecting(enabled: boolean) {
+  return useQuery<{ collecting: boolean }>({
+    queryKey: ['match', 'collecting'],
+    queryFn: () => matchApi('/collecting'),
+    enabled,
+    refetchInterval: (query) => (query.state.data?.collecting ? 20_000 : 60_000),
+    retry: false,
+  });
+}
+
 // Score specific postings, as the reader scrolls into unscored cards.
 //
 // A mutation, unlike the scan: it is fired from an interaction rather than a

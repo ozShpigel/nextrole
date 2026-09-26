@@ -9,7 +9,11 @@ public interface IPoolDemandRepository
     /// each one, and removes the user from every other. A value left with no
     /// users is deleted, so the ingest stops reading postings for it.
     /// </summary>
-    Task SyncAsync(
+    /// <returns>
+    /// The values nobody had before this save, prefixed by kind
+    /// ("function:sales", "location:berlin") -- what a triggered run is for.
+    /// </returns>
+    Task<IReadOnlyList<string>> SyncAsync(
         Guid userId, IReadOnlyCollection<string> functions, IReadOnlyCollection<string> locations,
         CancellationToken ct = default);
 }

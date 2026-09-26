@@ -197,6 +197,32 @@ public class ScoreByIdsTests
         Assert.Equal(1, second.Candidates);
     }
 
+    // ---- the parse, paid once --------------------------------------------
+
+    [Fact]
+    public async Task Parses_made_while_scoring_are_stored_for_the_next_user()
+    {
+        // The ingest leaves the parse to the first scorer; storing it is what
+        // keeps it a once-per-posting cost rather than once per user.
+        var (scan, pool, _) = Build();
+
+        await scan.ScoreByIdsAsync(User, ["a", "b"]);
+
+        Assert.Equal(["a", "b"], pool.SavedParses!.Keys.Order());
+        Assert.Equal("v-test", pool.SavedParseVersion);
+    }
+
+    [Fact]
+    public async Task A_failed_parse_save_never_costs_the_scores()
+    {
+        var (scan, pool, _) = Build();
+        pool.SaveParsesThrows = true;
+
+        var result = await scan.ScoreByIdsAsync(User, ["a", "b"]);
+
+        Assert.Equal(2, result.Scored);
+    }
+
     // Fakes ------------------------------------------------------------------
 
     private sealed class RecordingPool : IPoolJobRepository
@@ -243,6 +269,19 @@ public class ScoreByIdsTests
             throw new NotSupportedException();
         public Task<string?> FindCompanyLogoAsync(string company, CancellationToken ct = default) =>
             throw new NotSupportedException();
+
+        public IReadOnlyDictionary<string, ParsedJob>? SavedParses;
+        public string? SavedParseVersion;
+        public bool SaveParsesThrows;
+
+        public Task<int> SaveParsesAsync(
+            IReadOnlyDictionary<string, ParsedJob> parses, string? parseVersion, CancellationToken ct = default)
+        {
+            if (SaveParsesThrows) throw new InvalidOperationException("store down");
+            SavedParses = parses;
+            SavedParseVersion = parseVersion;
+            return Task.FromResult(parses.Count);
+        }
     }
 
     private sealed class CountingQuota(int remaining) : IUserQuotaRepository
@@ -293,6 +332,11 @@ public class ScoreByIdsTests
                     Id = j.Id,
                     Response = new MatchResponse { OverallScore = 50, Verdict = "MAYBE" },
                 })],
+                // As JobMatchService does: a parse for every job that came
+                // without one.
+                NewParses = r.Jobs.Where(j => j.Parsed is null)
+                    .ToDictionary(j => j.Id, j => new ParsedJob { JobTitle = j.Title ?? "" }),
+                ParseVersion = "v-test",
             });
 
         public Task<MatchResponse> AnalyzeMatchAsync(Guid u, MatchRequest r, CancellationToken ct = default) =>

@@ -254,10 +254,11 @@ internal static class Build
         ApplicationTracker.Core.Matching.IngestAiClient? ai = null,
         PrefilterMode prefilter = PrefilterMode.Off,
         IDemand? demand = null,
-        Microsoft.Extensions.Logging.ILogger<CompanyHandler>? log = null) =>
+        Microsoft.Extensions.Logging.ILogger<CompanyHandler>? log = null,
+        bool parseAtIngest = true) =>
         new(BoardClient(board), embeddings, store,
             config ?? CompaniesConfig.ForTesting(Token), log ?? NullLogger<CompanyHandler>.Instance, ai,
-            prefilter: prefilter, demand: demand);
+            prefilter: prefilter, demand: demand, parseAtIngest: parseAtIngest);
 
     /// <summary>
     /// The board token every test uses.

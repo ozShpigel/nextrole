@@ -53,6 +53,26 @@ public class IngestAiPassTests
         """;
 
     [Fact]
+    public async Task With_parse_at_ingest_off_only_the_facts_are_read()
+    {
+        // The parse is left to the first user who scores the posting; the
+        // facts are still read here, because retrieval filters on them.
+        var api = new StubHandler()
+            .EnqueueJson(HttpStatusCode.OK, FactsJson((1, "London, United Kingdom", ["Go"])));
+        var store = new FakeJobStore();
+
+        await Build.Handler(
+                new StubHandler().EnqueueJson(HttpStatusCode.OK, Build.BoardJson((1, "Backend Engineer", Content))),
+                new FakeEmbeddingClient(), store, ai: Client(api), parseAtIngest: false)
+            .HandleCompanyAsync(Build.Token);
+
+        Assert.Equal(1, api.Calls);
+        Assert.Contains("/api/match/job-facts", api.RequestUris[0]);
+        Assert.Equal([1L], store.SavedFacts.Keys);
+        Assert.Empty(store.SavedParsedFor);
+    }
+
+    [Fact]
     public async Task Runs_both_passes_for_a_new_job_and_stores_what_they_return()
     {
         var api = new StubHandler()

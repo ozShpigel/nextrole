@@ -150,11 +150,19 @@ public sealed class GreenhouseJobRepository : IPoolJobRepository
             .Find(Builders<BsonDocument>.Filter.And(
                 Builders<BsonDocument>.Filter.In("_id", ids.Select(ObjectId.Parse)),
                 Open,
-                // A posting whose parse is still in an open batch waits for it.
-                // Scored now, it would be parsed inline at full price for every
-                // user who reaches it -- the cost the batch exists to halve --
-                // and, if new, scored before its facts could filter it.
-                Builders<BsonDocument>.Filter.Eq(GreenhouseJobFields.AiPendingParse, BsonNull.Value)))
+                // A posting whose parse is still in an open batch waits for it
+                // (only while Greenhouse:ParseAtIngest is on, or for batches
+                // submitted before it went off): scored now, it would be parsed
+                // inline at full price for every user who reaches it.
+                Builders<BsonDocument>.Filter.Eq(GreenhouseJobFields.AiPendingParse, BsonNull.Value),
+                // A NEW posting waits for its facts: scored before them, it
+                // would skip the location, seniority and function filters that
+                // read them. With the parse off the ingest, this is the wait
+                // the parse marker used to cover. A re-read -- old facts still
+                // stored -- stays visible meanwhile.
+                Builders<BsonDocument>.Filter.Or(
+                    Builders<BsonDocument>.Filter.Eq(GreenhouseJobFields.AiPendingFacts, BsonNull.Value),
+                    Builders<BsonDocument>.Filter.Type(GreenhouseJobFields.Extracted, BsonType.Document))))
             .ToListAsync(ct);
 
         // Kept separate from the Take below so the log can report them
@@ -287,6 +295,37 @@ public sealed class GreenhouseJobRepository : IPoolJobRepository
         if (term.Equals("UK", StringComparison.OrdinalIgnoreCase)) yield return "United Kingdom";
         if (term.Equals("United States", StringComparison.OrdinalIgnoreCase)) yield return "USA";
         if (term.Equals("USA", StringComparison.OrdinalIgnoreCase)) yield return "United States";
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Only where no parse is stored: two users scoring the same new posting
+    /// at the same moment both pay for a parse (knowingly unguarded -- rare at
+    /// this scale, and a lock across API instances costs more than the call),
+    /// but the second never overwrites the first. Written in the ingest's own
+    /// camelCase shape (<see cref="ParsedJobDocument"/>), so there is one
+    /// stored format and one reader for it.
+    /// </remarks>
+    public async Task<int> SaveParsesAsync(
+        IReadOnlyDictionary<string, ParsedJob> parses, string? parseVersion, CancellationToken ct = default)
+    {
+        var now = DateTime.UtcNow;
+        var writes = parses
+            .Where(p => IsObjectId(p.Key))
+            .Select(p => new UpdateOneModel<BsonDocument>(
+                Builders<BsonDocument>.Filter.And(
+                    Builders<BsonDocument>.Filter.Eq("_id", ObjectId.Parse(p.Key)),
+                    Builders<BsonDocument>.Filter.Exists(GreenhouseJobFields.Parsed, false)),
+                Builders<BsonDocument>.Update
+                    .Set(GreenhouseJobFields.Parsed, (BsonValue)ParsedJobDocument.To(p.Value))
+                    .Set(GreenhouseJobFields.ParsedAt, (BsonValue)now)
+                    .Set(GreenhouseJobFields.ParsedWith,
+                        parseVersion is null ? BsonNull.Value : (BsonValue)new BsonString(parseVersion))))
+            .ToList<WriteModel<BsonDocument>>();
+        if (writes.Count == 0) return 0;
+
+        var result = await _jobs.BulkWriteAsync(writes, new BulkWriteOptions { IsOrdered = false }, ct);
+        return (int)result.ModifiedCount;
     }
 
     public async Task<List<PoolJob>> GetByIdsAsync(IEnumerable<string> jobIds, CancellationToken ct = default)
@@ -466,19 +505,9 @@ public sealed class GreenhouseJobRepository : IPoolJobRepository
         Site = "greenhouse",
     };
 
-    private static ParsedJob? ParsedJobFrom(BsonDocument doc)
-    {
-        try
-        {
-            return MongoDB.Bson.Serialization.BsonSerializer.Deserialize<ParsedJob>(doc);
-        }
-        catch (Exception)
-        {
-            // A stored parse that will not deserialise must not fail the scan:
-            // null means "parse it inline", which is a slower correct answer.
-            return null;
-        }
-    }
+    // Null when unreadable: "parse it inline", a slower correct answer. See
+    // ParsedJobDocument for why this is not BsonSerializer.Deserialize.
+    private static ParsedJob? ParsedJobFrom(BsonDocument doc) => ParsedJobDocument.From(doc);
 
     private static string? Str(BsonDocument d, string field) =>
         d.TryGetValue(field, out var v) && v.IsString ? v.AsString : null;

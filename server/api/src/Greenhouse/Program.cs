@@ -232,6 +232,14 @@ try
     log.LogInformation("Pre-read filter: {Mode}, {Locations} served location(s)",
         prefilter, companies.ServedLocations.Count);
 
+    // Off by default: the ingest reads facts only, and the first user to score
+    // a posting parses it (stored for everyone after). Parsing at ingest is
+    // batched at half price but paid for every posting read; on demand is
+    // full price but paid only for postings someone scores -- cheaper while
+    // fewer than about half of them ever are. Flip it on if that stops holding.
+    var parseAtIngest = configuration.GetValue("Greenhouse:ParseAtIngest", false);
+    log.LogInformation("Parse at ingest: {ParseAtIngest}", parseAtIngest ? "on" : "off (parsed by the first scorer)");
+
     var handler = new CompanyHandler(
         new BoardClient(boardHttp, loggerFactory.CreateLogger<BoardClient>()),
         new VoyageEmbeddingClient(voyageHttp, embedding, loggerFactory.CreateLogger<VoyageEmbeddingClient>()),
@@ -241,7 +249,8 @@ try
         ingestAi,
         useBatchApi ? batcher : null,
         prefilter,
-        PoolDemandReader.For(database));
+        PoolDemandReader.For(database),
+        parseAtIngest);
 
     var consumer = new CompanyConsumer(
         connection, handler, ledger, loggerFactory.CreateLogger<CompanyConsumer>());

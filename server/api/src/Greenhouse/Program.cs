@@ -241,7 +241,7 @@ try
         ingestAi,
         useBatchApi ? batcher : null,
         prefilter,
-        PoolFunctionDemand.For(database));
+        PoolDemandReader.For(database));
 
     var consumer = new CompanyConsumer(
         connection, handler, ledger, loggerFactory.CreateLogger<CompanyConsumer>());

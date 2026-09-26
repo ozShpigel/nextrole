@@ -98,8 +98,12 @@ public static class ServiceExtensions
             new UserQuotaRepository(sp.GetRequiredService<IMongoCollection<UserQuota>>()));
         services.AddScoped<IPoolRoleRepository>(sp =>
             new PoolRoleRepository(sp.GetRequiredService<IMongoCollection<PoolRole>>()));
-        services.AddScoped<IPoolFunctionRepository>(sp =>
-            new PoolFunctionRepository(sp.GetRequiredService<IMongoCollection<PoolFunction>>()));
+        // Shared-pool state: the functions and locations users want, which the
+        // Greenhouse ingest reads to decide what is worth paying to read. Two
+        // collections of one shape, so built from the database rather than
+        // resolved by collection type.
+        services.AddScoped<IPoolDemandRepository>(sp =>
+            PoolDemandRepository.For(sp.GetRequiredService<IMongoDatabase>()));
         services.AddScoped<IPoolJobRepository>(sp =>
             new PoolJobRepository(sp.GetRequiredService<IMongoCollection<MongoDB.Bson.BsonDocument>>()));
         services.AddSingleton<IResumePdfRenderer, QuestPdfResumeRenderer>();

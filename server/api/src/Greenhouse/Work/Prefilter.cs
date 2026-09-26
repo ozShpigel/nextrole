@@ -140,22 +140,47 @@ public static class Prefilter
         return guesses.Count == 1 ? guesses[0] : null;
     }
 
-    /// <summary>Whether any of the posting's location texts names a served location.</summary>
+    /// <summary>
+    /// Whether a posting could be somewhere the product serves -- false only
+    /// when its location is CLEARLY elsewhere.
+    /// </summary>
     /// <remarks>
-    /// Whole words, case-insensitive: "UK" must not match "Ukraine". No served
-    /// locations configured, or no location text at all, is a pass.
+    /// <para>
+    /// The same shape as the function rule: skip only on a clear answer. A
+    /// posting passes when any location text names a served term (whole words,
+    /// so "UK" does not match "Ukraine"), or when it resolves to a served
+    /// country (<see cref="Places"/>: "Munich" is Germany), or when it resolves
+    /// to nothing at all ("Hybrid", "HQ", a town not in the list). Only text
+    /// that resolves, and only to countries nobody is in, is skipped.
+    /// </para>
+    /// <para>
+    /// No served terms, or no location text at all, is a pass.
+    /// </para>
     /// </remarks>
-    public static bool InServedLocation(IEnumerable<string?> locationTexts, IReadOnlyList<string> served)
-    {
-        if (served.Count == 0) return true;
+    public static bool InServedLocation(IEnumerable<string?> locationTexts, ServedPlaces served) =>
+        LocationSkip(locationTexts, served) is null;
 
-        var texts = locationTexts.Where(t => !string.IsNullOrWhiteSpace(t)).ToList();
-        if (texts.Count == 0) return true;
+    /// <inheritdoc cref="InServedLocation(IEnumerable{string?}, ServedPlaces)"/>
+    public static bool InServedLocation(IEnumerable<string?> locationTexts, IReadOnlyList<string> served) =>
+        InServedLocation(locationTexts, ServedPlaces.From(served));
+
+    /// <summary>The countries a clearly-elsewhere location resolved to, or null to read it.</summary>
+    public static IReadOnlySet<string>? LocationSkip(IEnumerable<string?> locationTexts, ServedPlaces served)
+    {
+        if (served.IsEmpty) return null;
+
+        var texts = locationTexts.Where(t => !string.IsNullOrWhiteSpace(t)).Select(t => t!).ToList();
+        if (texts.Count == 0) return null;
 
         // The static IsMatch goes through Regex's own cache: one parse per
         // served list, not one per posting.
-        var pattern = WordsPattern(served);
-        return texts.Any(t => Regex.IsMatch(t!, pattern, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant));
+        var pattern = WordsPattern(served.Terms);
+        if (texts.Any(t => Regex.IsMatch(t, pattern, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)))
+            return null;
+
+        var countries = texts.SelectMany(Places.CountriesOf).ToHashSet(StringComparer.Ordinal);
+        if (countries.Count == 0) return null;                       // unknown: read it
+        return countries.Overlaps(served.Countries) ? null : countries;
     }
 
     /// <summary>Why this posting need not be read, or null to read it.</summary>
@@ -164,12 +189,13 @@ public static class Prefilter
     /// no user has recorded any, and then nothing is skipped by function.
     /// </param>
     public static PrefilterSkip? Decide(
-        BoardJob job, IReadOnlyList<string> servedLocations, IReadOnlyCollection<string>? accepted)
+        BoardJob job, ServedPlaces served, IReadOnlyCollection<string>? accepted)
     {
         var locations = new[] { job.Location?.Name }
             .Concat((job.Offices ?? []).Select(o => o.Name));
-        if (!InServedLocation(locations, servedLocations))
-            return new PrefilterSkip(PrefilterSkip.Location, job.Location?.Name ?? "");
+        if (LocationSkip(locations, served) is { } elsewhere)
+            return new PrefilterSkip(PrefilterSkip.Location,
+                $"{job.Location?.Name} ({string.Join(",", elsewhere.Order())})");
 
         if (accepted is null || accepted.Count == 0) return null;
 
@@ -178,6 +204,11 @@ public static class Prefilter
             ? new PrefilterSkip(PrefilterSkip.Function, guess)
             : null;
     }
+
+    /// <inheritdoc cref="Decide(BoardJob, ServedPlaces, IReadOnlyCollection{string}?)"/>
+    public static PrefilterSkip? Decide(
+        BoardJob job, IReadOnlyList<string> servedLocations, IReadOnlyCollection<string>? accepted) =>
+        Decide(job, ServedPlaces.From(servedLocations), accepted);
 
     /// <summary>Every function the given ones accept, neighbours included.</summary>
     /// <remarks>

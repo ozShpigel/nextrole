@@ -73,8 +73,9 @@ public sealed record CompaniesConfig
     /// between such a run and a hard 400.
     /// </remarks>
     /// <summary>
-    /// Locations the product serves, for the pre-read filter: a NEW posting
-    /// whose board location and offices name none of these is not read.
+    /// The baseline of locations the product serves, for the pre-read filter.
+    /// Every user's own location terms (<c>pool_locations</c>) are served on
+    /// top, so a user in a new city needs no edit here.
     /// </summary>
     /// <remarks>
     /// Whole words, case-insensitive, matched against the board's free text

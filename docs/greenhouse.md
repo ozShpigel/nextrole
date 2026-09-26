@@ -127,15 +127,39 @@ from everyone. The reads are the ingest's cost, and they grow with the company
 list, not with who uses the product. So before paying, the consumer looks at
 what the board returns for free:
 
-- **Location.** A new posting whose board location and offices name none of
-  `served_locations` (`companies.json`) is skipped. Whole words, so `UK` does
-  not match `Ukraine`; no location text at all is read.
+- **Location.** A new posting whose board location and offices name no served
+  location is skipped. Served = `served_locations` (`companies.json`) **plus**
+  every user's own location terms from `pool_locations`: a profile's "Tel Aviv,
+  Israel" serves `tel aviv` and `israel` from the next run, with no config edit
+  and no deploy. City *and* country, because a board names either and spellings
+  differ ("Tel Aviv-Yafo"). Whole words, so `UK` does not match `Ukraine`. An
+  empty `served_locations` means no location filtering at all -- learned terms
+  never switch it on.
+
+  **Skipped only when clearly elsewhere**, like the function rule. A text match
+  on a served term reads the posting; otherwise the location is resolved to
+  countries (`Places`, an offline GeoNames list: cities over 15,000 people,
+  countries and aliases, US/Canadian states -- `Data/places.tsv`, rebuilt by
+  `Data/build_places.py`). "Munich" is Germany, so a Berlin user's `germany`
+  serves it even though the board never wrote the country. Names are ambiguous
+  (London is GB and CA; "IL" is Israel and Illinois), so a posting's countries
+  are the union and it is read if any is served -- ambiguity can only cost a
+  read. Text that resolves to nothing ("Hybrid", "HQ", a small town) is read.
+  On the served side a term serves a country only when it means exactly one
+  ("UK", "Tel Aviv"; not "London", which would serve all of Canada).
+  Measured on the 263 local postings: the same 92 location skips as the text
+  match -- New York, Tokyo, Prague, Barcelona, Dubai, Milan -- all clearly
+  elsewhere. Place data (c) GeoNames, https://www.geonames.org, CC BY 4.0.
 - **Function.** A new posting whose title -- or, when the title says nothing,
   its department -- *clearly* belongs to a function no user wants is skipped.
-  "Wanted" comes from real profiles: the API records each profile's functions
-  in `pool_functions` on every save (`PoolFunctionRepository`), a function
-  leaves when its last user does, and each one is widened by its neighbours
+  "Wanted" comes from real profiles, and each one is widened by its neighbours
   (`JobFunctions.AcceptedFor`) exactly as Matches widens it.
+
+Both come from one place: on every profile save the API records the profile's
+functions in `pool_functions` and its location terms (`PoolDemand.LocationTermsOf`)
+in `pool_locations` (`PoolDemandRepository`); a value leaves when its last user
+does. The ingest reads both through the same `PoolDemand` class
+(`PoolDemandReader`), so the two processes cannot disagree on field names.
 
 **Knowingly inexact, so it leans hard towards reading** (`Prefilter`). Any
 technical word in the title -- engineer, data, analyst, security, technical...
@@ -147,24 +171,28 @@ must cost an extra read, never a lost job.
 run would skip its presence touch and hand it to the close diff.
 
 **Nothing is lost for good.** A skipped posting is not stored, so every run sees
-it as new and asks again. When a user arrives with its function, the next run
-reads it -- no backfill. Until then that user sees little on Matches; triggering
-a run when a new function appears is the follow-up (Tasks.md), and only matters
-once the filter is On.
+it as new and asks again. When a user arrives with its function or location,
+the next run reads it -- no backfill. Until then that user sees little on
+Matches; triggering a run when a new function or location appears is the
+follow-up (Tasks.md), and only matters once the filter is On.
 
 **`Greenhouse__Prefilter`**: `off` | `log` (default) | `on`. In `log` it skips
 nothing and writes two lines per board:
 
 ```
 pre-read filter (Log) -- 12 of 30 new posting(s) would be skipped: 8 outside served
-  locations, 4 a function nobody wants (wanted: infrastructure, ...). E.g. ...
+  locations (18 configured + 4 from profiles), 4 a function nobody wants
+  (wanted: infrastructure, ...). E.g. ...
 pre-read filter check -- 41 stored posting(s) guessed from title/department,
   39 labelled by Claude: 37 right, 2 wrong, 0 wrong in a way that would hide a
   wanted posting. Wrong: ...
 ```
 
 The second line is the measurement: the guess against the function Claude read
-from the whole posting, on postings already stored. **Switch to `on` only once
+from the whole posting, on postings already stored. A third,
+`pre-read filter location check`, does the same for locations: of the stored
+postings the location rule would skip, how many Claude placed somewhere served
+("would hide"). **Switch to `on` only once
 "would hide a wanted posting" reads ~0** across a few runs.
 
 Measured on the 263 open postings of the three local boards, with an
@@ -184,28 +212,38 @@ functions that are each other's neighbours (sales/customer success,
 marketing/sales), which cannot hide anything. Cost of abstaining, on the same
 263 local postings: 146 skipped instead of 151 (56% instead of 57%).
 
-**The bar for `on`, set before looking:** 0 "would hide a wanted posting" over
-at least 3 runs and at least 300 checked postings. One clean run on ~120 is too
-thin -- shadow-mode practice is to promote on a fixed benchmark over enough
-traffic. The sample grows by itself: new postings log mode lets through are
-read by Claude and join the next check.
+**The bar for `on`:** 0 "would hide a wanted posting" over the **distinct**
+labelled postings of the boards in the config, and it must **stay at 0 as each
+board is added** -- a new board's postings join the check on its first run.
+Counted in distinct postings, not checks: every run re-checks the same stored
+postings, so three runs over ~116 postings are 116 postings seen three times,
+not 348. (First written as "300 checked postings over 3 runs", which counted
+the same postings repeatedly.)
 
-**Before the first `log` run on a box, fill `pool_functions` from existing
-profiles** -- otherwise demand is only whoever has saved since the deploy, and
-the check undercounts. Idempotent; re-run it any time:
+Second check on the box (2026-09-26, after the abstain fix): 116 labelled,
+**109 right, 7 wrong, 0 would hide**. Five of the seven are neighbour pairs
+(sales/customer success, marketing/sales). Two involve operations, which has no
+neighbours: "Creative Project Manager" (guessed marketing) and "Global Program
+Manager" (guessed customer success) -- invisible today because no user wants
+operations, and caught by this same check the day one does. Decided: 116
+distinct postings at 0 is enough for these three boards.
 
-```js
-// mongosh, connected to the cluster
-const PROFILE_DB = "<MongoDB__ProfileDatabase, or MongoDB__Database if unset>";
-const MAIN_DB = "<MongoDB__Database>";   // where greenhouse_jobs lives
-db.getSiblingDB(PROFILE_DB).profile.aggregate([
-  { $project: { f: "$profile_structured.functions" } },
-  { $unwind: "$f" },
-  { $group: { _id: "$f", UserIds: { $addToSet: "$_id" } } },
-  { $set: { UpdatedAt: "$$NOW" } },
-  { $merge: { into: { db: MAIN_DB, coll: "pool_functions" }, whenMatched: "replace" } },
-]);
+**Fill `pool_functions` and `pool_locations` from existing profiles** after a
+deploy that adds either -- otherwise demand is only whoever has saved since,
+the check undercounts, and with the filter `on` the rest lose postings.
+`deploy/mongo/fill-pool-demand.js` rebuilds both; idempotent, and it reads the
+database names from `.env.api` exactly as the API resolves them. `deploy/` is
+not synced, so copy it over first (from WSL):
+
+```bash
+scp deploy/mongo/fill-pool-demand.js nextrole:/srv/nextrole/
+# then on the box, in /srv/nextrole:
+docker run --rm --env-file .env.api -v "$PWD/fill-pool-demand.js:/fill.js:ro" mongo:7 \
+  sh -c 'mongosh --quiet "$MongoDB__ConnectionString" /fill.js'
 ```
+
+Its location split mirrors `PoolDemand.LocationTermsOf`; change both together,
+or the next profile save corrects the difference.
 
 ### The two guards
 
@@ -491,8 +529,9 @@ while the run itself was fine.
 `Greenhouse__UseBatchApi` (consumer, default `false`) sends the two reads
 through the Message Batches API — see above.
 
-`Greenhouse__Prefilter` (consumer, `off` | `log` | `on`, default `log`) and
-`served_locations` in `companies.json` drive the pre-read filter — see above. An
+`Greenhouse__Prefilter` (consumer, `off` | `log` | `on`, default `log`),
+`served_locations` in `companies.json`, and the learned `pool_functions` /
+`pool_locations` drive the pre-read filter — see above. An
 unknown value is fatal: guessing `on` would skip postings unmeasured.
 
 `server/api/src/Greenhouse/config/companies.json` — board tokens, each

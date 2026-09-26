@@ -54,7 +54,7 @@ public sealed class CompanyHandler
     private readonly CompaniesConfig _config;
     private readonly ILogger<CompanyHandler> _log;
     private readonly PrefilterMode _prefilter;
-    private readonly IFunctionDemand? _demand;
+    private readonly IDemand? _demand;
 
     /// <summary>
     /// How many open jobs make an empty board response suspicious.
@@ -70,7 +70,7 @@ public sealed class CompanyHandler
         IBoardClient board, IEmbeddingClient embeddings, IJobStore store,
         CompaniesConfig config, ILogger<CompanyHandler> log, IngestAiClient? ai = null,
         IngestBatcher? batcher = null, PrefilterMode prefilter = PrefilterMode.Off,
-        IFunctionDemand? demand = null)
+        IDemand? demand = null)
     {
         // Greenhouse:Prefilter. Off here so a handler built without it behaves
         // exactly as before; Program defaults the real one to Log.
@@ -257,31 +257,38 @@ public sealed class CompanyHandler
 
         try
         {
-            IReadOnlyList<string> wanted = _demand is null ? [] : await _demand.WantedAsync(ct);
+            IReadOnlyList<string> wanted = _demand is null ? [] : await _demand.WantedFunctionsAsync(ct);
+            IReadOnlyList<string> learned = _demand is null ? [] : await _demand.WantedLocationsAsync(ct);
+            // The configured locations plus every user's own: a user in a new
+            // city is served from the next run, with no edit to companies.json.
+            var served = _config.ServedLocations.Count == 0
+                ? ServedPlaces.None   // no configured list = no location filtering; learned terms must not switch it on
+                : ServedPlaces.From(_config.ServedLocations.Concat(learned));
             // No recorded demand constrains nothing: reading everything is the
             // state before this filter existed, never a worse one.
             var accepted = wanted.Count > 0 ? Prefilter.Accepted(wanted) : null;
 
             var fresh = jobs.Where(j => !stored.ContainsKey(j.GreenhouseJobId)).ToList();
             var skips = fresh
-                .Select(j => (Job: j, Skip: Prefilter.Decide(j.Source, _config.ServedLocations, accepted)))
+                .Select(j => (Job: j, Skip: Prefilter.Decide(j.Source, served, accepted)))
                 .Where(x => x.Skip is not null)
                 .ToList();
 
             if (fresh.Count > 0)
                 _log.LogInformation(
                     "Board {Board}: pre-read filter ({Mode}) -- {Skipped} of {New} new posting(s) {Verb}: "
-                    + "{ByLocation} outside served locations, {ByFunction} a function nobody wants "
-                    + "(wanted: {Wanted}). E.g. {Examples}",
+                    + "{ByLocation} outside served locations ({Configured} configured + {Learned} from profiles), "
+                    + "{ByFunction} a function nobody wants (wanted: {Wanted}). E.g. {Examples}",
                     boardToken, _prefilter, skips.Count, fresh.Count,
                     _prefilter == PrefilterMode.On ? "skipped" : "would be skipped",
                     skips.Count(x => x.Skip!.Reason == PrefilterSkip.Location),
+                    _config.ServedLocations.Count, learned.Count,
                     skips.Count(x => x.Skip!.Reason == PrefilterSkip.Function),
                     wanted.Count > 0 ? string.Join(", ", wanted) : "none recorded, so no function filtering",
                     string.Join(" | ", skips.Take(PrefilterExamples)
                         .Select(x => $"{x.Job.Source.Title} [{x.Skip!.Reason}: {x.Skip.Detail}]")));
 
-            await CheckGuessesAsync(boardToken, jobs, stored, accepted, ct);
+            await CheckGuessesAsync(boardToken, jobs, stored, accepted, served, ct);
 
             return _prefilter == PrefilterMode.On
                 ? [.. skips.Select(x => x.Job.GreenhouseJobId)]
@@ -292,6 +299,44 @@ public sealed class CompanyHandler
             _log.LogError(e, "Board {Board}: the pre-read filter failed; reading every posting", boardToken);
             return [];
         }
+    }
+
+    /// <summary>
+    /// The location rule's measurement: of the stored postings it would skip,
+    /// how many Claude placed somewhere served when it read the whole posting.
+    /// </summary>
+    /// <remarks>
+    /// "Would hide" is a skip whose extracted location names a served term or a
+    /// served country. That has to read ~0 before the filter acts, exactly like
+    /// the function check.
+    /// </remarks>
+    private void CheckLocations(
+        string boardToken, IReadOnlyList<GreenhouseJob> storedJobs,
+        IReadOnlyDictionary<long, StoredFacts> facts, ServedPlaces served)
+    {
+        if (served.IsEmpty) return;
+
+        var skipped = storedJobs
+            .Select(j => (Job: j, Elsewhere: Prefilter.LocationSkip(
+                new[] { j.Source.Location?.Name }.Concat((j.Source.Offices ?? []).Select(o => o.Name)), served)))
+            .Where(x => x.Elsewhere is not null)
+            .ToList();
+
+        var labelled = skipped
+            .Select(x => (x.Job, Claude: facts.GetValueOrDefault(x.Job.GreenhouseJobId)?.Location))
+            .Where(x => !string.IsNullOrWhiteSpace(x.Claude))
+            .ToList();
+        var wouldHide = labelled
+            .Where(x => Prefilter.InServedLocation([x.Claude], served))
+            .ToList();
+
+        _log.LogInformation(
+            "Board {Board}: pre-read filter location check -- {Skipped} of {Stored} stored posting(s) "
+            + "resolve to countries nobody is in, {Labelled} with a location from Claude, {WouldHide} of "
+            + "those placed somewhere served (would hide). Would hide: {Examples}",
+            boardToken, skipped.Count, storedJobs.Count, labelled.Count, wouldHide.Count,
+            string.Join(" | ", wouldHide.Take(PrefilterExamples).Select(x =>
+                $"{x.Job.Source.Title} [board: {x.Job.Source.Location?.Name}, Claude: {x.Claude}]")));
     }
 
     /// <summary>
@@ -307,19 +352,24 @@ public sealed class CompanyHandler
     /// </remarks>
     private async Task CheckGuessesAsync(
         string boardToken, IReadOnlyList<GreenhouseJob> jobs, IReadOnlyDictionary<long, string> stored,
-        IReadOnlyCollection<string>? accepted, CancellationToken ct)
+        IReadOnlyCollection<string>? accepted, ServedPlaces served, CancellationToken ct)
     {
-        var guessed = jobs
-            .Where(j => stored.ContainsKey(j.GreenhouseJobId))
+        var storedJobs = jobs.Where(j => stored.ContainsKey(j.GreenhouseJobId)).ToList();
+        if (storedJobs.Count == 0) return;
+
+        var facts = await _store.StoredFactsAsync(
+            boardToken, [.. storedJobs.Select(j => j.GreenhouseJobId)], ct);
+
+        CheckLocations(boardToken, storedJobs, facts, served);
+
+        var guessed = storedJobs
             .Select(j => (Job: j, Guess: Prefilter.GuessFunction(
                 j.Source.Title, (j.Source.Departments ?? []).Select(d => d.Name))))
             .Where(x => x.Guess is not null)
             .ToList();
         if (guessed.Count == 0) return;
 
-        var labels = await _store.StoredFunctionsAsync(
-            boardToken, [.. guessed.Select(x => x.Job.GreenhouseJobId)], ct);
-        string[] LabelOf(GreenhouseJob j) => labels.GetValueOrDefault(j.GreenhouseJobId) ?? [];
+        string[] LabelOf(GreenhouseJob j) => facts.GetValueOrDefault(j.GreenhouseJobId)?.Functions ?? [];
 
         var labelled = guessed.Where(x => LabelOf(x.Job).Length > 0).ToList();
         var wrong = labelled.Where(x => !LabelOf(x.Job).Contains(x.Guess!)).ToList();

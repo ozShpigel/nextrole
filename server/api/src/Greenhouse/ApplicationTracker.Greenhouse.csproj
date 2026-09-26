@@ -37,6 +37,14 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Place name -> countries, for the pre-read filter (Places.cs). Embedded,
+         not copied: it is data the code cannot run without, not configuration.
+         Rebuilt by Data/build_places.py from GeoNames (CC BY 4.0). -->
+    <EmbeddedResource Include="Data/places.tsv" LogicalName="places.tsv" />
+    <None Remove="Data/build_places.py" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="RabbitMQ.Client" Version="7.1.2" />
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.3" />
     <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.3" />

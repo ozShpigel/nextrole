@@ -118,10 +118,10 @@ public interface IJobStore
     /// Null clears it, so removing a domain from the config removes the logo.
     /// </remarks>
     /// <summary>
-    /// The functions Claude read for these postings (<c>extracted.functions</c>),
-    /// by job id. A posting with none stored is absent or empty.
+    /// What Claude read for these postings -- <c>extracted.functions</c> and
+    /// <c>extracted.location</c> -- by job id. For the pre-read filter's checks.
     /// </summary>
-    Task<Dictionary<long, string[]>> StoredFunctionsAsync(
+    Task<Dictionary<long, StoredFacts>> StoredFactsAsync(
         string boardToken, IReadOnlyCollection<long> ids, CancellationToken ct);
 
     Task<long> StampCompanyLogoAsync(string boardToken, string? logoUrl, CancellationToken ct);
@@ -135,6 +135,10 @@ public interface IJobStore
 /// A stored posting's identity and text — the inputs the ingest AI reads need,
 /// with nothing else carried along.
 /// </summary>
+/// <param name="Functions">extracted.functions; empty when none stored.</param>
+/// <param name="Location">extracted.location; null when none stored.</param>
+public sealed record StoredFacts(string[] Functions, string? Location);
+
 public sealed record StoredJobContent(
     long GreenhouseJobId,
     string Title,

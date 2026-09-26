@@ -104,6 +104,8 @@ public static class ServiceExtensions
         // resolved by collection type.
         services.AddScoped<IPoolDemandRepository>(sp =>
             PoolDemandRepository.For(sp.GetRequiredService<IMongoDatabase>()));
+        services.AddScoped<IDemandTriggerRepository>(sp =>
+            DemandTriggerRepository.For(sp.GetRequiredService<IMongoDatabase>()));
         services.AddScoped<IPoolJobRepository>(sp =>
             new PoolJobRepository(sp.GetRequiredService<IMongoCollection<MongoDB.Bson.BsonDocument>>()));
         services.AddSingleton<IResumePdfRenderer, QuestPdfResumeRenderer>();

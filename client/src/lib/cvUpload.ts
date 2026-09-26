@@ -71,8 +71,11 @@ async function save(merge: (profile: StructuredProfile) => StructuredProfile): P
   const profileRes = await matchApi('/profile') as ProfileResponse;
   await matchApi('/profile', { method: 'PUT', body: JSON.stringify(merge(hydrateProfile(profileRes?.structured))) });
   // Everything that reads the profile — the onboarding gate, Matches' band —
-  // sees the new one before it asks again.
+  // sees the new one before it asks again. The save also records what the
+  // profile wants for the ingest, and may have started collecting roles for
+  // it: Matches should know at once, not at its next poll.
   await queryClient.invalidateQueries({ queryKey: ['match', 'profile'] });
+  await queryClient.invalidateQueries({ queryKey: ['match', 'collecting'] });
 }
 
 export async function startCvUpload(file: File): Promise<void> {

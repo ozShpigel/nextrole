@@ -111,7 +111,7 @@ public sealed class CompanyConsumer
 
         try
         {
-            var result = await _handler.HandleCompanyAsync(message.BoardToken, ct);
+            var result = await _handler.HandleCompanyAsync(message.BoardToken, ct, liveReads: message.Live);
 
             await _ledger.MarkDoneAsync(
                 message.Day, message.BoardToken, result.ToCounts(), DateTime.UtcNow, ct);

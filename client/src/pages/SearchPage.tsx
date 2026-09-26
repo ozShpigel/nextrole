@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { createPortal } from 'react-dom';
 import { X, SlidersHorizontal, Plus, Check, Search } from 'lucide-react';
-import { useScoredJobs, usePoolScan, usePoolBand, useScoreJobs } from '../lib/queries';
+import { useScoredJobs, usePoolScan, usePoolBand, useScoreJobs, useCollecting } from '../lib/queries';
 import { matchesBandFilters } from '../lib/bandFilters';
 import { stableOrder } from '../lib/boardOrder';
 import { useDwell } from '../lib/useDwell';
@@ -600,6 +600,17 @@ export default function SearchPage() {
   const bandQuery = usePoolBand(!uploading);
   const scoreJobs = useScoreJobs();
 
+  // Roles being collected for this user's new kind of work or location. When
+  // that run finishes, the new postings are stored: refetch the band so they
+  // appear without a reload. Invalidating on a state change, not firing a
+  // mutation — the refetch is a cheap read.
+  const collecting = useCollecting(!uploading).data?.collecting === true;
+  const wasCollectingRef = useRef(false);
+  useEffect(() => {
+    if (wasCollectingRef.current && !collecting) qc.invalidateQueries({ queryKey: ['match', 'pool-band'] });
+    wasCollectingRef.current = collecting;
+  }, [collecting, qc]);
+
   // Ids we have already sent. Not derived from the band: the band refetches
   // after each batch lands, and a card whose score has not been written yet
   // would otherwise be requested again.
@@ -848,6 +859,22 @@ export default function SearchPage() {
           </button>
         </div>
 
+        {collecting && (
+          <div
+            role="status"
+            aria-live="polite"
+            data-testid="collecting-notice"
+            className="mb-5 rounded-2xl border border-[var(--ed-rule)] bg-[var(--ed-panel)] px-5 py-4 flex flex-col gap-3"
+          >
+            <p className="text-[13px] text-[var(--ed-ink-soft)]">
+              <span className="font-medium text-[var(--ed-ink)]">Collecting roles like yours.</span>{' '}
+              Nobody here had your kind of work or location yet, so we’re reading the job boards for it now —
+              usually a minute or two. New roles appear below as they land.
+            </p>
+            <span aria-hidden="true" className="ed-shimmer block h-[3px] rounded-full" />
+          </div>
+        )}
+
         <div className="flex gap-5 items-start max-[900px]:flex-col">
 
           {/* Filters — toggled by the header button, not a fixed sidebar.
@@ -958,7 +985,7 @@ export default function SearchPage() {
               Couldn’t read your résumé: {upload.error}{' '}
               <Link to="/" className="underline underline-offset-4 hover:text-[var(--ed-ink)]">Try another file</Link>
             </p>
-          ) : uploading || jobsQuery.isLoading || (board.length === 0 && (scanning || bandQuery.isLoading)) ? (
+          ) : uploading || jobsQuery.isLoading || (board.length === 0 && (scanning || bandQuery.isLoading || collecting)) ? (
             /* Skeleton cards while there is nothing real to show: the résumé
                is being read, or the first retrieval and scores are on their
                way. They are replaced in place by real cards, whose own score

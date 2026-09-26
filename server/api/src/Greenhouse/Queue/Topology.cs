@@ -17,6 +17,17 @@ public sealed record CompanyMessage
     [JsonPropertyName("day")] public required string Day { get; init; }
 
     [JsonPropertyName("runId")] public required string RunId { get; init; }
+
+    /// <summary>
+    /// Read this board's new postings with live calls, not the batch API.
+    /// </summary>
+    /// <remarks>
+    /// Set on a run a user is waiting for (<c>DemandTrigger</c>): a batch
+    /// answers in minutes to hours at half the price, a live call in seconds.
+    /// Absent on the daily run's messages, and on any message written before
+    /// this field existed -- which is why it defaults to false.
+    /// </remarks>
+    [JsonPropertyName("live")] public bool Live { get; init; }
 }
 
 /// <summary>

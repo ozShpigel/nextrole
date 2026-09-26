@@ -22,25 +22,29 @@ public sealed class PoolDemandRepository : IPoolDemandRepository
         database.GetCollection<PoolDemand>(PoolDemand.FunctionsCollection),
         database.GetCollection<PoolDemand>(PoolDemand.LocationsCollection));
 
-    public async Task SyncAsync(
+    public async Task<IReadOnlyList<string>> SyncAsync(
         Guid userId, IReadOnlyCollection<string> functions, IReadOnlyCollection<string> locations,
         CancellationToken ct = default)
     {
-        await SyncOneAsync(_functions, userId, functions, ct);
-        await SyncOneAsync(_locations, userId, locations, ct);
+        var added = await SyncOneAsync(_functions, userId, functions, ct);
+        var addedLocations = await SyncOneAsync(_locations, userId, locations, ct);
+        return [.. added.Select(v => "function:" + v), .. addedLocations.Select(v => "location:" + v)];
     }
 
-    private static async Task SyncOneAsync(
+    // Returns the values this call created -- the upsert inserted them, so no
+    // user had them a moment ago.
+    private static async Task<List<string>> SyncOneAsync(
         IMongoCollection<PoolDemand> collection, Guid userId, IReadOnlyCollection<string> values, CancellationToken ct)
     {
         var now = DateTime.UtcNow;
+        var added = new List<string>();
 
         // Claim first, release second. The other order would briefly leave a
         // value with no users on a re-save, and an ingest reading in that
         // window would skip its postings.
         foreach (var value in values)
         {
-            await collection.UpdateOneAsync(
+            var result = await collection.UpdateOneAsync(
                 d => d.Id == value,
                 Builders<PoolDemand>.Update
                     .SetOnInsert(d => d.Id, value)
@@ -48,6 +52,7 @@ public sealed class PoolDemandRepository : IPoolDemandRepository
                     .AddToSet(d => d.UserIds, userId),
                 new UpdateOptions { IsUpsert = true },
                 ct);
+            if (result.UpsertedId is not null) added.Add(value);
         }
 
         var released = Builders<PoolDemand>.Filter.And(
@@ -60,5 +65,6 @@ public sealed class PoolDemandRepository : IPoolDemandRepository
 
         // An empty user list IS "nobody wants it" -- no second representation.
         await collection.DeleteManyAsync(Builders<PoolDemand>.Filter.Size(d => d.UserIds, 0), ct);
+        return added;
     }
 }

@@ -31,6 +31,32 @@ public class CompaniesConfigTests
     }
 
     [Fact]
+    public void The_same_domain_on_two_boards_is_fatal()
+    {
+        // The same company under two tokens: every posting would be stored,
+        // read and scored twice. Case does not make it a different domain.
+        var e = Assert.Throws<InvalidOperationException>(() => CompaniesConfig.Parse("""
+            { "companies": ["nice", "niceltd", "wizinc"],
+              "company_domains": { "nice": "nice.com", "niceltd": "NICE.com", "wizinc": "wiz.io" } }
+            """));
+
+        Assert.Contains("nice.com", e.Message);
+        Assert.Contains("nice", e.Message);
+        Assert.Contains("niceltd", e.Message);
+    }
+
+    [Fact]
+    public void Distinct_domains_load()
+    {
+        var config = CompaniesConfig.Parse("""
+            { "companies": ["nice", "wizinc"],
+              "company_domains": { "nice": "nice.com", "wizinc": "wiz.io" } }
+            """);
+
+        Assert.Equal(2, config.CompanyDomains.Count);
+    }
+
+    [Fact]
     public void An_empty_company_list_is_fatal()
     {
         var path = WriteTemp("""{ "companies": [] }""");

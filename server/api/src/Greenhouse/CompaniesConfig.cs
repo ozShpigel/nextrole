@@ -187,6 +187,19 @@ public sealed record CompaniesConfig
             domains[token.Trim()] = domain;
         }
 
+        // One domain, one board. Two tokens with the same domain are the same
+        // company listed twice -- mid-move between tokens, or added again
+        // under a second one -- and every one of its postings would be stored,
+        // read, embedded, shown and scored twice. The domain is exact; names
+        // are not. (docs/plans/multi-source-ingest.md -> Duplicates.)
+        var twice = domains
+            .GroupBy(kv => kv.Value, StringComparer.OrdinalIgnoreCase)
+            .FirstOrDefault(g => g.Count() > 1);
+        if (twice is not null)
+            throw new InvalidOperationException(
+                $"{what} lists {twice.Key} on two boards ({string.Join(", ", twice.Select(kv => kv.Key))}). "
+                + "A company must come from one board, or every posting is duplicated.");
+
         var served = ServedLocations
             .Where(l => !string.IsNullOrWhiteSpace(l))
             .Select(l => l.Trim())

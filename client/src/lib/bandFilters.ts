@@ -12,6 +12,11 @@ import type { DiscoveredJobSummary } from './types';
 // asks for 0), so "Any" can bring old postings back, and the chosen window --
 // 30 days by default -- is applied the way the server applies it to the scored
 // list (GreenhouseJobRepository.PostedWithin).
+// "Any" still stops at four months -- the same cap as the server
+// (PoolBrowseQuery.MaxAgeDays). An evergreen posting open for a year is not a
+// job worth showing, and the close diff never catches it.
+export const MAX_AGE_DAYS = 120;
+
 export interface BandFilters {
   daysBack?: number;
   levels: ReadonlySet<string>;
@@ -42,7 +47,8 @@ function withinDays(job: DiscoveredJobSummary, days: number): boolean {
 }
 
 export function matchesBandFilters(job: DiscoveredJobSummary, f: BandFilters): boolean {
-  if (f.daysBack && f.daysBack > 0 && !withinDays(job, f.daysBack)) return false;
+  const window = f.daysBack && f.daysBack > 0 ? Math.min(f.daysBack, MAX_AGE_DAYS) : MAX_AGE_DAYS;
+  if (!withinDays(job, window)) return false;
   // Matches the server exactly: with any chip selected, a posting whose band
   // was not extracted does not match, as `$in` does not match a null.
   if (f.levels.size > 0 && !(job.actual_job_level && f.levels.has(job.actual_job_level))) return false;

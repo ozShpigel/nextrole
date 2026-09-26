@@ -362,10 +362,10 @@ public sealed class GreenhouseJobRepository : IPoolJobRepository
         // PoolJobRepository.BrowseAsync, over this collection's fields.
         //
         // DaysBack is "posted within N days" by the company's own posting date
-        // (PostedWithin); 0 is any age. The band asks with 0 and is windowed
-        // in the browser.
-        if (query.DaysBack > 0)
-            clauses.Add(PostedWithin(query.DaysBack));
+        // (PostedWithin). 0 is "Any", which still stops at four months
+        // (PoolBrowseQuery.MaxAgeDays). The band asks with 0 and is windowed
+        // further in the browser.
+        clauses.Add(PostedWithin(PoolBrowseQuery.EffectiveDays(query.DaysBack)));
 
         if (!string.IsNullOrWhiteSpace(query.Location))
         {
@@ -466,6 +466,7 @@ public sealed class GreenhouseJobRepository : IPoolJobRepository
         JobUrl = Str(d, GreenhouseJobFields.AbsoluteUrl),
         CompanyLogo = Str(d, GreenhouseJobFields.CompanyLogo),
         FirstSeenAt = Date(d, GreenhouseJobFields.FirstSeenAt),
+        PostedAt = Date(d, GreenhouseJobFields.FirstPublishedAt) ?? Date(d, GreenhouseJobFields.BoardUpdatedAt),
         MustHaveTech = ExtractedStrings(d, "must_have_tech"),
         MustHaveGroups = RequirementGroups.From(
             ExtractedGroups(d, "must_have_groups"), ExtractedStrings(d, "must_have_tech")),

@@ -213,6 +213,22 @@ public class ScoreByIdsTests
     }
 
     [Fact]
+    public async Task Nothing_older_than_Matches_shows_is_scored()
+    {
+        // "Any" stops at four months. The ids come from the client, so the
+        // server refuses the older one rather than trusting the board; a
+        // posting of unknown age is shown, so it is scored.
+        var (scan, pool, _) = Build();
+        pool.PostedAtById["old"] = DateTime.UtcNow.AddDays(-(PoolBrowseQuery.MaxAgeDays + 10));
+        pool.PostedAtById["fresh"] = DateTime.UtcNow.AddDays(-10);
+
+        var result = await scan.ScoreByIdsAsync(User, ["old", "fresh", "unknown"]);
+
+        Assert.Equal(2, result.Scored);
+        Assert.Equal(["fresh", "unknown"], pool.SavedParses!.Keys.Order());
+    }
+
+    [Fact]
     public async Task A_failed_parse_save_never_costs_the_scores()
     {
         var (scan, pool, _) = Build();
@@ -231,6 +247,7 @@ public class ScoreByIdsTests
         public List<string>? SecondRequestedIds;
         public List<string> Trace = [];
         public bool ReturnNothing;
+        public Dictionary<string, DateTime?> PostedAtById = [];
         public bool HoldUntilReleased;
         public readonly TaskCompletionSource Entered = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private readonly TaskCompletionSource _gate = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -255,7 +272,11 @@ public class ScoreByIdsTests
 
             return ReturnNothing
                 ? []
-                : [.. ids.Select(id => new PoolJob { Id = id, Title = "T", Company = "C", Description = "D" })];
+                : [.. ids.Select(id => new PoolJob
+                {
+                    Id = id, Title = "T", Company = "C", Description = "D",
+                    PostedAt = PostedAtById.GetValueOrDefault(id),
+                })];
         }
 
         public Task<List<PoolJob>> FindCandidatesAsync(

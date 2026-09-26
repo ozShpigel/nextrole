@@ -290,6 +290,21 @@ public sealed class PoolScanService : IPoolScanService
             // An id that is not a live posting simply is not found. No error:
             // the board may hold an id that closed a moment ago.
             var jobs = await _pool.GetByIdsAsync(affordable, ct);
+
+            // Never score what Matches never shows: older than the "Any"
+            // limit (four months). The board does not send such ids, but the
+            // ids are the client's, so the rule is enforced here -- this path
+            // also scores before an Add (ScoreBeforeSave). An unknown age is
+            // scored, as it is shown.
+            var oldest = DateTime.UtcNow.AddDays(-PoolBrowseQuery.MaxAgeDays);
+            var tooOld = jobs.Count(j => j.PostedAt is { } p && p < oldest);
+            if (tooOld > 0)
+            {
+                _logger.LogInformation(
+                    "Score-by-ids for {UserId}: {TooOld} id(s) older than {Days} days not scored",
+                    userId, tooOld, PoolBrowseQuery.MaxAgeDays);
+                jobs = [.. jobs.Where(j => j.PostedAt is not { } p || p >= oldest)];
+            }
             if (jobs.Count == 0) return new PoolScanResult { AlreadyScored = alreadyScored.Count };
 
             _logger.LogInformation(

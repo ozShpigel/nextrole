@@ -50,6 +50,28 @@ public class PoolScanCapTests
     }
 
     [Fact]
+    public async Task Scan_scores_only_what_the_default_board_shows()
+    {
+        // Paying Claude to score a posting the 30-day default hides is spend
+        // nobody sees; an older one is scored only if the reader widens the
+        // window and reaches its card.
+        var pool = new CapOnlyPool(cap: 7);
+
+        await ScanServiceOver(pool).ScanAsync(User);
+
+        Assert.Equal(PoolBrowseQuery.DefaultDaysBack, pool.LastMaxAgeDays);
+        Assert.Equal(30, PoolBrowseQuery.DefaultDaysBack);
+    }
+
+    [Fact]
+    public void The_band_filter_carries_no_age_window()
+    {
+        // The band shares the scan's search; with a window here, "Any" could
+        // never bring an older posting back.
+        Assert.Null(CandidateFilter.FromProfile(new StructuredProfile()).MaxAgeDays);
+    }
+
+    [Fact]
     public void The_two_sources_disagree_on_purpose()
     {
         Assert.Equal(50, new PoolJobRepository(jobs: null!).MaxCandidatesPerScan);
@@ -83,6 +105,7 @@ public class PoolScanCapTests
     private sealed class CapOnlyPool(int cap) : IPoolJobRepository
     {
         public int? LastLimit;
+        public int? LastMaxAgeDays;
 
         public int MaxCandidatesPerScan => cap;
 
@@ -90,6 +113,7 @@ public class PoolScanCapTests
             CandidateFilter f, IReadOnlyCollection<string> exclude, int limit, CancellationToken ct = default)
         {
             LastLimit = limit;
+            LastMaxAgeDays = f.MaxAgeDays;
             return Task.FromResult(new List<PoolJob>());
         }
 

@@ -1,4 +1,4 @@
-import { cityCountry, toDateTimeLocalValue } from './format';
+import { cityCountry, toDateTimeLocalValue, formatAge } from './format';
 
 describe('toDateTimeLocalValue', () => {
   it('produces a datetime-local string that parses back to the same instant', () => {
@@ -46,5 +46,27 @@ describe('cityCountry', () => {
   it('returns null for nothing', () => {
     expect(cityCountry(null)).toBeNull();
     expect(cityCountry(' , ')).toBeNull();
+  });
+});
+
+describe('formatAge', () => {
+  const daysAgo = (n: number) => new Date(Date.now() - n * 86400000).toISOString();
+
+  it('says Posted when the posting date is known', () => {
+    expect(formatAge(daysAgo(14), daysAgo(3))).toBe('Posted 2w ago');
+  });
+
+  it('falls back to Updated, never calling an edit a posting', () => {
+    expect(formatAge(null, daysAgo(21))).toBe('Updated 3w ago');
+    expect(formatAge(undefined, daysAgo(2))).toBe('Updated 2d ago');
+  });
+
+  it('reads old postings in months, then years', () => {
+    expect(formatAge(daysAgo(90), null)).toBe('Posted 3mo ago');
+    expect(formatAge(daysAgo(686), null)).toBe('Posted 1y ago');
+  });
+
+  it('says nothing when neither date is known', () => {
+    expect(formatAge(null, null)).toBeNull();
   });
 });

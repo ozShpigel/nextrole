@@ -186,7 +186,10 @@ public sealed class PoolScanService : IPoolScanService
             return new PoolScanResult { ProfileMissing = true, PoolSize = await _pool.CountActiveAsync(ct) };
         }
 
-        var filter = CandidateFilter.FromProfile(structured);
+        // The scan scores only what the default board shows: postings from the
+        // last 30 days. An older one is scored only if the reader widens the
+        // window and actually reaches its card (ScoreByIdsAsync).
+        var filter = CandidateFilter.FromProfile(structured) with { MaxAgeDays = PoolBrowseQuery.DefaultDaysBack };
 
         // Everything already scored for this user is excluded IN the query, so
         // each scan returns work that has not been done. Post-filtering instead

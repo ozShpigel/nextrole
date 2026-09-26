@@ -150,6 +150,8 @@ public sealed class GreenhouseJobRepository : IPoolJobRepository
             .Find(Builders<BsonDocument>.Filter.And(
                 Builders<BsonDocument>.Filter.In("_id", ids.Select(ObjectId.Parse)),
                 Open,
+                // The scan's freshness window; the band passes none.
+                filter.MaxAgeDays is > 0 and var days ? PostedWithin(days) : Builders<BsonDocument>.Filter.Empty,
                 // A posting whose parse is still in an open batch waits for it
                 // (only while Greenhouse:ParseAtIngest is on, or for batches
                 // submitted before it went off): scored now, it would be parsed
@@ -359,12 +361,11 @@ public sealed class GreenhouseJobRepository : IPoolJobRepository
         // chips appeared to work while filtering nothing. Same meanings as
         // PoolJobRepository.BrowseAsync, over this collection's fields.
         //
-        // DaysBack is deliberately NOT applied. It means "first seen within N
-        // days" and defaults to 14, which suited LinkedIn listings that aged
-        // out; a Greenhouse board keeps a role open for months, so honouring it
-        // would drop every scored job older than two weeks from the default
-        // board. It needs a meaning for this source first (and the band, which
-        // calls this with the default query, would need exempting).
+        // DaysBack is "posted within N days" by the company's own posting date
+        // (PostedWithin); 0 is any age. The band asks with 0 and is windowed
+        // in the browser.
+        if (query.DaysBack > 0)
+            clauses.Add(PostedWithin(query.DaysBack));
 
         if (!string.IsNullOrWhiteSpace(query.Location))
         {
@@ -493,6 +494,13 @@ public sealed class GreenhouseJobRepository : IPoolJobRepository
     private static PoolJobListItem ToListItem(BsonDocument d) => new()
     {
         Id = d["_id"].ToString()!,
+        // first_published: when the company first posted it -- stable, and the
+        // date a reader means by "posted". Not firstSeenAt, which is when WE
+        // stored it: every posting of a newly added company would read as
+        // posted today. updated_at moves on any edit, so it is only ever shown
+        // as "Updated", for a board that gives no first_published.
+        DatePosted = IsoDate(d, GreenhouseJobFields.FirstPublishedAt),
+        DateUpdated = IsoDate(d, GreenhouseJobFields.BoardUpdatedAt),
         Title = Str(d, GreenhouseJobFields.Title) ?? "",
         Company = Str(d, GreenhouseJobFields.Company) ?? "",
         Location = ExtractedStr(d, "location") ?? Str(d, GreenhouseJobFields.Location),
@@ -508,6 +516,29 @@ public sealed class GreenhouseJobRepository : IPoolJobRepository
     // Null when unreadable: "parse it inline", a slower correct answer. See
     // ParsedJobDocument for why this is not BsonSerializer.Deserialize.
     private static ParsedJob? ParsedJobFrom(BsonDocument doc) => ParsedJobDocument.From(doc);
+
+    /// <summary>
+    /// Published within <paramref name="days"/> days, by the posting's own date.
+    /// </summary>
+    /// <remarks>
+    /// <c>first_published</c> when the board gives it; the board's
+    /// <c>updated_at</c> only for a posting without one; and a posting with
+    /// neither passes -- an unknown age must not hide a job. Never firstSeenAt:
+    /// every posting of a newly added company would count as posted today.
+    /// </remarks>
+    internal static FilterDefinition<BsonDocument> PostedWithin(int days)
+    {
+        var b = Builders<BsonDocument>.Filter;
+        var cutoff = DateTime.UtcNow.AddDays(-days);
+        var noPosted = b.Not(b.Type(GreenhouseJobFields.FirstPublishedAt, BsonType.DateTime));
+        return b.Or(
+            b.Gte(GreenhouseJobFields.FirstPublishedAt, cutoff),
+            b.And(noPosted, b.Gte(GreenhouseJobFields.BoardUpdatedAt, cutoff)),
+            b.And(noPosted, b.Not(b.Type(GreenhouseJobFields.BoardUpdatedAt, BsonType.DateTime))));
+    }
+
+    private static string? IsoDate(BsonDocument d, string field) =>
+        Date(d, field)?.ToString("o");
 
     private static string? Str(BsonDocument d, string field) =>
         d.TryGetValue(field, out var v) && v.IsString ? v.AsString : null;

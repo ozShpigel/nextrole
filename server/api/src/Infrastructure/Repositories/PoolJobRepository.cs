@@ -139,10 +139,13 @@ public sealed class PoolJobRepository : IPoolJobRepository
         // Recency means what the control says it means. Pool rows date from
         // first_seen_at; rows written before the pool existed carry only
         // discovered_at, so either satisfies it.
-        var cutoff = DateTime.UtcNow.AddDays(-query.DaysBack);
-        clauses.Add(b.Or(
-            b.Gte("first_seen_at", cutoff),
-            b.And(b.Exists("first_seen_at", false), b.Gte("discovered_at", cutoff))));
+        if (query.DaysBack > 0)
+        {
+            var cutoff = DateTime.UtcNow.AddDays(-query.DaysBack);
+            clauses.Add(b.Or(
+                b.Gte("first_seen_at", cutoff),
+                b.And(b.Exists("first_seen_at", false), b.Gte("discovered_at", cutoff))));
+        }
 
         if (!string.IsNullOrWhiteSpace(query.Location))
             clauses.Add(b.Regex("location", Contains(query.Location)));

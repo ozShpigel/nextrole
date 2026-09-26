@@ -98,7 +98,7 @@ public static class PoolEndpoints
             {
                 MinScore = min_score,
                 Verdicts = Csv(verdict),
-                DaysBack = days_back ?? 14,
+                DaysBack = days_back ?? PoolBrowseQuery.DefaultDaysBack,
                 Location = location,
                 Text = q,
                 IsRemote = is_remote,

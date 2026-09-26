@@ -113,12 +113,31 @@ export function daysSince(iso: string | null | undefined): number | null {
   return Math.round((startOfDay(new Date()) - startOfDay(d)) / 86400000);
 }
 
-export function formatPostedAgo(dateStr: string | null | undefined): string | null {
+function ago(label: 'Posted' | 'Updated', dateStr: string | null | undefined): string | null {
   const days = daysSince(dateStr);
   if (days === null) return null;
-  if (days < 1) return 'Posted today';
-  if (days < 7) return `Posted ${days}d ago`;
-  return `Posted ${Math.floor(days / 7)}w ago`;
+  if (days < 1) return `${label} today`;
+  if (days < 7) return `${label} ${days}d ago`;
+  // Weeks read well up to two months; beyond that, months, then years. Some
+  // Greenhouse postings are evergreen -- one measured was first published
+  // 98 weeks earlier.
+  if (days < 60) return `${label} ${Math.floor(days / 7)}w ago`;
+  if (days < 365) return `${label} ${Math.floor(days / 30)}mo ago`;
+  return `${label} ${Math.floor(days / 365)}y ago`;
+}
+
+export function formatPostedAgo(dateStr: string | null | undefined): string | null {
+  return ago('Posted', dateStr);
+}
+
+// The card's age line. "Posted" when the posting date is known; otherwise
+// "Updated" from the last change, so a date is never shown under the wrong
+// name -- an edit three weeks ago is not a posting three weeks ago.
+export function formatAge(
+  posted: string | null | undefined,
+  updated: string | null | undefined,
+): string | null {
+  return ago('Posted', posted) ?? ago('Updated', updated);
 }
 
 export function relativeTime(iso: string | null | undefined): string {

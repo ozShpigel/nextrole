@@ -11,7 +11,7 @@ import { isCvUploadInProgress, isScoringHeld, useCvUpload } from '../lib/cvUploa
 import { useSaveJob, useDismissJob, useMarkViewed } from '../lib/mutations';
 import type { DiscoveredJobSummary } from '../lib/types';
 import { VERDICT_LABELS } from '../lib/scoring';
-import { cityCountry, formatPostedAgo, isNew, hasRealJobUrl } from '../lib/format';
+import { cityCountry, formatAge, isNew, hasRealJobUrl } from '../lib/format';
 import AnalysisCard, { edVerdictColor } from '../components/AnalysisCard';
 import { CompanyAvatar } from '../components/CompanyAvatar';
 import { JobDescriptionText } from '../components/JobDescriptionText';
@@ -44,8 +44,13 @@ const VERDICT_ORDER = ['STRONG_YES', 'YES', 'MAYBE', 'NO', 'STRONG_NO'];
 
 // Freshness window over discovered_at (when the job entered the pool, not its
 // posting date). 60 = the pool's TTL, i.e. everything ("Any").
+// Posted within N days, by the posting's own date (server: PostedWithin);
+// 0 is any age. The default is 30: fresh enough to apply early, wide enough
+// that a small company list still fills the board -- and the scan scores only
+// within it, so nothing hidden by default is paid for.
+const DEFAULT_DAYS_BACK = 30;
 const DAYS_PRESETS = [
-  { days: 60, label: 'Any' },
+  { days: 0, label: 'Any' },
   { days: 1, label: '24h' },
   { days: 3, label: '3d' },
   { days: 7, label: '7d' },
@@ -228,9 +233,9 @@ function MatchCard({ job, index, saved, dismissed, onSelect, onSave, onDismiss, 
         <h3 className="text-[16px] font-medium leading-[1.3] text-[var(--ed-ink)] line-clamp-2">
           {job.title}
         </h3>
-        {(formatPostedAgo(job.date_posted) || isNew(job.date_posted)) && (
+        {(formatAge(job.date_posted, job.date_updated) || isNew(job.date_posted)) && (
           <div className="flex items-center gap-x-2 flex-wrap text-[13px] text-[var(--ed-ink-faint)] mt-[0.35rem] tabular-nums">
-            {formatPostedAgo(job.date_posted) && <span>{formatPostedAgo(job.date_posted)}</span>}
+            {formatAge(job.date_posted, job.date_updated) && <span>{formatAge(job.date_posted, job.date_updated)}</span>}
             {isNew(job.date_posted) && (
               <span className="border border-[var(--ed-rule)] text-[var(--ed-ink-faint)] rounded-full px-[0.5rem] py-[0.05rem]">
                 New
@@ -425,9 +430,9 @@ function MatchDetail({ job, saved, dismissed, onClose, onSave, onDismiss }: Matc
                 )}
               </div>
               <h2 className="text-[19px] font-medium leading-[1.3] text-[var(--ed-ink)] mb-1">{job.title}</h2>
-              {(formatPostedAgo(job.date_posted) || isNew(job.date_posted)) && (
+              {(formatAge(job.date_posted, job.date_updated) || isNew(job.date_posted)) && (
                 <div className="flex items-center gap-x-2 flex-wrap text-[13px] text-[var(--ed-ink-faint)] tabular-nums">
-                  {formatPostedAgo(job.date_posted) && <span>{formatPostedAgo(job.date_posted)}</span>}
+                  {formatAge(job.date_posted, job.date_updated) && <span>{formatAge(job.date_posted, job.date_updated)}</span>}
                   {isNew(job.date_posted) && (
                     <span className="border border-[var(--ed-rule)] rounded-full px-[0.5rem] py-[0.05rem]">New</span>
                   )}
@@ -510,7 +515,10 @@ function loadPersistedFilters(): PersistedFilters | null {
 export default function SearchPage() {
   const [persisted] = useState(loadPersistedFilters);
 
-  const [daysBack, setDaysBack] = useState(persisted?.daysBack ?? 14);
+  // A remembered window that is no longer a chip (the old default was 14)
+  // falls back to the default rather than filtering by a value nothing shows.
+  const [daysBack, setDaysBack] = useState(() =>
+    DAYS_PRESETS.some((p) => p.days === persisted?.daysBack) ? persisted!.daysBack : DEFAULT_DAYS_BACK);
   const [search, setSearch] = useState('');
   const [searchDebounced, setSearchDebounced] = useState(search);
   const [location, setLocation] = useState(persisted?.location ?? '');
@@ -633,9 +641,9 @@ export default function SearchPage() {
     ).filter((j) => !scoredIds.has(j.id))
       // The panel's filters, which the band otherwise arrives without.
       .filter((j) => matchesBandFilters(j, {
-        levels, isRemote, location: locationDebounced, text: searchDebounced,
+        daysBack, levels, isRemote, location: locationDebounced, text: searchDebounced,
       })),
-    [bandQuery.data, scoredIds, levels, isRemote, locationDebounced, searchDebounced],
+    [bandQuery.data, scoredIds, daysBack, levels, isRemote, locationDebounced, searchDebounced],
   );
 
   // One board, scored and unscored together, each card staying where it was
@@ -775,7 +783,7 @@ export default function SearchPage() {
   }
 
   function clearFilters(): void {
-    setDaysBack(14);
+    setDaysBack(DEFAULT_DAYS_BACK);
     setLocation('');
     setIsRemote(undefined);
     setLevels(new Set());
@@ -784,13 +792,13 @@ export default function SearchPage() {
   }
 
   const hasActiveFilters =
-    daysBack !== 14 || location.trim() !== '' || isRemote !== undefined ||
+    daysBack !== DEFAULT_DAYS_BACK || location.trim() !== '' || isRemote !== undefined ||
     levels.size > 0 || verdicts.size > 0 || minScore.trim() !== '';
 
   const filtering = hasActiveFilters || searchDebounced.trim() !== '';
 
   const activeFilterCount =
-    (daysBack !== 14 ? 1 : 0) + (location.trim() !== '' ? 1 : 0) + (isRemote !== undefined ? 1 : 0) +
+    (daysBack !== DEFAULT_DAYS_BACK ? 1 : 0) + (location.trim() !== '' ? 1 : 0) + (isRemote !== undefined ? 1 : 0) +
     levels.size + verdicts.size + (minScore.trim() !== '' ? 1 : 0);
 
   const groupLabel ='text-[11px] font-medium uppercase tracking-[0.08em] text-[var(--ed-ink-faint)]';

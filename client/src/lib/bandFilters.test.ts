@@ -42,3 +42,23 @@ describe('matchesBandFilters', () => {
     expect(matchesBandFilters(job(), { ...none, text: 'kotlin' })).toBe(false);
   });
 });
+
+describe('matchesBandFilters: the freshness window', () => {
+  const daysAgo = (n: number) => new Date(Date.now() - n * 86400000).toISOString();
+
+  it('keeps a posting published inside the window and drops an older one', () => {
+    expect(matchesBandFilters(job({ date_posted: daysAgo(10) }), { ...none, daysBack: 30 })).toBe(true);
+    expect(matchesBandFilters(job({ date_posted: daysAgo(90) }), { ...none, daysBack: 30 })).toBe(false);
+  });
+
+  it('uses the update date only when there is no posting date', () => {
+    // An old posting recently edited is still old.
+    expect(matchesBandFilters(job({ date_posted: daysAgo(90), date_updated: daysAgo(1) }), { ...none, daysBack: 30 })).toBe(false);
+    expect(matchesBandFilters(job({ date_posted: null, date_updated: daysAgo(5) }), { ...none, daysBack: 30 })).toBe(true);
+  });
+
+  it('never hides a posting of unknown age, and Any (0) shows every age', () => {
+    expect(matchesBandFilters(job({ date_posted: null, date_updated: null }), { ...none, daysBack: 30 })).toBe(true);
+    expect(matchesBandFilters(job({ date_posted: daysAgo(700) }), { ...none, daysBack: 0 })).toBe(true);
+  });
+});

@@ -165,7 +165,9 @@ public sealed class PoolBrowseService : IPoolBrowseService
         // band. Saved stays: "already in my tracker" is not "not interested".
         var visible = ids.Where(id => state.GetValueOrDefault(id)?.Dismissed != true).ToList();
 
-        var items = await _pool.BrowseAsync(visible, new PoolBrowseQuery().Clamped(), ct);
+        // Any age here: the board applies the reader's chosen window to the
+        // band in the browser (bandFilters.ts), so "Any" can show old ones.
+        var items = await _pool.BrowseAsync(visible, new PoolBrowseQuery { DaysBack = 0 }.Clamped(), ct);
 
         var merged = items.Select(job =>
         {

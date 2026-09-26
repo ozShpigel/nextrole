@@ -164,6 +164,9 @@ export interface DiscoveredJobSummary {
   description?: string | null;
   job_url?: string | null;
   date_posted?: string | null;
+  // When the posting last changed -- shown only as "Updated ...", and only
+  // when there is no posting date (formatAge).
+  date_updated?: string | null;
   site?: string;
   job_level?: string | null;
   actual_job_level?: string | null;

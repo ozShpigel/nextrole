@@ -14,7 +14,23 @@ public sealed record PoolBrowseQuery
 {
     public int? MinScore { get; init; }
     public IReadOnlyList<string> Verdicts { get; init; } = [];
-    public int DaysBack { get; init; } = 14;
+    /// <summary>
+    /// Posted within this many days; 0 means any age. See
+    /// <see cref="DefaultDaysBack"/>.
+    /// </summary>
+    public int DaysBack { get; init; } = DefaultDaysBack;
+
+    /// <summary>
+    /// The Matches board's default freshness window, in days.
+    /// </summary>
+    /// <remarks>
+    /// Thirty: an early application gets far more responses, and a role open
+    /// for months is often an evergreen pipeline rather than an urgent hire --
+    /// but a shorter default empties a board while the company list is small.
+    /// The scan scores within the same window (<see cref="CandidateFilter.MaxAgeDays"/>),
+    /// so Claude is never paid to score what the default board hides.
+    /// </remarks>
+    public const int DefaultDaysBack = 30;
     public string? Location { get; init; }
     /// <summary>Free text across title, company and description.</summary>
     public string? Text { get; init; }
@@ -42,7 +58,7 @@ public sealed record PoolBrowseQuery
     {
         Limit = Math.Max(1, Math.Min(Limit, MaxLimit)),
         Offset = Math.Max(0, Offset),
-        DaysBack = Math.Max(1, DaysBack),
+        DaysBack = Math.Max(0, DaysBack),
     };
 }
 
@@ -74,6 +90,12 @@ public sealed record PoolJobListItem
     [JsonPropertyName("description")] public string? Description { get; init; }
     [JsonPropertyName("job_url")] public string? JobUrl { get; init; }
     [JsonPropertyName("date_posted")] public string? DatePosted { get; init; }
+
+    // When the posting last changed, for a source that says so but gives no
+    // posting date. The card shows "Posted ..." from DatePosted when there is
+    // one and falls back to "Updated ..." from this -- never an update date
+    // labelled as a posting date.
+    [JsonPropertyName("date_updated")] public string? DateUpdated { get; init; }
     [JsonPropertyName("site")] public string? Site { get; init; }
     [JsonPropertyName("job_level")] public string? JobLevel { get; init; }
     [JsonPropertyName("actual_job_level")] public string? ActualJobLevel { get; init; }

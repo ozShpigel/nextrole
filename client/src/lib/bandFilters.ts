@@ -8,9 +8,12 @@ import type { DiscoveredJobSummary } from './types';
 // filter that appeared to work while the unscored half ignored it. Same
 // meanings as the server's browse filters.
 //
-// The freshness window is deliberately not here: on the Greenhouse source the
-// server does not apply it either (GreenhouseJobRepository.BrowseAsync).
+// The freshness window is here too: the band arrives at any age (the server
+// asks for 0), so "Any" can bring old postings back, and the chosen window --
+// 30 days by default -- is applied the way the server applies it to the scored
+// list (GreenhouseJobRepository.PostedWithin).
 export interface BandFilters {
+  daysBack?: number;
   levels: ReadonlySet<string>;
   isRemote?: boolean;
   location?: string;
@@ -28,7 +31,18 @@ function isRemoteJob(job: DiscoveredJobSummary): boolean {
   return contains(job.location, 'remote');
 }
 
+// The posting's own date, the update date only when there is none, and an
+// unknown age passes -- the same rule as the server.
+function withinDays(job: DiscoveredJobSummary, days: number): boolean {
+  const iso = job.date_posted ?? job.date_updated;
+  if (!iso) return true;
+  const t = new Date(iso).getTime();
+  if (isNaN(t)) return true;
+  return Date.now() - t <= days * 86400000;
+}
+
 export function matchesBandFilters(job: DiscoveredJobSummary, f: BandFilters): boolean {
+  if (f.daysBack && f.daysBack > 0 && !withinDays(job, f.daysBack)) return false;
   // Matches the server exactly: with any chip selected, a posting whose band
   // was not extracted does not match, as `$in` does not match a null.
   if (f.levels.size > 0 && !(job.actual_job_level && f.levels.has(job.actual_job_level))) return false;

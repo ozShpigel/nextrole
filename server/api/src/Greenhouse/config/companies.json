@@ -1,7 +1,7 @@
 {
   "_comment": "Greenhouse board tokens are CONFIGURATION, not code. The token is the slug in boards.greenhouse.io/<token> and in the API path /v1/boards/<token>/jobs. Going from one company to fifty is an edit to this file and nothing else -- no code change, no test change. Nothing here is derived from any user's profile; this source is shared exactly like the LinkedIn pool.",
 
-  "_companies_comment": "Each token here is justified by MEASURED London engineering supply, because the failure mode is silent: a board with London jobs but no engineering ones scores a London engineer against account executives and looks like it is working. similarweb has 6 London jobs and NOT ONE is engineering (4 sales, 2 data science). monzo carries 49 London jobs, 16 engineering -- but every one is backend, Android, analytics or management, so a front-end or full-stack candidate still matched nothing: measured end to end, Maya (TypeScript/React/Node) drew four Monzo backend roles and a product designer, top score 44, all NO. deliveroo is here to close that: 129 jobs, 63 London, 27 London engineering, including Senior/II/Staff Software Engineer - Full-Stack. Measured 2026-09-22 -- boards change, so re-check rather than trust this line. The ten after deliveroo were chosen 2026-09-26 from the companies in the retired LinkedIn pool that have a Greenhouse board, each board's company_name checked against the pool's (a first-word token can be a different company: 'iai' is i.AI, 'axon' is the US Axon), ranked by engineering roles located in Israel or the UK, remote excluded: nebius 36 IL + 43 UK, wayve 5 + 57, catonetworks 27 + 4, nice 10 + 17, via 10 + 2, scaleops 10, payoneer 10, connecteam 10, taboola 10, transmitsecurity 10 (keyword counts from the boards API -- the ingest's pre-read filter and its check lines are the real measure). Added in a batch of ten so each batch's filter lines can be read before the next. Batch 2 (2026-09-26), same method, the rest of the pool's boards with real Israel/UK engineering supply: jfrog 7 IL + 2 UK, fireblocks 7 + 2, zscaler 3 + 6 (380 postings, most elsewhere -- the pre-read filter skips them), worldquant 4 + 5, melio 7, eleoshealth 7, axonius 6, forter 5, unframe 5 (its domain is unframe.ai; unframe.com is another company), appsflyer 4. What the pool has left after these is boards with 0-4 such roles, or a different company behind the token.",
+  "_companies_comment": "Each token here is justified by MEASURED London engineering supply, because the failure mode is silent: a board with London jobs but no engineering ones scores a London engineer against account executives and looks like it is working. similarweb has 6 London jobs and NOT ONE is engineering (4 sales, 2 data science). monzo carries 49 London jobs, 16 engineering -- but every one is backend, Android, analytics or management, so a front-end or full-stack candidate still matched nothing: measured end to end, Maya (TypeScript/React/Node) drew four Monzo backend roles and a product designer, top score 44, all NO. deliveroo is here to close that: 129 jobs, 63 London, 27 London engineering, including Senior/II/Staff Software Engineer - Full-Stack. Measured 2026-09-22 -- boards change, so re-check rather than trust this line. The ten after deliveroo were chosen 2026-09-26 from the companies in the retired LinkedIn pool that have a Greenhouse board, each board's company_name checked against the pool's (a first-word token can be a different company: 'iai' is i.AI, 'axon' is the US Axon), ranked by engineering roles located in Israel or the UK, remote excluded: nebius 36 IL + 43 UK, wayve 5 + 57, catonetworks 27 + 4, nice 10 + 17, via 10 + 2, scaleops 10, payoneer 10, connecteam 10, taboola 10, transmitsecurity 10 (keyword counts from the boards API -- the ingest's pre-read filter and its check lines are the real measure). Added in a batch of ten so each batch's filter lines can be read before the next. Batch 2 (2026-09-26), same method, the rest of the pool's boards with real Israel/UK engineering supply: jfrog 7 IL + 2 UK, fireblocks 7 + 2, zscaler 3 + 6 (380 postings, most elsewhere -- the pre-read filter skips them), worldquant 4 + 5, melio 7, eleoshealth 7, axonius 6, forter 5, unframe 5 (its domain is unframe.ai; unframe.com is another company), appsflyer 4. What the pool has left after these is boards with 0-4 such roles, or a different company behind the token. Batch 3 (2026-09-26): three Greenhouse boards the name-guessing missed because the token is not the name -- found by looking up each company's careers page: wizinc (Wiz, 13 IL + 3 UK), gongio (Gong, 10 IL), nextinsurance66 (Next Insurance, now ERGO NEXT, 8 IL).",
   "companies": [
     "similarweb",
     "monzo",
@@ -25,7 +25,10 @@
     "axonius",
     "forter",
     "unframe",
-    "appsflyer"
+    "appsflyer",
+    "wizinc",
+    "gongio",
+    "nextinsurance66"
   ],
 
   "_domains_comment": "Each company's own web domain, for its logo -- the boards API returns none. The token is a Greenhouse slug, not a domain, so it is written down rather than derived. Optional: a company with no domain gets its initial on the card. A domain for a token that is not in companies is fatal (a typo in one of the two). The ingest resolves logo_url_template per domain and stamps the URL on every row of that board, so the API never reads this file. Swapping the service -- e.g. to logo.dev, https://img.logo.dev/{domain}?token=pk_... -- is an edit to the template; the next run restamps every row.",
@@ -52,7 +55,10 @@
     "axonius": "axonius.com",
     "forter": "forter.com",
     "unframe": "unframe.ai",
-    "appsflyer": "appsflyer.com"
+    "appsflyer": "appsflyer.com",
+    "wizinc": "wiz.io",
+    "gongio": "gong.io",
+    "nextinsurance66": "nextinsurance.com"
   },
   "logo_url_template": "https://www.google.com/s2/favicons?domain={domain}&sz=128",
 

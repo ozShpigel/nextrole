@@ -30,10 +30,11 @@ public sealed record CandidateFilter
     /// Only postings published within this many days; null = any age.
     /// </summary>
     /// <remarks>
-    /// Set by the eager scan only (<see cref="PoolBrowseQuery.DefaultDaysBack"/>),
-    /// never by <see cref="FromProfile"/>: the band uses the same search and
-    /// must bring older postings back when the reader chooses "Any" -- the
-    /// board applies its own window to the band in the browser.
+    /// Set by its caller, never by <see cref="FromProfile"/>: the eager scan
+    /// uses the default board's 30 days (<see cref="PoolBrowseQuery.DefaultDaysBack"/>),
+    /// the band the "Any" limit of four months (<see cref="PoolBrowseQuery.MaxAgeDays"/>)
+    /// so a wider chip can bring older postings back -- the board applies the
+    /// chosen window to the band in the browser.
     /// </remarks>
     public int? MaxAgeDays { get; init; }
 

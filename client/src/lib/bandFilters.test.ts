@@ -57,8 +57,14 @@ describe('matchesBandFilters: the freshness window', () => {
     expect(matchesBandFilters(job({ date_posted: null, date_updated: daysAgo(5) }), { ...none, daysBack: 30 })).toBe(true);
   });
 
-  it('never hides a posting of unknown age, and Any (0) shows every age', () => {
+  it('never hides a posting of unknown age', () => {
     expect(matchesBandFilters(job({ date_posted: null, date_updated: null }), { ...none, daysBack: 30 })).toBe(true);
-    expect(matchesBandFilters(job({ date_posted: daysAgo(700) }), { ...none, daysBack: 0 })).toBe(true);
+    expect(matchesBandFilters(job({ date_posted: null, date_updated: null }), { ...none, daysBack: 0 })).toBe(true);
+  });
+
+  it('Any (0) means up to four months, never older', () => {
+    expect(matchesBandFilters(job({ date_posted: daysAgo(100) }), { ...none, daysBack: 0 })).toBe(true);
+    expect(matchesBandFilters(job({ date_posted: daysAgo(130) }), { ...none, daysBack: 0 })).toBe(false);
+    expect(matchesBandFilters(job({ date_posted: daysAgo(700) }), none)).toBe(false);
   });
 });

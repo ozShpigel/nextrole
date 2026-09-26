@@ -14,6 +14,11 @@ public sealed record PoolJob
     public string? CompanyLogo { get; init; }
     public Dictionary<string, object?>? CompanyProfile { get; init; }
     public DateTime? FirstSeenAt { get; init; }
+
+    // When the posting went up, by its own date: first_published, the board's
+    // update date only when there is none, null when neither is known. Used to
+    // refuse scoring what Matches never shows (PoolBrowseQuery.MaxAgeDays).
+    public DateTime? PostedAt { get; init; }
     // From the pool's own per-job extraction (extracted.must_have_tech /
     // nice_to_have_tech): what the posting asks for, read once at ingest and
     // user-independent. The candidate filter already reads must-haves; scoring

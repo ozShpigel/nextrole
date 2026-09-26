@@ -63,6 +63,14 @@ public class PoolScanCapTests
         Assert.Equal(30, PoolBrowseQuery.DefaultDaysBack);
     }
 
+    [Theory]
+    [InlineData(0, 120)]    // "Any" is four months
+    [InlineData(30, 30)]
+    [InlineData(7, 7)]
+    [InlineData(365, 120)]  // no window reaches past the cap
+    public void Every_window_stops_at_four_months(int chosen, int applied) =>
+        Assert.Equal(applied, PoolBrowseQuery.EffectiveDays(chosen));
+
     [Fact]
     public void The_band_filter_carries_no_age_window()
     {

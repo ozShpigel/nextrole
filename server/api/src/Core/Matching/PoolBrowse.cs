@@ -15,7 +15,8 @@ public sealed record PoolBrowseQuery
     public int? MinScore { get; init; }
     public IReadOnlyList<string> Verdicts { get; init; } = [];
     /// <summary>
-    /// Posted within this many days; 0 means any age. See
+    /// Posted within this many days; 0 means "Any", which is still capped at
+    /// <see cref="MaxAgeDays"/>. See
     /// <see cref="DefaultDaysBack"/>.
     /// </summary>
     public int DaysBack { get; init; } = DefaultDaysBack;
@@ -31,6 +32,22 @@ public sealed record PoolBrowseQuery
     /// so Claude is never paid to score what the default board hides.
     /// </remarks>
     public const int DefaultDaysBack = 30;
+
+    /// <summary>
+    /// The oldest posting Matches ever shows, in days -- what "Any" means.
+    /// </summary>
+    /// <remarks>
+    /// Four months. A role first published longer ago and still open is
+    /// usually an evergreen pipeline or a listing nobody closed, and the close
+    /// diff cannot catch it, because it never leaves the board. The chip still
+    /// says "Any" -- to a reader it is any posting worth seeing -- and every
+    /// window is capped here, so none can reach past it.
+    /// </remarks>
+    public const int MaxAgeDays = 120;
+
+    /// <summary>The window actually applied: the chosen one, "Any" as <see cref="MaxAgeDays"/>, never longer.</summary>
+    public static int EffectiveDays(int daysBack) =>
+        daysBack > 0 ? Math.Min(daysBack, MaxAgeDays) : MaxAgeDays;
     public string? Location { get; init; }
     /// <summary>Free text across title, company and description.</summary>
     public string? Text { get; init; }

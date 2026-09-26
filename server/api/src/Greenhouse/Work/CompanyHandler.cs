@@ -288,10 +288,12 @@ public sealed class CompanyHandler
             if (fresh.Count > 0)
                 _log.LogInformation(
                     "Board {Board}: pre-read filter ({Mode}) -- {Skipped} of {New} new posting(s) {Verb}: "
+                    + "{ByAge} older than {MaxAge} days, "
                     + "{ByLocation} outside served locations ({Configured} configured + {Learned} from profiles), "
                     + "{ByFunction} a function nobody wants (wanted: {Wanted}). E.g. {Examples}",
                     boardToken, _prefilter, skips.Count, fresh.Count,
                     _prefilter == PrefilterMode.On ? "skipped" : "would be skipped",
+                    skips.Count(x => x.Skip!.Reason == PrefilterSkip.Age), PoolBrowseQuery.MaxAgeDays,
                     skips.Count(x => x.Skip!.Reason == PrefilterSkip.Location),
                     _config.ServedLocations.Count, learned.Count,
                     skips.Count(x => x.Skip!.Reason == PrefilterSkip.Function),

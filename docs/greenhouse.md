@@ -165,6 +165,15 @@ from everyone. The reads are the ingest's cost, and they grow with the company
 list, not with who uses the product. So before paying, the consumer looks at
 what the board returns for free:
 
+- **Age.** A new posting older than Matches ever shows -- four months,
+  `PoolBrowseQuery.MaxAgeDays`, which is what the "Any" chip means -- is
+  skipped. By its own date: `first_published`, the board's `updated_at` only
+  when there is none (an edit does not make an old posting new), and a posting
+  with no date is read, as Matches would show it. Same limit and same rule as
+  the board, so nothing that could be shown is skipped. Measured on the 20
+  production boards (2026-09-26): 204 of the 769 postings the filter still read
+  (26%) were older than four months -- 92 of them Nebius -- and every posting
+  had a date.
 - **Location.** A new posting whose board location and offices name no served
   location is skipped. Served = `served_locations` (`companies.json`) **plus**
   every user's own location terms from `pool_locations`: a profile's "Tel Aviv,

@@ -76,4 +76,17 @@ public interface IPoolJobRepository
     /// tracker row. Case-insensitive exact match on the company name.
     /// </remarks>
     Task<string?> FindCompanyLogoAsync(string company, CancellationToken ct = default);
+
+    /// <summary>
+    /// Store parses made while scoring, so the next user to score the posting
+    /// reuses them. Never replaces a parse already stored.
+    /// </summary>
+    /// <remarks>
+    /// A no-op by default: only a source whose ingest leaves the parse to the
+    /// first scorer needs it (Greenhouse, with ParseAtIngest off). The LinkedIn
+    /// pool parses at ingest and keeps this default.
+    /// </remarks>
+    Task<int> SaveParsesAsync(
+        IReadOnlyDictionary<string, ParsedJob> parses, string? parseVersion, CancellationToken ct = default) =>
+        Task.FromResult(0);
 }

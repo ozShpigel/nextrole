@@ -210,7 +210,14 @@ public sealed class JobMatchService : IJobMatchService
         }).ToList();
 
         _logger.LogInformation("Batch job match analysis completed: {Count} jobs", results.Count);
-        return new MatchBatchResponse { Results = results };
+        return new MatchBatchResponse
+        {
+            Results = results,
+            NewParses = parsed
+                .Where(p => p.Item.Parsed is null)
+                .ToDictionary(p => p.Item.Id, p => p.ParsedJob),
+            ParseVersion = needParsing.Count > 0 ? _claudeClient.ParseVersion : null,
+        };
     }
 
     // Analyst pass only. Always run even when the caller pre-supplies

@@ -55,6 +55,7 @@ public sealed class CompanyHandler
     private readonly ILogger<CompanyHandler> _log;
     private readonly PrefilterMode _prefilter;
     private readonly IDemand? _demand;
+    private readonly bool _parseAtIngest;
 
     /// <summary>
     /// How many open jobs make an empty board response suspicious.
@@ -70,8 +71,13 @@ public sealed class CompanyHandler
         IBoardClient board, IEmbeddingClient embeddings, IJobStore store,
         CompaniesConfig config, ILogger<CompanyHandler> log, IngestAiClient? ai = null,
         IngestBatcher? batcher = null, PrefilterMode prefilter = PrefilterMode.Off,
-        IDemand? demand = null)
+        IDemand? demand = null, bool parseAtIngest = true)
     {
+        // Greenhouse:ParseAtIngest. True here so a handler built without it
+        // behaves as before; Program defaults the real one to false: the first
+        // user to score a posting parses it, and the scan stores the parse for
+        // everyone after (IPoolJobRepository.SaveParsesAsync).
+        _parseAtIngest = parseAtIngest;
         // Greenhouse:Prefilter. Off here so a handler built without it behaves
         // exactly as before; Program defaults the real one to Log.
         _prefilter = prefilter;
@@ -453,7 +459,11 @@ public sealed class CompanyHandler
             var factsOnly = reread.Where(p => seen.Add(p.GreenhouseJobId.ToString())).Select(ToIngestJob).ToList();
 
             var facts = await _batcher!.SubmitAsync(boardToken, AiBatchRecord.Facts, [.. both, .. factsOnly], now, ct);
-            var parses = await _batcher.SubmitAsync(boardToken, AiBatchRecord.Parse, both, now, ct);
+            // No parse batch with ParseAtIngest off -- and so no parse marker,
+            // so the posting is visible as soon as its facts land.
+            var parses = _parseAtIngest
+                ? await _batcher.SubmitAsync(boardToken, AiBatchRecord.Parse, both, now, ct)
+                : 0;
 
             if (facts + parses > 0)
                 _log.LogInformation(
@@ -554,13 +564,19 @@ public sealed class CompanyHandler
             var facts = await ChunkedAsync(aiJobs, IngestAiClient.FactsChunkSize,
                 chunk => _ai!.ExtractFactsAsync(chunk, ct));
 
+            // The parse is ~2/3 of a posting's read cost and only the
+            // Evaluator uses it -- so with ParseAtIngest off it is left to the
+            // first user who scores the posting, and never paid for the ones
+            // nobody scores.
             string? parseVersion = null;
-            var parsed = await ChunkedAsync(aiJobs, IngestAiClient.ParseChunkSize, async chunk =>
-            {
-                var (result, version) = await _ai!.ParseAsync(chunk, ct);
-                if (version is not null) parseVersion = version;
-                return result;
-            });
+            var parsed = !_parseAtIngest
+                ? new Dictionary<string, BsonDocument>()
+                : await ChunkedAsync(aiJobs, IngestAiClient.ParseChunkSize, async chunk =>
+                {
+                    var (result, version) = await _ai!.ParseAsync(chunk, ct);
+                    if (version is not null) parseVersion = version;
+                    return result;
+                });
 
             var saved = await _store.SaveIngestAiAsync(
                 boardToken, ByJobId(facts), ByJobId(parsed), parseVersion, now, ct);

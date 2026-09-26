@@ -55,6 +55,22 @@ public sealed record MatchBatchItem
 public sealed record MatchBatchResponse
 {
     public List<MatchBatchResult> Results { get; init; } = [];
+
+    /// <summary>
+    /// The parses this batch had to make, by job id -- the jobs that arrived
+    /// with no stored <see cref="MatchBatchItem.Parsed"/>. After the verbatim
+    /// guard and the title/company overrides, so exactly what scoring used.
+    /// </summary>
+    /// <remarks>
+    /// The ingest no longer parses (Greenhouse:ParseAtIngest), so the first
+    /// user to score a posting pays for its parse. Handing it back is what lets
+    /// the caller store it, and every later user reuse it, instead of paying
+    /// again per user.
+    /// </remarks>
+    public Dictionary<string, ParsedJob> NewParses { get; init; } = [];
+
+    /// <summary>The prompt version <see cref="NewParses"/> were made under -- see ParseVersioning.</summary>
+    public string? ParseVersion { get; init; }
 }
 
 public sealed record MatchBatchResult

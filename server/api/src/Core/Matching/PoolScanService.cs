@@ -373,6 +373,24 @@ public sealed class PoolScanService : IPoolScanService
             var response = await _matcher.AnalyzeMatchBatchAsync(userId, request, ct);
             var byId = response.Results.ToDictionary(r => r.Id, r => r.Response);
 
+            // The parses this batch paid for, onto the postings: the first
+            // user to score a posting pays for its parse, every later one
+            // reuses it. Best-effort like the snapshot below -- a failed save
+            // costs the next user a parse, never this user their scores.
+            if (response.NewParses.Count > 0)
+            {
+                try
+                {
+                    var saved = await _pool.SaveParsesAsync(response.NewParses, response.ParseVersion, ct);
+                    if (saved > 0)
+                        _logger.LogInformation("Pool scan: stored {Saved} parse(s) made while scoring, for reuse", saved);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Pool scan: storing the parses made while scoring failed");
+                }
+            }
+
             // Persist the batch's raw call text ONCE, content-addressed, before
             // building the rows. matchSnapshots was written only from the Add
             // path, so a job that was scored and never added — 98% of them —

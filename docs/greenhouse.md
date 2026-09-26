@@ -119,6 +119,44 @@ minutes to hours.
 - Cost stays visible: every result logs `Claude job-facts-batch usage` /
   `job-parse-batch usage`, the same shape as the live lines.
 
+### The parse is made by the first scorer, not the ingest
+
+Each posting used to get two reads at ingest: the **facts** (location,
+seniority, must-have tech, function -- retrieval filters on them) and the
+**parse** (the full structured job, ~712 output tokens, about 2/3 of the read
+cost). Only the Evaluator uses the parse, and only for a posting someone scores
+-- so parsing every posting at ingest pays for the many nobody ever opens.
+
+`Greenhouse__ParseAtIngest` (consumer, default **false**): the ingest reads the
+facts only, live or batched. The first user to score a posting parses it inline
+(the fallback the scan always had), `JobMatchService` hands those parses back
+(`MatchBatchResponse.NewParses`), and `PoolScanService` stores them on the
+posting (`SaveParsesAsync`), so every later user reuses it. A save never
+replaces a stored parse. Two users scoring the same new posting at the same
+moment both pay for a parse -- knowingly unguarded, rare at this scale.
+
+- **Cost:** an ingest parse is batched at half price but paid for every posting
+  read; an on-demand parse is live, full price, paid once per posting anyone
+  scores. On demand wins while under ~half of read postings are ever scored --
+  with no active users, nearly all of them. If that stops holding, set it true.
+- **The first scorer** of a posting waits ~5 s longer for that card's score.
+- **Retrieval waits for the facts, not the parse.** A new posting used to stay
+  hidden while its parse batch was open, and that was also what kept it from
+  being scored before its facts could filter it. Now a posting is hidden while
+  its facts are pending and it has none yet; a re-read keeps its old facts and
+  stays visible.
+
+**Found building this: no stored Greenhouse parse had ever been read.** The
+ingest stores the job-parse endpoint's camelCase JSON (`jobTitle`); the reader
+used `BsonSerializer.Deserialize<ParsedJob>`, whose default map wants
+`JobTitle`. Every read threw, the catch returned null, and null means "parse
+inline" -- measured locally, 0 of 20 stored parses read back. So every ingest
+parse was paid for and discarded, and every user re-parsed every posting they
+scored; nothing failed loudly. `ParsedJobDocument` now reads through JSON,
+case-insensitive (as the LinkedIn pool's reader always did), and writes the
+scan's parses in the same camelCase shape -- tested against a real stored parse.
+The parses already stored become usable on deploy.
+
 ### The pre-read filter
 
 Every posting on every board used to be read by Claude, embedded and stored --
@@ -192,9 +230,24 @@ yours" while the user has an open request **and** the consumer's heartbeat
 in log mode, or down, never leaves the notice up. When it turns false the board
 refetches. Measured locally against Mongo with a stand-in publisher: request →
 claimed → open while boards pend → closed; a second request inside the cooldown
-waits; a log-mode consumer closes it and shows nothing. The time a real run
-takes is not measured yet -- read it from the consumer's `Triggered run ...: done
-after Ns` line on the first one.
+waits; a log-mode consumer closes it and shows nothing. Measured in production (2026-09-26, 3 boards, filter `on`), by removing the 8
+stored Barcelona postings, letting a run skip them (nobody in Spain), then
+uploading a Barcelona CV in a fresh session:
+
+| UTC | |
+|---|---|
+| 09:00:17 | run skips all 8 Barcelona postings: `8 outside served locations` |
+| 09:03:45 | the CV's save records 3 new values (`software_engineering`, `barcelona`, `spain`) and a request |
+| 09:03:59 | consumer claims it (14 s: the poll interval) -- one run, 3 boards, live reads |
+| 09:05:30 | `done after 91s` -- all 8 read and stored again, request closed |
+
+**Upload to roles on screen: about 2 minutes** -- the 14 s pickup, the 91 s run,
+and up to 20 s for Matches' next poll; the notice was on screen for about a
+minute. The run fetches every board, so it grows with the company list; the
+levers if it needs to be faster are fetching boards in parallel, or re-fetching
+only boards that had postings skipped (a small skipped-posting record). Two
+read by the run were filtered out on Matches by function (Senior Data
+Scientist, Risk Assurance Manager) -- stored, not shown, as intended.
 
 **`Greenhouse__Prefilter`**: `off` | `log` (default) | `on`. In `log` it skips
 nothing and writes two lines per board:

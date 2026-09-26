@@ -18,6 +18,15 @@ public sealed record MatchBatchRequest
     // job can be traced end-to-end in Loki alongside the scraper's own
     // per-stage logs, which already carry the same run id.
     public string? RunId { get; init; }
+
+    // Who this batch is for, on the "Job scored" log line. Set by the SERVER,
+    // and deliberately not read from the caller's X-Source header: the pool
+    // scan is driven by a browser, and a browser must not get to name the
+    // source its own scoring is attributed under. Null falls back to X-Source,
+    // which is how the scraper's ingest path keeps reporting source=ingest.
+    //
+    // The daily Telegram digest greps this (deploy/monitoring/daily-digest.sh).
+    public string? Source { get; init; }
 }
 
 public sealed record MatchBatchItem

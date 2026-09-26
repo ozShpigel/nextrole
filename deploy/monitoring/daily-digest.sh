@@ -6,7 +6,14 @@ source .env
 
 LOKI="http://127.0.0.1:3100"
 THRESHOLD=70
-WINDOW_HOURS=1
+# 24h, not 1h. The old window was an hour because the digest ran immediately
+# after a nightly run that did the scoring, so everything worth reporting had
+# just happened. THAT IS NO LONGER TRUE: the pool ingest does NOT score
+# (orchestrator.py: "Ingest does NOT score. Scoring is per user and on
+# demand"), so at 05:30 UTC the preceding hour holds whatever users scored by
+# opening Matches -- which at 05:30 is nobody. A one-hour window would report
+# "nothing" every day, correctly and uselessly.
+WINDOW_HOURS=24
 
 END=$(date +%s)000000000
 START=$(( $(date +%s) - WINDOW_HOURS*3600 ))000000000
@@ -16,13 +23,19 @@ START=$(( $(date +%s) - WINDOW_HOURS*3600 ))000000000
 # nextrole.cloud afterwards. This query is correct here for the first time --
 # see issue #64 for how long it was pointed at the wrong stack.
 #
-# SEPARATELY, `source=ingest` is stale and this digest is probably reporting
-# near-zero: ingest stopped scoring when scoring moved to the per-user scan
-# (docs/job-pool.md), so the only thing still tagging X-Source: ingest is
-# Import Job. Left alone deliberately -- changing what a metric measures is
-# not a rename -- but it wants deciding.
+# source=pool, not source=ingest. `ingest` was the scraper's criteria-driven
+# run calling /api/match/discovery-score-batch with an X-Source header. That
+# service is retired, and more to the point ingest stopped scoring at all.
+# Scoring is the per-user scan now (PoolScanService) -- browser-driven, so it
+# sends no X-Source and logged source=(null) until the server began stamping
+# Source="pool" onto the batch request.
+#
+# What this measures has genuinely changed, and the message says so: no longer
+# "what last night's run found" but "what anyone's scan scored in 24h". Note
+# the same job appears once per user who scored it -- the log line carries no
+# userId, so duplicates are indistinguishable here.
 RAW=$(curl -sG "$LOKI/loki/api/v1/query_range" \
-  --data-urlencode 'query={service="api"} |= "Job scored" |= "source=ingest"' \
+  --data-urlencode 'query={service="api"} |= "Job scored" |= "source=pool"' \
   --data-urlencode "start=$START" \
   --data-urlencode "end=$END" \
   --data-urlencode "limit=1000" \
@@ -39,14 +52,13 @@ send() {
 }
 
 if [ "$TOTAL" -eq 0 ]; then
-  send "⚪️ *NextRole — no ingest run detected*
+  send "⚪️ *NextRole — nothing scored in ${WINDOW_HOURS}h*
 _${NOW}_"
   exit 0
 fi
 
 HITS=""
 COUNT=0
-RUN_ID=""
 
 while IFS= read -r line; do
   score=$(echo "$line" | sed -n 's/.*score=\([0-9]\+\).*/\1/p')
@@ -56,7 +68,6 @@ while IFS= read -r line; do
   company=$(echo "$line" | sed -n 's/.*company=\(.*\) title=.*/\1/p')
   title=$(echo "$line" | sed -n 's/.*title=\(.*\) jobId=.*/\1/p')
   job_id=$(echo "$line" | sed -n 's/.*jobId=\([0-9a-f-]\+\).*/\1/p')
-  [ -z "$RUN_ID" ] && RUN_ID=$(echo "$line" | sed -n 's/.*runId=\([0-9a-f-]\+\).*/\1/p')
 
   HITS="${HITS}*${score}* · ${title}
 _${company}_
@@ -75,6 +86,5 @@ else
   send "🟢 *NextRole — ${COUNT} worth a look*
 _${NOW}_
 
-${HITS}_${COUNT} of ${TOTAL} scored above ${THRESHOLD}_
-run \`${RUN_ID}\`"
+${HITS}_${COUNT} of ${TOTAL} scored above ${THRESHOLD}, last ${WINDOW_HOURS}h_"
 fi

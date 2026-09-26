@@ -6,6 +6,9 @@
   "company_domains": {
     "similarweb": "similarweb.com"
   },
+  "_served_locations_comment": "Where the product's users are, for the pre-read filter (Greenhouse__Prefilter=log|on): a NEW posting whose board location and offices name none of these is not read, embedded or stored. Whole words, case-insensitive, against the board's own free text -- so list cities as well as countries: a posting that says only 'Herzliya' is otherwise ruled out. 'Remote' reads every remote posting, including US-only ones; kept because a wrong skip is silent and an extra read is not. Empty list = no location filtering.",
+  "served_locations": ["Israel", "Tel Aviv", "Tel Aviv-Yafo", "Herzliya", "Haifa", "Jerusalem", "Petah Tikva", "Ra'anana", "Ramat Gan", "Netanya", "Rehovot", "Be'er Sheva", "Beersheba", "London", "United Kingdom", "UK", "England", "Remote"],
+
   "embed_batch_token_budget": 100000,
   "max_batch_items": 128
 }

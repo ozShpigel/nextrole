@@ -220,6 +220,18 @@ try
             : "live calls");
     }
 
+    // The pre-read filter (docs/greenhouse.md). Log by default: it reports what
+    // it would skip, and checks its guesses against stored labels, but skips
+    // nothing until that has been read and this is set to On. An unknown value
+    // is fatal rather than guessed -- guessing On skips postings unmeasured.
+    var prefilterSetting = configuration["Greenhouse:Prefilter"] ?? nameof(PrefilterMode.Log);
+    if (!Enum.TryParse<PrefilterMode>(prefilterSetting, ignoreCase: true, out var prefilter)
+        || !Enum.IsDefined(prefilter))
+        throw new InvalidOperationException(
+            $"Greenhouse:Prefilter is '{prefilterSetting}'. Expected off, log or on.");
+    log.LogInformation("Pre-read filter: {Mode}, {Locations} served location(s)",
+        prefilter, companies.ServedLocations.Count);
+
     var handler = new CompanyHandler(
         new BoardClient(boardHttp, loggerFactory.CreateLogger<BoardClient>()),
         new VoyageEmbeddingClient(voyageHttp, embedding, loggerFactory.CreateLogger<VoyageEmbeddingClient>()),
@@ -227,7 +239,9 @@ try
         companies,
         loggerFactory.CreateLogger<CompanyHandler>(),
         ingestAi,
-        useBatchApi ? batcher : null);
+        useBatchApi ? batcher : null,
+        prefilter,
+        PoolFunctionDemand.For(database));
 
     var consumer = new CompanyConsumer(
         connection, handler, ledger, loggerFactory.CreateLogger<CompanyConsumer>());

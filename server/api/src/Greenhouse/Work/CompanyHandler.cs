@@ -10,8 +10,9 @@ namespace ApplicationTracker.Greenhouse;
 /// <param name="Embedded">Jobs sent to Voyage.</param>
 /// <param name="Closed">Jobs marked closedAt this run.</param>
 /// <param name="TokensBilled">Voyage's own usage.total_tokens, summed.</param>
+/// <param name="Prefiltered">New jobs the pre-read filter kept out: not embedded, read or stored.</param>
 public sealed record CompanyResult(
-    int Fetched, int Skipped, int Embedded, long Closed, int TokensBilled)
+    int Fetched, int Skipped, int Embedded, long Closed, int TokensBilled, int Prefiltered = 0)
 {
     public BsonDocument ToCounts() => new()
     {
@@ -20,6 +21,7 @@ public sealed record CompanyResult(
         { "embedded", Embedded },
         { "closed", Closed },
         { "tokensBilled", TokensBilled },
+        { "prefiltered", Prefiltered },
     };
 }
 
@@ -51,6 +53,8 @@ public sealed class CompanyHandler
     private readonly IJobStore _store;
     private readonly CompaniesConfig _config;
     private readonly ILogger<CompanyHandler> _log;
+    private readonly PrefilterMode _prefilter;
+    private readonly IFunctionDemand? _demand;
 
     /// <summary>
     /// How many open jobs make an empty board response suspicious.
@@ -65,8 +69,13 @@ public sealed class CompanyHandler
     public CompanyHandler(
         IBoardClient board, IEmbeddingClient embeddings, IJobStore store,
         CompaniesConfig config, ILogger<CompanyHandler> log, IngestAiClient? ai = null,
-        IngestBatcher? batcher = null)
+        IngestBatcher? batcher = null, PrefilterMode prefilter = PrefilterMode.Off,
+        IFunctionDemand? demand = null)
     {
+        // Greenhouse:Prefilter. Off here so a handler built without it behaves
+        // exactly as before; Program defaults the real one to Log.
+        _prefilter = prefilter;
+        _demand = demand;
         // Set when Greenhouse:UseBatchApi is on: the same two reads go through
         // the Message Batches API at half the price and are collected later.
         // Null keeps the live path below, unchanged.
@@ -123,9 +132,17 @@ public sealed class CompanyHandler
                 changed.Add(job);
         }
 
+        // The pre-read filter: new postings nobody here could want are not paid
+        // for. Empty unless Greenhouse:Prefilter is On. A skipped posting is not
+        // stored, so it is neither touched nor closed below -- and the next run
+        // sees it as new and asks again.
+        var prefiltered = await PrefilterAsync(boardToken, jobs, storedHashes, ct);
+        if (prefiltered.Count > 0)
+            changed = [.. changed.Where(j => !prefiltered.Contains(j.GreenhouseJobId))];
+
         _log.LogInformation(
-            "Board {Board}: {Total} job(s) -- {Changed} to embed, {Unchanged} unchanged",
-            boardToken, jobs.Count, changed.Count, unchanged.Count);
+            "Board {Board}: {Total} job(s) -- {Changed} to embed, {Unchanged} unchanged, {Prefiltered} prefiltered",
+            boardToken, jobs.Count, changed.Count, unchanged.Count, prefiltered.Count);
 
         var embedded = 0;
         var tokens = 0;
@@ -215,7 +232,110 @@ public sealed class CompanyHandler
             now,
             ct);
 
-        return new CompanyResult(jobs.Count, unchanged.Count, embedded, closed, tokens);
+        return new CompanyResult(jobs.Count, unchanged.Count, embedded, closed, tokens, prefiltered.Count);
+    }
+
+    /// <summary>How many example titles a prefilter log line carries.</summary>
+    private const int PrefilterExamples = 8;
+
+    /// <summary>
+    /// Decide which NEW postings are not worth reading, log it, and check the
+    /// rule against the labels Claude already put on stored postings.
+    /// </summary>
+    /// <returns>The ids to leave out -- always empty unless the mode is On.</returns>
+    /// <remarks>
+    /// Only postings with no stored row are ever candidates. A stored posting
+    /// was already paid for, and dropping it from the run would stop its
+    /// presence touch and leave it for the close diff. Never throws: a filter
+    /// that cannot decide reads everything, which is where it started.
+    /// </remarks>
+    private async Task<HashSet<long>> PrefilterAsync(
+        string boardToken, IReadOnlyList<GreenhouseJob> jobs, IReadOnlyDictionary<long, string> stored,
+        CancellationToken ct)
+    {
+        if (_prefilter == PrefilterMode.Off) return [];
+
+        try
+        {
+            IReadOnlyList<string> wanted = _demand is null ? [] : await _demand.WantedAsync(ct);
+            // No recorded demand constrains nothing: reading everything is the
+            // state before this filter existed, never a worse one.
+            var accepted = wanted.Count > 0 ? Prefilter.Accepted(wanted) : null;
+
+            var fresh = jobs.Where(j => !stored.ContainsKey(j.GreenhouseJobId)).ToList();
+            var skips = fresh
+                .Select(j => (Job: j, Skip: Prefilter.Decide(j.Source, _config.ServedLocations, accepted)))
+                .Where(x => x.Skip is not null)
+                .ToList();
+
+            if (fresh.Count > 0)
+                _log.LogInformation(
+                    "Board {Board}: pre-read filter ({Mode}) -- {Skipped} of {New} new posting(s) {Verb}: "
+                    + "{ByLocation} outside served locations, {ByFunction} a function nobody wants "
+                    + "(wanted: {Wanted}). E.g. {Examples}",
+                    boardToken, _prefilter, skips.Count, fresh.Count,
+                    _prefilter == PrefilterMode.On ? "skipped" : "would be skipped",
+                    skips.Count(x => x.Skip!.Reason == PrefilterSkip.Location),
+                    skips.Count(x => x.Skip!.Reason == PrefilterSkip.Function),
+                    wanted.Count > 0 ? string.Join(", ", wanted) : "none recorded, so no function filtering",
+                    string.Join(" | ", skips.Take(PrefilterExamples)
+                        .Select(x => $"{x.Job.Source.Title} [{x.Skip!.Reason}: {x.Skip.Detail}]")));
+
+            await CheckGuessesAsync(boardToken, jobs, stored, accepted, ct);
+
+            return _prefilter == PrefilterMode.On
+                ? [.. skips.Select(x => x.Job.GreenhouseJobId)]
+                : [];
+        }
+        catch (Exception e) when (e is not OperationCanceledException)
+        {
+            _log.LogError(e, "Board {Board}: the pre-read filter failed; reading every posting", boardToken);
+            return [];
+        }
+    }
+
+    /// <summary>
+    /// The measurement that has to come before the filter acts: the title and
+    /// department guess, against the functions Claude read from the whole
+    /// posting, on postings already stored.
+    /// </summary>
+    /// <remarks>
+    /// "Wrong" is a guess the stored label does not contain. "Would hide" is
+    /// the part of that which matters: a wrong guess that would have skipped a
+    /// posting some user's filter shows. That number has to be read as ~0
+    /// before Greenhouse:Prefilter goes to On.
+    /// </remarks>
+    private async Task CheckGuessesAsync(
+        string boardToken, IReadOnlyList<GreenhouseJob> jobs, IReadOnlyDictionary<long, string> stored,
+        IReadOnlyCollection<string>? accepted, CancellationToken ct)
+    {
+        var guessed = jobs
+            .Where(j => stored.ContainsKey(j.GreenhouseJobId))
+            .Select(j => (Job: j, Guess: Prefilter.GuessFunction(
+                j.Source.Title, (j.Source.Departments ?? []).Select(d => d.Name))))
+            .Where(x => x.Guess is not null)
+            .ToList();
+        if (guessed.Count == 0) return;
+
+        var labels = await _store.StoredFunctionsAsync(
+            boardToken, [.. guessed.Select(x => x.Job.GreenhouseJobId)], ct);
+        string[] LabelOf(GreenhouseJob j) => labels.GetValueOrDefault(j.GreenhouseJobId) ?? [];
+
+        var labelled = guessed.Where(x => LabelOf(x.Job).Length > 0).ToList();
+        var wrong = labelled.Where(x => !LabelOf(x.Job).Contains(x.Guess!)).ToList();
+        var wouldHide = accepted is null
+            ? null
+            : (int?)wrong.Count(x => !accepted.Contains(x.Guess!)
+                                     && JobFunctions.Matches(LabelOf(x.Job), [.. accepted]));
+
+        _log.LogInformation(
+            "Board {Board}: pre-read filter check -- {Guessed} stored posting(s) guessed from title/department, "
+            + "{Labelled} labelled by Claude: {Right} right, {Wrong} wrong, {WouldHide} wrong in a way that "
+            + "would hide a wanted posting. Wrong: {Examples}",
+            boardToken, guessed.Count, labelled.Count, labelled.Count - wrong.Count, wrong.Count,
+            wouldHide?.ToString() ?? "n/a (no demand recorded)",
+            string.Join(" | ", wrong.Take(PrefilterExamples).Select(x =>
+                $"{x.Job.Source.Title} [guessed {x.Guess}, labelled {string.Join("+", LabelOf(x.Job))}]")));
     }
 
     /// <summary>

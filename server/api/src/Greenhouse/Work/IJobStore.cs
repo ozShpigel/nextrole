@@ -117,6 +117,13 @@ public interface IJobStore
     /// upsert would reach only postings that changed after it was configured.
     /// Null clears it, so removing a domain from the config removes the logo.
     /// </remarks>
+    /// <summary>
+    /// The functions Claude read for these postings (<c>extracted.functions</c>),
+    /// by job id. A posting with none stored is absent or empty.
+    /// </summary>
+    Task<Dictionary<long, string[]>> StoredFunctionsAsync(
+        string boardToken, IReadOnlyCollection<long> ids, CancellationToken ct);
+
     Task<long> StampCompanyLogoAsync(string boardToken, string? logoUrl, CancellationToken ct);
 
     Task<long> CloseMissingAsync(

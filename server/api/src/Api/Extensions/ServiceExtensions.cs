@@ -98,6 +98,8 @@ public static class ServiceExtensions
             new UserQuotaRepository(sp.GetRequiredService<IMongoCollection<UserQuota>>()));
         services.AddScoped<IPoolRoleRepository>(sp =>
             new PoolRoleRepository(sp.GetRequiredService<IMongoCollection<PoolRole>>()));
+        services.AddScoped<IPoolFunctionRepository>(sp =>
+            new PoolFunctionRepository(sp.GetRequiredService<IMongoCollection<PoolFunction>>()));
         services.AddScoped<IPoolJobRepository>(sp =>
             new PoolJobRepository(sp.GetRequiredService<IMongoCollection<MongoDB.Bson.BsonDocument>>()));
         services.AddSingleton<IResumePdfRenderer, QuestPdfResumeRenderer>();

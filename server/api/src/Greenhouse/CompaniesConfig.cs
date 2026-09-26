@@ -72,6 +72,20 @@ public sealed record CompaniesConfig
     /// one config edit away and this number is the only thing that would stand
     /// between such a run and a hard 400.
     /// </remarks>
+    /// <summary>
+    /// Locations the product serves, for the pre-read filter: a NEW posting
+    /// whose board location and offices name none of these is not read.
+    /// </summary>
+    /// <remarks>
+    /// Whole words, case-insensitive, matched against the board's free text
+    /// ("Tel Aviv", "London, UK", "Remote - EMEA"), so cities belong here as
+    /// well as countries -- a board that says only "Herzliya" is otherwise
+    /// ruled out. Empty means no location filtering. Only read while
+    /// <c>Greenhouse:Prefilter</c> is <c>log</c> or <c>on</c>.
+    /// </remarks>
+    [JsonPropertyName("served_locations")]
+    public List<string> ServedLocations { get; init; } = [];
+
     [JsonPropertyName("embed_batch_token_budget")] public int EmbedBatchTokenBudget { get; init; } = 100_000;
 
     /// <summary>Hard cap on texts per embedding request, whatever they weigh.</summary>
@@ -172,6 +186,12 @@ public sealed record CompaniesConfig
             domains[token.Trim()] = domain;
         }
 
-        return this with { Companies = unique, CompanyDomains = domains };
+        var served = ServedLocations
+            .Where(l => !string.IsNullOrWhiteSpace(l))
+            .Select(l => l.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        return this with { Companies = unique, CompanyDomains = domains, ServedLocations = served };
     }
 }

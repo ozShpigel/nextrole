@@ -212,12 +212,18 @@ public sealed class FakeJobStore : IJobStore
     /// <summary>When set, the stamp throws this instead of writing.</summary>
     public Exception? StampThrows { get; set; }
 
-    /// <summary>What StoredFunctionsAsync returns, by id.</summary>
+    /// <summary>The functions StoredFactsAsync returns, by id.</summary>
     public Dictionary<long, string[]> Functions { get; } = [];
 
-    public Task<Dictionary<long, string[]>> StoredFunctionsAsync(
+    /// <summary>The locations StoredFactsAsync returns, by id.</summary>
+    public Dictionary<long, string> Locations { get; } = [];
+
+    public Task<Dictionary<long, StoredFacts>> StoredFactsAsync(
         string boardToken, IReadOnlyCollection<long> ids, CancellationToken ct) =>
-        Task.FromResult(ids.Where(Functions.ContainsKey).ToDictionary(i => i, i => Functions[i]));
+        Task.FromResult(ids
+            .Where(i => Functions.ContainsKey(i) || Locations.ContainsKey(i))
+            .ToDictionary(i => i, i => new StoredFacts(
+                Functions.GetValueOrDefault(i) ?? [], Locations.GetValueOrDefault(i))));
 
     public Task<long> StampCompanyLogoAsync(string boardToken, string? logoUrl, CancellationToken ct)
     {
@@ -247,7 +253,7 @@ internal static class Build
         CompaniesConfig? config = null,
         ApplicationTracker.Core.Matching.IngestAiClient? ai = null,
         PrefilterMode prefilter = PrefilterMode.Off,
-        IFunctionDemand? demand = null,
+        IDemand? demand = null,
         Microsoft.Extensions.Logging.ILogger<CompanyHandler>? log = null) =>
         new(BoardClient(board), embeddings, store,
             config ?? CompaniesConfig.ForTesting(Token), log ?? NullLogger<CompanyHandler>.Instance, ai,

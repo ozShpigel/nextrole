@@ -36,20 +36,23 @@ public static class MatchEndpoints
         }
 
         // Separately, so a failed role classification (a Claude call) never
-        // stops the functions from being recorded. No AI here: the functions
-        // are already on the profile.
+        // stops the demand from being recorded. No AI here: the functions and
+        // the location are already on the profile.
         try
         {
-            var functions = scope.ServiceProvider.GetRequiredService<IPoolFunctionRepository>();
-            await functions.SyncAsync(
-                userId, JobFunctions.Normalize(profile.Functions, JobFunctions.MaxPerProfile), CancellationToken.None);
+            var demand = scope.ServiceProvider.GetRequiredService<IPoolDemandRepository>();
+            await demand.SyncAsync(
+                userId,
+                JobFunctions.Normalize(profile.Functions, JobFunctions.MaxPerProfile),
+                PoolDemand.LocationTermsOf(profile.Location),
+                CancellationToken.None);
         }
         catch (Exception ex)
         {
             // Same eventual consistency as the roles. A missed sync can only
-            // make the ingest skip postings for a function this user wants, and
-            // only while the pre-read filter is on -- the next save repairs it.
-            logger.LogError(ex, "Pool function sync failed for {UserId}", userId);
+            // make the ingest skip postings this user wants, and only while the
+            // pre-read filter is on -- the next save repairs it.
+            logger.LogError(ex, "Pool demand sync failed for {UserId}", userId);
         }
     }
 

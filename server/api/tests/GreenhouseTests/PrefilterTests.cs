@@ -149,10 +149,15 @@ public class PrefilterHandlerTests
 {
     private static readonly string Content = "&lt;p&gt;" + new string('a', 400) + "&lt;/p&gt;";
 
-    private sealed class Demand(params string[] wanted) : IFunctionDemand
+    private sealed class Demand(params string[] wanted) : IDemand
     {
-        public Task<IReadOnlyList<string>> WantedAsync(CancellationToken ct) =>
+        public string[] Locations { get; init; } = [];
+
+        public Task<IReadOnlyList<string>> WantedFunctionsAsync(CancellationToken ct) =>
             Task.FromResult<IReadOnlyList<string>>(wanted);
+
+        public Task<IReadOnlyList<string>> WantedLocationsAsync(CancellationToken ct) =>
+            Task.FromResult<IReadOnlyList<string>>(Locations);
     }
 
     private sealed class ListLogger : ILogger<CompanyHandler>
@@ -272,4 +277,168 @@ public class PrefilterHandlerTests
         Assert.Contains("0 right, 1 wrong, 1 wrong in a way that would hide a wanted posting", check);
         Assert.Contains("Recruiter [guessed operations, labelled infrastructure]", check);
     }
+}
+
+/// <summary>Locations learned from profiles, on top of the configured list.</summary>
+public class LearnedLocationTests
+{
+    [Theory]
+    [InlineData("Tel Aviv, Israel", new[] { "tel aviv", "israel" })]
+    [InlineData("Berlin, Germany", new[] { "berlin", "germany" })]
+    [InlineData("  London ,  UK ", new[] { "london", "uk" })]
+    [InlineData("Remote", new[] { "remote" })]
+    public void A_profile_location_gives_its_city_and_country(string location, string[] expected) =>
+        Assert.Equal(expected, ApplicationTracker.Core.Models.PoolDemand.LocationTermsOf(location));
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData(" , ")]
+    [InlineData("12345")]
+    public void Nothing_usable_gives_no_terms(string? location) =>
+        Assert.Empty(ApplicationTracker.Core.Models.PoolDemand.LocationTermsOf(location));
+
+    private static readonly string Content = "&lt;p&gt;" + new string('a', 400) + "&lt;/p&gt;";
+
+    private sealed class Demand : IDemand
+    {
+        public string[] Locations { get; init; } = [];
+        public Task<IReadOnlyList<string>> WantedFunctionsAsync(CancellationToken ct) =>
+            Task.FromResult<IReadOnlyList<string>>([]);
+        public Task<IReadOnlyList<string>> WantedLocationsAsync(CancellationToken ct) =>
+            Task.FromResult<IReadOnlyList<string>>(Locations);
+    }
+
+    // Every job on Build.BoardJson is in Tel Aviv. The config serves only
+    // Berlin, so Tel Aviv is served only if a profile brings it.
+    private static CompaniesConfig BerlinOnly() =>
+        CompaniesConfig.ForTesting(Build.Token) with { ServedLocations = ["Berlin"] };
+
+    private static Task<CompanyResult> Run(CompaniesConfig config, Demand demand) =>
+        Build.Handler(
+                new StubHandler().EnqueueJson(System.Net.HttpStatusCode.OK,
+                    Build.BoardJson((1, "Platform Engineer", Content))),
+                new FakeEmbeddingClient(), new FakeJobStore(), config,
+                prefilter: PrefilterMode.On, demand: demand)
+            .HandleCompanyAsync(Build.Token);
+
+    [Fact]
+    public async Task A_place_nobody_is_in_is_skipped()
+    {
+        var result = await Run(BerlinOnly(), new Demand());
+        Assert.Equal(1, result.Prefiltered);
+    }
+
+    [Fact]
+    public async Task A_users_own_location_is_served_without_a_config_edit()
+    {
+        var result = await Run(BerlinOnly(), new Demand { Locations = ["tel aviv", "israel"] });
+
+        Assert.Equal(0, result.Prefiltered);
+        Assert.Equal(1, result.Embedded);
+    }
+
+    private sealed class ListLogger : Microsoft.Extensions.Logging.ILogger<CompanyHandler>
+    {
+        public List<string> Lines { get; } = [];
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(Microsoft.Extensions.Logging.LogLevel logLevel) => true;
+        public void Log<TState>(Microsoft.Extensions.Logging.LogLevel logLevel, Microsoft.Extensions.Logging.EventId eventId,
+            TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
+            Lines.Add(formatter(state, exception));
+    }
+
+    [Fact]
+    public async Task The_location_check_reports_a_skip_Claude_placed_somewhere_served()
+    {
+        // The board says Tel Aviv (Israel, not served here); Claude, reading the
+        // whole posting, placed it in Berlin. That skip would hide a wanted job.
+        var json = Build.BoardJson((1, "Platform Engineer", Content));
+        var store = new FakeJobStore();
+        await Build.Handler(new StubHandler().EnqueueJson(System.Net.HttpStatusCode.OK, json),
+                new FakeEmbeddingClient(), store, BerlinOnly())
+            .HandleCompanyAsync(Build.Token);
+        store.Locations[1] = "Berlin, Germany";
+
+        var log = new ListLogger();
+        await Build.Handler(new StubHandler().EnqueueJson(System.Net.HttpStatusCode.OK, json),
+                new FakeEmbeddingClient(), store, BerlinOnly(), prefilter: PrefilterMode.Log,
+                demand: new Demand(), log: log)
+            .HandleCompanyAsync(Build.Token);
+
+        var check = Assert.Single(log.Lines, l => l.Contains("location check"));
+        Assert.Contains("1 of 1 stored posting(s) resolve to countries nobody is in", check);
+        Assert.Contains("1 of those placed somewhere served (would hide)", check);
+    }
+
+    [Fact]
+    public async Task Learned_locations_never_switch_location_filtering_on()
+    {
+        // No configured list means no location filtering. A user's "berlin"
+        // must not turn that into "only Berlin".
+        var result = await Run(CompaniesConfig.ForTesting(Build.Token), new Demand { Locations = ["berlin"] });
+
+        Assert.Equal(0, result.Prefiltered);
+    }
+}
+
+/// <summary>Resolving a board's location text to countries.</summary>
+public class PlacesTests
+{
+    [Theory]
+    [InlineData("Munich", "DE")]
+    [InlineData("Tel Aviv-Yafo", "IL")]
+    [InlineData("Giv‘atayim, Tel Aviv, Israel", "IL")]
+    [InlineData("London, United Kingdom - Deliveroo", "GB")]
+    [InlineData("Cardiff, London or Remote (UK)", "GB")]
+    [InlineData("Burlington, MA", "US")]
+    public void A_board_location_resolves_to_its_country(string text, string country) =>
+        Assert.Contains(country, Places.CountriesOf(text));
+
+    [Theory]
+    [InlineData("Hybrid")]
+    [InlineData("Remote")]
+    [InlineData("HQ")]
+    [InlineData("")]
+    public void Labels_that_are_not_places_resolve_to_nothing(string text) =>
+        Assert.Empty(Places.CountriesOf(text));
+
+    [Fact]
+    public void An_ambiguous_name_keeps_every_country_it_can_mean()
+    {
+        // Unioned, so ambiguity can only ever cost a read.
+        Assert.Superset(new HashSet<string> { "GB", "CA" }, (HashSet<string>)Places.CountriesOf("London"));
+        // Israel as well as Illinois: an Israeli board writing "Tel Aviv, IL" is read.
+        Assert.Contains("IL", Places.CountriesOf("Tel Aviv, IL"));
+    }
+
+    [Fact]
+    public void Only_an_unambiguous_served_term_serves_a_country()
+    {
+        Assert.Equal("GB", Places.CountryOfTerm("UK"));
+        Assert.Equal("IL", Places.CountryOfTerm("Tel Aviv"));
+        // London is GB and CA: serving its country would switch on every Canadian posting.
+        Assert.Null(Places.CountryOfTerm("London"));
+        Assert.Null(Places.CountryOfTerm("Remote"));
+    }
+
+    private static readonly string[] Served = ["Berlin", "Germany", "Israel"];
+
+    [Theory]
+    // A city-only posting in a served country: the gap this exists to close.
+    [InlineData("Munich")]
+    [InlineData("Hamburg")]
+    // Nothing recognised: read, never skipped.
+    [InlineData("Hybrid")]
+    [InlineData("Some Tiny Village")]
+    [InlineData("Tel Aviv, IL")]
+    public void Is_read(string location) =>
+        Assert.True(Prefilter.InServedLocation([location], Served));
+
+    [Theory]
+    [InlineData("Tokyo")]
+    [InlineData("Burlington, MA")]
+    [InlineData("Paris, France")]
+    public void Is_clearly_elsewhere(string location) =>
+        Assert.False(Prefilter.InServedLocation([location], Served));
 }

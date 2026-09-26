@@ -406,10 +406,10 @@ public sealed class JobStore : IJobStore
         : GreenhouseJobFields.AiPendingParse;
 
     /// <inheritdoc />
-    public async Task<Dictionary<long, string[]>> StoredFunctionsAsync(
+    public async Task<Dictionary<long, StoredFacts>> StoredFactsAsync(
         string boardToken, IReadOnlyCollection<long> ids, CancellationToken ct)
     {
-        var result = new Dictionary<long, string[]>(ids.Count);
+        var result = new Dictionary<long, StoredFacts>(ids.Count);
         if (ids.Count == 0) return result;
 
         var docs = await _jobs
@@ -417,17 +417,24 @@ public sealed class JobStore : IJobStore
                 Builders<BsonDocument>.Filter.Eq(GreenhouseJobFields.BoardToken, boardToken),
                 Builders<BsonDocument>.Filter.In(GreenhouseJobFields.GreenhouseJobId, ids.Select(i => (BsonValue)i))))
             .Project(Builders<BsonDocument>.Projection
-                .Include(GreenhouseJobFields.GreenhouseJobId).Include(GreenhouseJobFields.ExtractedFunctions))
+                .Include(GreenhouseJobFields.GreenhouseJobId)
+                .Include(GreenhouseJobFields.ExtractedFunctions)
+                .Include(GreenhouseJobFields.ExtractedLocation))
             .ToListAsync(ct);
 
         foreach (var doc in docs)
         {
             if (!doc.TryGetValue(GreenhouseJobFields.GreenhouseJobId, out var id) || !id.IsNumeric) continue;
-            var functions = doc.TryGetValue(GreenhouseJobFields.Extracted, out var e) && e.IsBsonDocument
-                            && e.AsBsonDocument.TryGetValue("functions", out var f) && f.IsBsonArray
+            var extracted = doc.TryGetValue(GreenhouseJobFields.Extracted, out var e) && e.IsBsonDocument
+                ? e.AsBsonDocument
+                : null;
+            var functions = extracted is not null && extracted.TryGetValue("functions", out var f) && f.IsBsonArray
                 ? f.AsBsonArray.Where(v => v.IsString).Select(v => v.AsString).ToArray()
                 : [];
-            result[id.ToInt64()] = functions;
+            var location = extracted is not null && extracted.TryGetValue("location", out var l) && l.IsString
+                ? l.AsString
+                : null;
+            result[id.ToInt64()] = new StoredFacts(functions, location);
         }
 
         return result;

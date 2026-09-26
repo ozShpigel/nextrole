@@ -442,3 +442,45 @@ public class PlacesTests
     public void Is_clearly_elsewhere(string location) =>
         Assert.False(Prefilter.InServedLocation([location], Served));
 }
+
+/// <summary>The age rule: nothing older than Matches ever shows is read.</summary>
+public class PrefilterAgeTests
+{
+    private static readonly DateTime Now = new(2026, 9, 26, 12, 0, 0, DateTimeKind.Utc);
+    private static readonly string[] Served = ["Tel Aviv"];
+
+    private static BoardJob Job(DateTime? published, DateTime? updated) => new()
+    {
+        Id = 1, Title = "Platform Engineer", Location = new BoardLocation { Name = "Tel Aviv" },
+        FirstPublished = published, UpdatedAt = updated,
+    };
+
+    [Fact]
+    public void A_posting_older_than_four_months_is_skipped_before_it_is_read()
+    {
+        var skip = Prefilter.Decide(Job(Now.AddDays(-200), Now.AddDays(-1)), ServedPlaces.From(Served), null, Now);
+
+        // An edit yesterday does not make a 200-day-old posting new.
+        Assert.Equal(PrefilterSkip.Age, skip?.Reason);
+    }
+
+    [Fact]
+    public void A_posting_inside_four_months_is_read() =>
+        Assert.Null(Prefilter.Decide(Job(Now.AddDays(-100), null), ServedPlaces.From(Served), null, Now));
+
+    [Fact]
+    public void The_update_date_decides_only_when_there_is_no_posting_date()
+    {
+        Assert.Equal(PrefilterSkip.Age,
+            Prefilter.Decide(Job(null, Now.AddDays(-150)), ServedPlaces.From(Served), null, Now)?.Reason);
+        Assert.Null(Prefilter.Decide(Job(null, Now.AddDays(-5)), ServedPlaces.From(Served), null, Now));
+    }
+
+    [Fact]
+    public void A_posting_with_no_date_is_read_as_Matches_would_show_it() =>
+        Assert.Null(Prefilter.Decide(Job(null, null), ServedPlaces.From(Served), null, Now));
+
+    [Fact]
+    public void The_limit_is_the_one_Matches_uses() =>
+        Assert.Equal(120, ApplicationTracker.Core.Matching.PoolBrowseQuery.MaxAgeDays);
+}

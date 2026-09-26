@@ -18,6 +18,7 @@ public enum PrefilterMode
 /// <param name="Detail">The location text, or the function the title/department was taken for.</param>
 public sealed record PrefilterSkip(string Reason, string Detail)
 {
+    public const string Age = "age";
     public const string Location = "location";
     public const string Function = "function";
 }
@@ -189,8 +190,16 @@ public static class Prefilter
     /// no user has recorded any, and then nothing is skipped by function.
     /// </param>
     public static PrefilterSkip? Decide(
-        BoardJob job, ServedPlaces served, IReadOnlyCollection<string>? accepted)
+        BoardJob job, ServedPlaces served, IReadOnlyCollection<string>? accepted, DateTime? now = null)
     {
+        // Older than Matches ever shows ("Any" is four months), by the
+        // posting's own date -- the same rule and the same limit as the board
+        // (PoolBrowseQuery.MaxAgeDays), so nothing that could be shown is
+        // skipped. A posting with no date is read, as it would be shown.
+        if (PostedAt(job) is { } posted
+            && posted < (now ?? DateTime.UtcNow).AddDays(-PoolBrowseQuery.MaxAgeDays))
+            return new PrefilterSkip(PrefilterSkip.Age, posted.ToString("yyyy-MM-dd"));
+
         var locations = new[] { job.Location?.Name }
             .Concat((job.Offices ?? []).Select(o => o.Name));
         if (LocationSkip(locations, served) is { } elsewhere)
@@ -209,6 +218,13 @@ public static class Prefilter
     public static PrefilterSkip? Decide(
         BoardJob job, IReadOnlyList<string> servedLocations, IReadOnlyCollection<string>? accepted) =>
         Decide(job, ServedPlaces.From(servedLocations), accepted);
+
+    /// <summary>
+    /// When the posting went up: first_published, the board's update date only
+    /// when there is none, null when neither is given.
+    /// </summary>
+    public static DateTime? PostedAt(BoardJob job) =>
+        (job.FirstPublished ?? job.UpdatedAt)?.UtcDateTime;
 
     /// <summary>Every function the given ones accept, neighbours included.</summary>
     /// <remarks>

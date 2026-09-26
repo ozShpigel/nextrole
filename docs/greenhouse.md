@@ -57,8 +57,10 @@ calls it, never the reverse, and the tests drive it by calling the method.
    only when it is a heading, on its own line, in the last third of the posting,
    and only if the cut leaves most of the text. Conservative on purpose: cutting
    early destroys requirements, which is the signal the source exists for.
-3. **Keep the whole board.** No title or department filtering. `department` and
-   `office` are stored so later narrowing is a query, not a re-ingest.
+3. **Keep what is stored whole; decide what is worth paying for.** A NEW
+   posting the pre-read filter rules out (see below) is not embedded, read or
+   stored. Everything stored is kept as it is; `department` and `office` are
+   stored so narrowing it is a query, not a re-ingest.
 4. Skip anything whose content hash is unchanged — no embedding, no write.
 5. Embed what remains, batched by estimated token budget (~100K, cap 128 items),
    splitting and retrying on a 400. `input_type: "document"`.
@@ -116,6 +118,78 @@ minutes to hours.
   pool ingest still uses the live endpoints.
 - Cost stays visible: every result logs `Claude job-facts-batch usage` /
   `job-parse-batch usage`, the same shape as the live lines.
+
+### The pre-read filter
+
+Every posting on every board used to be read by Claude, embedded and stored --
+an Account Executive in Tokyo included -- and the Matches filters then hid it
+from everyone. The reads are the ingest's cost, and they grow with the company
+list, not with who uses the product. So before paying, the consumer looks at
+what the board returns for free:
+
+- **Location.** A new posting whose board location and offices name none of
+  `served_locations` (`companies.json`) is skipped. Whole words, so `UK` does
+  not match `Ukraine`; no location text at all is read.
+- **Function.** A new posting whose title -- or, when the title says nothing,
+  its department -- *clearly* belongs to a function no user wants is skipped.
+  "Wanted" comes from real profiles: the API records each profile's functions
+  in `pool_functions` on every save (`PoolFunctionRepository`), a function
+  leaves when its last user does, and each one is widened by its neighbours
+  (`JobFunctions.AcceptedFor`) exactly as Matches widens it.
+
+**Knowingly inexact, so it leans hard towards reading** (`Prefilter`). Any
+technical word in the title -- engineer, data, analyst, security, technical...
+-- means read ("Technical Recruiter", "Sales Engineer"). Two departments that
+disagree, an unknown department, no recorded demand at all: read. A wrong guess
+must cost an extra read, never a lost job.
+
+**Only new postings.** A stored posting was already paid for; dropping it from a
+run would skip its presence touch and hand it to the close diff.
+
+**Nothing is lost for good.** A skipped posting is not stored, so every run sees
+it as new and asks again. When a user arrives with its function, the next run
+reads it -- no backfill. Until then that user sees little on Matches; triggering
+a run when a new function appears is the follow-up (Tasks.md), and only matters
+once the filter is On.
+
+**`Greenhouse__Prefilter`**: `off` | `log` (default) | `on`. In `log` it skips
+nothing and writes two lines per board:
+
+```
+pre-read filter (Log) -- 12 of 30 new posting(s) would be skipped: 8 outside served
+  locations, 4 a function nobody wants (wanted: infrastructure, ...). E.g. ...
+pre-read filter check -- 41 stored posting(s) guessed from title/department,
+  39 labelled by Claude: 37 right, 2 wrong, 0 wrong in a way that would hide a
+  wanted posting. Wrong: ...
+```
+
+The second line is the measurement: the guess against the function Claude read
+from the whole posting, on postings already stored. **Switch to `on` only once
+"would hide a wanted posting" reads ~0** across a few runs.
+
+Measured on the 263 open postings of the three local boards, with an
+infra/software demand (2026-09-26): **151 skipped (57%)** -- 92 by location, 59
+by function (sales 21, operations 15, marketing 9, design 6, product 6,
+customer success 2) -- and not one engineering, data or security role among
+them. The one wrong guess it showed ("Group Product Manager, Regulatory Finance"
+taken for finance) fixed the rule order.
+
+**Before the first `log` run on a box, fill `pool_functions` from existing
+profiles** -- otherwise demand is only whoever has saved since the deploy, and
+the check undercounts. Idempotent; re-run it any time:
+
+```js
+// mongosh, connected to the cluster
+const PROFILE_DB = "<MongoDB__ProfileDatabase, or MongoDB__Database if unset>";
+const MAIN_DB = "<MongoDB__Database>";   // where greenhouse_jobs lives
+db.getSiblingDB(PROFILE_DB).profile.aggregate([
+  { $project: { f: "$profile_structured.functions" } },
+  { $unwind: "$f" },
+  { $group: { _id: "$f", UserIds: { $addToSet: "$_id" } } },
+  { $set: { UpdatedAt: "$$NOW" } },
+  { $merge: { into: { db: MAIN_DB, coll: "pool_functions" }, whenMatched: "replace" } },
+]);
+```
 
 ### The two guards
 
@@ -400,6 +474,10 @@ while the run itself was fine.
 
 `Greenhouse__UseBatchApi` (consumer, default `false`) sends the two reads
 through the Message Batches API — see above.
+
+`Greenhouse__Prefilter` (consumer, `off` | `log` | `on`, default `log`) and
+`served_locations` in `companies.json` drive the pre-read filter — see above. An
+unknown value is fatal: guessing `on` would skip postings unmeasured.
 
 `server/api/src/Greenhouse/config/companies.json` — board tokens, each
 company's domain for its logo, and batch limits. Loaded like `roles.json` and **fatal** on a missing

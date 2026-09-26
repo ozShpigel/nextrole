@@ -406,6 +406,34 @@ public sealed class JobStore : IJobStore
         : GreenhouseJobFields.AiPendingParse;
 
     /// <inheritdoc />
+    public async Task<Dictionary<long, string[]>> StoredFunctionsAsync(
+        string boardToken, IReadOnlyCollection<long> ids, CancellationToken ct)
+    {
+        var result = new Dictionary<long, string[]>(ids.Count);
+        if (ids.Count == 0) return result;
+
+        var docs = await _jobs
+            .Find(Builders<BsonDocument>.Filter.And(
+                Builders<BsonDocument>.Filter.Eq(GreenhouseJobFields.BoardToken, boardToken),
+                Builders<BsonDocument>.Filter.In(GreenhouseJobFields.GreenhouseJobId, ids.Select(i => (BsonValue)i))))
+            .Project(Builders<BsonDocument>.Projection
+                .Include(GreenhouseJobFields.GreenhouseJobId).Include(GreenhouseJobFields.ExtractedFunctions))
+            .ToListAsync(ct);
+
+        foreach (var doc in docs)
+        {
+            if (!doc.TryGetValue(GreenhouseJobFields.GreenhouseJobId, out var id) || !id.IsNumeric) continue;
+            var functions = doc.TryGetValue(GreenhouseJobFields.Extracted, out var e) && e.IsBsonDocument
+                            && e.AsBsonDocument.TryGetValue("functions", out var f) && f.IsBsonArray
+                ? f.AsBsonArray.Where(v => v.IsString).Select(v => v.AsString).ToArray()
+                : [];
+            result[id.ToInt64()] = functions;
+        }
+
+        return result;
+    }
+
+    /// <inheritdoc />
     public async Task<long> StampCompanyLogoAsync(string boardToken, string? logoUrl, CancellationToken ct)
     {
         BsonValue value = logoUrl is null ? BsonNull.Value : new BsonString(logoUrl);

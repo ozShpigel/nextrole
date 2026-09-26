@@ -61,6 +61,11 @@ public static class MongoExtensions
         services.AddSingleton(sp =>
             sp.GetRequiredService<IMongoDatabase>().GetCollection<PoolRole>("pool_roles"));
 
+        // Shared-pool state too: the job functions users are pursuing, which
+        // the Greenhouse ingest reads to decide what is worth paying to read.
+        services.AddSingleton(sp =>
+            sp.GetRequiredService<IMongoDatabase>().GetCollection<PoolFunction>(PoolFunction.CollectionName));
+
         // The shared job pool the scraper writes. Not user-scoped on purpose
         // (docs/job-pool.md) and read as BsonDocument, since the scraper owns
         // its schema.

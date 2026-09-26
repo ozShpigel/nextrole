@@ -54,12 +54,13 @@ public sealed record BoardJob
     [JsonPropertyName("location")] public BoardLocation? Location { get; init; }
 
     /// <summary>
-    /// Stored, never filtered on at ingest.
+    /// Stored; also one input to the pre-read filter (<see cref="Prefilter"/>).
     /// </summary>
     /// <remarks>
-    /// The whole board is kept. Narrowing later must be a query, not a
-    /// re-ingest — a department filter applied at write time is a decision that
-    /// can only be revisited by re-fetching and re-embedding every board.
+    /// That filter decides only whether a NEW posting is paid for. It can be
+    /// revisited at no cost because every run re-fetches the whole board, and a
+    /// posting it skipped was never stored, so it arrives as new again. What is
+    /// stored is never narrowed at write time: that part is still a query.
     /// </remarks>
     [JsonPropertyName("departments")] public List<BoardTaxonomy>? Departments { get; init; }
     [JsonPropertyName("offices")] public List<BoardTaxonomy>? Offices { get; init; }

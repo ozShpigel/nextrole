@@ -174,6 +174,22 @@ customer success 2) -- and not one engineering, data or security role among
 them. The one wrong guess it showed ("Group Product Manager, Regulatory Finance"
 taken for finance) fixed the rule order.
 
+First check on the box (2026-09-26, 3 boards): 128 stored postings guessed,
+121 labelled by Claude, **110 right, 11 wrong, 1 would have hidden a wanted
+posting** -- "Senior Financial Crime Investigator", guessed operations from
+"financial", labelled security (an infra user's neighbour). Claude's labels are
+split on fraud/risk/compliance and on product marketing, so the rule now
+abstains on those words instead of guessing. The other ten were between
+functions that are each other's neighbours (sales/customer success,
+marketing/sales), which cannot hide anything. Cost of abstaining, on the same
+263 local postings: 146 skipped instead of 151 (56% instead of 57%).
+
+**The bar for `on`, set before looking:** 0 "would hide a wanted posting" over
+at least 3 runs and at least 300 checked postings. One clean run on ~120 is too
+thin -- shadow-mode practice is to promote on a fixed benchmark over enough
+traffic. The sample grows by itself: new postings log mode lets through are
+read by Claude and join the next check.
+
 **Before the first `log` run on a box, fill `pool_functions` from existing
 profiles** -- otherwise demand is only whoever has saved since the deploy, and
 the check undercounts. Idempotent; re-run it any time:

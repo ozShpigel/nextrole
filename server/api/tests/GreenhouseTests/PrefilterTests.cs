@@ -22,7 +22,7 @@ public class PrefilterTests
     [InlineData("Senior Legal Counsel", JobFunctions.Operations)]
     [InlineData("Revenue Accountant", JobFunctions.Operations)]
     [InlineData("Customer Success Manager", JobFunctions.CustomerSuccess)]
-    [InlineData("Product Marketing Manager", JobFunctions.Marketing)]
+    [InlineData("Senior Marketing Manager", JobFunctions.Marketing)]
     [InlineData("Product Designer", JobFunctions.Design)]
     [InlineData("Brand Designer", JobFunctions.Design)]
     [InlineData("Senior Product Manager", JobFunctions.Product)]
@@ -40,6 +40,15 @@ public class PrefilterTests
     [InlineData("Security Counsel")]
     [InlineData("Platform Engineer")]
     [InlineData("Senior Software Engineer, Payments")]
+    // Claude's label is split on these, so no guess (measured on the box):
+    // financial crime was labelled security, product marketing was product.
+    [InlineData("Senior Financial Crime Investigator  - EU, Spanish & English")]
+    [InlineData("Product Marketing Lead")]
+    [InlineData("Senior Product Marketing Manager, Business Banking")]
+    [InlineData("Fraud Operations Manager")]
+    [InlineData("Head of Risk")]
+    [InlineData("Compliance Officer")]
+    [InlineData("Trust & Safety Specialist")]
     // Nothing clear either way.
     [InlineData("Manager, EMEA")]
     [InlineData("")]
@@ -60,6 +69,7 @@ public class PrefilterTests
     {
         Assert.Null(Prefilter.GuessFunction("Manager, EMEA", ["Data & Engineering"]));
         Assert.Null(Prefilter.GuessFunction("Manager, EMEA", ["Sales", "Legal"]));
+        Assert.Null(Prefilter.GuessFunction("Manager, EMEA", ["Risk & Compliance"]));
     }
 
     // ---- served locations ----------------------------------------------------

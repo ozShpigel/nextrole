@@ -1,6 +1,6 @@
-<svg viewBox="0 0 900 392" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="ds-title ds-desc" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">
-  <title id="ds-title">NextRole discovery and per-user scoring</title>
-  <desc id="ds-desc">Two phases split by whether the work is about the posting or about you. Daily ingest, shared by every user and reading no profile: scrape the configured role list, AI title triage, dedupe on a stable pool key, seniority classification, then one Claude pass extracting what the posting asks for. Everything lands in one shared job pool. Then, on opening Matches and per user: a cheap Mongo filter over those extracted fields cuts the pool to at most fifty candidates, the Evaluator judges each one against your profile, and the results are stored keyed by user so a later visit only scores what is new.</desc>
+<svg viewBox="0 0 900 470" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="ds-title ds-desc" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">
+  <title id="ds-title">Discovery and per-user scoring</title>
+  <desc id="ds-desc">Top row, shared by every user: fetch a company's whole board, skip unchanged postings by content hash, a pre-read filter skips postings nobody could want (age, location, kind of work), the rest are embedded and stored, and Claude extracts their facts once through the Batch API. They land in one shared job pool. Bottom row, per user when Matches opens: vector search plus filters on the extracted facts, the Evaluator scores each job against the profile (the parse is made on first score and saved for everyone), server-side checks verify the model's claims, and the score is stored for that user only.</desc>
 
   <defs>
     <marker id="ds-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
@@ -8,103 +8,114 @@
     </marker>
   </defs>
 
-  <rect x="0" y="0" width="900" height="392" fill="#ffffff"/>
-
-  <!-- ===== phase A: shared, user-independent ===== -->
-  <text x="450" y="26" text-anchor="middle" font-size="10.5" font-weight="600" letter-spacing="0.4" fill="#6b6259">DAILY INGEST — SHARED BY EVERY USER, NO PROFILE READ</text>
-
-  <g fill="none" stroke="#57524b" stroke-width="1.6">
-    <line x1="185" y1="84" x2="201" y2="84" marker-end="url(#ds-arrow)"/>
-    <line x1="355" y1="84" x2="371" y2="84" marker-end="url(#ds-arrow)"/>
-    <line x1="525" y1="84" x2="541" y2="84" marker-end="url(#ds-arrow)"/>
-    <line x1="695" y1="84" x2="711" y2="84" marker-end="url(#ds-arrow)"/>
-    <line x1="790" y1="130" x2="790" y2="158" marker-end="url(#ds-arrow)"/>
+  <!-- ===== row labels ===== -->
+  <g font-size="11" font-weight="600" fill="#6b6259" letter-spacing="0.6" text-anchor="middle">
+    <text x="450" y="28">DAILY INGEST — SHARED BY EVERY USER, NO PROFILE READ</text>
+    <text x="450" y="284">ON OPENING MATCHES — PER USER, SCORES ONLY WHAT'S NEW</text>
   </g>
 
+  <!-- ===== connectors ===== -->
+  <g fill="none" stroke="#57524b" stroke-width="1.6" marker-end="url(#ds-arrow)">
+    <line x1="185" y1="85" x2="199" y2="85"/>
+    <line x1="355" y1="85" x2="369" y2="85"/>
+    <line x1="525" y1="85" x2="539" y2="85"/>
+    <line x1="695" y1="85" x2="709" y2="85"/>
+    <line x1="790" y1="130" x2="790" y2="173"/>
+    <line x1="120" y1="226" x2="120" y2="297"/>
+    <line x1="230" y1="345" x2="248" y2="345"/>
+    <line x1="443" y1="345" x2="461" y2="345"/>
+    <line x1="656" y1="345" x2="674" y2="345"/>
+  </g>
+  <!-- skipped postings drop out, never paid for -->
+  <g fill="none" stroke="#8a929c" stroke-width="1.4" stroke-dasharray="4 3">
+    <line x1="455" y1="130" x2="455" y2="150"/>
+  </g>
+
+  <!-- ===== top row: shared ingest ===== -->
   <g stroke="#2b2521" stroke-width="1.6" fill="#f4f1ea">
-    <rect x="35" y="38" width="150" height="92" rx="10"/>
-    <rect x="205" y="38" width="150" height="92" rx="10"/>
-    <rect x="375" y="38" width="150" height="92" rx="10"/>
-    <rect x="545" y="38" width="150" height="92" rx="10"/>
+    <rect x="35" y="44" width="150" height="86" rx="10"/>
+    <rect x="205" y="44" width="150" height="86" rx="10"/>
+    <rect x="375" y="44" width="150" height="86" rx="10"/>
+    <rect x="545" y="44" width="150" height="86" rx="10"/>
   </g>
-  <!-- fact extraction: the one Claude call on the shared path -->
-  <rect x="715" y="38" width="150" height="92" rx="10" fill="#f4f1ea" stroke="#b5502e" stroke-width="2.2"/>
+  <rect x="715" y="44" width="150" height="86" rx="10" fill="#f4f1ea" stroke="#b5502e" stroke-width="2.2"/>
 
   <g text-anchor="middle" fill="#211c18">
-    <text x="110" y="78" font-size="13" font-weight="600">Scrape</text>
-    <text x="110" y="95" font-size="10" fill="#6b6259">LinkedIn</text>
-    <text x="110" y="109" font-size="10" fill="#6b6259">roles from a config file</text>
+    <text x="110" y="72" font-size="14" font-weight="600">Fetch board</text>
+    <text x="110" y="92" font-size="10.5" fill="#6b6259">whole board, one call</text>
+    <text x="110" y="107" font-size="10.5" fill="#6b6259">count must match total,</text>
+    <text x="110" y="121" font-size="10.5" fill="#6b6259">or nothing is closed</text>
 
-    <text x="280" y="71" font-size="13" font-weight="600">AI Title</text>
-    <text x="280" y="86" font-size="13" font-weight="600">Triage</text>
-    <text x="280" y="103" font-size="10" fill="#6b6259">drop off-target roles</text>
+    <text x="280" y="72" font-size="14" font-weight="600">Changed?</text>
+    <text x="280" y="92" font-size="10.5" fill="#6b6259">content hash</text>
+    <text x="280" y="107" font-size="10.5" fill="#6b6259">unchanged → touched,</text>
+    <text x="280" y="121" font-size="10.5" fill="#6b6259">costs nothing</text>
 
-    <text x="450" y="78" font-size="13" font-weight="600">Dedupe</text>
-    <text x="450" y="95" font-size="10" fill="#6b6259">pool_key: job URL, else</text>
-    <text x="450" y="109" font-size="10" fill="#6b6259">sha256(company+title+date)</text>
+    <text x="450" y="72" font-size="14" font-weight="600">Pre-read filter</text>
+    <text x="450" y="92" font-size="10.5" fill="#6b6259">age · location · kind of work</text>
+    <text x="450" y="107" font-size="10.5" fill="#6b6259">skips only the clearly</text>
+    <text x="450" y="121" font-size="10.5" fill="#6b6259">irrelevant; unsure is read</text>
 
-    <text x="620" y="71" font-size="13" font-weight="600">Seniority</text>
-    <text x="620" y="86" font-size="13" font-weight="600">Classify</text>
-    <text x="620" y="103" font-size="10" fill="#6b6259">AI-classified band</text>
+    <text x="620" y="72" font-size="14" font-weight="600">Embed + store</text>
+    <text x="620" y="92" font-size="10.5" fill="#6b6259">Voyage · one vector</text>
+    <text x="620" y="107" font-size="10.5" fill="#6b6259">per posting</text>
+
+    <text x="790" y="72" font-size="14" font-weight="600" fill="#8a3a20">Extract facts</text>
+    <text x="790" y="92" font-size="10.5" fill="#6b6259">Claude · Batch API, half price</text>
+    <text x="790" y="107" font-size="10.5" fill="#6b6259">seniority · must-have tech</text>
+    <text x="790" y="121" font-size="10.5" fill="#6b6259">location · kind of work</text>
   </g>
 
-  <g text-anchor="middle" fill="#8a3a20">
-    <text x="790" y="71" font-size="12.5" font-weight="700">Extract Facts</text>
-    <text x="790" y="88" font-size="9.5">required years · must-have</text>
-    <text x="790" y="101" font-size="9.5">and nice-to-have tech</text>
-    <text x="790" y="114" font-size="9.5">seniority · domain · location</text>
+  <!-- skipped chip -->
+  <g>
+    <rect x="395" y="150" width="120" height="20" rx="4" fill="#eef0f2" stroke="#8a929c" stroke-width="1" stroke-dasharray="4 3"/>
+    <text x="455" y="164" font-size="10.5" fill="#5b6572" text-anchor="middle">~60% never paid for</text>
   </g>
 
-  <!-- ===== the shared pool, the seam between the two phases ===== -->
-  <rect x="35" y="160" width="830" height="48" rx="10" fill="#f4f1ea" stroke="#2b2521" stroke-width="1.6"/>
+  <!-- ===== shared pool ===== -->
+  <rect x="35" y="176" width="830" height="50" rx="10" fill="#f4f1ea" stroke="#2b2521" stroke-width="1.6"/>
   <g text-anchor="middle">
-    <text x="450" y="181" font-size="13" font-weight="600" fill="#211c18">Shared job pool — one row per posting, whoever it suits</text>
-    <text x="450" y="198" font-size="10" fill="#6b6259">facts extracted once, never recomputed per user · absent from several runs → marked inactive, never deleted</text>
+    <text x="450" y="197" font-size="14" font-weight="600" fill="#211c18">Shared job pool — one row per posting, whoever it suits</text>
+    <text x="450" y="215" font-size="10.5" fill="#6b6259">facts read once for everyone · gone from its board → closed, never deleted · older than 4 months → not read</text>
   </g>
 
-  <!-- ===== phase B: per user, on demand ===== -->
-  <text x="450" y="232" text-anchor="middle" font-size="10.5" font-weight="600" letter-spacing="0.4" fill="#6b6259">ON OPENING MATCHES — PER USER, SCORES ONLY WHAT'S NEW</text>
-
-  <g fill="none" stroke="#57524b" stroke-width="1.6">
-    <line x1="140" y1="208" x2="140" y2="242" marker-end="url(#ds-arrow)"/>
-    <line x1="225" y1="290" x2="241" y2="290" marker-end="url(#ds-arrow)"/>
-    <line x1="435" y1="290" x2="451" y2="290" marker-end="url(#ds-arrow)"/>
-    <line x1="645" y1="290" x2="674" y2="290" marker-end="url(#ds-arrow)"/>
-  </g>
-
-  <g stroke="#2b2521" stroke-width="1.6" fill="#f4f1ea">
-    <rect x="35" y="244" width="190" height="92" rx="10"/>
-    <rect x="455" y="244" width="190" height="92" rx="10"/>
-  </g>
-  <rect x="245" y="244" width="190" height="92" rx="10" fill="#f4f1ea" stroke="#b5502e" stroke-width="2.2"/>
+  <!-- ===== bottom row: per user ===== -->
+  <rect x="35" y="300" width="195" height="92" rx="10" fill="#f4f1ea" stroke="#2b2521" stroke-width="1.6"/>
+  <rect x="248" y="300" width="195" height="92" rx="10" fill="#f4f1ea" stroke="#b5502e" stroke-width="2.2"/>
+  <rect x="461" y="300" width="195" height="92" rx="10" fill="#f4f1ea" stroke="#2b2521" stroke-width="1.6"/>
+  <rect x="674" y="300" width="191" height="92" rx="10" fill="#f4f1ea" stroke="#2b2521" stroke-width="1.6"/>
 
   <g text-anchor="middle" fill="#211c18">
-    <text x="130" y="277" font-size="13" font-weight="600">Candidate Filter</text>
-    <text x="130" y="294" font-size="10" fill="#6b6259">plain Mongo query over the</text>
-    <text x="130" y="308" font-size="10" fill="#6b6259">extracted fields — no AI</text>
-    <text x="130" y="322" font-size="10" fill="#6b6259">whole pool → ≤ 50 per scan</text>
+    <text x="132" y="328" font-size="14" font-weight="600">Retrieve</text>
+    <text x="132" y="348" font-size="10.5" fill="#6b6259">vector search on your profile</text>
+    <text x="132" y="363" font-size="10.5" fill="#6b6259">+ filters on the facts, no AI</text>
+    <text x="132" y="378" font-size="10.5" fill="#6b6259">last 30 days · not yet scored</text>
 
-    <text x="550" y="277" font-size="13" font-weight="600">Store per user</text>
-    <text x="550" y="294" font-size="10" fill="#6b6259">jobScores, keyed by userId</text>
-    <text x="550" y="308" font-size="10" fill="#6b6259">already-scored ids excluded</text>
-    <text x="550" y="322" font-size="10" fill="#6b6259">inside the next query</text>
+    <text x="345" y="328" font-size="14" font-weight="600" fill="#8a3a20">Evaluator</text>
+    <text x="345" y="348" font-size="10.5" fill="#6b6259">one judgement per job, against</text>
+    <text x="345" y="363" font-size="10.5" fill="#6b6259">your profile · parse made on</text>
+    <text x="345" y="378" font-size="10.5" fill="#6b6259">first score, saved for everyone</text>
+
+    <text x="558" y="328" font-size="14" font-weight="600">Server-side checks</text>
+    <text x="558" y="348" font-size="10.5" fill="#6b6259">claims about you traced</text>
+    <text x="558" y="363" font-size="10.5" fill="#6b6259">to your profile · caps from the</text>
+    <text x="558" y="378" font-size="10.5" fill="#6b6259">posting's must-haves, not the model</text>
+
+    <text x="769" y="328" font-size="14" font-weight="600">Stored for you</text>
+    <text x="769" y="348" font-size="10.5" fill="#6b6259">top candidates on open,</text>
+    <text x="769" y="363" font-size="10.5" fill="#6b6259">the rest as you scroll</text>
+    <text x="769" y="378" font-size="10.5" fill="#6b6259">never scored twice · 120/day</text>
   </g>
 
-  <g text-anchor="middle" fill="#8a3a20">
-    <text x="340" y="277" font-size="12.5" font-weight="700">Evaluator Scoring</text>
-    <text x="340" y="294" font-size="9.5">one judgement per job,</text>
-    <text x="340" y="307" font-size="9.5">against your profile</text>
-    <text x="340" y="320" font-size="9.5">never a comparative ranking</text>
-  </g>
+  <text x="450" y="420" font-size="11.5" fill="#6b6259" text-anchor="middle">Nothing in the top row knows who you are. Nothing in the bottom row is shared — except a parse, which is a fact about the posting.</text>
 
-  <!-- downstream consumer (dashed — the UI, not part of the pass) -->
-  <rect x="676" y="244" width="189" height="92" rx="10" fill="#eef0f2" stroke="#5b6572" stroke-width="1.6" stroke-dasharray="5 4"/>
-  <g text-anchor="middle" fill="#252b32">
-    <text x="770" y="277" font-size="13" font-weight="600">Matches page</text>
-    <text x="770" y="295" font-size="10" fill="#5b6572">your scores only</text>
-    <text x="770" y="311" font-size="10" fill="#5b6572">"Score more" appears when</text>
-    <text x="770" y="325" font-size="10" fill="#5b6572">the filter had more than 50</text>
+  <!-- ===== legend ===== -->
+  <g font-size="11" fill="#6b6259">
+    <rect x="35" y="442" width="14" height="14" rx="3" fill="#f4f1ea" stroke="#2b2521" stroke-width="1.4"/>
+    <text x="57" y="453">Step, no AI</text>
+    <rect x="165" y="442" width="14" height="14" rx="3" fill="#f4f1ea" stroke="#b5502e" stroke-width="2"/>
+    <text x="187" y="453" fill="#8a3a20">Claude call</text>
+    <rect x="295" y="442" width="14" height="14" rx="3" fill="#eef0f2" stroke="#8a929c" stroke-width="1.2" stroke-dasharray="4 3"/>
+    <text x="317" y="453">Skipped before any cost</text>
   </g>
-
-  <text x="450" y="368" text-anchor="middle" font-size="10.5" fill="#6b6259">Nothing in the top row knows who you are. Nothing in the bottom row is shared.</text>
 </svg>

@@ -39,53 +39,27 @@ This README is written for an engineer reviewing the project: what it does in on
 
 ## Architecture
 
-```mermaid
-flowchart LR
-    U[Browser] -->|HTTPS| C[Caddy<br/>TLS]
-    C --> W[web<br/>React SPA + nginx]
-    W -->|/api| A[API<br/>.NET 10]
-
-    subgraph ingest [Daily ingest]
-      T[systemd timer] --> P[publisher]
-      P -->|one message per company| Q[(RabbitMQ)]
-      Q --> K[consumer]
-    end
-
-    K -->|job boards| GH[Greenhouse API]
-    K -->|embeddings| V[Voyage]
-    K -->|reads, batched| A
-    A -->|"run now" request| K
-    A --> CL[Claude]
-    A --> DB[(MongoDB Atlas<br/>+ vector index)]
-    K --> DB
-    M[mail worker<br/>systemd timer] -->|Gmail| G[Gmail API]
-    M --> A
-    L[Promtail → Loki → Grafana]
-    A -.logs.-> L
-    K -.logs.-> L
-    M -.logs.-> L
-```
+<img alt="NextRole architecture: the Client calls the API; the Ingest (a publisher and consumer over RabbitMQ) and the Mailbot delegate AI work to the API, the only service that calls Claude; external systems are the job boards, MongoDB Atlas, Claude and Gmail" src="docs/architecture-overview.svg">
 
 - **The API is the only service that talks to Claude** — one key, one prompt configuration, one set of rate limits. The ingest and the mail worker call the API instead of holding a key.
 - **The ingest is a work queue.** The publisher puts one message per company on RabbitMQ; a long-running consumer fetches that board, filters, embeds, stores, and acks only after the write. A crash mid-company just redelivers it, and a content-hash skip makes the redo nearly free. Poison messages go to a dead-letter queue.
 - **Retrieval is a vector search**, over one embedding per posting, followed by server-side filters on facts the ingest already extracted (location, seniority, kind of work, age).
 
-### The life of a posting
+### The life of a posting: shared ingest, per-user scoring
 
-```mermaid
-flowchart LR
-    F[Fetch board] --> PF{Pre-read filter<br/>age · location · function}
-    PF -->|clearly irrelevant| S[skip — never read,<br/>never stored]
-    PF -->|could be wanted| E[embed + store]
-    E --> X[Claude reads the facts<br/>once, batched]
-    X --> R[retrieval for any user]
-    R --> SC[scored for you<br/>when you reach it]
-    SC --> PR[its parse is saved<br/>for the next user]
-```
+<img alt="Top row, shared by every user: fetch a board, skip unchanged postings by hash, a pre-read filter skips what nobody could want, embed and store, Claude extracts facts once in batch. Bottom row, per user: vector search plus filters, the Evaluator scores against your profile, server-side checks verify its claims, the score is stored for you only" src="docs/discovery-scoring.svg">
 
 ---
 
 ## Running it in production
+
+```mermaid
+flowchart LR
+    M["Merge to main"] --> G["GitHub Actions<br/>per service"] --> T["Tests"] --> B["Build image"] --> H[("GHCR")] --> V["SSH to the VPS"] --> U["docker compose<br/>recreate that service"]
+
+    classDef svc fill:#f4f1ea,stroke:#2b2521,color:#211c18
+    class M,G,T,B,H,V,U svc
+```
 
 - **Deploy:** each service has its own GitHub Actions workflow with path-based triggers. A merge touching `server/api/**` builds that image, pushes it to GHCR, SSHes to the VPS and recreates only that service. The ingest image is built from the **same commit** as the API, because both must agree on the embedding model — a mismatch would silently return no results.
 - **Schedules:** systemd timers on the box — the daily ingest publish and the mail sync. Long-running services are Compose services with restart policies.
@@ -131,6 +105,8 @@ Greenhouse is the first source, not the last — Workday hosts the largest Israe
 ---
 
 ## What a user sees
+
+<img alt="User journey: upload a CV with no signup, Matches (with a collecting notice for a new city or role), scored as you look; then add to the board, résumé pack, apply on the company's site, Gmail sync moves the card, interview prep" src="docs/user-journey.svg">
 
 <img alt="Matches: scored job results with verdicts and the evaluator's breakdown" src="docs/demos/output/search.gif" width="380"> <img alt="Active board: the application pipeline and a tracked application's analysis" src="docs/demos/output/tracker.gif" width="380">
 

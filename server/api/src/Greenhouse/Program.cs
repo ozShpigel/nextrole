@@ -49,11 +49,7 @@ try
     var mongoUri = Require(configuration, "MongoDB:ConnectionString");
     var databaseName = configuration["MongoDB:Database"] ?? "job-tracker";
     var rabbitUri = Require(configuration, "Rabbit:Uri");
-    // Boards:ConfigPath; Companies:ConfigPath, its name before sources, still
-    // honoured so an environment that set it keeps working (docs/plans/board-config.md).
-    var boardsPath = configuration["Boards:ConfigPath"]
-        ?? configuration["Companies:ConfigPath"]
-        ?? "config/boards.json";
+    var boardsPath = BoardsConfig.PathFrom(configuration);
 
     // Model and dimensions are shared configuration, bound identically by the
     // API (GreenhouseEmbeddingOptions). They are NOT in boards.json, which

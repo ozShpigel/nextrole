@@ -1,5 +1,6 @@
 using ApplicationTracker.Core.Greenhouse;
 using ApplicationTracker.Greenhouse;
+using Microsoft.Extensions.Configuration;
 using Xunit;
 
 namespace GreenhouseTests;
@@ -294,6 +295,26 @@ public class BoardsConfigTests
         Assert.Contains("\"boards\"", File.ReadAllText(path));
         Assert.True(config.EmbedBatchTokenBudget > 0);
         Assert.True(config.MaxBatchItems > 0);
+    }
+
+    [Fact]
+    public void The_path_the_shipped_appsettings_resolves_to_is_a_file_that_ships()
+    {
+        // The phase 3 deploy failed exactly here: appsettings.json still set
+        // Companies:ConfigPath to companies.json, which outranks the default,
+        // after the file was renamed. The shipped-file tests above loaded
+        // boards.json by name and passed. This resolves the path the way the
+        // process does -- same file, same method -- and loads what it names.
+        var project = Path.Combine(RepoRoot(), "server", "api", "src", "Greenhouse");
+        var configuration = new ConfigurationBuilder()
+            .AddJsonFile(Path.Combine(project, "appsettings.json"), optional: false)
+            .Build();
+
+        var resolved = BoardsConfig.PathFrom(configuration);
+
+        Assert.True(File.Exists(Path.Combine(project, resolved)),
+            $"appsettings.json resolves the boards config to {resolved}, which does not exist in {project}");
+        Assert.NotEmpty(BoardsConfig.Load(Path.Combine(project, resolved)).All);
     }
 
     // ---- the boards shape (docs/plans/board-config.md) -------------------------

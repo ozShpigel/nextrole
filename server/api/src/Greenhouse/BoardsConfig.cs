@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Microsoft.Extensions.Configuration;
 
 namespace ApplicationTracker.Greenhouse;
 
@@ -130,6 +131,21 @@ public sealed record BoardsConfig
         ReadCommentHandling = JsonCommentHandling.Skip,
         AllowTrailingCommas = true,
     };
+
+    /// <summary>The file this process loads: <c>Boards:ConfigPath</c>, else the default.</summary>
+    /// <remarks>
+    /// <c>Companies:ConfigPath</c>, the setting's name before sources, is still
+    /// honoured so an environment that set it keeps working -- which is exactly
+    /// how the phase 3 deploy broke: the ingest's own appsettings.json still set
+    /// it to companies.json, and it outranked the new default. One method, so
+    /// <c>BoardsConfigTests</c> checks the path the process really resolves.
+    /// </remarks>
+    public static string PathFrom(IConfiguration configuration) =>
+        configuration["Boards:ConfigPath"]
+        ?? configuration["Companies:ConfigPath"]
+        ?? DefaultPath;
+
+    public const string DefaultPath = "config/boards.json";
 
     public static BoardsConfig Load(string path)
     {

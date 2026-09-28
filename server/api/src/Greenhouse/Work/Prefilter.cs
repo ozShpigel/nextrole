@@ -190,7 +190,7 @@ public static class Prefilter
     /// no user has recorded any, and then nothing is skipped by function.
     /// </param>
     public static PrefilterSkip? Decide(
-        BoardJob job, ServedPlaces served, IReadOnlyCollection<string>? accepted, DateTime? now = null)
+        ListedPosting job, ServedPlaces served, IReadOnlyCollection<string>? accepted, DateTime? now = null)
     {
         // Older than Matches ever shows ("Any" is four months), by the
         // posting's own date -- the same rule and the same limit as the board
@@ -200,31 +200,29 @@ public static class Prefilter
             && posted < (now ?? DateTime.UtcNow).AddDays(-PoolBrowseQuery.MaxAgeDays))
             return new PrefilterSkip(PrefilterSkip.Age, posted.ToString("yyyy-MM-dd"));
 
-        var locations = new[] { job.Location?.Name }
-            .Concat((job.Offices ?? []).Select(o => o.Name));
+        var locations = new[] { job.Location }.Concat(job.Offices);
         if (LocationSkip(locations, served) is { } elsewhere)
             return new PrefilterSkip(PrefilterSkip.Location,
-                $"{job.Location?.Name} ({string.Join(",", elsewhere.Order())})");
+                $"{job.Location} ({string.Join(",", elsewhere.Order())})");
 
         if (accepted is null || accepted.Count == 0) return null;
 
-        var guess = GuessFunction(job.Title, (job.Departments ?? []).Select(d => d.Name));
+        var guess = GuessFunction(job.Title, job.Departments);
         return guess is not null && !accepted.Contains(guess)
             ? new PrefilterSkip(PrefilterSkip.Function, guess)
             : null;
     }
 
-    /// <inheritdoc cref="Decide(BoardJob, ServedPlaces, IReadOnlyCollection{string}?)"/>
+    /// <inheritdoc cref="Decide(ListedPosting, ServedPlaces, IReadOnlyCollection{string}?, DateTime?)"/>
     public static PrefilterSkip? Decide(
-        BoardJob job, IReadOnlyList<string> servedLocations, IReadOnlyCollection<string>? accepted) =>
+        ListedPosting job, IReadOnlyList<string> servedLocations, IReadOnlyCollection<string>? accepted) =>
         Decide(job, ServedPlaces.From(servedLocations), accepted);
 
     /// <summary>
-    /// When the posting went up: first_published, the board's update date only
-    /// when there is none, null when neither is given.
+    /// When the posting went up: its own posted date, the board's update date
+    /// only when there is none, null when neither is given.
     /// </summary>
-    public static DateTime? PostedAt(BoardJob job) =>
-        (job.FirstPublished ?? job.UpdatedAt)?.UtcDateTime;
+    public static DateTime? PostedAt(ListedPosting job) => job.PostedAt ?? job.UpdatedAt;
 
     /// <summary>Every function the given ones accept, neighbours included.</summary>
     /// <remarks>

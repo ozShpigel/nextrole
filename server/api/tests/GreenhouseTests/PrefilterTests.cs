@@ -99,13 +99,8 @@ public class PrefilterTests
 
     // ---- the decision --------------------------------------------------------
 
-    private static BoardJob Job(string title, string location, params string[] departments) => new()
-    {
-        Id = 1,
-        Title = title,
-        Location = new BoardLocation { Name = location },
-        Departments = [.. departments.Select(d => new BoardTaxonomy { Name = d })],
-    };
+    private static ListedPosting Job(string title, string location, params string[] departments) =>
+        new("1", title, location, Offices: [], Departments: departments, PostedAt: null, UpdatedAt: null);
 
     private static readonly string[] Served = ["Israel", "Tel Aviv", "London"];
 
@@ -160,7 +155,7 @@ public class PrefilterHandlerTests
             Task.FromResult<IReadOnlyList<string>>(Locations);
     }
 
-    private sealed class ListLogger : ILogger<CompanyHandler>
+    private sealed class ListLogger : ILogger<BoardHandler>
     {
         public List<string> Lines { get; } = [];
         public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
@@ -338,7 +333,7 @@ public class LearnedLocationTests
         Assert.Equal(1, result.Embedded);
     }
 
-    private sealed class ListLogger : Microsoft.Extensions.Logging.ILogger<CompanyHandler>
+    private sealed class ListLogger : Microsoft.Extensions.Logging.ILogger<BoardHandler>
     {
         public List<string> Lines { get; } = [];
         public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
@@ -449,11 +444,8 @@ public class PrefilterAgeTests
     private static readonly DateTime Now = new(2026, 9, 26, 12, 0, 0, DateTimeKind.Utc);
     private static readonly string[] Served = ["Tel Aviv"];
 
-    private static BoardJob Job(DateTime? published, DateTime? updated) => new()
-    {
-        Id = 1, Title = "Platform Engineer", Location = new BoardLocation { Name = "Tel Aviv" },
-        FirstPublished = published, UpdatedAt = updated,
-    };
+    private static ListedPosting Job(DateTime? published, DateTime? updated) =>
+        new("1", "Platform Engineer", "Tel Aviv", Offices: [], Departments: [], PostedAt: published, UpdatedAt: updated);
 
     [Fact]
     public void A_posting_older_than_four_months_is_skipped_before_it_is_read()

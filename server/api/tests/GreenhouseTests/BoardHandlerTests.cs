@@ -12,7 +12,7 @@ namespace GreenhouseTests;
 /// That this file compiles without a single AMQP type is itself the assertion
 /// that the transport does not leak into <c>HandleCompanyAsync</c>.
 /// </remarks>
-public class CompanyHandlerTests
+public class BoardHandlerTests
 {
     private static readonly string LongContent = "&lt;p&gt;" + new string('a', 400) + "&lt;/p&gt;";
 

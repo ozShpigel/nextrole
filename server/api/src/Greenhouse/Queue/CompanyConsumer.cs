@@ -28,12 +28,12 @@ namespace ApplicationTracker.Greenhouse;
 public sealed class CompanyConsumer
 {
     private readonly IConnection _connection;
-    private readonly CompanyHandler _handler;
+    private readonly BoardHandler _handler;
     private readonly RunLedger _ledger;
     private readonly ILogger<CompanyConsumer> _log;
 
     public CompanyConsumer(
-        IConnection connection, CompanyHandler handler, RunLedger ledger, ILogger<CompanyConsumer> log)
+        IConnection connection, BoardHandler handler, RunLedger ledger, ILogger<CompanyConsumer> log)
     {
         _connection = connection;
         _handler = handler;

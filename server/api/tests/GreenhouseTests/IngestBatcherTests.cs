@@ -267,10 +267,10 @@ public class IngestBatcherTests
         var batches = new FakeBatchStore();
         var batcher = Batcher(api, store, batches);
 
-        var handler = new CompanyHandler(
-            Build.BoardClient(new StubHandler().EnqueueJson(HttpStatusCode.OK, Build.BoardJson((1, "Backend Engineer", LongContent)))),
+        var handler = new BoardHandler(
+            Build.Source(new StubHandler().EnqueueJson(HttpStatusCode.OK, Build.BoardJson((1, "Backend Engineer", LongContent)))),
             new FakeEmbeddingClient(), store, CompaniesConfig.ForTesting(Build.Token),
-            NullLogger<CompanyHandler>.Instance, Client(api), batcher);
+            NullLogger<BoardHandler>.Instance, Client(api), batcher);
 
         await handler.HandleCompanyAsync(Build.Token);
 
@@ -294,10 +294,10 @@ public class IngestBatcherTests
         var api = new StubHandler().EnqueueJson(HttpStatusCode.OK, Submitted("msgbatch_f"));
         var batches = new FakeBatchStore();
 
-        var handler = new CompanyHandler(
-            Build.BoardClient(new StubHandler().EnqueueJson(HttpStatusCode.OK, Build.BoardJson((1, "Backend Engineer", LongContent)))),
+        var handler = new BoardHandler(
+            Build.Source(new StubHandler().EnqueueJson(HttpStatusCode.OK, Build.BoardJson((1, "Backend Engineer", LongContent)))),
             new FakeEmbeddingClient(), store, CompaniesConfig.ForTesting(Build.Token),
-            NullLogger<CompanyHandler>.Instance, Client(api), Batcher(api, store, batches), parseAtIngest: false);
+            NullLogger<BoardHandler>.Instance, Client(api), Batcher(api, store, batches), parseAtIngest: false);
 
         await handler.HandleCompanyAsync(Build.Token);
 
@@ -315,10 +315,10 @@ public class IngestBatcherTests
         var api = new StubHandler();   // nothing queued: the live call fails, which the pass logs and survives
         var batches = new FakeBatchStore();
 
-        var handler = new CompanyHandler(
-            Build.BoardClient(new StubHandler().EnqueueJson(HttpStatusCode.OK, Build.BoardJson((1, "Backend Engineer", LongContent)))),
+        var handler = new BoardHandler(
+            Build.Source(new StubHandler().EnqueueJson(HttpStatusCode.OK, Build.BoardJson((1, "Backend Engineer", LongContent)))),
             new FakeEmbeddingClient(), store, CompaniesConfig.ForTesting(Build.Token),
-            NullLogger<CompanyHandler>.Instance, Client(api), Batcher(api, store, batches));
+            NullLogger<BoardHandler>.Instance, Client(api), Batcher(api, store, batches));
 
         await handler.HandleCompanyAsync(Build.Token, liveReads: true);
 

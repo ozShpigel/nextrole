@@ -1,5 +1,6 @@
 using ApplicationTracker.Core.Greenhouse;
 using ApplicationTracker.Core.Matching;
+using System.Globalization;
 using Microsoft.Extensions.Logging;
 using MongoDB.Bson;
 
@@ -26,9 +27,15 @@ public sealed record CompanyResult(
 }
 
 /// <summary>
-/// One company, start to finish. The unit of work.
+/// One board, start to finish. The unit of work.
 /// </summary>
 /// <remarks>
+/// <para>
+/// <b>Source-agnostic.</b> Everything that knows how a board is fetched is
+/// behind <see cref="IJobSource"/>; everything here -- the hash skip, the
+/// pre-read filter, embedding, the reads, the close diff -- is the same for
+/// every source, so a guard added here protects all of them at once.
+/// </para>
 /// <para>
 /// <b>Self-contained, idempotent, and it throws on failure.</b> Nothing in this
 /// file knows a queue exists -- no AMQP type, no delivery tag, no ack. The
@@ -44,15 +51,15 @@ public sealed record CompanyResult(
 /// rather than torn.
 /// </para>
 /// </remarks>
-public sealed class CompanyHandler
+public sealed class BoardHandler
 {
-    private readonly IBoardClient _board;
+    private readonly IJobSource _source;
     private readonly IEmbeddingClient _embeddings;
     private readonly IngestAiClient? _ai;
     private readonly IngestBatcher? _batcher;
     private readonly IJobStore _store;
     private readonly CompaniesConfig _config;
-    private readonly ILogger<CompanyHandler> _log;
+    private readonly ILogger<BoardHandler> _log;
     private readonly PrefilterMode _prefilter;
     private readonly IDemand? _demand;
     private readonly bool _parseAtIngest;
@@ -67,9 +74,9 @@ public sealed class CompanyHandler
     /// </remarks>
     public const int EmptyResponseGuardThreshold = 10;
 
-    public CompanyHandler(
-        IBoardClient board, IEmbeddingClient embeddings, IJobStore store,
-        CompaniesConfig config, ILogger<CompanyHandler> log, IngestAiClient? ai = null,
+    public BoardHandler(
+        IJobSource source, IEmbeddingClient embeddings, IJobStore store,
+        CompaniesConfig config, ILogger<BoardHandler> log, IngestAiClient? ai = null,
         IngestBatcher? batcher = null, PrefilterMode prefilter = PrefilterMode.Off,
         IDemand? demand = null, bool parseAtIngest = true)
     {
@@ -86,7 +93,7 @@ public sealed class CompanyHandler
         // the Message Batches API at half the price and are collected later.
         // Null keeps the live path below, unchanged.
         _batcher = batcher;
-        _board = board;
+        _source = source;
         _embeddings = embeddings;
         // Optional so the unit tests can drive the handler without an API to
         // call. Null means the AI passes are skipped and the jobs are stored
@@ -112,14 +119,16 @@ public sealed class CompanyHandler
 
         // GUARD 1: never diff on a failed fetch.
         //
-        // BoardClient throws on a non-2xx, an unparseable body, or a
-        // meta.total/job-count mismatch. Because it throws, control never
-        // reaches the diff below -- the guard is structural rather than a flag
-        // somebody has to remember to check. A 429, a 500 and a truncated 5 MB
-        // response all leave this company's stored jobs exactly as they were.
-        var fetched = await _board.FetchAsync(boardToken, ct);
+        // Every source throws on a failure it can see (Greenhouse: a non-2xx,
+        // an unparseable body, a meta.total/job-count mismatch). Because it
+        // throws, control never reaches the diff below -- the guard is
+        // structural rather than a flag somebody has to remember to check. A
+        // 429, a 500 and a truncated 5 MB response all leave this board's
+        // stored jobs exactly as they were. What a source cannot prove whole,
+        // it reports as Complete = false, and the diff is skipped below.
+        var listing = await _source.ListAsync(boardToken, ct);
 
-        var jobs = fetched.Select(j => GreenhouseJob.From(boardToken, j)).ToList();
+        var (jobs, present) = await ReadPostingsAsync(boardToken, listing, ct);
 
         // Two jobs with the same board id in one response cannot both be
         // upserted: an unordered bulk write of two upserts on the same unique
@@ -234,16 +243,74 @@ public sealed class CompanyHandler
 
         await StampLogoAsync(boardToken, ct);
 
+        // The diff is driven by the LISTING, never by what was read in full: a
+        // posting whose detail failed is still on the board, and must not be
+        // closed for our failure to read it.
+        //
         // GUARD 2 is inside CloseMissingAsync: an empty response against a large
         // stored count logs and skips the diff rather than closing the board.
-        var closed = await _store.CloseMissingAsync(
-            boardToken,
-            [.. jobs.Select(j => j.GreenhouseJobId)],
-            EmptyResponseGuardThreshold,
-            now,
-            ct);
+        long closed = 0;
+        if (listing.Complete)
+            closed = await _store.CloseMissingAsync(
+                boardToken, [.. present], EmptyResponseGuardThreshold, now, ct);
+        else
+            _log.LogWarning(
+                "Board {Board}: the {Source} listing could not be proven complete ({Listed} listed, board total {Total}); "
+                + "closing nothing this run",
+                boardToken, _source.Name, listing.Postings.Count, listing.Total?.ToString() ?? "not given");
 
-        return new CompanyResult(jobs.Count, unchanged.Count, embedded, closed, tokens, prefiltered.Count);
+        return new CompanyResult(present.Count, unchanged.Count, embedded, closed, tokens, prefiltered.Count);
+    }
+
+    /// <summary>
+    /// The listing, turned into the jobs this run works on.
+    /// </summary>
+    /// <returns>
+    /// The jobs read in full, and every listed id. The second is what the close
+    /// diff sees, so a posting whose detail failed stays open.
+    /// </returns>
+    /// <remarks>
+    /// Ids are strings in the contract and a long in the stored key until that
+    /// key is migrated (docs/plans/multi-source-ingest.md, phase 2). An id that
+    /// is not a number cannot be stored under today's key, so it is dropped
+    /// with a warning, as the board client drops a job with no id.
+    /// </remarks>
+    private async Task<(List<GreenhouseJob> Jobs, List<long> Present)> ReadPostingsAsync(
+        string boardToken, Listing listing, CancellationToken ct)
+    {
+        var jobs = new List<GreenhouseJob>(listing.Postings.Count);
+        var present = new HashSet<long>();
+        var badIds = 0;
+        var unread = 0;
+
+        foreach (var posting in listing.Postings)
+        {
+            if (!long.TryParse(posting.SourceJobId, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out var id)
+                || id == 0)
+            {
+                badIds++;
+                continue;
+            }
+            present.Add(id);
+
+            var detail = posting.Detail ?? await _source.DetailAsync(boardToken, posting, ct);
+            if (detail is null)
+            {
+                unread++;
+                continue;
+            }
+
+            jobs.Add(GreenhouseJob.From(boardToken, id, detail));
+        }
+
+        if (badIds > 0)
+            _log.LogWarning("Board {Board}: dropped {Count} posting(s) whose id is not a number", boardToken, badIds);
+        if (unread > 0)
+            _log.LogWarning(
+                "Board {Board}: {Count} posting(s) could not be read in full; skipped this run and left open",
+                boardToken, unread);
+
+        return (jobs, [.. present]);
     }
 
     /// <summary>How many example titles a prefilter log line carries.</summary>
@@ -281,7 +348,7 @@ public sealed class CompanyHandler
 
             var fresh = jobs.Where(j => !stored.ContainsKey(j.GreenhouseJobId)).ToList();
             var skips = fresh
-                .Select(j => (Job: j, Skip: Prefilter.Decide(j.Source, served, accepted)))
+                .Select(j => (Job: j, Skip: Prefilter.Decide(j.Source.Listed, served, accepted)))
                 .Where(x => x.Skip is not null)
                 .ToList();
 
@@ -299,7 +366,7 @@ public sealed class CompanyHandler
                     skips.Count(x => x.Skip!.Reason == PrefilterSkip.Function),
                     wanted.Count > 0 ? string.Join(", ", wanted) : "none recorded, so no function filtering",
                     string.Join(" | ", skips.Take(PrefilterExamples)
-                        .Select(x => $"{x.Job.Source.Title} [{x.Skip!.Reason}: {x.Skip.Detail}]")));
+                        .Select(x => $"{x.Job.Source.Listed.Title} [{x.Skip!.Reason}: {x.Skip.Detail}]")));
 
             await CheckGuessesAsync(boardToken, jobs, stored, accepted, served, ct);
 
@@ -331,7 +398,7 @@ public sealed class CompanyHandler
 
         var skipped = storedJobs
             .Select(j => (Job: j, Elsewhere: Prefilter.LocationSkip(
-                new[] { j.Source.Location?.Name }.Concat((j.Source.Offices ?? []).Select(o => o.Name)), served)))
+                new[] { j.Source.Listed.Location }.Concat(j.Source.Listed.Offices), served)))
             .Where(x => x.Elsewhere is not null)
             .ToList();
 
@@ -349,7 +416,7 @@ public sealed class CompanyHandler
             + "those placed somewhere served (would hide). Would hide: {Examples}",
             boardToken, skipped.Count, storedJobs.Count, labelled.Count, wouldHide.Count,
             string.Join(" | ", wouldHide.Take(PrefilterExamples).Select(x =>
-                $"{x.Job.Source.Title} [board: {x.Job.Source.Location?.Name}, Claude: {x.Claude}]")));
+                $"{x.Job.Source.Listed.Title} [board: {x.Job.Source.Listed.Location}, Claude: {x.Claude}]")));
     }
 
     /// <summary>
@@ -377,7 +444,7 @@ public sealed class CompanyHandler
 
         var guessed = storedJobs
             .Select(j => (Job: j, Guess: Prefilter.GuessFunction(
-                j.Source.Title, (j.Source.Departments ?? []).Select(d => d.Name))))
+                j.Source.Listed.Title, j.Source.Listed.Departments)))
             .Where(x => x.Guess is not null)
             .ToList();
         if (guessed.Count == 0) return;
@@ -398,7 +465,7 @@ public sealed class CompanyHandler
             boardToken, guessed.Count, labelled.Count, labelled.Count - wrong.Count, wrong.Count,
             wouldHide?.ToString() ?? "n/a (no demand recorded)",
             string.Join(" | ", wrong.Take(PrefilterExamples).Select(x =>
-                $"{x.Job.Source.Title} [guessed {x.Guess}, labelled {string.Join("+", LabelOf(x.Job))}]")));
+                $"{x.Job.Source.Listed.Title} [guessed {x.Guess}, labelled {string.Join("+", LabelOf(x.Job))}]")));
     }
 
     /// <summary>
@@ -428,9 +495,9 @@ public sealed class CompanyHandler
     private static List<IngestJob> ToIngestJobs(IReadOnlyList<GreenhouseJob> jobs) =>
         [.. jobs.Select(j => new IngestJob(
             j.GreenhouseJobId.ToString(),
-            j.Source.Title ?? "",
-            j.Source.CompanyName,
-            j.Source.Location?.Name,
+            j.Source.Listed.Title ?? "",
+            j.Source.Company,
+            j.Source.Listed.Location,
             j.CleanedContent))];
 
     /// <summary>

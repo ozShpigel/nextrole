@@ -1,6 +1,6 @@
 # Plan: the stored key, from `(boardToken, greenhouseJobId)` to `(boardKey, sourceJobId)`
 
-Status: **2a built and verified in production, 2b built** (2026-09-28); 2c planned. Phase 2 of docs/plans/multi-source-ingest.md.
+Status: **2a and 2b built and verified in production, 2c built** (2026-09-28). Phase 2 of docs/plans/multi-source-ingest.md.
 
 ## Why
 
@@ -84,7 +84,7 @@ Undo: `$unset` the two fields and drop the two new indexes. Nothing reads them y
 - `countDocuments({})` unchanged.
 - any open batch from before the deploy is collected (`ai_batches`, status).
 
-### 2c -- drop the old index (later, before the first non-Greenhouse source)
+### 2c -- drop the old index (built 2026-09-28, before the first non-Greenhouse source)
 
 `uniq_board_job` and `idx_board_open` are dropped. They must go before phase 5:
 a Workday row has no `greenhouseJobId`, and two of them on one board would
@@ -95,6 +95,20 @@ The run ledger's old `uniq_day_board` goes with them (added by phase 3,
 docs/plans/board-config.md): until it does, two boards sharing a token on
 different sources cannot both have a row for the same day. The same release
 stops writing `boardToken` on queue messages and ledger rows.
+
+As built:
+
+- The drops run on startup, in every database the ingest runs against
+  (`LegacyIndexes.DropIfPresentAsync`): an already-gone index is the expected
+  case, and a failed drop is logged, never fatal -- it only matters once a
+  second source is added, and then it fails loudly on its own.
+- The 2a backfill is removed with them. Its job was done (1,187 of 1,187 rows
+  keyed, verified on the box), and its check -- every `sourceJobId` all digits --
+  would have refused to start the consumer at the first Workday id.
+- New rows no longer write `greenhouseJobId`; old rows keep it, read by nothing.
+  Rows keep `boardToken`: it is a plain fact about the posting.
+- Readers still accept the old shapes at no cost: a token-only queue message
+  (a dead-letter replay), a batch record with numeric ids.
 
 ## Tests
 

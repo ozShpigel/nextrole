@@ -83,10 +83,7 @@ public sealed class JobStore : IJobStore
     ///
     /// The upsert key is (boardKey, sourceJobId), backed by a unique index, so
     /// re-running is idempotent by construction rather than by the caller
-    /// remembering to check first. Greenhouse rows still carry the old
-    /// (boardToken, greenhouseJobId) under its own unique index until 2c: a
-    /// write whose new key failed to match an existing row collides there,
-    /// loudly, instead of adding a second row.
+    /// remembering to check first.
     /// </remarks>
     public async Task<(long Upserted, long Modified)> UpsertBatchAsync(
         IReadOnlyList<(GreenhouseJob Job, float[] Vector)> batch, string runId, DateTime now,
@@ -529,92 +526,21 @@ public sealed class JobStore : IJobStore
     }
 
     /// <summary>
-    /// Give every row the source-neutral key, <c>(boardKey, sourceJobId)</c>.
-    /// Run on consumer startup, before <see cref="EnsureIndexesAsync"/> and
-    /// before anything is consumed.
-    /// </summary>
-    /// <returns>How many rows it filled. Zero on every start after the first.</returns>
-    /// <remarks>
-    /// <para>
-    /// Release 2a of docs/plans/key-migration.md. Derived only from the old
-    /// key, which is unique, so the new one is unique too; nothing else on a
-    /// row is touched. Idempotent: it selects only rows missing either field.
-    /// </para>
-    /// <para>
-    /// <b>Throws rather than leave a row without a key</b>, so the consumer does
-    /// not start. A row the pipeline cannot key (no token, no id) would make
-    /// the unique index fail to build anyway -- this says which, and how many,
-    /// instead of a bare duplicate-key error. <c>$toLong</c> first because
-    /// <c>$toString</c> prints a double of 18+ digits in exponent form
-    /// ("1.2345678901234568e+17", measured on Mongo 7). Ids are written as
-    /// Int64 and are 7-10 digits today, so this guards a shape no row has yet.
-    /// </para>
-    /// </remarks>
-    public async Task<long> BackfillKeysAsync(CancellationToken ct)
-    {
-        var missing = Builders<BsonDocument>.Filter.Or(
-            Builders<BsonDocument>.Filter.Exists(GreenhouseJobFields.BoardKey, false),
-            Builders<BsonDocument>.Filter.Exists(GreenhouseJobFields.SourceJobId, false));
-
-        var source = new BsonDocument("$ifNull", new BsonArray { "$" + GreenhouseJobFields.Source, "greenhouse" });
-        var fill = new BsonDocument("$set", new BsonDocument
-        {
-            { GreenhouseJobFields.Source, source },
-            { GreenhouseJobFields.BoardKey, new BsonDocument("$concat",
-                new BsonArray { source, ":", "$" + GreenhouseJobFields.BoardToken }) },
-            { GreenhouseJobFields.SourceJobId, new BsonDocument("$toString",
-                new BsonDocument("$toLong", "$" + GreenhouseJobFields.GreenhouseJobId)) },
-        });
-
-        var result = await _jobs.UpdateManyAsync(
-            missing, PipelineDefinition<BsonDocument, BsonDocument>.Create(fill), cancellationToken: ct);
-
-        // $concat and $toString yield null on a missing input, so "exists" is
-        // not enough: a row keyed with null is as unkeyed as one with nothing.
-        // Digits only while every row is a Greenhouse row; the check widens
-        // with the first source whose ids are not numbers.
-        var unkeyed = await _jobs.CountDocumentsAsync(
-            Builders<BsonDocument>.Filter.Or(
-                Builders<BsonDocument>.Filter.Not(
-                    Builders<BsonDocument>.Filter.Type(GreenhouseJobFields.BoardKey, BsonType.String)),
-                Builders<BsonDocument>.Filter.Not(
-                    Builders<BsonDocument>.Filter.Regex(GreenhouseJobFields.SourceJobId, new BsonRegularExpression("^[0-9]+$")))),
-            cancellationToken: ct);
-        if (unkeyed > 0)
-            throw new InvalidOperationException(
-                $"{unkeyed} row(s) in {GreenhouseJobFields.Collection} could not be given a key "
-                + $"(missing {GreenhouseJobFields.BoardToken} or a numeric {GreenhouseJobFields.GreenhouseJobId}). "
-                + "Refusing to start with part of the collection unkeyed; fix or remove those rows first.");
-
-        if (result.ModifiedCount > 0)
-            _log.LogInformation(
-                "Key backfill: gave {Count} row(s) a {BoardKey} and {SourceJobId}; every row now has both",
-                result.ModifiedCount, GreenhouseJobFields.BoardKey, GreenhouseJobFields.SourceJobId);
-
-        return result.ModifiedCount;
-    }
-
-    /// <summary>
-    /// The unique index the upsert depends on, plus the lookup indexes.
+    /// The unique index the upsert depends on, plus the lookup index, and the
+    /// old Greenhouse-only pair dropped.
     /// </summary>
     /// <remarks>
-    /// The uniqueness of (boardToken, greenhouseJobId) is what makes re-running
+    /// The uniqueness of (boardKey, sourceJobId) is what makes re-running
     /// idempotent under concurrency rather than only under good manners: two
-    /// consumers handling the same company cannot produce two rows for one job.
+    /// consumers handling the same board cannot produce two rows for one job.
+    /// The old (boardToken, greenhouseJobId) pair goes in 2c
+    /// (docs/plans/key-migration.md): every row has carried the new key since
+    /// 2a, and the old unique one would refuse the first non-Greenhouse rows.
     /// </remarks>
     public async Task EnsureIndexesAsync(CancellationToken ct)
     {
         await _jobs.Indexes.CreateManyAsync(
         [
-            new CreateIndexModel<BsonDocument>(
-                Builders<BsonDocument>.IndexKeys.Ascending(GreenhouseJobFields.BoardToken).Ascending(GreenhouseJobFields.GreenhouseJobId),
-                new CreateIndexOptions { Unique = true, Name = "uniq_board_job" }),
-            new CreateIndexModel<BsonDocument>(
-                Builders<BsonDocument>.IndexKeys.Ascending(GreenhouseJobFields.BoardToken).Ascending(GreenhouseJobFields.ClosedAt),
-                new CreateIndexOptions { Name = "idx_board_open" }),
-            // The source-neutral pair (docs/plans/key-migration.md). Built in 2a
-            // over the backfilled rows, read from 2b; the two above are dropped
-            // in 2c, before the first source whose rows have no greenhouseJobId.
             new CreateIndexModel<BsonDocument>(
                 Builders<BsonDocument>.IndexKeys.Ascending(GreenhouseJobFields.BoardKey).Ascending(GreenhouseJobFields.SourceJobId),
                 new CreateIndexOptions { Unique = true, Name = "uniq_boardkey_job" }),
@@ -622,5 +548,8 @@ public sealed class JobStore : IJobStore
                 Builders<BsonDocument>.IndexKeys.Ascending(GreenhouseJobFields.BoardKey).Ascending(GreenhouseJobFields.ClosedAt),
                 new CreateIndexOptions { Name = "idx_boardkey_open" }),
         ], ct);
+
+        await LegacyIndexes.DropIfPresentAsync(_jobs, "uniq_board_job", _log, ct);
+        await LegacyIndexes.DropIfPresentAsync(_jobs, "idx_board_open", _log, ct);
     }
 }

@@ -16,8 +16,8 @@ public sealed record CompanyMessage
     [JsonPropertyName("boardKey")] public string? BoardKey { get; init; }
 
     /// <summary>
-    /// The plain token. Still written until 2c (docs/plans/key-migration.md) so
-    /// the step stays reversible by code; read only for a message without a key.
+    /// The plain token. No longer written (since 2c); still read, for a message
+    /// from before board keys replayed from the dead-letter queue.
     /// </summary>
     [JsonPropertyName("boardToken")] public string? BoardToken { get; init; }
 

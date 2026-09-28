@@ -56,11 +56,11 @@ public sealed class RunLedger
     public Task MarkPendingAsync(
         string day, BoardConfig board, string runId, DateTime now, CancellationToken ct) =>
         _runs.UpdateOneAsync(
-            RowOf(day, board.Key, board.Token),
+            RowOf(day, board.Key),
             new BsonDocument
             {
-                { "$set", Keyed(board.Key, board.Token, new BsonDocument
-                    { { "status", "pending" }, { "runId", runId }, { "dispatchedAt", now } }) },
+                { "$set", new BsonDocument
+                    { { "boardKey", board.Key }, { "status", "pending" }, { "runId", runId }, { "dispatchedAt", now } } },
                 { "$unset", new BsonDocument { { "error", "" }, { "completedAt", "" } } },
                 { "$setOnInsert", new BsonDocument { { "day", day } } },
             },
@@ -69,11 +69,11 @@ public sealed class RunLedger
     public Task MarkDoneAsync(
         string day, BoardConfig board, BsonDocument counts, DateTime now, CancellationToken ct) =>
         _runs.UpdateOneAsync(
-            RowOf(day, board.Key, board.Token),
+            RowOf(day, board.Key),
             new BsonDocument
             {
-                { "$set", Keyed(board.Key, board.Token, new BsonDocument
-                    { { "status", "done" }, { "completedAt", now }, { "counts", counts } }) },
+                { "$set", new BsonDocument
+                    { { "boardKey", board.Key }, { "status", "done" }, { "completedAt", now }, { "counts", counts } } },
                 { "$unset", new BsonDocument { { "error", "" } } },
                 // Upserted rather than required to exist: a consumer handling a
                 // message whose ledger row was lost should still record what it
@@ -82,36 +82,11 @@ public sealed class RunLedger
             },
             new UpdateOptions { IsUpsert = true }, ct);
 
-    /// <summary>
-    /// The day's row for this board: by key, or -- for a row an older process
-    /// wrote mid-deploy -- by token with no key yet, which the write then keys.
-    /// </summary>
-    /// <remarks>
-    /// Matching the old shape too is what stops a mid-deploy row from colliding
-    /// with this one on the old <c>(day, boardToken)</c> unique index: it is
-    /// updated and given its key, never shadowed by a second row. Only rows
-    /// with no key are matched by token, so a Workday board sharing a token
-    /// with a Greenhouse one never lands on the Greenhouse row.
-    /// </remarks>
-    private static FilterDefinition<BsonDocument> RowOf(string day, string boardKey, string? boardToken)
-    {
-        var f = Builders<BsonDocument>.Filter;
-        var byKey = f.Eq("boardKey", boardKey);
-        return f.And(f.Eq("day", day), boardToken is null
-            ? byKey
-            : f.Or(byKey, f.And(f.Exists("boardKey", false), f.Eq("boardToken", boardToken))));
-    }
-
-    /// <summary>
-    /// The key, and the token while the old <c>(day, boardToken)</c> index still
-    /// exists (dropped in 2c, docs/plans/key-migration.md).
-    /// </summary>
-    private static BsonDocument Keyed(string boardKey, string? boardToken, BsonDocument set)
-    {
-        set["boardKey"] = boardKey;
-        if (boardToken is not null) set["boardToken"] = boardToken;
-        return set;
-    }
+    /// <summary>The day's row for this board.</summary>
+    private static FilterDefinition<BsonDocument> RowOf(string day, string boardKey) =>
+        Builders<BsonDocument>.Filter.And(
+            Builders<BsonDocument>.Filter.Eq("day", day),
+            Builders<BsonDocument>.Filter.Eq("boardKey", boardKey));
 
     /// <summary>
     /// Record a failure, with the error.
@@ -121,23 +96,23 @@ public sealed class RunLedger
     /// and an exception here would replace the real error with a Mongo one on
     /// the way to the DLQ.
     /// </remarks>
-    /// <param name="boardToken">Null when the board is no longer configured and only its key is known.</param>
     public async Task MarkFailedAsync(
-        string day, string boardKey, string? boardToken, Exception error, DateTime now, CancellationToken ct)
+        string day, string boardKey, Exception error, DateTime now, CancellationToken ct)
     {
         try
         {
             var message = $"{error.GetType().Name}: {error.Message}";
             await _runs.UpdateOneAsync(
-                RowOf(day, boardKey, boardToken),
+                RowOf(day, boardKey),
                 new BsonDocument
                 {
-                    { "$set", Keyed(boardKey, boardToken, new BsonDocument
+                    { "$set", new BsonDocument
                         {
+                            { "boardKey", boardKey },
                             { "status", "failed" },
                             { "completedAt", now },
                             { "error", message.Length > 2000 ? message[..2000] : message },
-                        }) },
+                        } },
                     { "$setOnInsert", new BsonDocument { { "day", day } } },
                 },
                 new UpdateOptions { IsUpsert = true }, ct);
@@ -168,35 +143,18 @@ public sealed class RunLedger
         : null;
 
     /// <summary>
-    /// Key the rows written before board keys, then build the indexes. Run by
-    /// both the publisher and the consumer on start, before either writes.
+    /// The unique index on (day, boardKey), and the token-keyed one it
+    /// replaced dropped (docs/plans/key-migration.md, 2c). Run by both the
+    /// publisher and the consumer on start.
     /// </summary>
     /// <remarks>
-    /// Idempotent, and small: one row per board per day. Every row without a
-    /// key was written by the Greenhouse-only ingest, so its key is
-    /// <c>greenhouse:&lt;token&gt;</c>. The new unique index is partial on the
-    /// key existing, so a row an older process writes mid-deploy, before this
-    /// ran for it, cannot collide on a missing field.
+    /// Every row has carried its key since phase 3 (verified on the box). The
+    /// index stays partial on the key existing, as phase 3 built it: rebuilding
+    /// it to change that would buy nothing.
     /// </remarks>
     public async Task EnsureIndexesAsync(CancellationToken ct)
     {
-        var filled = await _runs.UpdateManyAsync(
-            Builders<BsonDocument>.Filter.And(
-                Builders<BsonDocument>.Filter.Exists("boardKey", false),
-                Builders<BsonDocument>.Filter.Type("boardToken", BsonType.String)),
-            PipelineDefinition<BsonDocument, BsonDocument>.Create(new BsonDocument("$set", new BsonDocument(
-                "boardKey", new BsonDocument("$concat",
-                    new BsonArray { GreenhouseSource.SourceName + ":", "$boardToken" })))),
-            cancellationToken: ct);
-        if (filled.ModifiedCount > 0)
-            _log.LogInformation("Run ledger: gave {Count} row(s) a boardKey", filled.ModifiedCount);
-
-        await _runs.Indexes.CreateManyAsync(
-        [
-            // The old pair, kept until 2c (docs/plans/key-migration.md).
-            new CreateIndexModel<BsonDocument>(
-                Builders<BsonDocument>.IndexKeys.Ascending("day").Ascending("boardToken"),
-                new CreateIndexOptions { Unique = true, Name = "uniq_day_board" }),
+        await _runs.Indexes.CreateOneAsync(
             new CreateIndexModel<BsonDocument>(
                 Builders<BsonDocument>.IndexKeys.Ascending("day").Ascending("boardKey"),
                 new CreateIndexOptions<BsonDocument>
@@ -205,6 +163,8 @@ public sealed class RunLedger
                     Name = "uniq_day_boardkey",
                     PartialFilterExpression = Builders<BsonDocument>.Filter.Exists("boardKey"),
                 }),
-        ], ct);
+            cancellationToken: ct);
+
+        await LegacyIndexes.DropIfPresentAsync(_runs, "uniq_day_board", _log, ct);
     }
 }

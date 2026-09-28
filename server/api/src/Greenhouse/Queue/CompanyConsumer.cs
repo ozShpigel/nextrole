@@ -119,7 +119,7 @@ public sealed class CompanyConsumer
             // boards step closes its postings on the next publish. The ledger
             // row is resolved so the day does not look unfinished forever.
             _log.LogWarning("Board {Board}: no longer configured; acknowledging without a run", key);
-            await _ledger.MarkFailedAsync(message.Day, key, message.BoardToken,
+            await _ledger.MarkFailedAsync(message.Day, key,
                 new InvalidOperationException($"{key} is no longer in the boards config"), DateTime.UtcNow, ct);
             await channel.BasicAckAsync(delivery.DeliveryTag, multiple: false, ct);
             return;
@@ -154,7 +154,7 @@ public sealed class CompanyConsumer
         {
             _log.LogError(e, "Board {Board}: failed", board.Token);
 
-            await _ledger.MarkFailedAsync(message.Day, board.Key, board.Token, e, DateTime.UtcNow, ct);
+            await _ledger.MarkFailedAsync(message.Day, board.Key, e, DateTime.UtcNow, ct);
 
             // requeue: false -- to the DLQ, not back to the queue.
             //

@@ -165,10 +165,6 @@ try
     embedding.Validate();
 
     var store = new JobStore(jobs, loggerFactory.CreateLogger<JobStore>());
-    // Before the indexes (the new unique one needs every row keyed) and before
-    // consuming (no write may meet a row without its key). Throws, so the
-    // consumer does not start, if any row cannot be keyed.
-    await store.BackfillKeysAsync(ct);
     await store.EnsureIndexesAsync(ct);
 
     var boardHttp = new HttpClient

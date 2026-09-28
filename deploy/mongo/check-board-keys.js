@@ -19,6 +19,7 @@ check(new Set(rows.map(r => r.boardKey)).size === rows.length, "one row per boar
 check((byStatus.pending || 0) === 0, "nothing pending today (run the check again if a run is still in progress)");
 const idx = runs.getIndexes().find(i => i.name === "uniq_day_boardkey");
 check(!!idx && idx.unique === true && !!idx.partialFilterExpression, "uniq_day_boardkey exists, unique and partial");
+check(!runs.getIndexes().some(i => i.name === "uniq_day_board"), "the old uniq_day_board is gone (2c)");
 
 const failed = rows.filter(r => r.status === "failed");
 if (failed.length) print(`failed today: ${failed.map(r => `${r.boardKey} (${r.error})`).join("; ")}`);

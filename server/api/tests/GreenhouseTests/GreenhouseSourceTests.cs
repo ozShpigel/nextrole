@@ -80,7 +80,7 @@ public class GreenhouseSourceStoredFieldsTests
         var stored = job.ToStoredFields();
 
         Assert.Equal(Build.Token, stored[GreenhouseJobFields.BoardToken].AsString);
-        Assert.Equal(7L, stored[GreenhouseJobFields.GreenhouseJobId].AsInt64);
+        Assert.False(stored.Contains(GreenhouseJobFields.GreenhouseJobId));   // the old key, not written since 2c
         Assert.Equal($"greenhouse:{Build.Token}", stored[GreenhouseJobFields.BoardKey].AsString);
         Assert.Equal("7", stored[GreenhouseJobFields.SourceJobId].AsString);
         Assert.Equal("Platform Engineer", stored[GreenhouseJobFields.Title].AsString);

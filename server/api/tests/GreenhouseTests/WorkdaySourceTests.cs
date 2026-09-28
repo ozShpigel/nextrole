@@ -114,6 +114,24 @@ public class WorkdaySourceTests
     }
 
     [Fact]
+    public async Task Stops_at_page_ones_total_when_the_site_serves_page_one_again_past_the_end()
+    {
+        // A count that is a whole number of pages: the page after the last is
+        // page one again, not an empty page. Reading it would list every
+        // posting twice.
+        var stub = new StubHandler()
+            .EnqueueJson(HttpStatusCode.OK, Workday.Page(40, Workday.Many(1, 20)))
+            .EnqueueJson(HttpStatusCode.OK, Workday.Page(0, Workday.Many(21, 20)))
+            .EnqueueJson(HttpStatusCode.OK, Workday.Page(0, Workday.Many(1, 20)));
+
+        var listing = await Workday.Source(stub).ListAsync(Board, default);
+
+        Assert.True(listing.Complete);
+        Assert.Equal(40, listing.Postings.Count);
+        Assert.Equal(2, stub.RequestBodies.Count);
+    }
+
+    [Fact]
     public async Task A_listing_shorter_than_page_ones_total_throws()
     {
         var stub = new StubHandler()

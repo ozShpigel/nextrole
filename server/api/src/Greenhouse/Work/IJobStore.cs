@@ -39,7 +39,8 @@ public interface IJobStore
         DateTime now,
         CancellationToken ct,
         bool countAttempt = true,
-        IReadOnlyCollection<string>? factsAttempted = null);
+        IReadOnlyCollection<string>? factsAttempted = null,
+        int factsVersion = ApplicationTracker.Core.Matching.IngestAiClient.FactsVersion);
 
     /// <summary>Mark postings as being read by an open batch (<see cref="IngestBatcher"/>).</summary>
     Task MarkAiPendingAsync(

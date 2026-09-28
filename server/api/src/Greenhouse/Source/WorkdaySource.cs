@@ -80,6 +80,8 @@ public sealed partial class WorkdaySource : IJobSource
         var url = $"{Root(board)}/jobs";
         var postings = new List<ListedPosting>();
         var ids = new HashSet<string>(StringComparer.Ordinal);
+        var returned = 0;
+        var stubs = 0;
         int? total = null;
 
         for (var offset = 0; ; offset += PageSize)
@@ -125,11 +127,18 @@ public sealed partial class WorkdaySource : IJobSource
 
             foreach (var item in page.JobPostings)
             {
+                // Counted whatever it is: completeness is about whether the site
+                // returned every posting it counts, not whether we can use each.
+                returned++;
+
+                // A stub -- measured on NVIDIA, 2026-09-28: {"bulletFields": ["JR2018715"]},
+                // no title, no path, gone again an hour later (a posting being
+                // unpublished). Nothing to identify or read it by, so it is never
+                // stored -- and so can never be closed by mistake either.
                 var id = IdOf(item.ExternalPath);
                 if (id is null)
                 {
-                    _log.LogWarning("Board {Board}: a listed posting has an unusable path ({Path}); skipped",
-                        board.Key, item.ExternalPath);
+                    stubs++;
                     continue;
                 }
                 // Pages shift when postings are added mid-listing: one seen twice
@@ -161,9 +170,14 @@ public sealed partial class WorkdaySource : IJobSource
             return new Listing(postings, Complete: false, Total: total);
         }
 
-        if (ids.Count != total)
+        if (stubs > 0)
+            _log.LogWarning(
+                "Board {Board}: {Count} listed posting(s) had no usable path (a posting being unpublished); skipped",
+                board.Key, stubs);
+
+        if (returned != total)
             throw new BoardFetchException(
-                $"Board {board.Key}: the site said total={total} but {ids.Count} posting(s) were listed. "
+                $"Board {board.Key}: the site said total={total} but {returned} posting(s) were listed. "
                 + "Treating a short listing as the full board would close the missing postings.");
 
         return new Listing(postings, Complete: true, Total: total);

@@ -261,6 +261,48 @@ public sealed class JobStoreIntegrationTests : IAsyncLifetime
     }
 
     [SkippableFact]
+    public async Task Facts_saved_without_an_attempt_list_leave_the_version_alone()
+    {
+        // An old batch's facts are stored, but only a read the version is
+        // known for may claim it.
+        Skip.If(Uri is null, SkipReason);
+        await ReadAsync("workday", "acme", "Stale_R1", attempts: 1);
+
+        // Complete facts -- groups and functions both present -- so the old
+        // missing-field reason cannot select it: only the version decides.
+        await _store.SaveIngestAiAsync("workday:acme",
+            new Dictionary<string, BsonDocument>
+            {
+                ["Stale_R1"] = new() { { "must_have_groups", new BsonArray() }, { "functions", new BsonArray { "qa" } } },
+            },
+            new Dictionary<string, BsonDocument>(), null, DateTime.UtcNow, default);
+
+        Assert.Equal(["Stale_R1"], await ReReadAsync("workday:acme"));
+    }
+
+    [SkippableFact]
+    public async Task A_batch_record_keeps_the_facts_version_it_was_submitted_with()
+    {
+        Skip.If(Uri is null, SkipReason);
+        var store = new AiBatchStore(_client!.GetDatabase(_dbName).GetCollection<BsonDocument>("ai_batches"));
+        await store.RecordAsync(new AiBatchRecord
+        {
+            BatchId = "b_v", Kind = AiBatchRecord.Facts, BoardKey = Key, JobIds = ["1"], FactsVersion = 3,
+            SubmittedAt = DateTime.UtcNow,
+        }, default);
+        await store.RecordAsync(new AiBatchRecord
+        {
+            BatchId = "b_none", Kind = AiBatchRecord.Parse, BoardKey = Key, JobIds = ["1"],
+            SubmittedAt = DateTime.UtcNow.AddSeconds(1),
+        }, default);
+
+        var pending = (await store.PendingAsync(default)).ToDictionary(b => b.BatchId);
+
+        Assert.Equal(3, pending["b_v"].FactsVersion);
+        Assert.Null(pending["b_none"].FactsVersion);
+    }
+
+    [SkippableFact]
     public async Task Removed_boards_are_counted_and_closed_by_board_key()
     {
         Skip.If(Uri is null, SkipReason);

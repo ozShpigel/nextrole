@@ -65,9 +65,12 @@ public sealed class IngestAiClient
     /// Bump it when the facts prompt changes what it would say about a posting
     /// already read, and name the sources to re-read in
     /// <c>JobStore.FactsReReadSources</c>. 2: <c>hardware_engineering</c> added
-    /// (docs/plans/hardware-engineering-function.md). Unversioned rows are 1.
+    /// (docs/plans/hardware-engineering-function.md). 3: inspecting, validating
+    /// or accepting physical parts is hardware, not qa -- and the re-read of
+    /// NVIDIA postings a pre-2 batch collected after the deploy had wrongly
+    /// stamped 2. Unversioned rows are 1.
     /// </remarks>
-    public const int FactsVersion = 2;
+    public const int FactsVersion = 3;
 
     private readonly HttpClient _http;
     private readonly ILogger _log;

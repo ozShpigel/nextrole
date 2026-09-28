@@ -22,6 +22,15 @@ public sealed record AiBatchRecord
     /// <summary>The board's own job ids. Records written before 2b hold them as longs.</summary>
     public required IReadOnlyList<string> JobIds { get; init; }
     public string? ParseVersion { get; init; }
+
+    /// <summary>
+    /// The facts prompt's version the batch was submitted with
+    /// (<c>IngestAiClient.FactsVersion</c>). Null on a record written before it
+    /// was recorded: that batch's postings are not stamped, so they stay owed a
+    /// re-read -- stamping them with the version current at collect time would
+    /// mark old-prompt labels as new ones, forever.
+    /// </summary>
+    public int? FactsVersion { get; init; }
     public required DateTime SubmittedAt { get; init; }
 
     public const string Facts = "facts";
@@ -57,6 +66,7 @@ public sealed class AiBatchStore : IAiBatchStore
             { "boardKey", batch.BoardKey },
             { "jobIds", new BsonArray(batch.JobIds) },
             { "parseVersion", batch.ParseVersion is null ? BsonNull.Value : new BsonString(batch.ParseVersion) },
+            { "factsVersion", batch.FactsVersion is { } fv ? fv : BsonNull.Value },
             { "submittedAt", batch.SubmittedAt },
             { "status", Pending },
         }, cancellationToken: ct);
@@ -75,6 +85,7 @@ public sealed class AiBatchStore : IAiBatchStore
             BoardKey = BoardKeyOf(d),
             JobIds = [.. d["jobIds"].AsBsonArray.Select(JobIdOf)],
             ParseVersion = d.TryGetValue("parseVersion", out var v) && v.IsString ? v.AsString : null,
+            FactsVersion = d.TryGetValue("factsVersion", out var fv) && fv.IsInt32 ? fv.AsInt32 : null,
             SubmittedAt = d["submittedAt"].ToUniversalTime(),
         })];
     }

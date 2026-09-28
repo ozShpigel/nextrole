@@ -63,6 +63,7 @@ public sealed class BoardHandler
     private readonly IDemand? _demand;
     private readonly bool _parseAtIngest;
     private readonly ITooOldMemory? _tooOld;
+    private readonly PrefilterMode _hardwareTitles;
 
     /// <summary>
     /// How many open jobs make an empty board response suspicious.
@@ -78,8 +79,13 @@ public sealed class BoardHandler
         IEnumerable<IJobSource> sources, IEmbeddingClient embeddings, IJobStore store,
         BoardsConfig config, ILogger<BoardHandler> log, IngestAiClient? ai = null,
         IngestBatcher? batcher = null, PrefilterMode prefilter = PrefilterMode.Off,
-        IDemand? demand = null, bool parseAtIngest = true, ITooOldMemory? tooOld = null)
+        IDemand? demand = null, bool parseAtIngest = true, ITooOldMemory? tooOld = null,
+        PrefilterMode hardwareTitles = PrefilterMode.Off)
     {
+        // Greenhouse:HardwareTitleRules. Log measures the hardware title guess
+        // against Claude's labels and skips nothing; On skips by it. Its own
+        // switch, measured before it acts, as the filter itself was.
+        _hardwareTitles = hardwareTitles;
         // Optional: without it every run reads the detail of every posting it
         // cannot date from the listing, as before (TooOldMemory).
         _tooOld = tooOld;
@@ -357,9 +363,16 @@ public sealed class BoardHandler
     {
         var jobs = new List<GreenhouseJob>(postings.Count);
         var unread = 0;
+        var toRequest = postings.Count(p => p.Detail is null);
+        var requested = 0;
 
         foreach (var posting in postings)
         {
+            // A line every 100 requests: NVIDIA's detail reads are minutes of
+            // otherwise silent work, which reads exactly like a hang.
+            if (posting.Detail is null && ++requested % DetailProgressEvery == 0)
+                _log.LogInformation("Board {Board}: reading details, {Done} of {Total}", board.Token, requested, toRequest);
+
             var detail = posting.Detail ?? await source.DetailAsync(board, posting, ct);
             if (detail is null)
             {
@@ -377,12 +390,16 @@ public sealed class BoardHandler
         return jobs;
     }
 
+    /// <summary>How many detail requests between progress lines.</summary>
+    public const int DetailProgressEvery = 100;
+
     /// <summary>How many example titles a prefilter log line carries.</summary>
     private const int PrefilterExamples = 8;
 
     /// <summary>What the filter decides with, read once per board run for both stages.</summary>
     private sealed record PrefilterRules(
-        ServedPlaces Served, IReadOnlyCollection<string>? Accepted, IReadOnlyList<string> Wanted, int Learned);
+        ServedPlaces Served, IReadOnlyCollection<string>? Accepted, IReadOnlyList<string> Wanted, int Learned,
+        bool HardwareTitles);
 
     private sealed record PrefilterDecision(ListedPosting Posting, PrefilterSkip Skip);
 
@@ -407,7 +424,7 @@ public sealed class BoardHandler
             // No recorded demand constrains nothing: reading everything is the
             // state before this filter existed, never a worse one.
             var accepted = wanted.Count > 0 ? Prefilter.Accepted(wanted) : null;
-            return new PrefilterRules(served, accepted, wanted, learned.Count);
+            return new PrefilterRules(served, accepted, wanted, learned.Count, _hardwareTitles == PrefilterMode.On);
         }
         catch (Exception e) when (e is not OperationCanceledException)
         {
@@ -421,7 +438,8 @@ public sealed class BoardHandler
         rules is null
             ? []
             : [.. fresh
-                .Select(p => (Posting: p, Skip: Prefilter.Decide(p, rules.Served, rules.Accepted)))
+                .Select(p => (Posting: p, Skip: Prefilter.Decide(p, rules.Served, rules.Accepted,
+                    hardwareTitles: rules.HardwareTitles)))
                 .Where(x => x.Skip is not null)
                 .Select(x => new PrefilterDecision(x.Posting, x.Skip!))];
 
@@ -514,6 +532,7 @@ public sealed class BoardHandler
                         .Select(x => $"{x.Posting.Title} [{x.Skip.Reason}: {x.Skip.Detail}]")));
 
             await CheckGuessesAsync(board, postings, stored, rules.Accepted, rules.Served, ct);
+            await CheckHardwareTitlesAsync(board, postings, stored, rules.Accepted, ct);
         }
         catch (Exception e) when (e is not OperationCanceledException)
         {
@@ -606,6 +625,46 @@ public sealed class BoardHandler
             wouldHide?.ToString() ?? "n/a (no demand recorded)",
             string.Join(" | ", wrong.Take(PrefilterExamples).Select(x =>
                 $"{x.Job.Title} [guessed {x.Guess}, labelled {string.Join("+", LabelOf(x.Job))}]")));
+    }
+
+    /// <summary>
+    /// The hardware title rule's measurement: of the stored postings it would
+    /// call hardware, how many Claude labelled otherwise -- and of those, how
+    /// many some user's filter shows.
+    /// </summary>
+    /// <remarks>
+    /// "Would hide" has to read ~0 before Greenhouse:HardwareTitleRules goes to
+    /// On, exactly like the function check. Read against labels from facts
+    /// version 3 or later: older ones filed hardware roles as software, and
+    /// every hardware guess would read as wrong.
+    /// </remarks>
+    private async Task CheckHardwareTitlesAsync(
+        BoardConfig board, IReadOnlyList<ListedPosting> postings, IReadOnlyDictionary<string, string> stored,
+        IReadOnlyCollection<string>? accepted, CancellationToken ct)
+    {
+        if (_hardwareTitles == PrefilterMode.Off) return;
+
+        var guessed = postings
+            .Where(p => stored.ContainsKey(p.SourceJobId)
+                        && Prefilter.GuessFunction(p.Title, p.Departments, hardwareTitles: true)
+                           == JobFunctions.HardwareEngineering)
+            .ToList();
+        if (guessed.Count == 0) return;
+
+        var facts = await _store.StoredFactsAsync(board.Key, [.. guessed.Select(p => p.SourceJobId)], ct);
+        string[] LabelOf(ListedPosting p) => facts.GetValueOrDefault(p.SourceJobId)?.Functions ?? [];
+
+        var labelled = guessed.Where(p => LabelOf(p).Length > 0).ToList();
+        var wrong = labelled.Where(p => !LabelOf(p).Contains(JobFunctions.HardwareEngineering)).ToList();
+        var wouldHide = accepted is null ? null : (int?)wrong.Count(p => JobFunctions.Matches(LabelOf(p), [.. accepted]));
+
+        _log.LogInformation(
+            "Board {Board}: hardware title check ({Mode}) -- {Guessed} stored posting(s) called hardware by the title, "
+            + "{Labelled} labelled by Claude: {Right} right, {Wrong} wrong, {WouldHide} wrong in a way that would hide "
+            + "a wanted posting. Wrong: {Examples}",
+            board.Token, _hardwareTitles, guessed.Count, labelled.Count, labelled.Count - wrong.Count, wrong.Count,
+            wouldHide?.ToString() ?? "n/a (no demand recorded)",
+            string.Join(" | ", wrong.Take(PrefilterExamples).Select(p => $"{p.Title} [labelled {string.Join("+", LabelOf(p))}]")));
     }
 
     /// <summary>

@@ -270,6 +270,11 @@ try
         new WorkdaySource(workdayHttp, loggerFactory.CreateLogger<WorkdaySource>()),
     ];
 
+    // Dates of new postings the detail showed too old, so tomorrow's run skips
+    // them from the listing (TooOldMemory). Its own collection, TTL 14 days.
+    var tooOld = new TooOldMemory(database.GetCollection<BsonDocument>(TooOldMemory.CollectionName));
+    await tooOld.EnsureIndexesAsync(ct);
+
     var handler = new BoardHandler(
         sources,
         new VoyageEmbeddingClient(voyageHttp, embedding, loggerFactory.CreateLogger<VoyageEmbeddingClient>()),
@@ -280,7 +285,8 @@ try
         useBatchApi ? batcher : null,
         prefilter,
         PoolDemandReader.For(database),
-        parseAtIngest);
+        parseAtIngest,
+        tooOld);
 
     var consumer = new CompanyConsumer(
         connection, handler, ledger, boards, loggerFactory.CreateLogger<CompanyConsumer>());

@@ -61,6 +61,22 @@ source that makes detail requests at all. Also not here: whether a *stored*
 Workday posting is re-read daily -- the Workday plan's "present in the list =
 unchanged" trade belongs to that adapter.
 
+## Remembering postings found too old (added 2026-09-28)
+
+Measured on NVIDIA's first full run: `154 skipped (9 from the listing, 145 after
+the detail): 145 older than 90 days`. A skipped posting is never stored, so every
+run saw those 145 as new and read their details again -- a third of NVIDIA's
+daily run, to learn the same answer; postings only get older.
+
+`TooOldMemory` (collection `ingest_too_old`) keeps, per board, the posting
+date of each new posting stage 2 found too old. Stage 1 gives an undated listing
+posting its remembered date, and today's rule decides -- the date is remembered,
+not the decision, so widening the window brings them back. Entries expire after
+14 days (TTL on `checkedAt`), bounding how stale a re-dated posting can be.
+Never blocks a read: a memory that cannot be read reads everything. Its own
+collection, so nothing that reads the pool ever sees a skipped posting. The log
+line gains `N of them remembered too old`.
+
 ## Tests
 
 Driven through a fake source whose listing carries no detail:

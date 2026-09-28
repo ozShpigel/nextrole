@@ -263,16 +263,18 @@ internal static class Build
         new(new HttpClient(handler) { BaseAddress = new Uri("https://boards-api.greenhouse.io/") },
             NullLogger<BoardClient>.Instance);
 
-    public static CompanyHandler Handler(
+    public static GreenhouseSource Source(StubHandler handler) => new(BoardClient(handler));
+
+    public static BoardHandler Handler(
         StubHandler board, IEmbeddingClient embeddings, IJobStore store,
         CompaniesConfig? config = null,
         ApplicationTracker.Core.Matching.IngestAiClient? ai = null,
         PrefilterMode prefilter = PrefilterMode.Off,
         IDemand? demand = null,
-        Microsoft.Extensions.Logging.ILogger<CompanyHandler>? log = null,
+        Microsoft.Extensions.Logging.ILogger<BoardHandler>? log = null,
         bool parseAtIngest = true) =>
-        new(BoardClient(board), embeddings, store,
-            config ?? CompaniesConfig.ForTesting(Token), log ?? NullLogger<CompanyHandler>.Instance, ai,
+        new(Source(board), embeddings, store,
+            config ?? CompaniesConfig.ForTesting(Token), log ?? NullLogger<BoardHandler>.Instance, ai,
             prefilter: prefilter, demand: demand, parseAtIngest: parseAtIngest);
 
     /// <summary>

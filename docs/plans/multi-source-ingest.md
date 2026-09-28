@@ -1,6 +1,6 @@
 # Plan: one ingest, many job sources
 
-Status: **plan**, 2026-09-26. Not built.
+Status: **phase 1 built** (2026-09-28); phases 2-7 planned.
 
 ## Why now
 
@@ -198,7 +198,7 @@ being a research session.
 
 | # | What | Behaviour change | Size |
 |---|---|---|---|
-| 1 | `IJobSource` + `GreenhouseSource` wrapping today's `BoardClient`; `CompanyHandler` → `BoardHandler` calls the interface; contract suite over Greenhouse | none | 1-2 days |
+| 1 | `IJobSource` + `GreenhouseSource` wrapping today's `BoardClient`; `CompanyHandler` → `BoardHandler` calls the interface; contract suite over Greenhouse | none | **done** |
 | 2 | Storage key migration to `(boardKey, sourceJobId)` | none (verified by counts before/after) | 1 day |
 | 3 | `boards.json` with `source`; old `companies` list still loads | none | 0.5 day |
 | 4 | Two-stage prefilter in the handler (list → detail) | none for Greenhouse | 0.5 day |

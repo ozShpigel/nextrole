@@ -135,7 +135,7 @@ public class IngestAiBackfillTests
                 new FakeEmbeddingClient(), store, ai: Client(new StubHandler()))
             .HandleCompanyAsync(Build.Token);
 
-        Assert.Equal(CompanyHandler.BackfillBatchSize, store.LastNeedingAiLimit);
+        Assert.Equal(BoardHandler.BackfillBatchSize, store.LastNeedingAiLimit);
     }
 
     [Fact]

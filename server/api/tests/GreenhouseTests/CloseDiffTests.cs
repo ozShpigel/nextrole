@@ -11,7 +11,7 @@ namespace GreenhouseTests;
 /// These run against <see cref="CloseDiff.Compute"/>, which is the code the
 /// production path calls -- not a restatement of it. The failed-fetch guard is
 /// not testable here by design; it is structural (BoardClient throws) and is
-/// asserted in <see cref="CompanyHandlerTests"/> by proving the store is never
+/// asserted in <see cref="BoardHandlerTests"/> by proving the store is never
 /// asked to close anything.
 /// </remarks>
 public class CloseDiffTests

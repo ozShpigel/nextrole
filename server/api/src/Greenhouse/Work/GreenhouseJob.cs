@@ -14,7 +14,7 @@ public sealed record GreenhouseJob
     public required long GreenhouseJobId { get; init; }
     public required string ContentHash { get; init; }
     public required string CleanedContent { get; init; }
-    public required BoardJob Source { get; init; }
+    public required SourcePosting Source { get; init; }
 
     /// <summary>What actually gets embedded.</summary>
     /// <remarks>
@@ -28,11 +28,17 @@ public sealed record GreenhouseJob
     /// the hash input too. See <see cref="From"/>.
     /// </remarks>
     public string EmbedText =>
-        string.IsNullOrWhiteSpace(Source.Title) ? CleanedContent : $"{Source.Title}\n\n{CleanedContent}";
+        string.IsNullOrWhiteSpace(Source.Listed.Title) ? CleanedContent : $"{Source.Listed.Title}\n\n{CleanedContent}";
 
-    public static GreenhouseJob From(string boardToken, BoardJob job)
+    /// <remarks>
+    /// Cleaning happens here, for every source, rather than in each adapter:
+    /// the cleaned text is what the hash covers, and one cleaner is one
+    /// definition of "unchanged". <see cref="ContentCleaner"/> handles both
+    /// entity-encoded HTML (Greenhouse) and plain HTML.
+    /// </remarks>
+    public static GreenhouseJob From(string boardToken, long jobId, SourcePosting job)
     {
-        var cleaned = ContentCleaner.Clean(job.Content);
+        var cleaned = ContentCleaner.Clean(job.ContentHtml);
 
         // Hashed over exactly what we embed and store, title included. Anything
         // that changes the vector must change the hash, or a re-titled job keeps
@@ -42,13 +48,13 @@ public sealed record GreenhouseJob
         // The title is length-prefixed rather than just concatenated so that
         // moving text across the title/body boundary cannot produce the same
         // digest from different content.
-        var title = job.Title ?? "";
+        var title = job.Listed.Title ?? "";
         var payload = $"{title.Length}{title}{cleaned}";
 
         return new GreenhouseJob
         {
             BoardToken = boardToken,
-            GreenhouseJobId = job.Id,
+            GreenhouseJobId = jobId,
             CleanedContent = cleaned,
             ContentHash = Sha256(payload),
             Source = job,
@@ -76,17 +82,17 @@ public sealed record GreenhouseJob
     {
         { GreenhouseJobFields.BoardToken, BoardToken },
         { GreenhouseJobFields.GreenhouseJobId, GreenhouseJobId },
-        { GreenhouseJobFields.Title, Value(Source.Title) },
-        { GreenhouseJobFields.Company, Value(Source.CompanyName) },
-        { GreenhouseJobFields.AbsoluteUrl, Value(Source.AbsoluteUrl) },
+        { GreenhouseJobFields.Title, Value(Source.Listed.Title) },
+        { GreenhouseJobFields.Company, Value(Source.Company) },
+        { GreenhouseJobFields.AbsoluteUrl, Value(Source.Url) },
         { GreenhouseJobFields.RequisitionId, Value(Source.RequisitionId) },
-        { GreenhouseJobFields.Location, Value(Source.Location?.Name) },
-        { GreenhouseJobFields.Department, Names(Source.Departments) },
-        { GreenhouseJobFields.Office, Names(Source.Offices) },
+        { GreenhouseJobFields.Location, Value(Source.Listed.Location) },
+        { GreenhouseJobFields.Department, Names(Source.Listed.Departments) },
+        { GreenhouseJobFields.Office, Names(Source.Listed.Offices) },
         { GreenhouseJobFields.Content, CleanedContent },
         { GreenhouseJobFields.ContentHash, ContentHash },
-        { GreenhouseJobFields.BoardUpdatedAt, Source.UpdatedAt is { } u ? u.UtcDateTime : BsonNull.Value },
-        { GreenhouseJobFields.FirstPublishedAt, Source.FirstPublished is { } f ? f.UtcDateTime : BsonNull.Value },
+        { GreenhouseJobFields.BoardUpdatedAt, Source.Listed.UpdatedAt is { } u ? u : BsonNull.Value },
+        { GreenhouseJobFields.FirstPublishedAt, Source.Listed.PostedAt is { } f ? f : BsonNull.Value },
     };
 
     /// <summary>
@@ -152,12 +158,12 @@ public sealed record GreenhouseJob
     /// halves of a taxonomy nobody has decided how to use yet is how a schema
     /// accumulates fields that look pending forever.
     /// </remarks>
-    private static BsonValue Names(List<BoardTaxonomy>? items)
+    private static BsonValue Names(IReadOnlyList<string> names)
     {
-        if (items is null || items.Count == 0) return new BsonArray();
+        if (names.Count == 0) return new BsonArray();
 
-        return new BsonArray(items
-            .Select(i => i.Name?.Trim())
+        return new BsonArray(names
+            .Select(n => n.Trim())
             .Where(n => !string.IsNullOrEmpty(n))
             .Distinct(StringComparer.OrdinalIgnoreCase));
     }

@@ -48,12 +48,18 @@ passes and `ContentCleanerTests` pins them.
 
 ## Per company
 
-`CompanyHandler.HandleCompanyAsync(boardToken, ct)` — self-contained,
+`BoardHandler.HandleCompanyAsync(boardToken, ct)` — self-contained,
 idempotent, throws on failure. **No transport type appears in it**; the queue
 calls it, never the reverse, and the tests drive it by calling the method.
 
-1. Fetch the whole board.
-2. Clean the HTML; strip trailing boilerplate (EEO, privacy, pay transparency)
+1. Fetch the whole board, through the source's `IJobSource` (`GreenhouseSource`
+   today). Everything below is shared by every source; only the fetch and the
+   proof that the listing is whole are the adapter's. A listing the source
+   cannot prove complete is stored but closes nothing, and a posting whose
+   detail could not be read is skipped and left open. Every adapter passes
+   `JobSourceContract` (docs/plans/multi-source-ingest.md).
+2. Clean the HTML (shared, never per source: the cleaned text is what the hash
+   covers); strip trailing boilerplate (EEO, privacy, pay transparency)
    only when it is a heading, on its own line, in the last third of the posting,
    and only if the cut leaves most of the text. Conservative on purpose: cutting
    early destroys requirements, which is the signal the source exists for.
@@ -95,7 +101,7 @@ Message Batches API instead -- **same prompts, model and chunks** (the API build
 the live and batch requests from one builder), at half the price, answered within
 minutes to hours.
 
-- **Submit** (`IngestBatcher`, from `CompanyHandler`): changed + never-read
+- **Submit** (`IngestBatcher`, from `BoardHandler`): changed + never-read
   postings get facts and parse batches; re-read postings get facts only. A row in
   `greenhouse_ai_batches` is written right after the submit (a batch with no row
   is paid for and never collected), then each posting is marked
@@ -443,7 +449,7 @@ passes run only over postings whose content *changed*, so "never attempted" and
 "attempted, unchanged" are the same thing to the hash — and a posting stored
 during an outage stays factless until the company edits their own text.
 `NeedingIngestAiAsync` selects on `extract_attempts: 0` (the value the initial
-write sets) oldest-first, and `CompanyHandler.BackfillIngestAiAsync` sweeps up
+write sets) oldest-first, and `BoardHandler.BackfillIngestAiAsync` sweeps up
 to `BackfillBatchSize` (100) per board per run, after the changed-job pass.
 Attempts are incremented whether or not facts come back, so a posting the model
 genuinely cannot read leaves the set after one try instead of being retried

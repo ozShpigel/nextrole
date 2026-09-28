@@ -256,12 +256,12 @@ try
     var parseAtIngest = configuration.GetValue("Greenhouse:ParseAtIngest", false);
     log.LogInformation("Parse at ingest: {ParseAtIngest}", parseAtIngest ? "on" : "off (parsed by the first scorer)");
 
-    var handler = new CompanyHandler(
-        new BoardClient(boardHttp, loggerFactory.CreateLogger<BoardClient>()),
+    var handler = new BoardHandler(
+        new GreenhouseSource(new BoardClient(boardHttp, loggerFactory.CreateLogger<BoardClient>())),
         new VoyageEmbeddingClient(voyageHttp, embedding, loggerFactory.CreateLogger<VoyageEmbeddingClient>()),
         store,
         companies,
-        loggerFactory.CreateLogger<CompanyHandler>(),
+        loggerFactory.CreateLogger<BoardHandler>(),
         ingestAi,
         useBatchApi ? batcher : null,
         prefilter,

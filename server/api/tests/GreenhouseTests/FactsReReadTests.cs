@@ -66,7 +66,7 @@ public class FactsReReadTests
     public async Task The_re_read_is_bounded_like_the_backfill()
     {
         var store = new FakeJobStore();
-        for (var i = 0; i < CompanyHandler.BackfillBatchSize + 20; i++) store.NeedingFactsReRead.Add(Stored(i));
+        for (var i = 0; i < BoardHandler.BackfillBatchSize + 20; i++) store.NeedingFactsReRead.Add(Stored(i));
         // More than one facts chunk's worth: answer every chunk with nothing.
         var api = new StubHandler();
         for (var i = 0; i < 3; i++) api.EnqueueJson(HttpStatusCode.OK, """{ "results": [] }""");
@@ -77,7 +77,7 @@ public class FactsReReadTests
             .HandleCompanyAsync(Build.Token);
 
         // 100 postings at 50 per facts chunk.
-        Assert.Equal(CompanyHandler.BackfillBatchSize / ApplicationTracker.Core.Matching.IngestAiClient.FactsChunkSize, api.Calls);
+        Assert.Equal(BoardHandler.BackfillBatchSize / ApplicationTracker.Core.Matching.IngestAiClient.FactsChunkSize, api.Calls);
     }
 
     [Fact]

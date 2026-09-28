@@ -5,7 +5,7 @@ namespace ApplicationTracker.Greenhouse;
 /// Reads one Greenhouse board.
 /// </summary>
 /// <remarks>
-/// An interface in Core so <see cref="CompanyHandler"/> -- which is orchestration,
+/// An interface in Core so <see cref="BoardHandler"/> -- which is orchestration,
 /// not I/O -- stays here alongside the models rather than following the HTTP
 /// client into Infrastructure.
 /// </remarks>
@@ -25,7 +25,7 @@ public interface IBoardClient
 /// every job the company has.
 /// </para>
 /// <para>
-/// Because it throws, <see cref="CompanyHandler"/> cannot reach the close diff
+/// Because it throws, <see cref="BoardHandler"/> cannot reach the close diff
 /// on a failed fetch: the guard is structural, not a flag somebody has to
 /// remember to check.
 /// </para>

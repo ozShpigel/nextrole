@@ -2,7 +2,7 @@ using ApplicationTracker.Core.Greenhouse;
 namespace ApplicationTracker.Greenhouse;
 
 /// <summary>
-/// The Greenhouse collection's write side, as <see cref="CompanyHandler"/> uses it.
+/// The Greenhouse collection's write side, as <see cref="BoardHandler"/> uses it.
 /// </summary>
 /// <remarks>
 /// An interface so the handler's own logic -- the hash skip, batch alignment,

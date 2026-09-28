@@ -252,7 +252,7 @@ public sealed class JobStore : IJobStore
     /// </para>
     /// <para>
     /// <b>The second guard lives here</b> (the first is in
-    /// <see cref="CompanyHandler"/>: a throw on fetch never reaches this
+    /// <see cref="BoardHandler"/>: a throw on fetch never reaches this
     /// method at all). If the board returned an empty list while we hold a
     /// large number of open jobs, that is far more likely to be a board being
     /// rebuilt, a token that silently changed hands, or an upstream bug than a

@@ -70,7 +70,10 @@ calls it, never the reverse, and the tests drive it by calling the method.
    stored. The filter runs twice (docs/plans/two-stage-prefilter.md): on the
    listing, so a posting it rules out there costs no detail request, and on the
    detail, with the exact date and full locations, over what the first kept.
-   For Greenhouse the listing is the detail, so the second decides nothing new. Everything stored is kept as it is; `department` and `office` are
+   For Greenhouse the listing is the detail, so the second decides nothing new.
+   A posting the detail shows too old is remembered for 14 days
+   (`TooOldMemory`), so a Workday board does not read the same old postings'
+   details every day. Everything stored is kept as it is; `department` and `office` are
    stored so narrowing it is a query, not a re-ingest.
 4. Skip anything whose content hash is unchanged — no embedding, no write.
 5. Embed what remains, batched by estimated token budget (~100K, cap 128 items),

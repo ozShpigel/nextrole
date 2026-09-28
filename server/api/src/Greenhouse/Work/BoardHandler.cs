@@ -62,6 +62,7 @@ public sealed class BoardHandler
     private readonly PrefilterMode _prefilter;
     private readonly IDemand? _demand;
     private readonly bool _parseAtIngest;
+    private readonly ITooOldMemory? _tooOld;
 
     /// <summary>
     /// How many open jobs make an empty board response suspicious.
@@ -77,8 +78,11 @@ public sealed class BoardHandler
         IEnumerable<IJobSource> sources, IEmbeddingClient embeddings, IJobStore store,
         BoardsConfig config, ILogger<BoardHandler> log, IngestAiClient? ai = null,
         IngestBatcher? batcher = null, PrefilterMode prefilter = PrefilterMode.Off,
-        IDemand? demand = null, bool parseAtIngest = true)
+        IDemand? demand = null, bool parseAtIngest = true, ITooOldMemory? tooOld = null)
     {
+        // Optional: without it every run reads the detail of every posting it
+        // cannot date from the listing, as before (TooOldMemory).
+        _tooOld = tooOld;
         // Greenhouse:ParseAtIngest. True here so a handler built without it
         // behaves as before; Program defaults the real one to false: the first
         // user to score a posting parses it, and the scan stores the parse for
@@ -150,7 +154,17 @@ public sealed class BoardHandler
         // Stage 1, on the listing's own data: what it skips costs no detail
         // request. A rule with nothing to go on passes -- no date is read, a
         // location that resolves to nothing is read.
-        var listingSkips = Decide(rules, postings.Where(p => IsNew(p.SourceJobId)));
+        //
+        // A new posting found too old on an earlier run carries its remembered
+        // date here, so today's age rule skips it without reading it again.
+        var remembered = await RememberedTooOldAsync(board, rules, ct);
+        var listingSkips = Decide(rules, postings
+            .Where(p => IsNew(p.SourceJobId))
+            .Select(p => p.PostedAt is null && remembered.TryGetValue(p.SourceJobId, out var at)
+                ? p with { PostedAt = at }
+                : p));
+        var skippedAsRemembered = listingSkips.Count(x =>
+            x.Skip.Reason == PrefilterSkip.Age && remembered.ContainsKey(x.Posting.SourceJobId));
         var skippedAtListing = Applied(listingSkips);
         var toRead = skippedAtListing.Count > 0
             ? [.. postings.Where(p => !skippedAtListing.Contains(p.SourceJobId))]
@@ -170,8 +184,11 @@ public sealed class BoardHandler
         if (skippedAtDetail.Count > 0)
             jobs = [.. jobs.Where(j => !skippedAtDetail.Contains(j.SourceJobId))];
 
+        await RememberTooOldAsync(board, detailSkips, now, ct);
+
         var prefiltered = skippedAtListing.Count + skippedAtDetail.Count;
-        await ReportPrefilterAsync(board, rules, postings, storedHashes, listingSkips, detailSkips, ct);
+        await ReportPrefilterAsync(board, rules, postings, storedHashes, listingSkips, detailSkips,
+            skippedAsRemembered, ct);
 
         var changed = new List<GreenhouseJob>();
         var unchanged = new List<string>();
@@ -414,6 +431,53 @@ public sealed class BoardHandler
             ? decisions.Select(d => d.Posting.SourceJobId).ToHashSet(StringComparer.Ordinal)
             : [];
 
+    /// <summary>Remembered too-old dates for this board; empty when there is no memory, no filter, or a failure.</summary>
+    /// <remarks>Never throws: without the memory, every undated posting is read, as before it existed.</remarks>
+    private async Task<IReadOnlyDictionary<string, DateTime>> RememberedTooOldAsync(
+        BoardConfig board, PrefilterRules? rules, CancellationToken ct)
+    {
+        if (_tooOld is null || rules is null) return new Dictionary<string, DateTime>();
+        try
+        {
+            return await _tooOld.RememberedAsync(board.Key, ct);
+        }
+        catch (Exception e) when (e is not OperationCanceledException)
+        {
+            _log.LogError(e, "Board {Board}: could not read the remembered too-old postings; reading them all", board.Token);
+            return new Dictionary<string, DateTime>();
+        }
+    }
+
+    /// <summary>Remember the dates of the new postings the detail showed too old.</summary>
+    /// <remarks>
+    /// Stage 2's age skips only: those are the ones that cost a detail request
+    /// to find. Never throws -- a lost memory costs a detail request tomorrow.
+    /// </remarks>
+    private async Task RememberTooOldAsync(
+        BoardConfig board, List<PrefilterDecision> atDetail, DateTime now, CancellationToken ct)
+    {
+        if (_tooOld is null) return;
+
+        List<(string Id, DateTime PostedAt)> tooOld =
+        [
+            .. atDetail
+                .Where(x => x.Skip.Reason == PrefilterSkip.Age)
+                .Select(x => (x.Posting.SourceJobId, Posted: Prefilter.PostedAt(x.Posting)))
+                .Where(x => x.Posted is not null)
+                .Select(x => (x.SourceJobId, x.Posted!.Value)),
+        ];
+        if (tooOld.Count == 0) return;
+
+        try
+        {
+            await _tooOld.RememberAsync(board.Key, tooOld, now, ct);
+        }
+        catch (Exception e) when (e is not OperationCanceledException)
+        {
+            _log.LogError(e, "Board {Board}: could not remember {Count} too-old posting(s)", board.Token, tooOld.Count);
+        }
+    }
+
     /// <summary>
     /// One log line for both stages, then the checks of the rule against the
     /// labels Claude already put on stored postings.
@@ -422,7 +486,7 @@ public sealed class BoardHandler
     private async Task ReportPrefilterAsync(
         BoardConfig board, PrefilterRules? rules, IReadOnlyList<ListedPosting> postings,
         IReadOnlyDictionary<string, string> stored, List<PrefilterDecision> atListing,
-        List<PrefilterDecision> atDetail, CancellationToken ct)
+        List<PrefilterDecision> atDetail, int remembered, CancellationToken ct)
     {
         if (rules is null) return;
 
@@ -434,13 +498,13 @@ public sealed class BoardHandler
             if (fresh > 0)
                 _log.LogInformation(
                     "Board {Board}: pre-read filter ({Mode}) -- {Skipped} of {New} new posting(s) {Verb} "
-                    + "({AtListing} from the listing, {AtDetail} after the detail): "
+                    + "({AtListing} from the listing, {Remembered} of them remembered too old, {AtDetail} after the detail): "
                     + "{ByAge} older than {MaxAge} days, "
                     + "{ByLocation} outside served locations ({Configured} configured + {Learned} from profiles), "
                     + "{ByFunction} a function nobody wants (wanted: {Wanted}). E.g. {Examples}",
                     board.Token, _prefilter, skips.Count, fresh,
                     _prefilter == PrefilterMode.On ? "skipped" : "would be skipped",
-                    atListing.Count, atDetail.Count,
+                    atListing.Count, remembered, atDetail.Count,
                     skips.Count(x => x.Skip.Reason == PrefilterSkip.Age), PoolBrowseQuery.MaxAgeDays,
                     skips.Count(x => x.Skip.Reason == PrefilterSkip.Location),
                     _config.ServedLocations.Count, rules.Learned,

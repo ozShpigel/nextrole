@@ -258,6 +258,94 @@ public class BoardHandlerSourceTests
             .HandleBoardAsync(Board);
 
         var line = Assert.Single(log.All, l => l.Contains("pre-read filter (Log)"));
-        Assert.Contains("1 of 2 new posting(s) would be skipped (1 from the listing, 0 after the detail)", line);
+        Assert.Contains("1 of 2 new posting(s) would be skipped (1 from the listing, 0 of them remembered too old, 0 after the detail)", line);
+    }
+
+    // ---- remembering postings found too old (TooOldMemory) -------------------------
+
+    private sealed class FakeTooOld : ITooOldMemory
+    {
+        public Dictionary<string, DateTime> Dates { get; } = [];
+        public bool Throws { get; init; }
+
+        public Task<IReadOnlyDictionary<string, DateTime>> RememberedAsync(string boardKey, CancellationToken ct) =>
+            Throws ? throw new InvalidOperationException("memory down")
+                   : Task.FromResult<IReadOnlyDictionary<string, DateTime>>(new Dictionary<string, DateTime>(Dates));
+
+        public Task RememberAsync(string boardKey, IReadOnlyCollection<(string Id, DateTime PostedAt)> postings,
+            DateTime now, CancellationToken ct)
+        {
+            foreach (var (id, at) in postings) Dates[id] = at;
+            return Task.CompletedTask;
+        }
+    }
+
+    private static BoardHandler Remembering(IJobSource source, FakeJobStore store, ITooOldMemory memory,
+        PrefilterMode mode = PrefilterMode.On) =>
+        new([source], new FakeEmbeddingClient(), store,
+            BoardsConfig.Parse($$"""{ "companies": ["{{Build.Token}}"], "served_locations": ["Tel Aviv"] }"""),
+            NullLogger<BoardHandler>.Instance, prefilter: mode, tooOld: memory);
+
+    [Fact]
+    public async Task A_posting_the_detail_shows_too_old_is_remembered_with_its_date()
+    {
+        var memory = new FakeTooOld();
+        var source = new FakeSource(new Listing([Listed("1")], Complete: true, Total: 1),
+            p => Full(p with { PostedAt = LongAgo }));
+
+        await Remembering(source, new FakeJobStore(), memory).HandleBoardAsync(Board);
+
+        Assert.Equal(LongAgo, memory.Dates["1"]);
+    }
+
+    [Fact]
+    public async Task A_remembered_too_old_posting_is_skipped_from_the_listing_with_no_detail_request()
+    {
+        var memory = new FakeTooOld();
+        memory.Dates["1"] = LongAgo;
+        var store = new FakeJobStore();
+        var source = new FakeSource(new Listing([Listed("1"), Listed("2")], Complete: true, Total: 2), Full);
+
+        var result = await Remembering(source, store, memory).HandleBoardAsync(Board);
+
+        Assert.Equal(["2"], source.DetailFor);      // "1" was not read again
+        Assert.Equal(1, result.Prefiltered);
+        Assert.Contains("1", store.LastCloseSeenIds!);   // still listed: nothing to close
+    }
+
+    [Fact]
+    public async Task A_remembered_date_is_judged_by_todays_rule_so_a_wider_window_reads_it_again()
+    {
+        // The date is remembered, not the decision: one inside the window is read.
+        var memory = new FakeTooOld();
+        memory.Dates["1"] = DateTime.UtcNow.AddDays(-30);
+        var source = new FakeSource(new Listing([Listed("1")], Complete: true, Total: 1), Full);
+
+        var result = await Remembering(source, new FakeJobStore(), memory).HandleBoardAsync(Board);
+
+        Assert.Equal(["1"], source.DetailFor);
+        Assert.Equal(0, result.Prefiltered);
+    }
+
+    [Fact]
+    public async Task A_memory_that_cannot_be_read_reads_every_posting()
+    {
+        var source = new FakeSource(new Listing([Listed("1")], Complete: true, Total: 1), Full);
+
+        await Remembering(source, new FakeJobStore(), new FakeTooOld { Throws = true }).HandleBoardAsync(Board);
+
+        Assert.Equal(["1"], source.DetailFor);
+    }
+
+    [Fact]
+    public async Task Log_mode_still_reads_a_remembered_posting()
+    {
+        var memory = new FakeTooOld();
+        memory.Dates["1"] = LongAgo;
+        var source = new FakeSource(new Listing([Listed("1")], Complete: true, Total: 1), Full);
+
+        await Remembering(source, new FakeJobStore(), memory, PrefilterMode.Log).HandleBoardAsync(Board);
+
+        Assert.Equal(["1"], source.DetailFor);
     }
 }

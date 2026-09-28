@@ -303,6 +303,28 @@ public sealed class JobStoreIntegrationTests : IAsyncLifetime
     }
 
     [SkippableFact]
+    public async Task The_too_old_memory_keeps_dates_per_board_refreshes_them_and_expires_them()
+    {
+        Skip.If(Uri is null, SkipReason);
+        var memory = new TooOldMemory(_client!.GetDatabase(_dbName).GetCollection<BsonDocument>(TooOldMemory.CollectionName));
+        await memory.EnsureIndexesAsync(default);
+        var old = new DateTime(2026, 5, 1, 0, 0, 0, DateTimeKind.Utc);
+
+        await memory.RememberAsync("workday:acme", [("R-1", old), ("R-2", old)], DateTime.UtcNow, default);
+        await memory.RememberAsync("workday:acme", [("R-1", old.AddDays(1))], DateTime.UtcNow, default);   // refreshed, not doubled
+        await memory.RememberAsync("workday:other", [("R-1", old)], DateTime.UtcNow, default);
+
+        var acme = await memory.RememberedAsync("workday:acme", default);
+        Assert.Equal(2, acme.Count);
+        Assert.Equal(old.AddDays(1), acme["R-1"]);
+        Assert.Single(await memory.RememberedAsync("workday:other", default));
+
+        var ttl = (await (await _client.GetDatabase(_dbName).GetCollection<BsonDocument>(TooOldMemory.CollectionName)
+            .Indexes.ListAsync()).ToListAsync()).Single(i => i["name"] == "ttl_checked");
+        Assert.Equal(TooOldMemory.KeptFor.TotalSeconds, ttl["expireAfterSeconds"].ToDouble());
+    }
+
+    [SkippableFact]
     public async Task Removed_boards_are_counted_and_closed_by_board_key()
     {
         Skip.If(Uri is null, SkipReason);

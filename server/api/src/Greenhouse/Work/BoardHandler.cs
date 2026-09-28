@@ -133,14 +133,45 @@ public sealed class BoardHandler
         // it reports as Complete = false, and the diff is skipped below.
         var listing = await source.ListAsync(board, ct);
 
-        var (jobs, present) = await ReadPostingsAsync(board, source, listing, ct);
-
-        // Two jobs with the same board id in one response cannot both be
-        // upserted: an unordered bulk write of two upserts on the same unique
-        // key races itself. Last one wins, deterministically, here.
-        jobs = [.. jobs.GroupBy(j => j.SourceJobId).Select(g => g.Last())];
+        var (postings, present) = ListedPostings(board, listing);
 
         var storedHashes = await _store.StoredHashesAsync(board.Key, ct);
+        bool IsNew(string id) => !storedHashes.ContainsKey(id);
+
+        // The pre-read filter, in two stages (docs/plans/two-stage-prefilter.md).
+        // Only NEW postings are ever filtered: a stored one was already paid
+        // for, and dropping it would stop its presence touch and leave it to
+        // the close diff. A skipped posting is not stored, so it is neither
+        // touched nor closed below -- and the next run sees it as new and asks
+        // again. Skips apply only when Greenhouse:Prefilter is On; Log decides
+        // and logs at both stages and skips nothing, not even a detail request.
+        var rules = await PrefilterRulesAsync(board, ct);
+
+        // Stage 1, on the listing's own data: what it skips costs no detail
+        // request. A rule with nothing to go on passes -- no date is read, a
+        // location that resolves to nothing is read.
+        var listingSkips = Decide(rules, postings.Where(p => IsNew(p.SourceJobId)));
+        var skippedAtListing = Applied(listingSkips);
+        var toRead = skippedAtListing.Count > 0
+            ? [.. postings.Where(p => !skippedAtListing.Contains(p.SourceJobId))]
+            : postings;
+
+        var jobs = await ReadDetailsAsync(board, source, toRead, ct);
+
+        // Stage 2, the same rule on the detail's data: the exact date, the full
+        // location list. Only what stage 1 KEPT -- so Log mode never decides,
+        // or counts, one posting twice. For Greenhouse the detail is the
+        // listing and this decides exactly what stage 1 did.
+        var decidedAtListing = listingSkips.Select(x => x.Posting.SourceJobId).ToHashSet(StringComparer.Ordinal);
+        var detailSkips = Decide(rules, jobs
+            .Where(j => IsNew(j.SourceJobId) && !decidedAtListing.Contains(j.SourceJobId))
+            .Select(j => j.Source.Listed));
+        var skippedAtDetail = Applied(detailSkips);
+        if (skippedAtDetail.Count > 0)
+            jobs = [.. jobs.Where(j => !skippedAtDetail.Contains(j.SourceJobId))];
+
+        var prefiltered = skippedAtListing.Count + skippedAtDetail.Count;
+        await ReportPrefilterAsync(board, rules, postings, storedHashes, listingSkips, detailSkips, ct);
 
         var changed = new List<GreenhouseJob>();
         var unchanged = new List<string>();
@@ -157,17 +188,9 @@ public sealed class BoardHandler
                 changed.Add(job);
         }
 
-        // The pre-read filter: new postings nobody here could want are not paid
-        // for. Empty unless Greenhouse:Prefilter is On. A skipped posting is not
-        // stored, so it is neither touched nor closed below -- and the next run
-        // sees it as new and asks again.
-        var prefiltered = await PrefilterAsync(board, jobs, storedHashes, ct);
-        if (prefiltered.Count > 0)
-            changed = [.. changed.Where(j => !prefiltered.Contains(j.SourceJobId))];
-
         _log.LogInformation(
             "Board {Board}: {Total} job(s) -- {Changed} to embed, {Unchanged} unchanged, {Prefiltered} prefiltered",
-            board.Token, jobs.Count, changed.Count, unchanged.Count, prefiltered.Count);
+            board.Token, postings.Count, changed.Count, unchanged.Count, prefiltered);
 
         var embedded = 0;
         var tokens = 0;
@@ -264,28 +287,29 @@ public sealed class BoardHandler
                 + "closing nothing this run",
                 board.Token, source.Name, listing.Postings.Count, listing.Total?.ToString() ?? "not given");
 
-        return new CompanyResult(present.Count, unchanged.Count, embedded, closed, tokens, prefiltered.Count);
+        return new CompanyResult(present.Count, unchanged.Count, embedded, closed, tokens, prefiltered);
     }
 
     /// <summary>
-    /// The listing, turned into the jobs this run works on.
+    /// The listing's postings this run works on, and every listed id.
     /// </summary>
     /// <returns>
-    /// The jobs read in full, and every listed id. The second is what the close
-    /// diff sees, so a posting whose detail failed stays open.
+    /// The postings, one per id, and every listed id -- the second is what the
+    /// close diff sees, so a posting skipped or unread this run stays open.
     /// </returns>
     /// <remarks>
     /// The board's own id is stored as it is, whatever its shape. Only a blank
     /// one is dropped, with a warning: it cannot be keyed, as the board client
-    /// already drops a Greenhouse job with no id.
+    /// already drops a Greenhouse job with no id. Two postings with one id in a
+    /// response cannot both be upserted -- an unordered bulk write of two
+    /// upserts on one unique key races itself -- so the last one wins, here,
+    /// deterministically.
     /// </remarks>
-    private async Task<(List<GreenhouseJob> Jobs, List<string> Present)> ReadPostingsAsync(
-        BoardConfig board, IJobSource source, Listing listing, CancellationToken ct)
+    private (List<ListedPosting> Postings, List<string> Present) ListedPostings(BoardConfig board, Listing listing)
     {
-        var jobs = new List<GreenhouseJob>(listing.Postings.Count);
-        var present = new HashSet<string>(StringComparer.Ordinal);
+        var byId = new Dictionary<string, ListedPosting>(StringComparer.Ordinal);
+        var order = new List<string>();
         var badIds = 0;
-        var unread = 0;
 
         foreach (var posting in listing.Postings)
         {
@@ -294,47 +318,65 @@ public sealed class BoardHandler
                 badIds++;
                 continue;
             }
-            present.Add(posting.SourceJobId);
+            if (!byId.ContainsKey(posting.SourceJobId)) order.Add(posting.SourceJobId);
+            byId[posting.SourceJobId] = posting;
+        }
 
+        if (badIds > 0)
+            _log.LogWarning("Board {Board}: dropped {Count} posting(s) with no id", board.Token, badIds);
+
+        return ([.. order.Select(id => byId[id])], order);
+    }
+
+    /// <summary>The postings read in full, ready to hash, embed and store.</summary>
+    /// <remarks>
+    /// A posting whose detail could not be read is skipped this run and retried
+    /// next run; it is still in the listing, so the close diff leaves it open.
+    /// Sequential: detail requests arrive with the first source that needs
+    /// them, and so does their concurrency and politeness (docs/plans/multi-source-ingest.md).
+    /// </remarks>
+    private async Task<List<GreenhouseJob>> ReadDetailsAsync(
+        BoardConfig board, IJobSource source, IReadOnlyList<ListedPosting> postings, CancellationToken ct)
+    {
+        var jobs = new List<GreenhouseJob>(postings.Count);
+        var unread = 0;
+
+        foreach (var posting in postings)
+        {
             var detail = posting.Detail ?? await source.DetailAsync(board, posting, ct);
             if (detail is null)
             {
                 unread++;
                 continue;
             }
-
             jobs.Add(GreenhouseJob.From(source.Name, board.Token, detail));
         }
 
-        if (badIds > 0)
-            _log.LogWarning("Board {Board}: dropped {Count} posting(s) with no id", board.Token, badIds);
         if (unread > 0)
             _log.LogWarning(
                 "Board {Board}: {Count} posting(s) could not be read in full; skipped this run and left open",
                 board.Token, unread);
 
-        return (jobs, [.. present]);
+        return jobs;
     }
 
     /// <summary>How many example titles a prefilter log line carries.</summary>
     private const int PrefilterExamples = 8;
 
-    /// <summary>
-    /// Decide which NEW postings are not worth reading, log it, and check the
-    /// rule against the labels Claude already put on stored postings.
-    /// </summary>
-    /// <returns>The ids to leave out -- always empty unless the mode is On.</returns>
+    /// <summary>What the filter decides with, read once per board run for both stages.</summary>
+    private sealed record PrefilterRules(
+        ServedPlaces Served, IReadOnlyCollection<string>? Accepted, IReadOnlyList<string> Wanted, int Learned);
+
+    private sealed record PrefilterDecision(ListedPosting Posting, PrefilterSkip Skip);
+
+    /// <summary>The rules for this run, or null when the filter is off or could not decide.</summary>
     /// <remarks>
-    /// Only postings with no stored row are ever candidates. A stored posting
-    /// was already paid for, and dropping it from the run would stop its
-    /// presence touch and leave it for the close diff. Never throws: a filter
-    /// that cannot decide reads everything, which is where it started.
+    /// Never throws: a filter that cannot decide reads everything, which is
+    /// where it started.
     /// </remarks>
-    private async Task<HashSet<string>> PrefilterAsync(
-        BoardConfig board, IReadOnlyList<GreenhouseJob> jobs, IReadOnlyDictionary<string, string> stored,
-        CancellationToken ct)
+    private async Task<PrefilterRules?> PrefilterRulesAsync(BoardConfig board, CancellationToken ct)
     {
-        if (_prefilter == PrefilterMode.Off) return [];
+        if (_prefilter == PrefilterMode.Off) return null;
 
         try
         {
@@ -348,39 +390,70 @@ public sealed class BoardHandler
             // No recorded demand constrains nothing: reading everything is the
             // state before this filter existed, never a worse one.
             var accepted = wanted.Count > 0 ? Prefilter.Accepted(wanted) : null;
-
-            var fresh = jobs.Where(j => !stored.ContainsKey(j.SourceJobId)).ToList();
-            var skips = fresh
-                .Select(j => (Job: j, Skip: Prefilter.Decide(j.Source.Listed, served, accepted)))
-                .Where(x => x.Skip is not null)
-                .ToList();
-
-            if (fresh.Count > 0)
-                _log.LogInformation(
-                    "Board {Board}: pre-read filter ({Mode}) -- {Skipped} of {New} new posting(s) {Verb}: "
-                    + "{ByAge} older than {MaxAge} days, "
-                    + "{ByLocation} outside served locations ({Configured} configured + {Learned} from profiles), "
-                    + "{ByFunction} a function nobody wants (wanted: {Wanted}). E.g. {Examples}",
-                    board.Token, _prefilter, skips.Count, fresh.Count,
-                    _prefilter == PrefilterMode.On ? "skipped" : "would be skipped",
-                    skips.Count(x => x.Skip!.Reason == PrefilterSkip.Age), PoolBrowseQuery.MaxAgeDays,
-                    skips.Count(x => x.Skip!.Reason == PrefilterSkip.Location),
-                    _config.ServedLocations.Count, learned.Count,
-                    skips.Count(x => x.Skip!.Reason == PrefilterSkip.Function),
-                    wanted.Count > 0 ? string.Join(", ", wanted) : "none recorded, so no function filtering",
-                    string.Join(" | ", skips.Take(PrefilterExamples)
-                        .Select(x => $"{x.Job.Source.Listed.Title} [{x.Skip!.Reason}: {x.Skip.Detail}]")));
-
-            await CheckGuessesAsync(board, jobs, stored, accepted, served, ct);
-
-            return _prefilter == PrefilterMode.On
-                ? [.. skips.Select(x => x.Job.SourceJobId)]
-                : [];
+            return new PrefilterRules(served, accepted, wanted, learned.Count);
         }
         catch (Exception e) when (e is not OperationCanceledException)
         {
             _log.LogError(e, "Board {Board}: the pre-read filter failed; reading every posting", board.Token);
-            return [];
+            return null;
+        }
+    }
+
+    /// <summary>The postings this rule would skip, with why. Empty with no rules.</summary>
+    private static List<PrefilterDecision> Decide(PrefilterRules? rules, IEnumerable<ListedPosting> fresh) =>
+        rules is null
+            ? []
+            : [.. fresh
+                .Select(p => (Posting: p, Skip: Prefilter.Decide(p, rules.Served, rules.Accepted)))
+                .Where(x => x.Skip is not null)
+                .Select(x => new PrefilterDecision(x.Posting, x.Skip!))];
+
+    /// <summary>The ids actually skipped -- always empty unless the mode is On.</summary>
+    private HashSet<string> Applied(List<PrefilterDecision> decisions) =>
+        _prefilter == PrefilterMode.On
+            ? decisions.Select(d => d.Posting.SourceJobId).ToHashSet(StringComparer.Ordinal)
+            : [];
+
+    /// <summary>
+    /// One log line for both stages, then the checks of the rule against the
+    /// labels Claude already put on stored postings.
+    /// </summary>
+    /// <remarks>Never throws: the checks are measurement, not part of the run.</remarks>
+    private async Task ReportPrefilterAsync(
+        BoardConfig board, PrefilterRules? rules, IReadOnlyList<ListedPosting> postings,
+        IReadOnlyDictionary<string, string> stored, List<PrefilterDecision> atListing,
+        List<PrefilterDecision> atDetail, CancellationToken ct)
+    {
+        if (rules is null) return;
+
+        try
+        {
+            var fresh = postings.Count(p => !stored.ContainsKey(p.SourceJobId));
+            List<PrefilterDecision> skips = [.. atListing, .. atDetail];
+
+            if (fresh > 0)
+                _log.LogInformation(
+                    "Board {Board}: pre-read filter ({Mode}) -- {Skipped} of {New} new posting(s) {Verb} "
+                    + "({AtListing} from the listing, {AtDetail} after the detail): "
+                    + "{ByAge} older than {MaxAge} days, "
+                    + "{ByLocation} outside served locations ({Configured} configured + {Learned} from profiles), "
+                    + "{ByFunction} a function nobody wants (wanted: {Wanted}). E.g. {Examples}",
+                    board.Token, _prefilter, skips.Count, fresh,
+                    _prefilter == PrefilterMode.On ? "skipped" : "would be skipped",
+                    atListing.Count, atDetail.Count,
+                    skips.Count(x => x.Skip.Reason == PrefilterSkip.Age), PoolBrowseQuery.MaxAgeDays,
+                    skips.Count(x => x.Skip.Reason == PrefilterSkip.Location),
+                    _config.ServedLocations.Count, rules.Learned,
+                    skips.Count(x => x.Skip.Reason == PrefilterSkip.Function),
+                    rules.Wanted.Count > 0 ? string.Join(", ", rules.Wanted) : "none recorded, so no function filtering",
+                    string.Join(" | ", skips.Take(PrefilterExamples)
+                        .Select(x => $"{x.Posting.Title} [{x.Skip.Reason}: {x.Skip.Detail}]")));
+
+            await CheckGuessesAsync(board, postings, stored, rules.Accepted, rules.Served, ct);
+        }
+        catch (Exception e) when (e is not OperationCanceledException)
+        {
+            _log.LogError(e, "Board {Board}: the pre-read filter checks failed", board.Token);
         }
     }
 
@@ -394,14 +467,14 @@ public sealed class BoardHandler
     /// the function check.
     /// </remarks>
     private void CheckLocations(
-        BoardConfig board, IReadOnlyList<GreenhouseJob> storedJobs,
+        BoardConfig board, IReadOnlyList<ListedPosting> storedJobs,
         IReadOnlyDictionary<string, StoredFacts> facts, ServedPlaces served)
     {
         if (served.IsEmpty) return;
 
         var skipped = storedJobs
             .Select(j => (Job: j, Elsewhere: Prefilter.LocationSkip(
-                new[] { j.Source.Listed.Location }.Concat(j.Source.Listed.Offices), served)))
+                new[] { j.Location }.Concat(j.Offices), served)))
             .Where(x => x.Elsewhere is not null)
             .ToList();
 
@@ -419,7 +492,7 @@ public sealed class BoardHandler
             + "those placed somewhere served (would hide). Would hide: {Examples}",
             board.Token, skipped.Count, storedJobs.Count, labelled.Count, wouldHide.Count,
             string.Join(" | ", wouldHide.Take(PrefilterExamples).Select(x =>
-                $"{x.Job.Source.Listed.Title} [board: {x.Job.Source.Listed.Location}, Claude: {x.Claude}]")));
+                $"{x.Job.Title} [board: {x.Job.Location}, Claude: {x.Claude}]")));
     }
 
     /// <summary>
@@ -434,7 +507,7 @@ public sealed class BoardHandler
     /// before Greenhouse:Prefilter goes to On.
     /// </remarks>
     private async Task CheckGuessesAsync(
-        BoardConfig board, IReadOnlyList<GreenhouseJob> jobs, IReadOnlyDictionary<string, string> stored,
+        BoardConfig board, IReadOnlyList<ListedPosting> jobs, IReadOnlyDictionary<string, string> stored,
         IReadOnlyCollection<string>? accepted, ServedPlaces served, CancellationToken ct)
     {
         var storedJobs = jobs.Where(j => stored.ContainsKey(j.SourceJobId)).ToList();
@@ -447,12 +520,12 @@ public sealed class BoardHandler
 
         var guessed = storedJobs
             .Select(j => (Job: j, Guess: Prefilter.GuessFunction(
-                j.Source.Listed.Title, j.Source.Listed.Departments)))
+                j.Title, j.Departments)))
             .Where(x => x.Guess is not null)
             .ToList();
         if (guessed.Count == 0) return;
 
-        string[] LabelOf(GreenhouseJob j) => facts.GetValueOrDefault(j.SourceJobId)?.Functions ?? [];
+        string[] LabelOf(ListedPosting j) => facts.GetValueOrDefault(j.SourceJobId)?.Functions ?? [];
 
         var labelled = guessed.Where(x => LabelOf(x.Job).Length > 0).ToList();
         var wrong = labelled.Where(x => !LabelOf(x.Job).Contains(x.Guess!)).ToList();
@@ -468,7 +541,7 @@ public sealed class BoardHandler
             board.Token, guessed.Count, labelled.Count, labelled.Count - wrong.Count, wrong.Count,
             wouldHide?.ToString() ?? "n/a (no demand recorded)",
             string.Join(" | ", wrong.Take(PrefilterExamples).Select(x =>
-                $"{x.Job.Source.Listed.Title} [guessed {x.Guess}, labelled {string.Join("+", LabelOf(x.Job))}]")));
+                $"{x.Job.Title} [guessed {x.Guess}, labelled {string.Join("+", LabelOf(x.Job))}]")));
     }
 
     /// <summary>

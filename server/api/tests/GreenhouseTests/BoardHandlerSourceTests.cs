@@ -16,14 +16,15 @@ public class BoardHandlerSourceTests
 
     private sealed class FakeSource(Listing listing, Func<ListedPosting, SourcePosting?> detail) : IJobSource
     {
-        public int DetailCalls { get; private set; }
+        public int DetailCalls => DetailFor.Count;
+        public List<string> DetailFor { get; } = [];
         public string Name => "fake";
 
         public Task<Listing> ListAsync(BoardConfig board, CancellationToken ct) => Task.FromResult(listing);
 
         public Task<SourcePosting?> DetailAsync(BoardConfig board, ListedPosting posting, CancellationToken ct)
         {
-            DetailCalls++;
+            DetailFor.Add(posting.SourceJobId);
             return Task.FromResult(detail(posting));
         }
     }
@@ -134,5 +135,129 @@ public class BoardHandlerSourceTests
         await Handler(source, store).HandleBoardAsync(Board);
 
         Assert.Equal([$"fake:{Build.Token}"], store.BoardsSeen);
+    }
+
+    // ---- the two-stage pre-read filter (docs/plans/two-stage-prefilter.md) -------
+
+    private static readonly DateTime LongAgo = DateTime.UtcNow.AddDays(-200);
+
+    private static ListedPosting At(string id, string location) => Listed(id) with { Location = location };
+
+    private static BoardHandler Filtering(IJobSource source, FakeJobStore store, PrefilterMode mode = PrefilterMode.On) =>
+        new([source], new FakeEmbeddingClient(), store,
+            BoardsConfig.Parse($$"""{ "companies": ["{{Build.Token}}"], "served_locations": ["Tel Aviv"] }"""),
+            NullLogger<BoardHandler>.Instance, prefilter: mode);
+
+    [Fact]
+    public async Task A_posting_the_listing_rules_out_gets_no_detail_request()
+    {
+        var store = new FakeJobStore();
+        var source = new FakeSource(
+            new Listing([At("1", "Tokyo, Japan"), At("2", "Tel Aviv")], Complete: true, Total: 2), Full);
+
+        var result = await Filtering(source, store).HandleBoardAsync(Board);
+
+        Assert.Equal(["2"], source.DetailFor);                 // never asked for "1"
+        Assert.Equal(["2"], store.Hashes.Keys);
+        Assert.Equal(1, result.Prefiltered);
+        Assert.Contains("1", store.LastCloseSeenIds!);         // still listed: nothing to close
+    }
+
+    [Fact]
+    public async Task A_posting_the_detail_dates_too_old_is_read_then_skipped_before_any_cost()
+    {
+        // Workday's listing says only "Posted 30+ Days Ago": no date, so stage 1
+        // reads it. The detail has the exact date, and stage 2 applies the rule.
+        var store = new FakeJobStore();
+        var embeddings = new FakeEmbeddingClient();
+        var source = new FakeSource(
+            new Listing([Listed("1")], Complete: true, Total: 1),
+            p => Full(p with { PostedAt = LongAgo }));
+
+        var result = await new BoardHandler([source], embeddings, store,
+                BoardsConfig.Parse($$"""{ "companies": ["{{Build.Token}}"], "served_locations": ["Tel Aviv"] }"""),
+                NullLogger<BoardHandler>.Instance, prefilter: PrefilterMode.On)
+            .HandleBoardAsync(Board);
+
+        Assert.Equal(["1"], source.DetailFor);
+        Assert.Empty(store.Hashes);
+        Assert.Empty(embeddings.Batches);
+        Assert.Equal(1, result.Prefiltered);
+    }
+
+    [Fact]
+    public async Task Stage_two_applies_the_whole_rule_not_only_the_age()
+    {
+        // "3 Locations" resolves to nothing, so the listing cannot rule it out;
+        // the detail names the places, and none of them is served.
+        var store = new FakeJobStore();
+        var source = new FakeSource(
+            new Listing([At("1", "3 Locations")], Complete: true, Total: 1),
+            p => Full(p with { Location = "Tokyo, Japan" }));
+
+        var result = await Filtering(source, store).HandleBoardAsync(Board);
+
+        Assert.Equal(["1"], source.DetailFor);
+        Assert.Empty(store.Hashes);
+        Assert.Equal(1, result.Prefiltered);
+    }
+
+    [Fact]
+    public async Task Log_mode_requests_every_detail_and_skips_nothing()
+    {
+        var store = new FakeJobStore();
+        var source = new FakeSource(
+            new Listing([At("1", "Tokyo, Japan"), At("2", "Tel Aviv")], Complete: true, Total: 2), Full);
+
+        var result = await Filtering(source, store, PrefilterMode.Log).HandleBoardAsync(Board);
+
+        Assert.Equal(["1", "2"], source.DetailFor);
+        Assert.Equal(["1", "2"], store.Hashes.Keys.Order());
+        Assert.Equal(0, result.Prefiltered);
+    }
+
+    [Fact]
+    public async Task A_stored_posting_is_never_filtered_at_either_stage()
+    {
+        // Already paid for; skipping it would stop its touch and leave it to the close diff.
+        var store = new FakeJobStore();
+        store.Hashes["1"] = "stored-before";
+        var source = new FakeSource(
+            new Listing([At("1", "Tokyo, Japan")], Complete: true, Total: 1),
+            p => Full(p with { PostedAt = LongAgo }));
+
+        var result = await Filtering(source, store).HandleBoardAsync(Board);
+
+        Assert.Equal(["1"], source.DetailFor);
+        Assert.NotEqual("stored-before", store.Hashes["1"]);   // read and re-stored, not skipped
+        Assert.Equal(0, result.Prefiltered);
+    }
+
+    private sealed class Lines : Microsoft.Extensions.Logging.ILogger<BoardHandler>
+    {
+        public List<string> All { get; } = [];
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(Microsoft.Extensions.Logging.LogLevel level) => true;
+        public void Log<TState>(Microsoft.Extensions.Logging.LogLevel level, Microsoft.Extensions.Logging.EventId id,
+            TState state, Exception? e, Func<TState, Exception?, string> format) => All.Add(format(state, e));
+    }
+
+    [Fact]
+    public async Task Log_mode_counts_each_posting_at_one_stage_only()
+    {
+        // In Log mode nothing is skipped, so a posting the listing rules out is
+        // still read in full. Stage 2 must not decide it again, or the line the
+        // filter is judged by before it goes On would count it twice.
+        var log = new Lines();
+        var source = new FakeSource(
+            new Listing([At("1", "Tokyo, Japan"), At("2", "Tel Aviv")], Complete: true, Total: 2), Full);
+
+        await new BoardHandler([source], new FakeEmbeddingClient(), new FakeJobStore(),
+                BoardsConfig.Parse($$"""{ "companies": ["{{Build.Token}}"], "served_locations": ["Tel Aviv"] }"""),
+                log, prefilter: PrefilterMode.Log)
+            .HandleBoardAsync(Board);
+
+        var line = Assert.Single(log.All, l => l.Contains("pre-read filter (Log)"));
+        Assert.Contains("1 of 2 new posting(s) would be skipped (1 from the listing, 0 after the detail)", line);
     }
 }

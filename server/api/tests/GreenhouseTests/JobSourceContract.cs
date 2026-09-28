@@ -26,7 +26,8 @@ public sealed record ExpectedPosting(string Id, string Title, DateTime? PostedAt
 /// </remarks>
 public abstract class JobSourceContract
 {
-    protected const string Board = "contract-board";
+    /// <summary>The board every call is made for. Sources read only what they need from it.</summary>
+    protected static readonly BoardConfig Board = new() { Source = "contract", Token = "contract-board" };
 
     /// <summary>A source over a healthy board holding exactly <see cref="Expected"/>.</summary>
     protected abstract IJobSource Healthy();
@@ -125,7 +126,7 @@ public abstract class JobSourceContract
             Assert.Equal(posting.SourceJobId, detail.Listed.SourceJobId);
 
             // Through the shared cleaner, exactly as the handler stores it.
-            var cleaned = GreenhouseJob.From("contract", Board, detail).CleanedContent;
+            var cleaned = GreenhouseJob.From("contract", Board.Token, detail).CleanedContent;
             var expected = Expected.Single(e => e.Id == posting.SourceJobId);
 
             Assert.Contains(expected.Text, cleaned);

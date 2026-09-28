@@ -3,15 +3,29 @@ using RabbitMQ.Client;
 
 namespace ApplicationTracker.Greenhouse;
 
-/// <summary>One company to handle. The entire message.</summary>
+/// <summary>One board to handle. The entire message.</summary>
 /// <remarks>
-/// A board token and enough to attribute the work, nothing more. The consumer
-/// re-fetches the board itself, so a message that sits in the queue for an hour
-/// is not stale -- it never carried any board data to go stale.
+/// A board key and enough to attribute the work, nothing more. The consumer
+/// looks the board up in its own config and re-fetches it, so a message that
+/// sits in the queue for an hour is not stale -- it never carried any board
+/// data to go stale.
 /// </remarks>
 public sealed record CompanyMessage
 {
-    [JsonPropertyName("boardToken")] public required string BoardToken { get; init; }
+    /// <summary><c>source:token</c>. Absent on messages published before boards had sources.</summary>
+    [JsonPropertyName("boardKey")] public string? BoardKey { get; init; }
+
+    /// <summary>
+    /// The plain token. Still written until 2c (docs/plans/key-migration.md) so
+    /// the step stays reversible by code; read only for a message without a key.
+    /// </summary>
+    [JsonPropertyName("boardToken")] public string? BoardToken { get; init; }
+
+    /// <summary>The board this message is for: its key, or a Greenhouse token from before keys.</summary>
+    [JsonIgnore]
+    public string? Key => !string.IsNullOrWhiteSpace(BoardKey) ? BoardKey
+        : !string.IsNullOrWhiteSpace(BoardToken) ? GreenhouseJob.KeyFor(GreenhouseSource.SourceName, BoardToken)
+        : null;
 
     /// <summary>The ledger day this dispatch belongs to, so the consumer resolves the right row.</summary>
     [JsonPropertyName("day")] public required string Day { get; init; }

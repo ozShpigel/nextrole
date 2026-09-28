@@ -74,7 +74,7 @@ public class IngestAiBackfillTests
         await Build.Handler(
                 new StubHandler().EnqueueJson(HttpStatusCode.OK, Build.BoardJson()),
                 new FakeEmbeddingClient(), store, ai: Client(api))
-            .HandleCompanyAsync(Build.Token);
+            .HandleBoardAsync(Build.Board);
 
         Assert.Equal(2, api.Calls);
         Assert.Contains("/api/match/job-facts", api.RequestUris[0]);
@@ -100,7 +100,7 @@ public class IngestAiBackfillTests
         await Build.Handler(
                 new StubHandler().EnqueueJson(HttpStatusCode.OK, Build.BoardJson()),
                 embedder, store, ai: Client(api))
-            .HandleCompanyAsync(Build.Token);
+            .HandleBoardAsync(Build.Board);
 
         Assert.Empty(store.UpsertBatchSizes);
         Assert.Empty(store.Vectors);
@@ -116,7 +116,7 @@ public class IngestAiBackfillTests
         await Build.Handler(
                 new StubHandler().EnqueueJson(HttpStatusCode.OK, Build.BoardJson()),
                 new FakeEmbeddingClient(), store, ai: Client(new StubHandler()))
-            .HandleCompanyAsync(Build.Token);
+            .HandleBoardAsync(Build.Board);
 
         Assert.Equal(1, store.NeedingAiCalls);
         Assert.Empty(store.SavedAiFor);
@@ -133,7 +133,7 @@ public class IngestAiBackfillTests
         await Build.Handler(
                 new StubHandler().EnqueueJson(HttpStatusCode.OK, Build.BoardJson()),
                 new FakeEmbeddingClient(), store, ai: Client(new StubHandler()))
-            .HandleCompanyAsync(Build.Token);
+            .HandleBoardAsync(Build.Board);
 
         Assert.Equal(BoardHandler.BackfillBatchSize, store.LastNeedingAiLimit);
     }
@@ -150,7 +150,7 @@ public class IngestAiBackfillTests
         await Build.Handler(
                 new StubHandler().EnqueueJson(HttpStatusCode.OK, Build.BoardJson()),
                 new FakeEmbeddingClient(), store, ai: null)
-            .HandleCompanyAsync(Build.Token);
+            .HandleBoardAsync(Build.Board);
 
         Assert.Equal(0, store.NeedingAiCalls);
         Assert.Empty(store.SavedAiFor);
@@ -172,7 +172,7 @@ public class IngestAiBackfillTests
         var result = await Build.Handler(
                 new StubHandler().EnqueueJson(HttpStatusCode.OK, Build.BoardJson()),
                 new FakeEmbeddingClient(), store, ai: Client(api))
-            .HandleCompanyAsync(Build.Token);
+            .HandleBoardAsync(Build.Board);
 
         Assert.NotNull(result);
         Assert.Empty(store.SavedAiFor);

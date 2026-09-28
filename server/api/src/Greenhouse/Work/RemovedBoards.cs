@@ -3,7 +3,7 @@ using Microsoft.Extensions.Logging;
 namespace ApplicationTracker.Greenhouse;
 
 /// <summary>What the publish does about boards that are no longer configured.</summary>
-/// <param name="Removed">Boards with open postings that companies.json no longer lists.</param>
+/// <param name="Removed">Board keys with open postings that boards.json no longer lists.</param>
 /// <param name="RemovedOpen">Their open postings.</param>
 /// <param name="TotalOpen">Open postings across every board.</param>
 /// <param name="Close">Whether to close them now.</param>
@@ -11,7 +11,8 @@ public sealed record RemovedBoardsPlan(
     IReadOnlyList<string> Removed, long RemovedOpen, long TotalOpen, bool Close);
 
 /// <summary>
-/// Closes the postings of a board removed from companies.json.
+/// Closes the postings of a board removed from boards.json. Compared by board
+/// key, so a board on one source is never "removed" by another source's list.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -67,17 +68,17 @@ public sealed class RemovedBoards(IJobStore store, ILogger<RemovedBoards> log)
         if (!plan.Close)
         {
             log.LogError(
-                "Not closing {Boards}: {RemovedOpen} of {TotalOpen} open postings belong to boards companies.json "
-                + "no longer lists -- more than {Share:P0} at once, which looks like the wrong companies file rather "
+                "Not closing {Boards}: {RemovedOpen} of {TotalOpen} open postings belong to boards boards.json "
+                + "no longer lists -- more than {Share:P0} at once, which looks like the wrong boards file rather "
                 + "than a removal. If it is a removal, close them by hand: db.greenhouse_jobs.updateMany("
-                + "{{boardToken: {{$in: [...]}}, closedAt: null}}, {{$set: {{closedAt: new Date()}}}})",
+                + "{{boardKey: {{$in: [...]}}, closedAt: null}}, {{$set: {{closedAt: new Date()}}}})",
                 string.Join(", ", plan.Removed), plan.RemovedOpen, plan.TotalOpen, MaxShareClosedAtOnce);
             return 0;
         }
 
         var closed = await store.CloseBoardsAsync(plan.Removed, now, ct);
         log.LogInformation(
-            "Closed {Closed} open posting(s) of {Boards}: no longer in companies.json. Re-adding a board reopens "
+            "Closed {Closed} open posting(s) of {Boards}: no longer in boards.json. Re-adding a board reopens "
             + "what is still on it, without re-reading unchanged postings",
             closed, string.Join(", ", plan.Removed));
         return closed;

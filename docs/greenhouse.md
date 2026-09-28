@@ -83,8 +83,8 @@ calls it, never the reverse, and the tests drive it by calling the method.
 ### Company logos
 
 The boards API returns no logo, and a board token is a Greenhouse slug, not a
-domain, so the domain is configured per company in `companies.json`
-(`company_domains`). The ingest resolves `logo_url_template` (default: Google's
+domain, so the domain is configured per board in `boards.json`
+(each board's `domain`). The ingest resolves `logo_url_template` (default: Google's
 keyless favicon service, `sz=128`) and writes the URL to `company_logo` — the
 pool's field name, so every surface that shows a logo reads it unchanged.
 
@@ -185,7 +185,7 @@ what the board returns for free:
   (26%) were older than four months -- 92 of them Nebius -- and every posting
   had a date.
 - **Location.** A new posting whose board location and offices name no served
-  location is skipped. Served = `served_locations` (`companies.json`) **plus**
+  location is skipped. Served = `served_locations` (`boards.json`) **plus**
   every user's own location terms from `pool_locations`: a profile's "Tel Aviv,
   Israel" serves `tel aviv` and `israel` from the next run, with no config edit
   and no deploy. City *and* country, because a board names either and spellings
@@ -337,10 +337,10 @@ docker run --rm --env-file .env.api -v "$PWD/fill-pool-demand.js:/fill.js:ro" mo
 Its location split mirrors `PoolDemand.LocationTermsOf`; change both together,
 or the next profile save corrects the difference.
 
-### A board removed from companies.json is closed
+### A board removed from boards.json is closed
 
 Postings close through the close diff of a board that was fetched. A board
-removed from `companies.json` is never fetched again, so its postings used to
+removed from `boards.json` is never fetched again, so its postings used to
 stay open forever -- retrieved, shown and scored while the links died. The
 publish now closes them first (`RemovedBoards`, before the fan-out): every open
 posting whose `boardToken` is no longer listed gets `closedAt`. Nothing is
@@ -354,7 +354,7 @@ not interfere: closed postings still count as stored.
 
 **The guard is against the wrong file, not a wrong token.** A typo closes one
 board, recoverably, and its fetch then fails loudly. The costly accident is the
-whole list being wrong -- the box started with `companies.dev.json` (one board)
+whole list being wrong -- the box started with `boards.dev.json` (one board)
 -- so a removal holding more than half of all open postings is refused and
 logged, with the manual `updateMany` in the message. Verified on a copy of the
 local data: removing monzo closed its 66, a one-board list was refused, and
@@ -394,8 +394,12 @@ have to be right about it.
 
 ### `greenhouse_runs`
 
-One row per company per day. The **publisher** writes it `pending` *before*
-publishing; the **consumer** resolves it to `done` or `failed` with the error.
+One row per board per day, keyed `(day, boardKey)`. The **publisher** writes it
+`pending` *before* publishing; the **consumer** resolves it to `done` or `failed`
+with the error -- including a board removed from `boards.json` between publish
+and consume, which is acknowledged rather than retried. Rows written before board
+keys are keyed on startup, and a row an older process writes mid-deploy is
+matched by its token and keyed, never duplicated (docs/plans/board-config.md).
 
 That order is the point. A row written first and a publish that then fails
 leaves a visible pending row, which is correct — the company genuinely was not
@@ -532,7 +536,7 @@ filters at read time, so switching the flag off brings them back.
 
 `GreenhouseEmbeddingOptions` (`Greenhouse:Embedding`) is bound by **both** the
 API and the ingest. Model and dimensions are deliberately **not** in
-`config/companies.json`, which ships inside the ingestion image and which the API
+`config/boards.json`, which ships inside the ingestion image and which the API
 cannot read.
 
 If the two ever disagreed, nothing would error. A stored 1024-vector queried
@@ -645,17 +649,18 @@ while the run itself was fine.
 through the Message Batches API — see above.
 
 `Greenhouse__Prefilter` (consumer, `off` | `log` | `on`, default `log`),
-`served_locations` in `companies.json`, and the learned `pool_functions` /
+`served_locations` in `boards.json`, and the learned `pool_functions` /
 `pool_locations` drive the pre-read filter — see above. An
 unknown value is fatal: guessing `on` would skip postings unmeasured.
 
-`server/api/src/Greenhouse/config/companies.json` — board tokens, each
-company's domain for its logo, and batch limits. Loaded like `roles.json` and **fatal** on a missing
+`server/api/src/Greenhouse/config/boards.json` — the boards, each
+`{ source, token, domain }`, and batch limits (the shape: docs/plans/board-config.md;
+the file was `boards.json`, a list of Greenhouse tokens, whose shape still loads). Loaded like `roles.json` and **fatal** on a missing
 file or an empty list: a run against a silently-defaulted list still ingests
 jobs, they are simply the wrong company's.
 
 **No board token appears in code or in any test.** Tests build a config in
-memory via `CompaniesConfig.ForTesting`. Going from one company to fifty is an
+memory via `BoardsConfig.ForTesting`. Going from one company to fifty is an
 edit to that file and nothing else.
 
 ## Deploying it the first time
@@ -762,7 +767,7 @@ docker compose up -d greenhouse-consumer
 ```
 
 **Locally, one board.** The root `docker-compose.yml` sets
-`Companies__ConfigPath=config/companies.dev.json` for both services — `similarweb`
+`Boards__ConfigPath=config/boards.dev.json` for both services — `similarweb`
 only, 66 postings measured 2026-09-23. Every new posting costs a facts read and an
 Analyst parse (~712 output tokens measured), roughly half a cent each: about **$0.45
 for a full run live, ~$0.25 with `Greenhouse__UseBatchApi`**. The real list is one
@@ -770,10 +775,10 @@ variable away, deliberately not the default — a day of local runs over every b
 cost $6.25:
 
 ```bash
-GREENHOUSE_COMPANIES_CONFIG=config/companies.json docker compose --profile cron run --rm greenhouse publish
+GREENHOUSE_BOARDS_CONFIG=config/boards.json docker compose --profile cron run --rm greenhouse publish
 ```
 
-Outside Docker, set `Companies__ConfigPath=config/companies.dev.json` yourself. Never
+Outside Docker, set `Boards__ConfigPath=config/boards.dev.json` yourself. Never
 shrink a board by capping postings: the close diff would close everything beyond
 the cap.
 

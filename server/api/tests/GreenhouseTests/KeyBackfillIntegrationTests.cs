@@ -229,6 +229,25 @@ public sealed class KeyBackfillIntegrationTests : IAsyncLifetime
     }
 
     [SkippableFact]
+    public async Task Removed_boards_are_counted_and_closed_by_board_key()
+    {
+        // Phase 3: the removed-boards check compares board keys, so the store
+        // must group and close by them.
+        Skip.If(Uri is null, SkipReason);
+        await _jobs.InsertManyAsync([OldRow("wizinc", 1L), OldRow("wizinc", 2L), OldRow("monzo", 3L)]);
+        await _store.BackfillKeysAsync(default);
+        await _store.EnsureIndexesAsync(default);
+
+        var open = await _store.OpenCountsByBoardAsync(default);
+        Assert.Equal(2, open[Key]);
+        Assert.Equal(1, open["greenhouse:monzo"]);
+
+        Assert.Equal(1, await _store.CloseBoardsAsync(["greenhouse:monzo"], DateTime.UtcNow, default));
+        Assert.Equal(0, await _store.CloseBoardsAsync(["monzo"], DateTime.UtcNow, default));   // a bare token closes nothing
+        Assert.Equal(2, (await _store.OpenCountsByBoardAsync(default))[Key]);
+    }
+
+    [SkippableFact]
     public async Task A_row_that_cannot_be_keyed_stops_the_start_and_says_so()
     {
         Skip.If(Uri is null, SkipReason);

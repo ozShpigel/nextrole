@@ -64,7 +64,7 @@ public class IngestAiPassTests
         await Build.Handler(
                 new StubHandler().EnqueueJson(HttpStatusCode.OK, Build.BoardJson((1, "Backend Engineer", Content))),
                 new FakeEmbeddingClient(), store, ai: Client(api), parseAtIngest: false)
-            .HandleCompanyAsync(Build.Token);
+            .HandleBoardAsync(Build.Board);
 
         Assert.Equal(1, api.Calls);
         Assert.Contains("/api/match/job-facts", api.RequestUris[0]);
@@ -84,7 +84,7 @@ public class IngestAiPassTests
         await Build.Handler(
                 new StubHandler().EnqueueJson(HttpStatusCode.OK, Build.BoardJson((1, "Backend Engineer", Content))),
                 new FakeEmbeddingClient(), store, ai: Client(api))
-            .HandleCompanyAsync(Build.Token);
+            .HandleBoardAsync(Build.Board);
 
         Assert.Equal(2, api.Calls);
         Assert.Contains("/api/match/job-facts", api.RequestUris[0]);
@@ -106,14 +106,14 @@ public class IngestAiPassTests
             .EnqueueJson(HttpStatusCode.OK, ParseJson(1));
         await Build.Handler(new StubHandler().EnqueueJson(HttpStatusCode.OK, json),
                 new FakeEmbeddingClient(), store, ai: Client(first))
-            .HandleCompanyAsync(Build.Token);
+            .HandleBoardAsync(Build.Board);
 
         // Second run: same board, same content. An empty stub would THROW if
         // anything called it, which is the assertion.
         var second = new StubHandler();
         var result = await Build.Handler(new StubHandler().EnqueueJson(HttpStatusCode.OK, json),
                 new FakeEmbeddingClient(), store, ai: Client(second))
-            .HandleCompanyAsync(Build.Token);
+            .HandleBoardAsync(Build.Board);
 
         Assert.Equal(1, result.Skipped);
         Assert.Equal(0, second.Calls);
@@ -134,7 +134,7 @@ public class IngestAiPassTests
         var result = await Build.Handler(
                 new StubHandler().EnqueueJson(HttpStatusCode.OK, Build.BoardJson((1, "Backend Engineer", Content))),
                 new FakeEmbeddingClient(), store, ai: Client(api))
-            .HandleCompanyAsync(Build.Token);
+            .HandleBoardAsync(Build.Board);
 
         Assert.Equal(1, result.Embedded);          // the job is stored
         Assert.Empty(store.SavedAiFor);            // with no facts and no parse
@@ -150,7 +150,7 @@ public class IngestAiPassTests
         var result = await Build.Handler(
                 new StubHandler().EnqueueJson(HttpStatusCode.OK, Build.BoardJson((1, "Backend Engineer", Content))),
                 new FakeEmbeddingClient(), store)
-            .HandleCompanyAsync(Build.Token);
+            .HandleBoardAsync(Build.Board);
 
         Assert.Equal(1, result.Embedded);
         Assert.Empty(store.SavedAiFor);
@@ -171,7 +171,7 @@ public class IngestAiPassTests
         await Build.Handler(
                 new StubHandler().EnqueueJson(HttpStatusCode.OK, Build.BoardJson((1, "Backend Engineer", Content))),
                 new FakeEmbeddingClient(), store, ai: Client(api))
-            .HandleCompanyAsync(Build.Token);
+            .HandleBoardAsync(Build.Board);
 
         Assert.DoesNotContain("1", store.SavedAiFor);
     }

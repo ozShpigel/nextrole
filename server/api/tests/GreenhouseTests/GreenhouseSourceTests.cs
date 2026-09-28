@@ -75,7 +75,7 @@ public class GreenhouseSourceStoredFieldsTests
             """;
 
         var listing = await Build.Source(new StubHandler().EnqueueJson(HttpStatusCode.OK, json))
-            .ListAsync(Build.Token, default);
+            .ListAsync(Build.Board, default);
         var job = GreenhouseJob.From("greenhouse", Build.Token, listing.Postings.Single().Detail!);
         var stored = job.ToStoredFields();
 
@@ -106,7 +106,7 @@ public class GreenhouseSourceStoredFieldsTests
     {
         var listing = await Build.Source(new StubHandler().EnqueueJson(HttpStatusCode.OK,
                 Build.BoardJson((9, "Engineer", "&lt;p&gt;x&lt;/p&gt;"))))
-            .ListAsync(Build.Token, default);
+            .ListAsync(Build.Board, default);
         var stored = GreenhouseJob.From("greenhouse", Build.Token, listing.Postings.Single().Detail!).ToStoredFields();
 
         Assert.True(stored[GreenhouseJobFields.BoardUpdatedAt].IsBsonNull);

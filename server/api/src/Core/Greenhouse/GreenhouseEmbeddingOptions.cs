@@ -22,7 +22,7 @@ namespace ApplicationTracker.Core.Greenhouse;
 /// <para>
 /// Read-only server configuration, like <c>scoring_config</c>: Options pattern,
 /// env overrides, change = redeploy. Deliberately NOT in
-/// <c>config/companies.json</c>, which ships inside the ingestion image and
+/// <c>config/boards.json</c>, which ships inside the ingestion image and
 /// which the API cannot read -- putting it there is what would let the two
 /// halves hold different values.
 /// </para>

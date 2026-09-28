@@ -52,12 +52,12 @@ public sealed record CompanyResult(
 /// </remarks>
 public sealed class BoardHandler
 {
-    private readonly IJobSource _source;
+    private readonly Dictionary<string, IJobSource> _sources;
     private readonly IEmbeddingClient _embeddings;
     private readonly IngestAiClient? _ai;
     private readonly IngestBatcher? _batcher;
     private readonly IJobStore _store;
-    private readonly CompaniesConfig _config;
+    private readonly BoardsConfig _config;
     private readonly ILogger<BoardHandler> _log;
     private readonly PrefilterMode _prefilter;
     private readonly IDemand? _demand;
@@ -74,8 +74,8 @@ public sealed class BoardHandler
     public const int EmptyResponseGuardThreshold = 10;
 
     public BoardHandler(
-        IJobSource source, IEmbeddingClient embeddings, IJobStore store,
-        CompaniesConfig config, ILogger<BoardHandler> log, IngestAiClient? ai = null,
+        IEnumerable<IJobSource> sources, IEmbeddingClient embeddings, IJobStore store,
+        BoardsConfig config, ILogger<BoardHandler> log, IngestAiClient? ai = null,
         IngestBatcher? batcher = null, PrefilterMode prefilter = PrefilterMode.Off,
         IDemand? demand = null, bool parseAtIngest = true)
     {
@@ -92,7 +92,7 @@ public sealed class BoardHandler
         // the Message Batches API at half the price and are collected later.
         // Null keeps the live path below, unchanged.
         _batcher = batcher;
-        _source = source;
+        _sources = sources.ToDictionary(s => s.Name, StringComparer.Ordinal);
         _embeddings = embeddings;
         // Optional so the unit tests can drive the handler without an API to
         // call. Null means the AI passes are skipped and the jobs are stored
@@ -108,10 +108,16 @@ public sealed class BoardHandler
     /// Read new postings with live calls even when the batch API is configured:
     /// a triggered run, with a user waiting (<see cref="CompanyMessage.Live"/>).
     /// </param>
-    public async Task<CompanyResult> HandleCompanyAsync(
-        string boardToken, CancellationToken ct = default, bool liveReads = false)
+    public async Task<CompanyResult> HandleBoardAsync(
+        BoardConfig board, CancellationToken ct = default, bool liveReads = false)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(boardToken);
+        ArgumentNullException.ThrowIfNull(board);
+        // Config load refuses an unknown source, so a miss here is a build that
+        // registered fewer sources than it validates -- a bug, and loud.
+        var source = _sources.TryGetValue(board.Source, out var s)
+            ? s
+            : throw new InvalidOperationException(
+                $"Board {board.Key}: no source named '{board.Source}' is registered.");
 
         var runId = Guid.NewGuid().ToString();
         var now = DateTime.UtcNow;
@@ -125,16 +131,16 @@ public sealed class BoardHandler
         // 429, a 500 and a truncated 5 MB response all leave this board's
         // stored jobs exactly as they were. What a source cannot prove whole,
         // it reports as Complete = false, and the diff is skipped below.
-        var listing = await _source.ListAsync(boardToken, ct);
+        var listing = await source.ListAsync(board, ct);
 
-        var (jobs, present) = await ReadPostingsAsync(boardToken, listing, ct);
+        var (jobs, present) = await ReadPostingsAsync(board, source, listing, ct);
 
         // Two jobs with the same board id in one response cannot both be
         // upserted: an unordered bulk write of two upserts on the same unique
         // key races itself. Last one wins, deterministically, here.
         jobs = [.. jobs.GroupBy(j => j.SourceJobId).Select(g => g.Last())];
 
-        var storedHashes = await _store.StoredHashesAsync(KeyOf(boardToken), ct);
+        var storedHashes = await _store.StoredHashesAsync(board.Key, ct);
 
         var changed = new List<GreenhouseJob>();
         var unchanged = new List<string>();
@@ -155,13 +161,13 @@ public sealed class BoardHandler
         // for. Empty unless Greenhouse:Prefilter is On. A skipped posting is not
         // stored, so it is neither touched nor closed below -- and the next run
         // sees it as new and asks again.
-        var prefiltered = await PrefilterAsync(boardToken, jobs, storedHashes, ct);
+        var prefiltered = await PrefilterAsync(board, jobs, storedHashes, ct);
         if (prefiltered.Count > 0)
             changed = [.. changed.Where(j => !prefiltered.Contains(j.SourceJobId))];
 
         _log.LogInformation(
             "Board {Board}: {Total} job(s) -- {Changed} to embed, {Unchanged} unchanged, {Prefiltered} prefiltered",
-            boardToken, jobs.Count, changed.Count, unchanged.Count, prefiltered.Count);
+            board.Token, jobs.Count, changed.Count, unchanged.Count, prefiltered.Count);
 
         var embedded = 0;
         var tokens = 0;
@@ -187,7 +193,7 @@ public sealed class BoardHandler
             // side by side.
             if (result.Vectors.Count != batch.Count)
                 throw new EmbeddingException(
-                    $"Batch {i + 1} of board '{boardToken}': {result.Vectors.Count} vectors "
+                    $"Batch {i + 1} of board '{board.Token}': {result.Vectors.Count} vectors "
                     + $"for {batch.Count} jobs. Refusing to write a misaligned batch.");
 
             var paired = batch.Zip(result.Vectors, (job, vector) => (Job: job, Vector: vector)).ToList();
@@ -201,7 +207,7 @@ public sealed class BoardHandler
 
             _log.LogInformation(
                 "Board {Board}: batch {N}/{Total} -- {Count} job(s), {Tokens} tokens billed",
-                boardToken, i + 1, batches.Count, batch.Count, result.TotalTokens);
+                board.Token, i + 1, batches.Count, batch.Count, result.TotalTokens);
         }
 
         // The two USER-INDEPENDENT AI reads, once per job, here rather than
@@ -218,11 +224,11 @@ public sealed class BoardHandler
         // facts and parse it already has; that is the whole point of the hash.
         if (_batcher is not null && !(liveReads && _ai is not null))
         {
-            await SubmitBatchedReadsAsync(boardToken, changed, now, ct);
+            await SubmitBatchedReadsAsync(board, changed, now, ct);
         }
         else if (_ai is not null && changed.Count > 0)
         {
-            await RunIngestAiAsync(boardToken, ToIngestJobs(changed), now, ct);
+            await RunIngestAiAsync(board, ToIngestJobs(changed), now, ct);
         }
 
         // ...and then the ones the hash skip can never reach: postings stored
@@ -232,15 +238,15 @@ public sealed class BoardHandler
         // is the company editing their own posting text.
         if (_ai is not null && _batcher is null)
         {
-            await BackfillIngestAiAsync(boardToken, now, ct);
-            await ReReadFactsAsync(boardToken, now, ct);
+            await BackfillIngestAiAsync(board, now, ct);
+            await ReReadFactsAsync(board, now, ct);
         }
 
         // Presence for the ones we skipped. Also clears closedAt, so a job that
         // closed and came back unchanged reopens without being re-embedded.
-        await _store.TouchAsync(KeyOf(boardToken), unchanged, runId, now, ct);
+        await _store.TouchAsync(board.Key, unchanged, runId, now, ct);
 
-        await StampLogoAsync(boardToken, ct);
+        await StampLogoAsync(board, ct);
 
         // The diff is driven by the LISTING, never by what was read in full: a
         // posting whose detail failed is still on the board, and must not be
@@ -251,12 +257,12 @@ public sealed class BoardHandler
         long closed = 0;
         if (listing.Complete)
             closed = await _store.CloseMissingAsync(
-                KeyOf(boardToken), [.. present], EmptyResponseGuardThreshold, now, ct);
+                board.Key, [.. present], EmptyResponseGuardThreshold, now, ct);
         else
             _log.LogWarning(
                 "Board {Board}: the {Source} listing could not be proven complete ({Listed} listed, board total {Total}); "
                 + "closing nothing this run",
-                boardToken, _source.Name, listing.Postings.Count, listing.Total?.ToString() ?? "not given");
+                board.Token, source.Name, listing.Postings.Count, listing.Total?.ToString() ?? "not given");
 
         return new CompanyResult(present.Count, unchanged.Count, embedded, closed, tokens, prefiltered.Count);
     }
@@ -274,7 +280,7 @@ public sealed class BoardHandler
     /// already drops a Greenhouse job with no id.
     /// </remarks>
     private async Task<(List<GreenhouseJob> Jobs, List<string> Present)> ReadPostingsAsync(
-        string boardToken, Listing listing, CancellationToken ct)
+        BoardConfig board, IJobSource source, Listing listing, CancellationToken ct)
     {
         var jobs = new List<GreenhouseJob>(listing.Postings.Count);
         var present = new HashSet<string>(StringComparer.Ordinal);
@@ -290,22 +296,22 @@ public sealed class BoardHandler
             }
             present.Add(posting.SourceJobId);
 
-            var detail = posting.Detail ?? await _source.DetailAsync(boardToken, posting, ct);
+            var detail = posting.Detail ?? await source.DetailAsync(board, posting, ct);
             if (detail is null)
             {
                 unread++;
                 continue;
             }
 
-            jobs.Add(GreenhouseJob.From(_source.Name, boardToken, detail));
+            jobs.Add(GreenhouseJob.From(source.Name, board.Token, detail));
         }
 
         if (badIds > 0)
-            _log.LogWarning("Board {Board}: dropped {Count} posting(s) with no id", boardToken, badIds);
+            _log.LogWarning("Board {Board}: dropped {Count} posting(s) with no id", board.Token, badIds);
         if (unread > 0)
             _log.LogWarning(
                 "Board {Board}: {Count} posting(s) could not be read in full; skipped this run and left open",
-                boardToken, unread);
+                board.Token, unread);
 
         return (jobs, [.. present]);
     }
@@ -325,7 +331,7 @@ public sealed class BoardHandler
     /// that cannot decide reads everything, which is where it started.
     /// </remarks>
     private async Task<HashSet<string>> PrefilterAsync(
-        string boardToken, IReadOnlyList<GreenhouseJob> jobs, IReadOnlyDictionary<string, string> stored,
+        BoardConfig board, IReadOnlyList<GreenhouseJob> jobs, IReadOnlyDictionary<string, string> stored,
         CancellationToken ct)
     {
         if (_prefilter == PrefilterMode.Off) return [];
@@ -335,7 +341,7 @@ public sealed class BoardHandler
             IReadOnlyList<string> wanted = _demand is null ? [] : await _demand.WantedFunctionsAsync(ct);
             IReadOnlyList<string> learned = _demand is null ? [] : await _demand.WantedLocationsAsync(ct);
             // The configured locations plus every user's own: a user in a new
-            // city is served from the next run, with no edit to companies.json.
+            // city is served from the next run, with no edit to boards.json.
             var served = _config.ServedLocations.Count == 0
                 ? ServedPlaces.None   // no configured list = no location filtering; learned terms must not switch it on
                 : ServedPlaces.From(_config.ServedLocations.Concat(learned));
@@ -355,7 +361,7 @@ public sealed class BoardHandler
                     + "{ByAge} older than {MaxAge} days, "
                     + "{ByLocation} outside served locations ({Configured} configured + {Learned} from profiles), "
                     + "{ByFunction} a function nobody wants (wanted: {Wanted}). E.g. {Examples}",
-                    boardToken, _prefilter, skips.Count, fresh.Count,
+                    board.Token, _prefilter, skips.Count, fresh.Count,
                     _prefilter == PrefilterMode.On ? "skipped" : "would be skipped",
                     skips.Count(x => x.Skip!.Reason == PrefilterSkip.Age), PoolBrowseQuery.MaxAgeDays,
                     skips.Count(x => x.Skip!.Reason == PrefilterSkip.Location),
@@ -365,7 +371,7 @@ public sealed class BoardHandler
                     string.Join(" | ", skips.Take(PrefilterExamples)
                         .Select(x => $"{x.Job.Source.Listed.Title} [{x.Skip!.Reason}: {x.Skip.Detail}]")));
 
-            await CheckGuessesAsync(boardToken, jobs, stored, accepted, served, ct);
+            await CheckGuessesAsync(board, jobs, stored, accepted, served, ct);
 
             return _prefilter == PrefilterMode.On
                 ? [.. skips.Select(x => x.Job.SourceJobId)]
@@ -373,7 +379,7 @@ public sealed class BoardHandler
         }
         catch (Exception e) when (e is not OperationCanceledException)
         {
-            _log.LogError(e, "Board {Board}: the pre-read filter failed; reading every posting", boardToken);
+            _log.LogError(e, "Board {Board}: the pre-read filter failed; reading every posting", board.Token);
             return [];
         }
     }
@@ -388,7 +394,7 @@ public sealed class BoardHandler
     /// the function check.
     /// </remarks>
     private void CheckLocations(
-        string boardToken, IReadOnlyList<GreenhouseJob> storedJobs,
+        BoardConfig board, IReadOnlyList<GreenhouseJob> storedJobs,
         IReadOnlyDictionary<string, StoredFacts> facts, ServedPlaces served)
     {
         if (served.IsEmpty) return;
@@ -411,7 +417,7 @@ public sealed class BoardHandler
             "Board {Board}: pre-read filter location check -- {Skipped} of {Stored} stored posting(s) "
             + "resolve to countries nobody is in, {Labelled} with a location from Claude, {WouldHide} of "
             + "those placed somewhere served (would hide). Would hide: {Examples}",
-            boardToken, skipped.Count, storedJobs.Count, labelled.Count, wouldHide.Count,
+            board.Token, skipped.Count, storedJobs.Count, labelled.Count, wouldHide.Count,
             string.Join(" | ", wouldHide.Take(PrefilterExamples).Select(x =>
                 $"{x.Job.Source.Listed.Title} [board: {x.Job.Source.Listed.Location}, Claude: {x.Claude}]")));
     }
@@ -428,16 +434,16 @@ public sealed class BoardHandler
     /// before Greenhouse:Prefilter goes to On.
     /// </remarks>
     private async Task CheckGuessesAsync(
-        string boardToken, IReadOnlyList<GreenhouseJob> jobs, IReadOnlyDictionary<string, string> stored,
+        BoardConfig board, IReadOnlyList<GreenhouseJob> jobs, IReadOnlyDictionary<string, string> stored,
         IReadOnlyCollection<string>? accepted, ServedPlaces served, CancellationToken ct)
     {
         var storedJobs = jobs.Where(j => stored.ContainsKey(j.SourceJobId)).ToList();
         if (storedJobs.Count == 0) return;
 
         var facts = await _store.StoredFactsAsync(
-            KeyOf(boardToken), [.. storedJobs.Select(j => j.SourceJobId)], ct);
+            board.Key, [.. storedJobs.Select(j => j.SourceJobId)], ct);
 
-        CheckLocations(boardToken, storedJobs, facts, served);
+        CheckLocations(board, storedJobs, facts, served);
 
         var guessed = storedJobs
             .Select(j => (Job: j, Guess: Prefilter.GuessFunction(
@@ -459,7 +465,7 @@ public sealed class BoardHandler
             "Board {Board}: pre-read filter check -- {Guessed} stored posting(s) guessed from title/department, "
             + "{Labelled} labelled by Claude: {Right} right, {Wrong} wrong, {WouldHide} wrong in a way that "
             + "would hide a wanted posting. Wrong: {Examples}",
-            boardToken, guessed.Count, labelled.Count, labelled.Count - wrong.Count, wrong.Count,
+            board.Token, guessed.Count, labelled.Count, labelled.Count - wrong.Count, wrong.Count,
             wouldHide?.ToString() ?? "n/a (no demand recorded)",
             string.Join(" | ", wrong.Take(PrefilterExamples).Select(x =>
                 $"{x.Job.Source.Listed.Title} [guessed {x.Guess}, labelled {string.Join("+", LabelOf(x.Job))}]")));
@@ -510,35 +516,35 @@ public sealed class BoardHandler
     /// written.
     /// </remarks>
     private async Task SubmitBatchedReadsAsync(
-        string boardToken, IReadOnlyList<GreenhouseJob> changed, DateTime now, CancellationToken ct)
+        BoardConfig board, IReadOnlyList<GreenhouseJob> changed, DateTime now, CancellationToken ct)
     {
         try
         {
             var both = ToIngestJobs(changed);
             var seen = both.Select(j => j.JobId).ToHashSet();
 
-            var backlog = await _store.NeedingIngestAiAsync(KeyOf(boardToken), BackfillBatchSize, ct);
+            var backlog = await _store.NeedingIngestAiAsync(board.Key, BackfillBatchSize, ct);
             both.AddRange(backlog.Where(p => seen.Add(p.SourceJobId)).Select(ToIngestJob));
 
-            var reread = await _store.NeedingFactsReReadAsync(KeyOf(boardToken), BackfillBatchSize, ct);
+            var reread = await _store.NeedingFactsReReadAsync(board.Key, BackfillBatchSize, ct);
             var factsOnly = reread.Where(p => seen.Add(p.SourceJobId)).Select(ToIngestJob).ToList();
 
-            var facts = await _batcher!.SubmitAsync(KeyOf(boardToken), AiBatchRecord.Facts, [.. both, .. factsOnly], now, ct);
+            var facts = await _batcher!.SubmitAsync(board.Key, AiBatchRecord.Facts, [.. both, .. factsOnly], now, ct);
             // No parse batch with ParseAtIngest off -- and so no parse marker,
             // so the posting is visible as soon as its facts land.
             var parses = _parseAtIngest
-                ? await _batcher.SubmitAsync(KeyOf(boardToken), AiBatchRecord.Parse, both, now, ct)
+                ? await _batcher.SubmitAsync(board.Key, AiBatchRecord.Parse, both, now, ct)
                 : 0;
 
             if (facts + parses > 0)
                 _log.LogInformation(
                     "Board {Board}: submitted {Facts} facts read(s) and {Parses} parse(s) as batches "
                     + "({Changed} changed, {Backlog} never read, {ReRead} re-read)",
-                    boardToken, facts, parses, changed.Count, backlog.Count, factsOnly.Count);
+                    board.Token, facts, parses, changed.Count, backlog.Count, factsOnly.Count);
         }
         catch (Exception e) when (e is not OperationCanceledException)
         {
-            _log.LogError(e, "Board {Board}: could not submit the batched reads; they are owed again next run", boardToken);
+            _log.LogError(e, "Board {Board}: could not submit the batched reads; they are owed again next run", board.Token);
         }
     }
 
@@ -554,17 +560,17 @@ public sealed class BoardHandler
     /// does NOT re-embed: the vectors are valid and already paid for, and only
     /// the reads are missing.
     /// </remarks>
-    private async Task BackfillIngestAiAsync(string boardToken, DateTime now, CancellationToken ct)
+    private async Task BackfillIngestAiAsync(BoardConfig board, DateTime now, CancellationToken ct)
     {
         List<IngestJob> aiJobs;
         try
         {
-            var pending = await _store.NeedingIngestAiAsync(KeyOf(boardToken), BackfillBatchSize, ct);
+            var pending = await _store.NeedingIngestAiAsync(board.Key, BackfillBatchSize, ct);
             if (pending.Count == 0) return;
 
             _log.LogInformation(
                 "Board {Board}: {Count} stored posting(s) have never had the ingest AI reads; backfilling",
-                boardToken, pending.Count);
+                board.Token, pending.Count);
 
             aiJobs = [.. pending.Select(p => new IngestJob(
                 p.SourceJobId, p.Title, p.Company, p.Location, p.Content))];
@@ -573,11 +579,11 @@ public sealed class BoardHandler
         {
             // Selecting the backlog is not worth failing a company over: the
             // board has already been fetched, embedded and written.
-            _log.LogError(e, "Board {Board}: could not select postings needing the ingest AI reads", boardToken);
+            _log.LogError(e, "Board {Board}: could not select postings needing the ingest AI reads", board.Token);
             return;
         }
 
-        await RunIngestAiAsync(boardToken, aiJobs, now, ct);
+        await RunIngestAiAsync(board, aiJobs, now, ct);
     }
 
     /// <summary>
@@ -589,16 +595,16 @@ public sealed class BoardHandler
     /// drains over successive runs rather than in one bill. Never throws, for
     /// the same reason the backfill does not.
     /// </remarks>
-    private async Task ReReadFactsAsync(string boardToken, DateTime now, CancellationToken ct)
+    private async Task ReReadFactsAsync(BoardConfig board, DateTime now, CancellationToken ct)
     {
         try
         {
-            var pending = await _store.NeedingFactsReReadAsync(KeyOf(boardToken), BackfillBatchSize, ct);
+            var pending = await _store.NeedingFactsReReadAsync(board.Key, BackfillBatchSize, ct);
             if (pending.Count == 0) return;
 
             _log.LogInformation(
                 "Board {Board}: {Count} stored posting(s) have facts from before requirement groups; re-reading the facts",
-                boardToken, pending.Count);
+                board.Token, pending.Count);
 
             List<IngestJob> jobs = [.. pending.Select(p => new IngestJob(
                 p.SourceJobId, p.Title, p.Company, p.Location, p.Content))];
@@ -607,20 +613,20 @@ public sealed class BoardHandler
                 chunk => _ai!.ExtractFactsAsync(chunk, ct));
 
             var saved = await _store.SaveIngestAiAsync(
-                KeyOf(boardToken), facts, new Dictionary<string, BsonDocument>(), null, now, ct);
+                board.Key, facts, new Dictionary<string, BsonDocument>(), null, now, ct);
 
             _log.LogInformation(
                 "Board {Board}: re-read {Facts} fact read(s) over {Rows} row(s)",
-                boardToken, facts.Count, saved);
+                board.Token, facts.Count, saved);
         }
         catch (Exception e)
         {
-            _log.LogError(e, "Board {Board}: the facts re-read failed; the old facts stay in place", boardToken);
+            _log.LogError(e, "Board {Board}: the facts re-read failed; the old facts stay in place", board.Token);
         }
     }
 
     private async Task RunIngestAiAsync(
-        string boardToken, IReadOnlyList<IngestJob> aiJobs, DateTime now, CancellationToken ct)
+        BoardConfig board, IReadOnlyList<IngestJob> aiJobs, DateTime now, CancellationToken ct)
     {
         if (aiJobs.Count == 0) return;
 
@@ -644,17 +650,17 @@ public sealed class BoardHandler
                 });
 
             var saved = await _store.SaveIngestAiAsync(
-                KeyOf(boardToken), facts, parsed, parseVersion, now, ct);
+                board.Key, facts, parsed, parseVersion, now, ct);
 
             _log.LogInformation(
                 "Board {Board}: stored {Facts} fact read(s) and {Parsed} parse(s) over {Rows} row(s)",
-                boardToken, facts.Count, parsed.Count, saved);
+                board.Token, facts.Count, parsed.Count, saved);
         }
         catch (Exception e)
         {
             _log.LogError(e,
                 "Board {Board}: the ingest AI passes failed; jobs are stored without facts or a parse "
-                + "and the per-user scan will parse them inline", boardToken);
+                + "and the per-user scan will parse them inline", board.Token);
         }
     }
 
@@ -666,28 +672,21 @@ public sealed class BoardHandler
     /// would nack a message whose embeddings are already written and paid for.
     /// The next run stamps it again.
     /// </remarks>
-    private async Task StampLogoAsync(string boardToken, CancellationToken ct)
+    private async Task StampLogoAsync(BoardConfig board, CancellationToken ct)
     {
-        var logo = _config.LogoUrlFor(boardToken);
+        var logo = _config.LogoUrlFor(board);
         try
         {
-            var stamped = await _store.StampCompanyLogoAsync(KeyOf(boardToken), logo, ct);
+            var stamped = await _store.StampCompanyLogoAsync(board.Key, logo, ct);
             if (stamped > 0)
-                _log.LogInformation("Board {Board}: set the company logo on {Count} row(s)", boardToken, stamped);
+                _log.LogInformation("Board {Board}: set the company logo on {Count} row(s)", board.Token, stamped);
         }
         catch (Exception e) when (e is not OperationCanceledException)
         {
-            _log.LogError(e, "Board {Board}: could not set the company logo", boardToken);
+            _log.LogError(e, "Board {Board}: could not set the company logo", board.Token);
         }
     }
 
-    /// <summary>The stored board key for this board, e.g. <c>greenhouse:wizinc</c>.</summary>
-    /// <remarks>
-    /// Every store call goes through this; log lines keep the plain token,
-    /// which is what the ledger, the queue and people reading the logs use until
-    /// phase 3 moves them over too.
-    /// </remarks>
-    private string KeyOf(string boardToken) => GreenhouseJob.KeyFor(_source.Name, boardToken);
 
     private static async Task<Dictionary<string, BsonDocument>> ChunkedAsync(
         IReadOnlyList<IngestJob> jobs, int chunkSize,

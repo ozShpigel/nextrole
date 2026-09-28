@@ -5,7 +5,7 @@ using Xunit;
 namespace GreenhouseTests;
 
 /// <summary>
-/// A board removed from companies.json is never fetched again, so nothing but
+/// A board removed from boards.json is never fetched again, so nothing but
 /// this closes its postings. Closing is recoverable -- re-adding reopens -- so
 /// the only guard is against the whole file being wrong.
 /// </summary>
@@ -38,7 +38,7 @@ public class RemovedBoardsTests
     [Fact]
     public void Tokens_compare_case_insensitively_like_the_config_does()
     {
-        // CompaniesConfig de-dupes case-insensitively; "Monzo" in the file is
+        // BoardsConfig de-dupes case-insensitively; "Monzo" in the file is
         // the monzo board, not a removal of it.
         Assert.Empty(RemovedBoards.Plan(ThreeBoards, ["Similarweb", "MONZO", "deliveroo"]).Removed);
     }
@@ -79,5 +79,17 @@ public class RemovedBoardsTests
 
         Assert.Equal(0, closed);
         Assert.Empty(store.ClosedBoards);
+    }
+
+    [Fact]
+    public void Boards_are_compared_by_key_so_one_source_never_removes_another()
+    {
+        // The same token on two sources is two boards. Compared by token, the
+        // Workday board would vanish whenever the Greenhouse one was configured.
+        var open = new Dictionary<string, long> { ["greenhouse:acme"] = 30, ["workday:acme"] = 20, ["greenhouse:gone"] = 5 };
+
+        var plan = RemovedBoards.Plan(open, ["greenhouse:acme", "workday:acme"]);
+
+        Assert.Equal(["greenhouse:gone"], plan.Removed);
     }
 }

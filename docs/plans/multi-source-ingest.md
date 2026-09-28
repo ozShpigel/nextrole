@@ -1,6 +1,6 @@
 # Plan: one ingest, many job sources
 
-Status: **phase 1 built** (2026-09-28); phases 2-7 planned.
+Status: **phases 1-2 built and verified in production, phase 3 built** (2026-09-28); 4-7 planned.
 
 ## Why now
 

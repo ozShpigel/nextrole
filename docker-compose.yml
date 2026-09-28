@@ -114,7 +114,7 @@ services:
   #   docker compose --profile cron run --rm greenhouse publish   (daily timer)
   #   docker compose up -d greenhouse-consumer                    (long-running)
   #
-  # `publish` fans one message out per board token in config/companies.json and
+  # `publish` fans one message out per board in config/boards.json and
   # exits. `consume` stays up -- see the comment on CompanyConsumer for why it
   # is not one-shot (an empty queue is not the same as done).
   greenhouse:
@@ -135,8 +135,8 @@ services:
       - Rabbit__Uri=amqp://${RABBITMQ_USER:-nextrole}:${RABBITMQ_PASSWORD:-nextrole-dev}@rabbitmq:5672/${RABBITMQ_VHOST:-nextrole}
       # ONE small board locally, not every company: a day of local runs over
       # all of them cost $6.25 (AGENTS.md, Testing). Set
-      # GREENHOUSE_COMPANIES_CONFIG=config/companies.json to run the real list.
-      - Companies__ConfigPath=${GREENHOUSE_COMPANIES_CONFIG:-config/companies.dev.json}
+      # GREENHOUSE_BOARDS_CONFIG=config/boards.json to run the real list.
+      - Boards__ConfigPath=${GREENHOUSE_BOARDS_CONFIG:-config/boards.dev.json}
       # Publishing needs no embedding key: it writes ledger rows and messages.
       # Only the consumer embeds.
     depends_on:
@@ -156,8 +156,8 @@ services:
       - Rabbit__Uri=amqp://${RABBITMQ_USER:-nextrole}:${RABBITMQ_PASSWORD:-nextrole-dev}@rabbitmq:5672/${RABBITMQ_VHOST:-nextrole}
       # ONE small board locally, not every company: a day of local runs over
       # all of them cost $6.25 (AGENTS.md, Testing). Set
-      # GREENHOUSE_COMPANIES_CONFIG=config/companies.json to run the real list.
-      - Companies__ConfigPath=${GREENHOUSE_COMPANIES_CONFIG:-config/companies.dev.json}
+      # GREENHOUSE_BOARDS_CONFIG=config/boards.json to run the real list.
+      - Boards__ConfigPath=${GREENHOUSE_BOARDS_CONFIG:-config/boards.dev.json}
       # The SAME model and dimensions the API binds for FindCandidateJobIds.
       # If these two ever disagree, $vectorSearch returns nothing and nothing
       # anywhere errors -- so they are one config section, not two.

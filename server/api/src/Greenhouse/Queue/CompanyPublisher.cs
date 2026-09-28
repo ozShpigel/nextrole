@@ -44,7 +44,7 @@ public sealed class CompanyPublisher
     /// </para>
     /// </remarks>
     public async Task<int> PublishAsync(
-        IReadOnlyList<string> boardTokens, string runId, CancellationToken ct, bool live = false)
+        IReadOnlyList<BoardConfig> boards, string runId, CancellationToken ct, bool live = false)
     {
         var day = RunLedger.DayOf(DateTime.UtcNow);
 
@@ -66,14 +66,16 @@ public sealed class CompanyPublisher
 
         var published = 0;
 
-        foreach (var token in boardTokens)
+        foreach (var board in boards)
         {
             ct.ThrowIfCancellationRequested();
 
-            await _ledger.MarkPendingAsync(day, token, runId, DateTime.UtcNow, ct);
+            await _ledger.MarkPendingAsync(day, board, runId, DateTime.UtcNow, ct);
 
-            var body = JsonSerializer.SerializeToUtf8Bytes(
-                new CompanyMessage { BoardToken = token, Day = day, RunId = runId, Live = live });
+            var body = JsonSerializer.SerializeToUtf8Bytes(new CompanyMessage
+            {
+                BoardKey = board.Key, BoardToken = board.Token, Day = day, RunId = runId, Live = live,
+            });
 
             try
             {
@@ -88,13 +90,13 @@ public sealed class CompanyPublisher
                 // One company failing to publish must not cost the others their
                 // run. The pending row stays pending, which is exactly what
                 // happened.
-                _log.LogError(e, "Could not publish board {Board}; its ledger row stays pending", token);
+                _log.LogError(e, "Could not publish board {Board}; its ledger row stays pending", board.Key);
             }
         }
 
         _log.LogInformation(
             "Published {Published} of {Total} company message(s) for {Day} (run {RunId})",
-            published, boardTokens.Count, day, runId);
+            published, boards.Count, day, runId);
 
         return published;
     }

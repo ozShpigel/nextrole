@@ -124,13 +124,11 @@ public interface IJobStore
     Task<Dictionary<string, StoredFacts>> StoredFactsAsync(
         string boardKey, IReadOnlyCollection<string> ids, CancellationToken ct);
 
-    /// <summary>Open postings (no closedAt) per board token, across every board stored.</summary>
-    /// <remarks>Still by token, like the ledger and the queue: they move to the board key together in phase 3.</remarks>
-    /// <remarks>Still by token, like the ledger and the queue: they move to the board key together in phase 3.</remarks>
+    /// <summary>Open postings (no closedAt) per board key, across every board stored.</summary>
     Task<Dictionary<string, long>> OpenCountsByBoardAsync(CancellationToken ct);
 
-    /// <summary>Close every open posting of these boards. Nothing is deleted.</summary>
-    Task<long> CloseBoardsAsync(IReadOnlyCollection<string> boardTokens, DateTime now, CancellationToken ct);
+    /// <summary>Close every open posting of these boards, by board key. Nothing is deleted.</summary>
+    Task<long> CloseBoardsAsync(IReadOnlyCollection<string> boardKeys, DateTime now, CancellationToken ct);
 
     Task<long> StampCompanyLogoAsync(string boardKey, string? logoUrl, CancellationToken ct);
 

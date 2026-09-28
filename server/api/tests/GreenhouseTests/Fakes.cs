@@ -223,6 +223,21 @@ public sealed class FakeJobStore : IJobStore
         return Task.FromResult<IReadOnlyList<StoredJobContent>>([.. NeedingFactsReRead.Take(limit)]);
     }
 
+    /// <summary>What ListingStatesAsync returns, by id.</summary>
+    public Dictionary<string, ListingState> ListingStates { get; } = [];
+
+    /// <summary>Every detail read a run stamped.</summary>
+    public List<DetailRead> Stamped { get; } = [];
+
+    public Task<Dictionary<string, ListingState>> ListingStatesAsync(string boardKey, CancellationToken ct) =>
+        Task.FromResult(new Dictionary<string, ListingState>(ListingStates));
+
+    public Task StampDetailReadsAsync(string boardKey, IReadOnlyCollection<DetailRead> reads, CancellationToken ct)
+    {
+        Stamped.AddRange(reads);
+        return Task.CompletedTask;
+    }
+
     /// <summary>What OpenCountsByBoardAsync returns.</summary>
     public Dictionary<string, long> OpenByBoard { get; } = [];
 

@@ -111,15 +111,28 @@ Phases 1-4 already do the rest:
   costs one detail request and nothing more.
 - Cleaning, hashing, embedding, the Claude reads, the close diff: unchanged.
 
-### Stored postings: read their detail daily
+### Stored postings: not read while listed as before (revised 2026-09-28)
 
-The first version of this plan re-read a stored posting only when its title
-changed, or on a weekly sweep, to save one request per posting per day. That
-needs new handler state (the stored title, a sweep clock) and gives up exact
-change detection. Measured instead: NVIDIA's narrowed site is 467 postings; at
-one request a second that is under eight minutes, once a day, with no Claude
-cost for an unchanged hash. **Recommended: read every kept posting's detail
-daily, as the handler already does**, and revisit only if a tenant rate-limits.
+First built as "read every kept posting's detail daily": simple, and change
+detection exact. Measured in production that made NVIDIA's run 13-15 minutes,
+~9 of them re-reading ~312 stored postings, and the consumer handles one board
+at a time -- so a user's triggered run waited behind it. A Workday listing
+carries no edit date (checked: not in the listing, not in `jobPostingInfo`), so:
+
+- A stored posting still listed with the same title and location text (a hash
+  of the *listing's* own fields, `listing_signature` -- not the detail's, which
+  names what the listing counts as "2 Locations") and read within 7 days is
+  touched, not read. A changed title or location in the listing reads it that
+  day.
+- Each detail read stamps `detail_read_at`; after 7 days it is read again, which
+  catches edits to the body alone -- the trade: those surface within a week,
+  not a day. A first stamp is back-dated by a stable 0-6 days, so a board stored
+  in one day comes due across the week, ~1/7 a day, not all on day 7.
+- Only for postings whose detail is a request of its own; a Greenhouse listing
+  carries the body, so nothing changes there.
+
+With the too-old memory (docs/plans/two-stage-prefilter.md), NVIDIA's daily
+detail reads fall from ~457 to its new postings plus ~45 weekly re-reads.
 
 ## Tests
 

@@ -325,6 +325,23 @@ public sealed class JobStoreIntegrationTests : IAsyncLifetime
     }
 
     [SkippableFact]
+    public async Task Detail_reads_are_stamped_on_stored_rows_only_and_read_back_per_board()
+    {
+        Skip.If(Uri is null, SkipReason);
+        await SeedAsync(("wizinc", "1"), ("wizinc", "2"));
+        var at = new DateTime(2026, 9, 25, 0, 0, 0, DateTimeKind.Utc);
+
+        await _store.StampDetailReadsAsync(Key,
+            [new DetailRead("1", "sig-1", at), new DetailRead("never-stored", "sig-x", at)], default);
+
+        var states = await _store.ListingStatesAsync(Key, default);
+        Assert.Equal(("sig-1", (DateTime?)at), (states["1"].Signature, states["1"].DetailReadAt));
+        Assert.Equal((null, (DateTime?)null), (states["2"].Signature, states["2"].DetailReadAt));
+        Assert.False(states.ContainsKey("never-stored"));                           // not created
+        Assert.Equal(2, await _jobs.CountDocumentsAsync(FilterDefinition<BsonDocument>.Empty));
+    }
+
+    [SkippableFact]
     public async Task Removed_boards_are_counted_and_closed_by_board_key()
     {
         Skip.If(Uri is null, SkipReason);

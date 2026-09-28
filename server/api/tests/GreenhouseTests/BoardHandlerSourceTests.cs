@@ -419,4 +419,122 @@ public class BoardHandlerSourceTests
         Assert.Equal(["reading details, 100 of 250", "reading details, 200 of 250"],
             log.All.Where(l => l.Contains("reading details")).Select(l => l[(l.IndexOf("reading") )..]));
     }
+
+    // ---- a stored posting listed as before is not read again (weekly re-read) ----------
+
+    private static string SignatureOf(ListedPosting p) => BoardHandler.ListingSignature(p);
+
+    private static (FakeJobStore Store, FakeSource Source) StoredAndListed(
+        ListedPosting listed, string? signature, DateTime? readAt)
+    {
+        var store = new FakeJobStore();
+        store.Hashes[listed.SourceJobId] = "stored";
+        store.ListingStates[listed.SourceJobId] = new ListingState(signature, readAt);
+        return (store, new FakeSource(new Listing([listed], Complete: true, Total: 1), Full));
+    }
+
+    [Fact]
+    public async Task A_stored_posting_listed_as_before_and_read_this_week_is_touched_not_read()
+    {
+        var listed = Listed("1");
+        var (store, source) = StoredAndListed(listed, SignatureOf(listed), DateTime.UtcNow.AddDays(-2));
+
+        var result = await Handler(source, store).HandleBoardAsync(Board);
+
+        Assert.Empty(source.DetailFor);
+        Assert.Contains("1", store.Touched);                 // present: stays open
+        Assert.Contains("1", store.LastCloseSeenIds!);
+        Assert.Equal(1, result.Skipped);
+        Assert.Equal("stored", store.Hashes["1"]);           // not re-hashed
+    }
+
+    [Fact]
+    public async Task A_changed_title_in_the_listing_reads_the_detail_that_day()
+    {
+        var before = Listed("1");
+        var (store, _) = StoredAndListed(before, SignatureOf(before), DateTime.UtcNow.AddDays(-2));
+        var source = new FakeSource(new Listing([before with { Title = "Staff Engineer 1" }], Complete: true, Total: 1), Full);
+
+        await Handler(source, store).HandleBoardAsync(Board);
+
+        Assert.Equal(["1"], source.DetailFor);
+    }
+
+    [Fact]
+    public async Task A_stored_posting_not_read_for_a_week_is_read_again()
+    {
+        var listed = Listed("1");
+        var (store, source) = StoredAndListed(listed, SignatureOf(listed), DateTime.UtcNow.AddDays(-8));
+
+        await Handler(source, store).HandleBoardAsync(Board);
+
+        Assert.Equal(["1"], source.DetailFor);
+        Assert.True(Assert.Single(store.Stamped).ReadAt > DateTime.UtcNow.AddMinutes(-1));   // stamped now
+    }
+
+    [Fact]
+    public async Task A_first_stamp_is_back_dated_by_up_to_six_days_so_weekly_reads_spread()
+    {
+        // A posting stored before stamps existed: read, then stamped in the past
+        // by a stable 0-6 days, so a whole board does not all come due on day 7.
+        var listed = Listed("1");
+        var (store, source) = StoredAndListed(listed, signature: null, readAt: null);
+
+        await Handler(source, store).HandleBoardAsync(Board);
+
+        Assert.Equal(["1"], source.DetailFor);
+        var stamp = Assert.Single(store.Stamped);
+        Assert.Equal(SignatureOf(listed), stamp.Signature);
+        Assert.InRange(stamp.ReadAt, DateTime.UtcNow.AddDays(-6).AddMinutes(-1), DateTime.UtcNow.AddMinutes(1));
+    }
+
+    [Fact]
+    public async Task First_stamps_spread_across_the_week_rather_than_all_landing_today()
+    {
+        // Without the spread every stamp would be "now", and the whole board
+        // would come due for its weekly re-read on the same day.
+        var store = new FakeJobStore();
+        var listed = Enumerable.Range(1, 30).Select(i => Listed(i.ToString())).ToList();
+        foreach (var p in listed)
+        {
+            store.Hashes[p.SourceJobId] = "stored";
+            store.ListingStates[p.SourceJobId] = new ListingState(null, null);
+        }
+        var source = new FakeSource(new Listing(listed, Complete: true, Total: listed.Count), Full);
+
+        await Handler(source, store).HandleBoardAsync(Board);
+
+        var daysBack = store.Stamped.Select(s => (int)Math.Round((DateTime.UtcNow - s.ReadAt).TotalDays)).Distinct().Count();
+        Assert.True(daysBack >= 4, $"30 first stamps fell on only {daysBack} distinct day(s)");
+    }
+
+    [Fact]
+    public async Task A_new_posting_is_always_read_and_stamped()
+    {
+        var store = new FakeJobStore();
+        var source = new FakeSource(new Listing([Listed("9")], Complete: true, Total: 1), Full);
+
+        await Handler(source, store).HandleBoardAsync(Board);
+
+        Assert.Equal(["9"], source.DetailFor);
+        Assert.Equal("9", Assert.Single(store.Stamped).SourceJobId);
+    }
+
+    [Fact]
+    public async Task A_listing_that_carries_the_body_is_never_affected()
+    {
+        // Greenhouse: the detail is in the listing, so there is no request to save
+        // and no stamp to write.
+        var listed = Listed("1");
+        var withBody = listed with { Detail = Full(listed) };
+        var store = new FakeJobStore();
+        store.Hashes["1"] = "stored";
+        store.ListingStates["1"] = new ListingState(SignatureOf(listed), DateTime.UtcNow);
+        var source = new FakeSource(new Listing([withBody], Complete: true, Total: 1), Full);
+
+        await Handler(source, store).HandleBoardAsync(Board);
+
+        Assert.NotEqual("stored", store.Hashes["1"]);        // hashed and handled as always
+        Assert.Empty(store.Stamped);
+    }
 }

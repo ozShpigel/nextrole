@@ -125,6 +125,16 @@ public static class GreenhouseJobFields
     public const string FactsVersion = "facts_version";
 
     /// <summary>
+    /// A hash of the listing's own title and location text, as they were when
+    /// the posting's detail was last read. For a source whose listing carries no
+    /// body (Workday): a posting still listed the same way is not read again.
+    /// </summary>
+    public const string ListingSignature = "listing_signature";
+
+    /// <summary>When the posting's detail was last requested and read.</summary>
+    public const string DetailReadAt = "detail_read_at";
+
+    /// <summary>
     /// How many times extraction has been tried for this job.
     /// </summary>
     /// <remarks>

@@ -1,6 +1,6 @@
 # Plan: one ingest, many job sources
 
-Status: **phases 1-4 built and verified in production, and the key migration's cleanup (2c) built** (2026-09-28); 5-7 planned.
+Status: **phases 1-4 and the key cleanup (2c) built and verified in production; phase 5 (Workday) built, no board yet** (2026-09-28); 6-7 planned.
 
 ## Why now
 

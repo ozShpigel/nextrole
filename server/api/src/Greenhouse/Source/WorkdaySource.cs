@@ -158,7 +158,11 @@ public sealed partial class WorkdaySource : IJobSource
                     DetailRef: item.ExternalPath));
             }
 
-            if (page.JobPostings.Count < PageSize) break;
+            // Stop at a short page, or once page one's count is reached: past its
+            // end a site may serve page one again rather than an empty page
+            // (CrowdStrike, measured 2026-09-28, with a count of exactly 60),
+            // which would read as the pages shifting on every run.
+            if (page.JobPostings.Count < PageSize || returned >= total) break;
         }
 
         if (total == TotalCap)

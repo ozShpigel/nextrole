@@ -149,6 +149,7 @@ public class IngestBatcherTests
 
         Assert.Equal(1, closed);
         Assert.Equal(["1"], jobs.SavedAiFor);
+        Assert.Equal(["1"], jobs.FactsAttempted);   // stamped with the facts version, facts or none
         Assert.Equal(0, jobs.UncountedSaves);   // a facts read counts as an attempt
         Assert.Empty(jobs.Pending);
         Assert.Equal("collected", batches.Closed["msgbatch_a"]);

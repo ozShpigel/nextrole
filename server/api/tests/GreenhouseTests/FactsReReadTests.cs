@@ -56,6 +56,7 @@ public class FactsReReadTests
         Assert.Contains("/api/match/job-facts", api.RequestUris[0]);
         Assert.Empty(store.SavedParsedFor);
         Assert.Empty(store.Vectors);
+        Assert.Equal(["7"], store.FactsAttempted);   // the re-read stamps the version
 
         var groups = store.SavedFacts["7"]["must_have_groups"].AsBsonArray;
         Assert.Equal(2, groups.Count);

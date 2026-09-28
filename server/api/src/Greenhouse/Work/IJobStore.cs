@@ -38,7 +38,8 @@ public interface IJobStore
         string? parseVersion,
         DateTime now,
         CancellationToken ct,
-        bool countAttempt = true);
+        bool countAttempt = true,
+        IReadOnlyCollection<string>? factsAttempted = null);
 
     /// <summary>Mark postings as being read by an open batch (<see cref="IngestBatcher"/>).</summary>
     Task MarkAiPendingAsync(

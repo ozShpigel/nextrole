@@ -686,7 +686,8 @@ public sealed class BoardHandler
                 chunk => _ai!.ExtractFactsAsync(chunk, ct));
 
             var saved = await _store.SaveIngestAiAsync(
-                board.Key, facts, new Dictionary<string, BsonDocument>(), null, now, ct);
+                board.Key, facts, new Dictionary<string, BsonDocument>(), null, now, ct,
+                factsAttempted: [.. jobs.Select(j => j.JobId)]);
 
             _log.LogInformation(
                 "Board {Board}: re-read {Facts} fact read(s) over {Rows} row(s)",
@@ -723,7 +724,8 @@ public sealed class BoardHandler
                 });
 
             var saved = await _store.SaveIngestAiAsync(
-                board.Key, facts, parsed, parseVersion, now, ct);
+                board.Key, facts, parsed, parseVersion, now, ct,
+                factsAttempted: [.. aiJobs.Select(j => j.JobId)]);
 
             _log.LogInformation(
                 "Board {Board}: stored {Facts} fact read(s) and {Parsed} parse(s) over {Rows} row(s)",

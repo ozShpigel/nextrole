@@ -56,7 +56,7 @@ public class IngestAiBackfillTests
         """;
 
     private static StoredJobContent Stored(long id) =>
-        new(id, "Full-Stack Engineer", "Deliveroo", "London, United Kingdom - Deliveroo", "A real posting body.");
+        new(id.ToString(), "Full-Stack Engineer", "Deliveroo", "London, United Kingdom - Deliveroo", "A real posting body.");
 
     [Fact]
     public async Task A_posting_stored_without_facts_is_read_even_though_its_content_is_unchanged()
@@ -79,7 +79,7 @@ public class IngestAiBackfillTests
         Assert.Equal(2, api.Calls);
         Assert.Contains("/api/match/job-facts", api.RequestUris[0]);
         Assert.Contains("/api/match/job-parse", api.RequestUris[1]);
-        Assert.Equal([7L], store.SavedAiFor.Distinct().Order());
+        Assert.Equal(["7"], store.SavedAiFor.Distinct().Order());
     }
 
     [Fact]

@@ -14,14 +14,14 @@ namespace ApplicationTracker.Greenhouse;
 /// </remarks>
 public interface IJobStore
 {
-    Task<Dictionary<long, string>> StoredHashesAsync(string boardToken, CancellationToken ct);
+    Task<Dictionary<string, string>> StoredHashesAsync(string boardKey, CancellationToken ct);
 
     Task<(long Upserted, long Modified)> UpsertBatchAsync(
         IReadOnlyList<(GreenhouseJob Job, float[] Vector)> batch, string runId, DateTime now,
         CancellationToken ct);
 
     Task<long> TouchAsync(
-        string boardToken, IReadOnlyCollection<long> ids, string runId, DateTime now, CancellationToken ct);
+        string boardKey, IReadOnlyCollection<string> ids, string runId, DateTime now, CancellationToken ct);
 
     /// <summary>
     /// Store the ingest-time AI reads for jobs that have just entered.
@@ -32,9 +32,9 @@ public interface IJobStore
     /// contributes nothing and is retried on a later run.
     /// </remarks>
     Task<long> SaveIngestAiAsync(
-        string boardToken,
-        IReadOnlyDictionary<long, MongoDB.Bson.BsonDocument> facts,
-        IReadOnlyDictionary<long, MongoDB.Bson.BsonDocument> parsed,
+        string boardKey,
+        IReadOnlyDictionary<string, MongoDB.Bson.BsonDocument> facts,
+        IReadOnlyDictionary<string, MongoDB.Bson.BsonDocument> parsed,
         string? parseVersion,
         DateTime now,
         CancellationToken ct,
@@ -42,15 +42,15 @@ public interface IJobStore
 
     /// <summary>Mark postings as being read by an open batch (<see cref="IngestBatcher"/>).</summary>
     Task MarkAiPendingAsync(
-        string boardToken, IReadOnlyCollection<long> ids, string kind, string batchId, CancellationToken ct);
+        string boardKey, IReadOnlyCollection<string> ids, string kind, string batchId, CancellationToken ct);
 
     /// <summary>Clear the markers THIS batch set; a newer batch's marker is left alone.</summary>
     Task ClearAiPendingAsync(
-        string boardToken, IReadOnlyCollection<long> ids, string kind, string batchId, CancellationToken ct);
+        string boardKey, IReadOnlyCollection<string> ids, string kind, string batchId, CancellationToken ct);
 
     /// <summary>The stored text of these postings, for verifying a batch parse against it.</summary>
     Task<IReadOnlyList<StoredJobContent>> StoredContentForAsync(
-        string boardToken, IReadOnlyCollection<long> ids, CancellationToken ct);
+        string boardKey, IReadOnlyCollection<string> ids, CancellationToken ct);
 
     /// <summary>
     /// Open postings that have never had the ingest AI reads run over them.
@@ -92,7 +92,7 @@ public interface IJobStore
     /// </para>
     /// </remarks>
     Task<IReadOnlyList<StoredJobContent>> NeedingIngestAiAsync(
-        string boardToken, int limit, CancellationToken ct);
+        string boardKey, int limit, CancellationToken ct);
 
     /// <summary>
     /// Open postings whose facts were read before requirement groups, or job
@@ -106,7 +106,7 @@ public interface IJobStore
     /// roughly five times the facts cost for an identical result.
     /// </remarks>
     Task<IReadOnlyList<StoredJobContent>> NeedingFactsReReadAsync(
-        string boardToken, int limit, CancellationToken ct);
+        string boardKey, int limit, CancellationToken ct);
 
     /// <summary>
     /// Set this board's logo on every row it has, open or closed.
@@ -121,19 +121,21 @@ public interface IJobStore
     /// What Claude read for these postings -- <c>extracted.functions</c> and
     /// <c>extracted.location</c> -- by job id. For the pre-read filter's checks.
     /// </summary>
-    Task<Dictionary<long, StoredFacts>> StoredFactsAsync(
-        string boardToken, IReadOnlyCollection<long> ids, CancellationToken ct);
+    Task<Dictionary<string, StoredFacts>> StoredFactsAsync(
+        string boardKey, IReadOnlyCollection<string> ids, CancellationToken ct);
 
     /// <summary>Open postings (no closedAt) per board token, across every board stored.</summary>
+    /// <remarks>Still by token, like the ledger and the queue: they move to the board key together in phase 3.</remarks>
+    /// <remarks>Still by token, like the ledger and the queue: they move to the board key together in phase 3.</remarks>
     Task<Dictionary<string, long>> OpenCountsByBoardAsync(CancellationToken ct);
 
     /// <summary>Close every open posting of these boards. Nothing is deleted.</summary>
     Task<long> CloseBoardsAsync(IReadOnlyCollection<string> boardTokens, DateTime now, CancellationToken ct);
 
-    Task<long> StampCompanyLogoAsync(string boardToken, string? logoUrl, CancellationToken ct);
+    Task<long> StampCompanyLogoAsync(string boardKey, string? logoUrl, CancellationToken ct);
 
     Task<long> CloseMissingAsync(
-        string boardToken, IReadOnlyCollection<long> seenIds, int emptyResponseGuardThreshold,
+        string boardKey, IReadOnlyCollection<string> seenIds, int emptyResponseGuardThreshold,
         DateTime now, CancellationToken ct);
 }
 
@@ -146,7 +148,7 @@ public interface IJobStore
 public sealed record StoredFacts(string[] Functions, string? Location);
 
 public sealed record StoredJobContent(
-    long GreenhouseJobId,
+    string SourceJobId,
     string Title,
     string Company,
     string? Location,

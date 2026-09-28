@@ -19,20 +19,22 @@ namespace ApplicationTracker.Core.Greenhouse;
 /// </remarks>
 public static class GreenhouseJobFields
 {
-    /// <summary>The board slug. Half of the upsert key.</summary>
+    /// <summary>The board slug. Still written; the key is <see cref="BoardKey"/> since 2b.</summary>
     public const string BoardToken = "boardToken";
 
-    /// <summary>Greenhouse's own job id. The other half of the upsert key.</summary>
+    /// <summary>
+    /// Greenhouse's own job id, as a number. Still written on Greenhouse rows so
+    /// the old unique index keeps guarding until 2c; nothing reads it.
+    /// </summary>
     public const string GreenhouseJobId = "greenhouseJobId";
 
     /// <summary>
-    /// <c>source:token</c>, e.g. <c>greenhouse:wizinc</c>. Half of the key every
-    /// source shares (docs/plans/key-migration.md). Written since 2a; not yet
-    /// read -- the upsert still matches on <see cref="BoardToken"/>.
+    /// <c>source:token</c>, e.g. <c>greenhouse:wizinc</c>. Half of the upsert key
+    /// every source shares, under a unique index (docs/plans/key-migration.md).
     /// </summary>
     public const string BoardKey = "boardKey";
 
-    /// <summary>The board's own job id, as a string. The other half of that key.</summary>
+    /// <summary>The board's own job id, as a string, whatever its shape. The other half.</summary>
     public const string SourceJobId = "sourceJobId";
 
     public const string Title = "title";

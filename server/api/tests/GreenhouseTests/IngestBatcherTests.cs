@@ -47,7 +47,7 @@ public class IngestBatcherTests
 
     private static AiBatchRecord Row(string id, string kind, DateTime submittedAt, params long[] jobIds) => new()
     {
-        BatchId = id, Kind = kind, BoardToken = Build.Token, JobIds = jobIds,
+        BatchId = id, Kind = kind, BoardKey = $"greenhouse:{Build.Token}", JobIds = [.. jobIds.Select(j => j.ToString())],
         ParseVersion = kind == AiBatchRecord.Parse ? "v-at-submit" : null, SubmittedAt = submittedAt,
     };
 
@@ -69,12 +69,12 @@ public class IngestBatcherTests
         Assert.Equal(2, count);
         var row = Assert.Single(batches.Rows);
         Assert.Equal("msgbatch_a", row.BatchId);
-        Assert.Equal([1L, 2L], row.JobIds);
+        Assert.Equal(["1", "2"], row.JobIds);
         // Captured at submission, not at collection: a deploy in between must
         // not restamp an old-prompt parse.
         Assert.Equal("v1", row.ParseVersion);
-        Assert.Equal("msgbatch_a", jobs.Pending[(AiBatchRecord.Parse, 1)]);
-        Assert.Equal("msgbatch_a", jobs.Pending[(AiBatchRecord.Parse, 2)]);
+        Assert.Equal("msgbatch_a", jobs.Pending[(AiBatchRecord.Parse, "1")]);
+        Assert.Equal("msgbatch_a", jobs.Pending[(AiBatchRecord.Parse, "2")]);
         Assert.EndsWith("/api/match/job-parse/batches", api.RequestUris.Single());
     }
 
@@ -117,7 +117,7 @@ public class IngestBatcherTests
     public async Task A_batch_still_in_progress_is_left_for_the_next_poll()
     {
         var jobs = new FakeJobStore();
-        jobs.Pending[(AiBatchRecord.Facts, 1)] = "msgbatch_a";
+        jobs.Pending[(AiBatchRecord.Facts, "1")] = "msgbatch_a";
         var batches = new FakeBatchStore();
         batches.Rows.Add(Row("msgbatch_a", AiBatchRecord.Facts, Now.AddMinutes(-5), 1));
         var api = new StubHandler().EnqueueJson(HttpStatusCode.OK, """{ "status": "in_progress", "results": [] }""");
@@ -127,14 +127,14 @@ public class IngestBatcherTests
         Assert.Equal(0, closed);
         Assert.Empty(batches.Closed);
         Assert.Empty(jobs.SavedAiFor);
-        Assert.True(jobs.Pending.ContainsKey((AiBatchRecord.Facts, 1)));
+        Assert.True(jobs.Pending.ContainsKey((AiBatchRecord.Facts, "1")));
     }
 
     [Fact]
     public async Task An_ended_facts_batch_stores_only_its_own_postings_and_clears_their_markers()
     {
         var jobs = new FakeJobStore();
-        jobs.Pending[(AiBatchRecord.Facts, 1)] = "msgbatch_a";
+        jobs.Pending[(AiBatchRecord.Facts, "1")] = "msgbatch_a";
         var batches = new FakeBatchStore();
         batches.Rows.Add(Row("msgbatch_a", AiBatchRecord.Facts, Now.AddMinutes(-30), 1));
         // Job 99 was never in this batch: storing it would attach one
@@ -148,7 +148,7 @@ public class IngestBatcherTests
         var closed = await Batcher(api, jobs, batches).CollectAsync(Now, CancellationToken.None);
 
         Assert.Equal(1, closed);
-        Assert.Equal([1L], jobs.SavedAiFor);
+        Assert.Equal(["1"], jobs.SavedAiFor);
         Assert.Equal(0, jobs.UncountedSaves);   // a facts read counts as an attempt
         Assert.Empty(jobs.Pending);
         Assert.Equal("collected", batches.Closed["msgbatch_a"]);
@@ -159,8 +159,8 @@ public class IngestBatcherTests
     public async Task An_ended_parse_batch_is_verified_against_the_stored_postings_and_does_not_count_an_attempt()
     {
         var jobs = new FakeJobStore();
-        jobs.Pending[(AiBatchRecord.Parse, 1)] = "msgbatch_p";
-        jobs.Stored[1] = new StoredJobContent(1, "Engineer", "Acme", "London", "The stored posting body.");
+        jobs.Pending[(AiBatchRecord.Parse, "1")] = "msgbatch_p";
+        jobs.Stored["1"] = new StoredJobContent("1", "Engineer", "Acme", "London", "The stored posting body.");
         var batches = new FakeBatchStore();
         batches.Rows.Add(Row("msgbatch_p", AiBatchRecord.Parse, Now.AddMinutes(-30), 1));
         var api = new StubHandler().EnqueueJson(HttpStatusCode.OK, """
@@ -172,7 +172,7 @@ public class IngestBatcherTests
         // The API keeps nothing between calls, so the collect carries the text
         // the parse is checked against.
         Assert.Contains("The stored posting body.", api.RequestBodies.Single());
-        Assert.Equal([1L], jobs.SavedAiFor);
+        Assert.Equal(["1"], jobs.SavedAiFor);
         Assert.Equal(1, jobs.UncountedSaves);
         Assert.Equal("v-at-submit", jobs.LastParseVersion);
         Assert.Empty(jobs.Pending);
@@ -185,14 +185,14 @@ public class IngestBatcherTests
         // landed. Clearing it now would un-hide a posting whose new read is
         // still in flight.
         var jobs = new FakeJobStore();
-        jobs.Pending[(AiBatchRecord.Facts, 1)] = "msgbatch_b";
+        jobs.Pending[(AiBatchRecord.Facts, "1")] = "msgbatch_b";
         var batches = new FakeBatchStore();
         batches.Rows.Add(Row("msgbatch_a", AiBatchRecord.Facts, Now.AddMinutes(-30), 1));
         var api = new StubHandler().EnqueueJson(HttpStatusCode.OK, """{ "status": "ended", "results": [] }""");
 
         await Batcher(api, jobs, batches).CollectAsync(Now, CancellationToken.None);
 
-        Assert.Equal("msgbatch_b", jobs.Pending[(AiBatchRecord.Facts, 1)]);
+        Assert.Equal("msgbatch_b", jobs.Pending[(AiBatchRecord.Facts, "1")]);
     }
 
     [Fact]
@@ -215,7 +215,7 @@ public class IngestBatcherTests
         // Otherwise an outage longer than the results window would leave these
         // postings marked -- and hidden from every candidate search -- forever.
         var jobs = new FakeJobStore();
-        jobs.Pending[(AiBatchRecord.Parse, 1)] = "msgbatch_old";
+        jobs.Pending[(AiBatchRecord.Parse, "1")] = "msgbatch_old";
         var batches = new FakeBatchStore();
         batches.Rows.Add(Row("msgbatch_old", AiBatchRecord.Parse, Now - IngestBatcher.AbandonAfter - TimeSpan.FromMinutes(1), 1));
         var api = new StubHandler();
@@ -242,7 +242,7 @@ public class IngestBatcherTests
         await batcher.CollectAsync(Now, CancellationToken.None);
         await batcher.CollectAsync(Now, CancellationToken.None);   // no second response queued: must not call
 
-        Assert.Equal([1L], jobs.SavedAiFor);
+        Assert.Equal(["1"], jobs.SavedAiFor);
         Assert.Equal(1, api.Calls);
     }
 
@@ -257,9 +257,9 @@ public class IngestBatcherTests
         // needs facts only, so it gets no parse batch and stays visible to the
         // candidate search meanwhile. Each posting once.
         var store = new FakeJobStore();
-        store.NeedingAi.Add(new StoredJobContent(1, "Engineer", "Acme", null, "body"));      // also changed below
-        store.NeedingAi.Add(new StoredJobContent(5, "Engineer", "Acme", null, "body"));
-        store.NeedingFactsReRead.Add(new StoredJobContent(7, "Engineer", "Acme", null, "body"));
+        store.NeedingAi.Add(new StoredJobContent("1", "Engineer", "Acme", null, "body"));      // also changed below
+        store.NeedingAi.Add(new StoredJobContent("5", "Engineer", "Acme", null, "body"));
+        store.NeedingFactsReRead.Add(new StoredJobContent("7", "Engineer", "Acme", null, "body"));
 
         var api = new StubHandler()
             .EnqueueJson(HttpStatusCode.OK, Submitted("msgbatch_f"))
@@ -279,8 +279,8 @@ public class IngestBatcherTests
         Assert.EndsWith("/api/match/job-parse/batches", api.RequestUris[1]);
         var facts = batches.Rows.Single(r => r.Kind == AiBatchRecord.Facts);
         var parse = batches.Rows.Single(r => r.Kind == AiBatchRecord.Parse);
-        Assert.Equal([1L, 5L, 7L], facts.JobIds.Order());
-        Assert.Equal([1L, 5L], parse.JobIds.Order());
+        Assert.Equal(["1", "5", "7"], facts.JobIds.Order());
+        Assert.Equal(["1", "5"], parse.JobIds.Order());
         // Nothing was read live, so nothing was stored yet.
         Assert.Empty(store.SavedAiFor);
     }

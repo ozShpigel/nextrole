@@ -95,17 +95,23 @@ public sealed class FakeEmbeddingClient : IEmbeddingClient
 /// </remarks>
 public sealed class FakeJobStore : IJobStore
 {
-    public Dictionary<long, string> Hashes { get; } = [];
-    public Dictionary<long, float[]> Vectors { get; } = [];
+    public Dictionary<string, string> Hashes { get; } = [];
+    public Dictionary<string, float[]> Vectors { get; } = [];
     public List<int> UpsertBatchSizes { get; } = [];
-    public List<long> Touched { get; } = [];
+    public List<string> Touched { get; } = [];
 
     public int CloseCalls { get; private set; }
-    public IReadOnlyCollection<long>? LastCloseSeenIds { get; private set; }
+    public IReadOnlyCollection<string>? LastCloseSeenIds { get; private set; }
     public long CloseReturns { get; set; }
 
-    public Task<Dictionary<long, string>> StoredHashesAsync(string boardToken, CancellationToken ct) =>
-        Task.FromResult(new Dictionary<long, string>(Hashes));
+    /// <summary>Every board argument the per-board calls received -- the board key since 2b.</summary>
+    public HashSet<string> BoardsSeen { get; } = [];
+
+    public Task<Dictionary<string, string>> StoredHashesAsync(string boardKey, CancellationToken ct)
+    {
+        BoardsSeen.Add(boardKey);
+        return Task.FromResult(new Dictionary<string, string>(Hashes));
+    }
 
     public Task<(long Upserted, long Modified)> UpsertBatchAsync(
         IReadOnlyList<(GreenhouseJob Job, float[] Vector)> batch, string runId, DateTime now,
@@ -114,31 +120,32 @@ public sealed class FakeJobStore : IJobStore
         UpsertBatchSizes.Add(batch.Count);
         foreach (var (job, vector) in batch)
         {
-            Hashes[job.GreenhouseJobId] = job.ContentHash;
-            Vectors[job.GreenhouseJobId] = vector;
+            Hashes[job.SourceJobId] = job.ContentHash;
+            Vectors[job.SourceJobId] = vector;
         }
         return Task.FromResult(((long)batch.Count, 0L));
     }
 
     public Task<long> TouchAsync(
-        string boardToken, IReadOnlyCollection<long> ids, string runId, DateTime now, CancellationToken ct)
+        string boardKey, IReadOnlyCollection<string> ids, string runId, DateTime now, CancellationToken ct)
     {
+        BoardsSeen.Add(boardKey);
         Touched.AddRange(ids);
         return Task.FromResult((long)ids.Count);
     }
 
-    public List<long> SavedAiFor { get; } = [];
+    public List<string> SavedAiFor { get; } = [];
 
     /// <summary>The facts document each save wrote, by job id.</summary>
-    public Dictionary<long, MongoDB.Bson.BsonDocument> SavedFacts { get; } = [];
+    public Dictionary<string, MongoDB.Bson.BsonDocument> SavedFacts { get; } = [];
 
     /// <summary>Job ids a save wrote a parse for.</summary>
-    public List<long> SavedParsedFor { get; } = [];
+    public List<string> SavedParsedFor { get; } = [];
 
     public Task<long> SaveIngestAiAsync(
         string boardToken,
-        IReadOnlyDictionary<long, MongoDB.Bson.BsonDocument> facts,
-        IReadOnlyDictionary<long, MongoDB.Bson.BsonDocument> parsed,
+        IReadOnlyDictionary<string, MongoDB.Bson.BsonDocument> facts,
+        IReadOnlyDictionary<string, MongoDB.Bson.BsonDocument> parsed,
         string? parseVersion, DateTime now, CancellationToken ct, bool countAttempt = true)
     {
         if (!countAttempt) UncountedSaves++;
@@ -154,17 +161,17 @@ public sealed class FakeJobStore : IJobStore
     public string? LastParseVersion { get; private set; }
 
     /// <summary>Pending markers: (kind, job id) -> batch id.</summary>
-    public Dictionary<(string Kind, long Id), string> Pending { get; } = [];
+    public Dictionary<(string Kind, string Id), string> Pending { get; } = [];
 
     public Task MarkAiPendingAsync(
-        string boardToken, IReadOnlyCollection<long> ids, string kind, string batchId, CancellationToken ct)
+        string boardToken, IReadOnlyCollection<string> ids, string kind, string batchId, CancellationToken ct)
     {
         foreach (var id in ids) Pending[(kind, id)] = batchId;
         return Task.CompletedTask;
     }
 
     public Task ClearAiPendingAsync(
-        string boardToken, IReadOnlyCollection<long> ids, string kind, string batchId, CancellationToken ct)
+        string boardToken, IReadOnlyCollection<string> ids, string kind, string batchId, CancellationToken ct)
     {
         foreach (var id in ids)
             if (Pending.TryGetValue((kind, id), out var owner) && owner == batchId)
@@ -173,10 +180,10 @@ public sealed class FakeJobStore : IJobStore
     }
 
     /// <summary>What StoredContentForAsync returns, by id.</summary>
-    public Dictionary<long, StoredJobContent> Stored { get; } = [];
+    public Dictionary<string, StoredJobContent> Stored { get; } = [];
 
     public Task<IReadOnlyList<StoredJobContent>> StoredContentForAsync(
-        string boardToken, IReadOnlyCollection<long> ids, CancellationToken ct) =>
+        string boardToken, IReadOnlyCollection<string> ids, CancellationToken ct) =>
         Task.FromResult<IReadOnlyList<StoredJobContent>>(
             [.. ids.Where(Stored.ContainsKey).Select(i => Stored[i])]);
 
@@ -228,13 +235,13 @@ public sealed class FakeJobStore : IJobStore
     public Exception? StampThrows { get; set; }
 
     /// <summary>The functions StoredFactsAsync returns, by id.</summary>
-    public Dictionary<long, string[]> Functions { get; } = [];
+    public Dictionary<string, string[]> Functions { get; } = [];
 
     /// <summary>The locations StoredFactsAsync returns, by id.</summary>
-    public Dictionary<long, string> Locations { get; } = [];
+    public Dictionary<string, string> Locations { get; } = [];
 
-    public Task<Dictionary<long, StoredFacts>> StoredFactsAsync(
-        string boardToken, IReadOnlyCollection<long> ids, CancellationToken ct) =>
+    public Task<Dictionary<string, StoredFacts>> StoredFactsAsync(
+        string boardToken, IReadOnlyCollection<string> ids, CancellationToken ct) =>
         Task.FromResult(ids
             .Where(i => Functions.ContainsKey(i) || Locations.ContainsKey(i))
             .ToDictionary(i => i, i => new StoredFacts(
@@ -248,9 +255,10 @@ public sealed class FakeJobStore : IJobStore
     }
 
     public Task<long> CloseMissingAsync(
-        string boardToken, IReadOnlyCollection<long> seenIds, int emptyResponseGuardThreshold,
+        string boardKey, IReadOnlyCollection<string> seenIds, int emptyResponseGuardThreshold,
         DateTime now, CancellationToken ct)
     {
+        BoardsSeen.Add(boardKey);
         CloseCalls++;
         LastCloseSeenIds = seenIds;
         return Task.FromResult(CloseReturns);

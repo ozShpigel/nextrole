@@ -41,7 +41,7 @@ public class BoardHandlerSourceTests
     public async Task A_posting_whose_detail_failed_is_neither_stored_nor_closed()
     {
         var store = new FakeJobStore();
-        store.Hashes[2] = "stored-before";
+        store.Hashes["2"] = "stored-before";
         var source = new FakeSource(
             new Listing([Listed("1"), Listed("2")], Complete: true, Total: 2),
             p => p.SourceJobId == "2" ? null : Full(p));
@@ -50,9 +50,9 @@ public class BoardHandlerSourceTests
 
         Assert.Equal(2, result.Fetched);
         Assert.Equal(1, result.Embedded);
-        Assert.Equal("stored-before", store.Hashes[2]);       // not rewritten
-        Assert.DoesNotContain(2L, store.Touched);             // not marked seen as if read
-        Assert.Contains(2L, store.LastCloseSeenIds!);         // but present: the diff leaves it open
+        Assert.Equal("stored-before", store.Hashes["2"]);       // not rewritten
+        Assert.DoesNotContain("2", store.Touched);             // not marked seen as if read
+        Assert.Contains("2", store.LastCloseSeenIds!);         // but present: the diff leaves it open
     }
 
     [Fact]
@@ -77,7 +77,7 @@ public class BoardHandlerSourceTests
         await Handler(source, store).HandleCompanyAsync(Build.Token);
 
         Assert.Equal(1, store.CloseCalls);
-        Assert.Equal([1L, 2L], store.LastCloseSeenIds!.Order());
+        Assert.Equal(["1", "2"], store.LastCloseSeenIds!.Order());
     }
 
     [Fact]
@@ -93,16 +93,43 @@ public class BoardHandlerSourceTests
     }
 
     [Fact]
-    public async Task An_id_the_stored_key_cannot_hold_is_dropped_before_anything_is_written()
+    public async Task An_id_that_is_not_a_number_is_stored_as_it_is()
     {
-        // Until the key migration (phase 2), the stored id is a long.
+        // Workday's jobReqId, Lever's UUIDs: the stored key is a string since
+        // 2b, so the handler no longer has to drop them (phase 1 did).
         var store = new FakeJobStore();
         var source = new FakeSource(new Listing([Listed("R-12"), Listed("5")], Complete: true, Total: 2), Full);
 
         var result = await Handler(source, store).HandleCompanyAsync(Build.Token);
 
+        Assert.Equal(2, result.Fetched);
+        Assert.Equal(["5", "R-12"], store.Hashes.Keys.Order(StringComparer.Ordinal));
+        Assert.Equal(["5", "R-12"], store.LastCloseSeenIds!.Order(StringComparer.Ordinal));
+    }
+
+    [Fact]
+    public async Task A_blank_id_is_dropped_before_anything_is_written()
+    {
+        var store = new FakeJobStore();
+        var source = new FakeSource(new Listing([Listed(" "), Listed("5")], Complete: true, Total: 2), Full);
+
+        var result = await Handler(source, store).HandleCompanyAsync(Build.Token);
+
         Assert.Equal(1, result.Fetched);
-        Assert.Equal([5L], store.Hashes.Keys);
-        Assert.Equal([5L], store.LastCloseSeenIds!);
+        Assert.Equal(["5"], store.Hashes.Keys);
+        Assert.Equal(["5"], store.LastCloseSeenIds!);
+    }
+
+    [Fact]
+    public async Task Every_per_board_store_call_is_given_the_source_qualified_board_key()
+    {
+        // The whole of 2b in one assertion: a call still given the bare token
+        // would match no row, and a key mismatch reads as "every posting is new".
+        var store = new FakeJobStore();
+        var source = new FakeSource(new Listing([Listed("1")], Complete: true, Total: 1), Full);
+
+        await Handler(source, store).HandleCompanyAsync(Build.Token);
+
+        Assert.Equal([$"fake:{Build.Token}"], store.BoardsSeen);
     }
 }

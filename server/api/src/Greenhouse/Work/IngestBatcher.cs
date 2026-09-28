@@ -60,7 +60,7 @@ public sealed class IngestBatcher
     /// <summary>Submit one read for these postings, in batches of at most 200.</summary>
     /// <returns>How many postings were submitted.</returns>
     public async Task<int> SubmitAsync(
-        string boardToken, string kind, IReadOnlyList<IngestJob> jobs, DateTime now, CancellationToken ct)
+        string boardKey, string kind, IReadOnlyList<IngestJob> jobs, DateTime now, CancellationToken ct)
     {
         var submitted = 0;
         foreach (var chunk in jobs.Chunk(IngestAiClient.BatchSubmitSize))
@@ -72,7 +72,7 @@ public sealed class IngestBatcher
                     : await _ai.SubmitParseBatchAsync(chunk, ct);
                 if (batch is null) continue;
 
-                var ids = chunk.Select(j => long.Parse(j.JobId)).ToList();
+                var ids = chunk.Select(j => j.JobId).ToList();
 
                 // Recorded before the markers: a batch with no row is paid for
                 // and never collected, while a row with no markers only lets
@@ -81,21 +81,21 @@ public sealed class IngestBatcher
                 {
                     BatchId = batch.BatchId,
                     Kind = kind,
-                    BoardToken = boardToken,
+                    BoardKey = boardKey,
                     JobIds = ids,
                     ParseVersion = batch.ParseVersion,
                     SubmittedAt = now,
                 }, ct);
-                await _jobs.MarkAiPendingAsync(boardToken, ids, kind, batch.BatchId, ct);
+                await _jobs.MarkAiPendingAsync(boardKey, ids, kind, batch.BatchId, ct);
 
                 submitted += ids.Count;
                 _log.LogInformation("Board {Board}: submitted {Kind} batch {BatchId} for {Count} posting(s)",
-                    boardToken, kind, batch.BatchId, ids.Count);
+                    boardKey, kind, batch.BatchId, ids.Count);
             }
             catch (Exception e) when (e is not OperationCanceledException)
             {
                 _log.LogError(e, "Board {Board}: could not submit a {Kind} batch of {Count}; read again next run",
-                    boardToken, kind, chunk.Length);
+                    boardKey, kind, chunk.Length);
             }
         }
         return submitted;
@@ -136,10 +136,10 @@ public sealed class IngestBatcher
     {
         if (now - batch.SubmittedAt > AbandonAfter)
         {
-            await _jobs.ClearAiPendingAsync(batch.BoardToken, batch.JobIds, batch.Kind, batch.BatchId, ct);
+            await _jobs.ClearAiPendingAsync(batch.BoardKey, batch.JobIds, batch.Kind, batch.BatchId, ct);
             await _batches.CloseAsync(batch.BatchId, "abandoned", now, ct);
             _log.LogWarning("Board {Board}: abandoned {Kind} batch {BatchId} after {Hours}h; its postings are read again next run",
-                batch.BoardToken, batch.Kind, batch.BatchId, (int)AbandonAfter.TotalHours);
+                batch.BoardKey, batch.Kind, batch.BatchId, (int)AbandonAfter.TotalHours);
             return true;
         }
 
@@ -153,15 +153,15 @@ public sealed class IngestBatcher
 
             // extract_attempts counts, as for a live facts read.
             saved = await _jobs.SaveIngestAiAsync(
-                batch.BoardToken, ByJobId(ended.Facts, wanted), new Dictionary<long, BsonDocument>(), null, now, ct);
+                batch.BoardKey, Wanted(ended.Facts, wanted), new Dictionary<string, BsonDocument>(), null, now, ct);
         }
         else
         {
             // The parse is verified against the postings it was made from, so
             // the collect carries them (the API keeps nothing between calls).
-            var stored = await _jobs.StoredContentForAsync(batch.BoardToken, batch.JobIds, ct);
+            var stored = await _jobs.StoredContentForAsync(batch.BoardKey, batch.JobIds, ct);
             var jobs = stored
-                .Select(p => new IngestJob(p.GreenhouseJobId.ToString(), p.Title, p.Company, p.Location, p.Content))
+                .Select(p => new IngestJob(p.SourceJobId, p.Title, p.Company, p.Location, p.Content))
                 .ToList();
             if (jobs.Count == 0)
             {
@@ -177,29 +177,29 @@ public sealed class IngestBatcher
             // facts and parse together and counted once; counting both batches
             // would cost every posting one of its re-reads.
             saved = await _jobs.SaveIngestAiAsync(
-                batch.BoardToken, new Dictionary<long, BsonDocument>(), ByJobId(ended.Parsed, wanted),
+                batch.BoardKey, new Dictionary<string, BsonDocument>(), Wanted(ended.Parsed, wanted),
                 batch.ParseVersion, now, ct, countAttempt: false);
         }
 
-        await _jobs.ClearAiPendingAsync(batch.BoardToken, batch.JobIds, batch.Kind, batch.BatchId, ct);
+        await _jobs.ClearAiPendingAsync(batch.BoardKey, batch.JobIds, batch.Kind, batch.BatchId, ct);
         await _batches.CloseAsync(batch.BatchId, "collected", now, ct);
 
         _log.LogInformation("Board {Board}: collected {Kind} batch {BatchId} -- {Saved} of {Count} posting(s) stored",
-            batch.BoardToken, batch.Kind, batch.BatchId, saved, batch.JobIds.Count);
+            batch.BoardKey, batch.Kind, batch.BatchId, saved, batch.JobIds.Count);
         return true;
     }
 
-    /// <summary>Re-key string ids to the collection's long ids, keeping only the batch's own.</summary>
+    /// <summary>Keep only the results for ids this batch submitted.</summary>
     /// <remarks>
     /// An id the batch did not submit is dropped rather than stored: attaching
     /// one posting's read to another is the failure this correlation exists to
     /// prevent.
     /// </remarks>
-    private static Dictionary<long, BsonDocument> ByJobId(Dictionary<string, BsonDocument> source, HashSet<long> wanted)
+    private static Dictionary<string, BsonDocument> Wanted(Dictionary<string, BsonDocument> source, HashSet<string> wanted)
     {
-        var result = new Dictionary<long, BsonDocument>(source.Count);
+        var result = new Dictionary<string, BsonDocument>(source.Count);
         foreach (var (key, value) in source)
-            if (long.TryParse(key, out var id) && wanted.Contains(id)) result[id] = value;
+            if (wanted.Contains(key)) result[key] = value;
         return result;
     }
 }

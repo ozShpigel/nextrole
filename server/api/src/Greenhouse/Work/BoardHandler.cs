@@ -300,7 +300,7 @@ public sealed class BoardHandler
                 continue;
             }
 
-            jobs.Add(GreenhouseJob.From(boardToken, id, detail));
+            jobs.Add(GreenhouseJob.From(_source.Name, boardToken, id, detail));
         }
 
         if (badIds > 0)

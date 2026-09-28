@@ -76,11 +76,13 @@ public class GreenhouseSourceStoredFieldsTests
 
         var listing = await Build.Source(new StubHandler().EnqueueJson(HttpStatusCode.OK, json))
             .ListAsync(Build.Token, default);
-        var job = GreenhouseJob.From(Build.Token, 7, listing.Postings.Single().Detail!);
+        var job = GreenhouseJob.From("greenhouse", Build.Token, 7, listing.Postings.Single().Detail!);
         var stored = job.ToStoredFields();
 
         Assert.Equal(Build.Token, stored[GreenhouseJobFields.BoardToken].AsString);
         Assert.Equal(7L, stored[GreenhouseJobFields.GreenhouseJobId].AsInt64);
+        Assert.Equal($"greenhouse:{Build.Token}", stored[GreenhouseJobFields.BoardKey].AsString);
+        Assert.Equal("7", stored[GreenhouseJobFields.SourceJobId].AsString);
         Assert.Equal("Platform Engineer", stored[GreenhouseJobFields.Title].AsString);
         Assert.Equal("Test Co", stored[GreenhouseJobFields.Company].AsString);
         Assert.Equal("https://x/jobs/7", stored[GreenhouseJobFields.AbsoluteUrl].AsString);
@@ -105,7 +107,7 @@ public class GreenhouseSourceStoredFieldsTests
         var listing = await Build.Source(new StubHandler().EnqueueJson(HttpStatusCode.OK,
                 Build.BoardJson((9, "Engineer", "&lt;p&gt;x&lt;/p&gt;"))))
             .ListAsync(Build.Token, default);
-        var stored = GreenhouseJob.From(Build.Token, 9, listing.Postings.Single().Detail!).ToStoredFields();
+        var stored = GreenhouseJob.From("greenhouse", Build.Token, 9, listing.Postings.Single().Detail!).ToStoredFields();
 
         Assert.True(stored[GreenhouseJobFields.BoardUpdatedAt].IsBsonNull);
         Assert.True(stored[GreenhouseJobFields.FirstPublishedAt].IsBsonNull);

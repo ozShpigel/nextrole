@@ -125,7 +125,7 @@ public abstract class JobSourceContract
             Assert.Equal(posting.SourceJobId, detail.Listed.SourceJobId);
 
             // Through the shared cleaner, exactly as the handler stores it.
-            var cleaned = GreenhouseJob.From(Board, 1, detail).CleanedContent;
+            var cleaned = GreenhouseJob.From("contract", Board, 1, detail).CleanedContent;
             var expected = Expected.Single(e => e.Id == posting.SourceJobId);
 
             Assert.Contains(expected.Text, cleaned);

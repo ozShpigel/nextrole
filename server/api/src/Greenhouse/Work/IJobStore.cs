@@ -126,6 +126,12 @@ public interface IJobStore
     Task<Dictionary<string, StoredFacts>> StoredFactsAsync(
         string boardKey, IReadOnlyCollection<string> ids, CancellationToken ct);
 
+    /// <summary>Each stored posting's listing signature and last detail read, by the board's own id.</summary>
+    Task<Dictionary<string, ListingState>> ListingStatesAsync(string boardKey, CancellationToken ct);
+
+    /// <summary>Record that these postings' details were read, and how they were listed then.</summary>
+    Task StampDetailReadsAsync(string boardKey, IReadOnlyCollection<DetailRead> reads, CancellationToken ct);
+
     /// <summary>Open postings (no closedAt) per board key, across every board stored.</summary>
     Task<Dictionary<string, long>> OpenCountsByBoardAsync(CancellationToken ct);
 
@@ -146,6 +152,12 @@ public interface IJobStore
 /// <param name="Functions">extracted.functions; empty when none stored.</param>
 /// <param name="Location">extracted.location; null when none stored.</param>
 public sealed record StoredFacts(string[] Functions, string? Location);
+
+/// <summary>How a stored posting was listed when its detail was last read, and when that was.</summary>
+public sealed record ListingState(string? Signature, DateTime? DetailReadAt);
+
+/// <summary>A detail just read: the posting, its listing signature, and the time to stamp.</summary>
+public sealed record DetailRead(string SourceJobId, string Signature, DateTime ReadAt);
 
 public sealed record StoredJobContent(
     string SourceJobId,

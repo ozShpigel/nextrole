@@ -176,6 +176,25 @@ public sealed class BoardHandler
             ? [.. postings.Where(p => !skippedAtListing.Contains(p.SourceJobId))]
             : postings;
 
+        // A stored posting still listed exactly as it was when its detail was
+        // last read, read within the week, is not read again: nothing the
+        // listing can show has changed, and a Workday listing carries no edit
+        // date (measured 2026-09-28). A body-only edit is caught by the weekly
+        // re-read. Only for postings whose detail is a request of its own --
+        // a Greenhouse listing carries the body, so this never applies there.
+        var listingStates = await ListingStatesAsync(board, toRead, ct);
+        var unchangedInListing = new List<string>();
+        if (listingStates.Count > 0)
+            toRead = [.. toRead.Where(p =>
+            {
+                var same = p.Detail is null && !IsNew(p.SourceJobId)
+                    && listingStates.TryGetValue(p.SourceJobId, out var state)
+                    && state.Signature == ListingSignature(p)
+                    && state.DetailReadAt > now - DetailReReadAfter;
+                if (same) unchangedInListing.Add(p.SourceJobId);
+                return !same;
+            })];
+
         var jobs = await ReadDetailsAsync(board, source, toRead, ct);
 
         // Stage 2, the same rule on the detail's data: the exact date, the full
@@ -211,9 +230,14 @@ public sealed class BoardHandler
                 changed.Add(job);
         }
 
+        // Unchanged by the listing: present, so touched below like an
+        // unchanged hash, and never closed.
+        unchanged.AddRange(unchangedInListing);
+
         _log.LogInformation(
-            "Board {Board}: {Total} job(s) -- {Changed} to embed, {Unchanged} unchanged, {Prefiltered} prefiltered",
-            board.Token, postings.Count, changed.Count, unchanged.Count, prefiltered);
+            "Board {Board}: {Total} job(s) -- {Changed} to embed, {Unchanged} unchanged ({InListing} of them not read: "
+            + "listed as before), {Prefiltered} prefiltered",
+            board.Token, postings.Count, changed.Count, unchanged.Count, unchangedInListing.Count, prefiltered);
 
         var embedded = 0;
         var tokens = 0;
@@ -287,6 +311,9 @@ public sealed class BoardHandler
             await BackfillIngestAiAsync(board, now, ct);
             await ReReadFactsAsync(board, now, ct);
         }
+
+        // After the upserts, so a posting stored this run is stamped too.
+        await StampDetailReadsAsync(board, toRead, jobs, listingStates, now, ct);
 
         // Presence for the ones we skipped. Also clears closedAt, so a job that
         // closed and came back unchanged reopens without being re-embedded.
@@ -392,6 +419,78 @@ public sealed class BoardHandler
 
     /// <summary>How many detail requests between progress lines.</summary>
     public const int DetailProgressEvery = 100;
+
+    /// <summary>How long a stored posting listed as before goes without its detail being read.</summary>
+    public static readonly TimeSpan DetailReReadAfter = TimeSpan.FromDays(7);
+
+    /// <summary>The listing's own view of a posting: its title and location text, hashed.</summary>
+    /// <remarks>
+    /// The listing's, not the detail's: a Workday listing says "2 Locations"
+    /// where the detail names them, so comparing against stored detail fields
+    /// would read as a change every day.
+    /// </remarks>
+    public static string ListingSignature(ListedPosting p) =>
+        Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(
+            System.Text.Encoding.UTF8.GetBytes($"{p.Title?.Length}:{p.Title}\n{p.Location}")));
+
+    /// <summary>Stored listing states, or none (read everything) when no posting needs a detail request.</summary>
+    /// <remarks>Never throws: without them every posting is read, as before.</remarks>
+    private async Task<Dictionary<string, ListingState>> ListingStatesAsync(
+        BoardConfig board, IReadOnlyList<ListedPosting> toRead, CancellationToken ct)
+    {
+        if (!toRead.Any(p => p.Detail is null)) return [];
+        try
+        {
+            return await _store.ListingStatesAsync(board.Key, ct);
+        }
+        catch (Exception e) when (e is not OperationCanceledException)
+        {
+            _log.LogError(e, "Board {Board}: could not read the listing states; reading every posting", board.Token);
+            return [];
+        }
+    }
+
+    /// <summary>
+    /// Stamp every posting whose detail was requested and read this run.
+    /// </summary>
+    /// <remarks>
+    /// A posting stamped for the first time is back-dated by a stable 0-6 days,
+    /// so a board stored in one day is re-read across the week rather than all
+    /// on its seventh day. Never throws: a lost stamp costs one extra read.
+    /// </remarks>
+    private async Task StampDetailReadsAsync(
+        BoardConfig board, IReadOnlyList<ListedPosting> read, IReadOnlyList<GreenhouseJob> jobs,
+        IReadOnlyDictionary<string, ListingState> states, DateTime now, CancellationToken ct)
+    {
+        var readIds = jobs.Select(j => j.SourceJobId).ToHashSet(StringComparer.Ordinal);
+        List<DetailRead> reads =
+        [
+            .. read
+                .Where(p => p.Detail is null && readIds.Contains(p.SourceJobId))
+                .Select(p => new DetailRead(p.SourceJobId, ListingSignature(p),
+                    states.GetValueOrDefault(p.SourceJobId)?.DetailReadAt is null
+                        ? now - TimeSpan.FromDays(Spread(p.SourceJobId))
+                        : now)),
+        ];
+        if (reads.Count == 0) return;
+
+        try
+        {
+            await _store.StampDetailReadsAsync(board.Key, reads, ct);
+        }
+        catch (Exception e) when (e is not OperationCanceledException)
+        {
+            _log.LogError(e, "Board {Board}: could not stamp {Count} detail read(s)", board.Token, reads.Count);
+        }
+    }
+
+    // FNV-1a over the id: stable across runs and processes, unlike GetHashCode.
+    private static int Spread(string id)
+    {
+        var hash = 2166136261u;
+        foreach (var c in id) hash = (hash ^ c) * 16777619u;
+        return (int)(hash % 7);
+    }
 
     /// <summary>How many example titles a prefilter log line carries.</summary>
     private const int PrefilterExamples = 8;

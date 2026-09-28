@@ -482,6 +482,46 @@ public sealed class JobStore : IJobStore
     }
 
     /// <inheritdoc />
+    public async Task<Dictionary<string, ListingState>> ListingStatesAsync(string boardKey, CancellationToken ct)
+    {
+        var docs = await _jobs
+            .Find(Builders<BsonDocument>.Filter.Eq(GreenhouseJobFields.BoardKey, boardKey))
+            .Project(Builders<BsonDocument>.Projection
+                .Include(GreenhouseJobFields.SourceJobId)
+                .Include(GreenhouseJobFields.ListingSignature)
+                .Include(GreenhouseJobFields.DetailReadAt))
+            .ToListAsync(ct);
+
+        var result = new Dictionary<string, ListingState>(docs.Count, StringComparer.Ordinal);
+        foreach (var d in docs)
+        {
+            if (!d.TryGetValue(GreenhouseJobFields.SourceJobId, out var id) || !id.IsString) continue;
+            result[id.AsString] = new ListingState(
+                Str(d, GreenhouseJobFields.ListingSignature),
+                d.TryGetValue(GreenhouseJobFields.DetailReadAt, out var at) && at.IsValidDateTime ? at.ToUniversalTime() : null);
+        }
+        return result;
+    }
+
+    /// <inheritdoc />
+    public async Task StampDetailReadsAsync(string boardKey, IReadOnlyCollection<DetailRead> reads, CancellationToken ct)
+    {
+        if (reads.Count == 0) return;
+
+        // Existing rows only: a posting skipped after its detail (too old) was
+        // never stored, and must not be created here.
+        var writes = reads.Select(r => new UpdateOneModel<BsonDocument>(
+            Builders<BsonDocument>.Filter.And(
+                Builders<BsonDocument>.Filter.Eq(GreenhouseJobFields.BoardKey, boardKey),
+                Builders<BsonDocument>.Filter.Eq(GreenhouseJobFields.SourceJobId, r.SourceJobId)),
+            Builders<BsonDocument>.Update
+                .Set(GreenhouseJobFields.ListingSignature, r.Signature)
+                .Set(GreenhouseJobFields.DetailReadAt, r.ReadAt)));
+
+        await _jobs.BulkWriteAsync(writes, new BulkWriteOptions { IsOrdered = false }, ct);
+    }
+
+    /// <inheritdoc />
     public async Task<Dictionary<string, long>> OpenCountsByBoardAsync(CancellationToken ct)
     {
         var rows = await _jobs.Aggregate()

@@ -73,8 +73,8 @@ touched). One read-only command settles it:
     get `greenhouse:<token>`, like 2a;
   - new unique index `uniq_day_boardkey`, **partial** on `boardKey` existing,
     so a row an old process writes mid-deploy cannot collide on a missing field;
-  - rows still carry `boardToken`; the old `uniq_day_board` index goes in 2c,
-    with the old job indexes.
+  - rows carried `boardToken` too until 2c, which dropped the old
+    `uniq_day_board` index with the old job indexes.
 - **`RemovedBoards`** compares the config's board keys with open postings
   grouped by `boardKey`, and closes by board key. Its guard (refuse to close
   more than half the open pool at once) is unchanged.
@@ -108,8 +108,8 @@ data change is a startup backfill of a small operational collection.
 ## Decisions (2026-09-28)
 
 1. **Renamed to `boards.json`**; the old shape and the old setting keep loading.
-2. **`boardToken` is still written** on queue messages and ledger rows until 2c,
-   so every step stays reversible by code alone, as in phase 2.
+2. **`boardToken` was still written** on queue messages and ledger rows until 2c,
+   so every step stayed reversible by code alone, as in phase 2.
 
 ## What the deploy missed (#131)
 
@@ -121,7 +121,7 @@ and the shipped-file tests loaded `boards.json` by name. Fixed by pointing the
 setting at `boards.json` and adding a test that resolves the path the way the
 process does (`BoardsConfig.PathFrom`, from the shipped appsettings).
 
-## Known limit until 2c
+## Limit until 2c (resolved by 2c)
 
 The ledger keeps the old `uniq_day_board` index, so two boards sharing a token
 on different sources cannot both have a row for one day. Tested

@@ -23,8 +23,9 @@ public static class GreenhouseJobFields
     public const string BoardToken = "boardToken";
 
     /// <summary>
-    /// Greenhouse's own job id, as a number. Still written on Greenhouse rows so
-    /// the old unique index keeps guarding until 2c; nothing reads it.
+    /// Greenhouse's own job id, as a number: half of the key before 2b. Present
+    /// on rows written before 2c, never written since, and read by nothing --
+    /// <see cref="SourceJobId"/> holds the same id.
     /// </summary>
     public const string GreenhouseJobId = "greenhouseJobId";
 

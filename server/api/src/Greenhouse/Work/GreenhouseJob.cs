@@ -20,17 +20,6 @@ public sealed record GreenhouseJob
     /// <summary>The source-qualified board, e.g. <c>greenhouse:wizinc</c>. The other half.</summary>
     public string BoardKey => KeyFor(SourceName, BoardToken);
 
-    /// <summary>
-    /// The old key's numeric id, still written on Greenhouse rows so the old
-    /// unique index keeps guarding until it is dropped (2c). Null for any other
-    /// source. Nothing reads it.
-    /// </summary>
-    public long? GreenhouseJobId =>
-        SourceName == "greenhouse"
-        && long.TryParse(SourceJobId, System.Globalization.NumberStyles.AllowLeadingSign,
-            System.Globalization.CultureInfo.InvariantCulture, out var id)
-            ? id
-            : null;
 
     /// <summary>One definition of a board key, shared with the backfill.</summary>
     public static string KeyFor(string sourceName, string boardToken) => $"{sourceName}:{boardToken}";
@@ -104,7 +93,6 @@ public sealed record GreenhouseJob
     public BsonDocument ToStoredFields() => new()
     {
         { GreenhouseJobFields.BoardToken, BoardToken },
-        { GreenhouseJobFields.GreenhouseJobId, GreenhouseJobId is { } legacyId ? legacyId : BsonNull.Value },
         { GreenhouseJobFields.BoardKey, BoardKey },
         { GreenhouseJobFields.SourceJobId, SourceJobId },
         { GreenhouseJobFields.Title, Value(Source.Listed.Title) },

@@ -39,17 +39,17 @@ public class CompanyMessageTests
     }
 
     [Fact]
-    public void What_the_publisher_writes_carries_both_for_one_more_release()
+    public void A_key_only_message_round_trips_to_its_board()
     {
-        // The token stays until 2c, so reverting to the previous image still
-        // reads every message this one wrote.
+        // What the publisher writes since 2c: the key, and no token. The
+        // derived Key is not serialised -- it is computed on read.
         var json = JsonSerializer.Serialize(new CompanyMessage
         {
-            BoardKey = "greenhouse:wizinc", BoardToken = "wizinc", Day = "2026-09-28", RunId = "r1",
+            BoardKey = "workday:wizinc", Day = "2026-09-28", RunId = "r1",
         });
 
-        Assert.Contains("\"boardKey\":\"greenhouse:wizinc\"", json);
-        Assert.Contains("\"boardToken\":\"wizinc\"", json);
+        Assert.Contains("\"boardKey\":\"workday:wizinc\"", json);
         Assert.DoesNotContain("\"Key\"", json);
+        Assert.Equal("workday:wizinc", JsonSerializer.Deserialize<CompanyMessage>(json)!.Key);
     }
 }

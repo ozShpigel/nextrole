@@ -1,6 +1,6 @@
 # Plan: the pre-read filter in two stages -- before and after the detail
 
-Status: **built** (2026-09-28), not yet deployed. Phase 4 of docs/plans/multi-source-ingest.md.
+Status: **built and verified in production** (2026-09-28; every board `0 after the detail`). Phase 4 of docs/plans/multi-source-ingest.md.
 Phases 1-3 are built and verified in production. Decided: stage 2 applies the whole rule.
 
 ## Why

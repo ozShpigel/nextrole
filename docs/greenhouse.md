@@ -76,10 +76,9 @@ calls it, never the reverse, and the tests drive it by calling the method.
 6. `BulkWriteAsync` **per batch**, upserting on `(boardKey, sourceJobId)` --
    `greenhouse:wizinc`, `"7184512"` -- behind a unique index. Per batch, not at
    the end, so a failure keeps the earlier batches and the money already spent
-   on them. Greenhouse rows still carry the old `(boardToken, greenhouseJobId)`
-   under its own unique index, so a write whose key failed to match fails
-   loudly rather than adding a second row; that index goes before the first
-   other source (docs/plans/key-migration.md, 2c).
+   on them. The old `(boardToken, greenhouseJobId)` key and its indexes are
+   gone since 2c (docs/plans/key-migration.md); rows written before it still
+   carry a `greenhouseJobId` that nothing reads.
 7. Stamp the board's logo on every row it has (see below).
 8. Close what is gone; reopen what came back. **Never delete.**
 

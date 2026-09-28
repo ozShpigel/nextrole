@@ -74,7 +74,7 @@ public sealed class CompanyPublisher
 
             var body = JsonSerializer.SerializeToUtf8Bytes(new CompanyMessage
             {
-                BoardKey = board.Key, BoardToken = board.Token, Day = day, RunId = runId, Live = live,
+                BoardKey = board.Key, Day = day, RunId = runId, Live = live,
             });
 
             try

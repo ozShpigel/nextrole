@@ -68,7 +68,7 @@ public class IngestAiPassTests
 
         Assert.Equal(1, api.Calls);
         Assert.Contains("/api/match/job-facts", api.RequestUris[0]);
-        Assert.Equal([1L], store.SavedFacts.Keys);
+        Assert.Equal(["1"], store.SavedFacts.Keys);
         Assert.Empty(store.SavedParsedFor);
     }
 
@@ -89,7 +89,7 @@ public class IngestAiPassTests
         Assert.Equal(2, api.Calls);
         Assert.Contains("/api/match/job-facts", api.RequestUris[0]);
         Assert.Contains("/api/match/job-parse", api.RequestUris[1]);
-        Assert.Equal([1L], store.SavedAiFor.Distinct().Order());
+        Assert.Equal(["1"], store.SavedAiFor.Distinct().Order());
     }
 
     [Fact]
@@ -173,7 +173,7 @@ public class IngestAiPassTests
                 new FakeEmbeddingClient(), store, ai: Client(api))
             .HandleCompanyAsync(Build.Token);
 
-        Assert.DoesNotContain(1L, store.SavedAiFor);
+        Assert.DoesNotContain("1", store.SavedAiFor);
     }
 
     [Fact]

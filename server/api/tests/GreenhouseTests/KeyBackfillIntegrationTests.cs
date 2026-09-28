@@ -72,7 +72,7 @@ public sealed class KeyBackfillIntegrationTests : IAsyncLifetime
     private static GreenhouseJob Job(string token, long id)
     {
         var listed = new ListedPosting(id.ToString(), "Engineer", "Tel Aviv", [], [], null, null);
-        return GreenhouseJob.From("greenhouse", token, id, new SourcePosting(listed, "<p>x</p>", null, null, null));
+        return GreenhouseJob.From("greenhouse", token, new SourcePosting(listed, "<p>x</p>", null, null, null));
     }
 
     [SkippableFact]
@@ -132,6 +132,100 @@ public sealed class KeyBackfillIntegrationTests : IAsyncLifetime
         var fresh = await _jobs.Find(Builders<BsonDocument>.Filter.Eq(GreenhouseJobFields.GreenhouseJobId, 8L)).SingleAsync();
         Assert.Equal("greenhouse:wizinc", fresh[GreenhouseJobFields.BoardKey].AsString);
         Assert.Equal("8", fresh[GreenhouseJobFields.SourceJobId].AsString);
+    }
+
+    // ---- 2b: the store reads and writes through the new key -----------------
+
+    private const string Key = "greenhouse:wizinc";
+
+    private async Task SeedAsync(params long[] ids)
+    {
+        foreach (var id in ids) await _jobs.InsertOneAsync(OldRow("wizinc", id));
+        await _store.BackfillKeysAsync(default);
+        await _store.EnsureIndexesAsync(default);
+    }
+
+    [SkippableFact]
+    public async Task Hashes_touch_and_the_close_diff_all_find_the_rows_by_the_new_key()
+    {
+        Skip.If(Uri is null, SkipReason);
+        await SeedAsync(1, 2, 3);
+
+        var hashes = await _store.StoredHashesAsync(Key, default);
+        Assert.Equal(["1", "2", "3"], hashes.Keys.Order());
+
+        Assert.Equal(1, await _store.TouchAsync(Key, ["1"], "run", DateTime.UtcNow, default));
+        Assert.Equal(1, await _store.CloseMissingAsync(Key, ["1", "2"], 10, DateTime.UtcNow, default));
+
+        var closed = await _jobs.Find(Builders<BsonDocument>.Filter.Ne(GreenhouseJobFields.ClosedAt, BsonNull.Value))
+            .ToListAsync();
+        Assert.Equal("3", closed.Single()[GreenhouseJobFields.SourceJobId].AsString);
+
+        // The bare token is no longer a board key: it matches nothing.
+        Assert.Empty(await _store.StoredHashesAsync("wizinc", default));
+    }
+
+    [SkippableFact]
+    public async Task Reads_saved_by_string_id_land_on_the_right_row()
+    {
+        Skip.If(Uri is null, SkipReason);
+        // The same id on another board: ids are unique per board, not globally.
+        await _jobs.InsertOneAsync(OldRow("monzo", 8L));
+        await SeedAsync(7, 8);
+
+        await _store.SaveIngestAiAsync(Key,
+            new Dictionary<string, BsonDocument> { ["8"] = new() { { "seniority", "senior" } } },
+            new Dictionary<string, BsonDocument>(), null, DateTime.UtcNow, default);
+
+        BsonDocument Row(string board, string id) => _jobs.Find(Builders<BsonDocument>.Filter.And(
+            Builders<BsonDocument>.Filter.Eq(GreenhouseJobFields.BoardKey, board),
+            Builders<BsonDocument>.Filter.Eq(GreenhouseJobFields.SourceJobId, id))).Single();
+
+        Assert.Equal("senior", Row(Key, "8")[GreenhouseJobFields.Extracted]["seniority"].AsString);
+        Assert.False(Row(Key, "7").Contains(GreenhouseJobFields.Extracted));
+        Assert.False(Row("greenhouse:monzo", "8").Contains(GreenhouseJobFields.Extracted));
+    }
+
+    [SkippableFact]
+    public async Task A_write_whose_new_key_misses_its_row_fails_on_the_old_index_instead_of_duplicating()
+    {
+        // The safety net 2b relies on: Greenhouse rows still carry the old key
+        // under its unique index, so a mismatch is an error, never a second row.
+        Skip.If(Uri is null, SkipReason);
+        await SeedAsync(7);
+        await _jobs.UpdateOneAsync(
+            Builders<BsonDocument>.Filter.Eq(GreenhouseJobFields.GreenhouseJobId, 7L),
+            Builders<BsonDocument>.Update.Set(GreenhouseJobFields.BoardKey, "greenhouse:something-else"));
+
+        await Assert.ThrowsAsync<MongoBulkWriteException<BsonDocument>>(() =>
+            _store.UpsertBatchAsync([(Job("wizinc", 7), new float[4])], "run", DateTime.UtcNow, default));
+        Assert.Equal(1, await _jobs.CountDocumentsAsync(FilterDefinition<BsonDocument>.Empty));
+    }
+
+    [SkippableFact]
+    public async Task A_batch_recorded_before_2b_is_read_with_its_board_key_and_string_ids()
+    {
+        Skip.If(Uri is null, SkipReason);
+        var raw = _client!.GetDatabase(_dbName).GetCollection<BsonDocument>("ai_batches");
+        await raw.InsertOneAsync(new BsonDocument
+        {
+            { "_id", "msgbatch_old" }, { "kind", AiBatchRecord.Facts }, { "boardToken", "wizinc" },
+            { "jobIds", new BsonArray { 7184512L, 55L } }, { "parseVersion", BsonNull.Value },
+            { "submittedAt", DateTime.UtcNow }, { "status", "pending" },
+        });
+        var store = new AiBatchStore(raw);
+        await store.RecordAsync(new AiBatchRecord
+        {
+            BatchId = "msgbatch_new", Kind = AiBatchRecord.Facts, BoardKey = Key, JobIds = ["R-12"],
+            SubmittedAt = DateTime.UtcNow.AddSeconds(1),
+        }, default);
+
+        var pending = (await store.PendingAsync(default)).ToDictionary(b => b.BatchId);
+
+        Assert.Equal(Key, pending["msgbatch_old"].BoardKey);
+        Assert.Equal(["7184512", "55"], pending["msgbatch_old"].JobIds);
+        Assert.Equal(Key, pending["msgbatch_new"].BoardKey);
+        Assert.Equal(["R-12"], pending["msgbatch_new"].JobIds);
     }
 
     [SkippableFact]

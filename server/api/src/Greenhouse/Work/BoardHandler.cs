@@ -1,6 +1,5 @@
 using ApplicationTracker.Core.Greenhouse;
 using ApplicationTracker.Core.Matching;
-using System.Globalization;
 using Microsoft.Extensions.Logging;
 using MongoDB.Bson;
 
@@ -44,7 +43,7 @@ public sealed record CompanyResult(
 /// </para>
 /// <para>
 /// Idempotent because every write is keyed: the upsert is on
-/// (boardToken, greenhouseJobId) behind a unique index, and the content hash
+/// (boardKey, sourceJobId) behind a unique index, and the content hash
 /// means a second run embeds nothing and writes nothing. Running it twice in a
 /// row is the acceptance test, and killing it half-way and restarting reaches
 /// the same rows -- the per-batch write is what makes the partial state valid
@@ -133,21 +132,21 @@ public sealed class BoardHandler
         // Two jobs with the same board id in one response cannot both be
         // upserted: an unordered bulk write of two upserts on the same unique
         // key races itself. Last one wins, deterministically, here.
-        jobs = [.. jobs.GroupBy(j => j.GreenhouseJobId).Select(g => g.Last())];
+        jobs = [.. jobs.GroupBy(j => j.SourceJobId).Select(g => g.Last())];
 
-        var storedHashes = await _store.StoredHashesAsync(boardToken, ct);
+        var storedHashes = await _store.StoredHashesAsync(KeyOf(boardToken), ct);
 
         var changed = new List<GreenhouseJob>();
-        var unchanged = new List<long>();
+        var unchanged = new List<string>();
 
         foreach (var job in jobs)
         {
             // The skip. An unchanged hash costs neither an embedding nor a
             // content write -- only the presence touch below.
-            if (storedHashes.TryGetValue(job.GreenhouseJobId, out var stored)
+            if (storedHashes.TryGetValue(job.SourceJobId, out var stored)
                 && stored == job.ContentHash
                 && stored.Length > 0)
-                unchanged.Add(job.GreenhouseJobId);
+                unchanged.Add(job.SourceJobId);
             else
                 changed.Add(job);
         }
@@ -158,7 +157,7 @@ public sealed class BoardHandler
         // sees it as new and asks again.
         var prefiltered = await PrefilterAsync(boardToken, jobs, storedHashes, ct);
         if (prefiltered.Count > 0)
-            changed = [.. changed.Where(j => !prefiltered.Contains(j.GreenhouseJobId))];
+            changed = [.. changed.Where(j => !prefiltered.Contains(j.SourceJobId))];
 
         _log.LogInformation(
             "Board {Board}: {Total} job(s) -- {Changed} to embed, {Unchanged} unchanged, {Prefiltered} prefiltered",
@@ -239,7 +238,7 @@ public sealed class BoardHandler
 
         // Presence for the ones we skipped. Also clears closedAt, so a job that
         // closed and came back unchanged reopens without being re-embedded.
-        await _store.TouchAsync(boardToken, unchanged, runId, now, ct);
+        await _store.TouchAsync(KeyOf(boardToken), unchanged, runId, now, ct);
 
         await StampLogoAsync(boardToken, ct);
 
@@ -252,7 +251,7 @@ public sealed class BoardHandler
         long closed = 0;
         if (listing.Complete)
             closed = await _store.CloseMissingAsync(
-                boardToken, [.. present], EmptyResponseGuardThreshold, now, ct);
+                KeyOf(boardToken), [.. present], EmptyResponseGuardThreshold, now, ct);
         else
             _log.LogWarning(
                 "Board {Board}: the {Source} listing could not be proven complete ({Listed} listed, board total {Total}); "
@@ -270,28 +269,26 @@ public sealed class BoardHandler
     /// diff sees, so a posting whose detail failed stays open.
     /// </returns>
     /// <remarks>
-    /// Ids are strings in the contract and a long in the stored key until that
-    /// key is migrated (docs/plans/multi-source-ingest.md, phase 2). An id that
-    /// is not a number cannot be stored under today's key, so it is dropped
-    /// with a warning, as the board client drops a job with no id.
+    /// The board's own id is stored as it is, whatever its shape. Only a blank
+    /// one is dropped, with a warning: it cannot be keyed, as the board client
+    /// already drops a Greenhouse job with no id.
     /// </remarks>
-    private async Task<(List<GreenhouseJob> Jobs, List<long> Present)> ReadPostingsAsync(
+    private async Task<(List<GreenhouseJob> Jobs, List<string> Present)> ReadPostingsAsync(
         string boardToken, Listing listing, CancellationToken ct)
     {
         var jobs = new List<GreenhouseJob>(listing.Postings.Count);
-        var present = new HashSet<long>();
+        var present = new HashSet<string>(StringComparer.Ordinal);
         var badIds = 0;
         var unread = 0;
 
         foreach (var posting in listing.Postings)
         {
-            if (!long.TryParse(posting.SourceJobId, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out var id)
-                || id == 0)
+            if (string.IsNullOrWhiteSpace(posting.SourceJobId))
             {
                 badIds++;
                 continue;
             }
-            present.Add(id);
+            present.Add(posting.SourceJobId);
 
             var detail = posting.Detail ?? await _source.DetailAsync(boardToken, posting, ct);
             if (detail is null)
@@ -300,11 +297,11 @@ public sealed class BoardHandler
                 continue;
             }
 
-            jobs.Add(GreenhouseJob.From(_source.Name, boardToken, id, detail));
+            jobs.Add(GreenhouseJob.From(_source.Name, boardToken, detail));
         }
 
         if (badIds > 0)
-            _log.LogWarning("Board {Board}: dropped {Count} posting(s) whose id is not a number", boardToken, badIds);
+            _log.LogWarning("Board {Board}: dropped {Count} posting(s) with no id", boardToken, badIds);
         if (unread > 0)
             _log.LogWarning(
                 "Board {Board}: {Count} posting(s) could not be read in full; skipped this run and left open",
@@ -327,8 +324,8 @@ public sealed class BoardHandler
     /// presence touch and leave it for the close diff. Never throws: a filter
     /// that cannot decide reads everything, which is where it started.
     /// </remarks>
-    private async Task<HashSet<long>> PrefilterAsync(
-        string boardToken, IReadOnlyList<GreenhouseJob> jobs, IReadOnlyDictionary<long, string> stored,
+    private async Task<HashSet<string>> PrefilterAsync(
+        string boardToken, IReadOnlyList<GreenhouseJob> jobs, IReadOnlyDictionary<string, string> stored,
         CancellationToken ct)
     {
         if (_prefilter == PrefilterMode.Off) return [];
@@ -346,7 +343,7 @@ public sealed class BoardHandler
             // state before this filter existed, never a worse one.
             var accepted = wanted.Count > 0 ? Prefilter.Accepted(wanted) : null;
 
-            var fresh = jobs.Where(j => !stored.ContainsKey(j.GreenhouseJobId)).ToList();
+            var fresh = jobs.Where(j => !stored.ContainsKey(j.SourceJobId)).ToList();
             var skips = fresh
                 .Select(j => (Job: j, Skip: Prefilter.Decide(j.Source.Listed, served, accepted)))
                 .Where(x => x.Skip is not null)
@@ -371,7 +368,7 @@ public sealed class BoardHandler
             await CheckGuessesAsync(boardToken, jobs, stored, accepted, served, ct);
 
             return _prefilter == PrefilterMode.On
-                ? [.. skips.Select(x => x.Job.GreenhouseJobId)]
+                ? [.. skips.Select(x => x.Job.SourceJobId)]
                 : [];
         }
         catch (Exception e) when (e is not OperationCanceledException)
@@ -392,7 +389,7 @@ public sealed class BoardHandler
     /// </remarks>
     private void CheckLocations(
         string boardToken, IReadOnlyList<GreenhouseJob> storedJobs,
-        IReadOnlyDictionary<long, StoredFacts> facts, ServedPlaces served)
+        IReadOnlyDictionary<string, StoredFacts> facts, ServedPlaces served)
     {
         if (served.IsEmpty) return;
 
@@ -403,7 +400,7 @@ public sealed class BoardHandler
             .ToList();
 
         var labelled = skipped
-            .Select(x => (x.Job, Claude: facts.GetValueOrDefault(x.Job.GreenhouseJobId)?.Location))
+            .Select(x => (x.Job, Claude: facts.GetValueOrDefault(x.Job.SourceJobId)?.Location))
             .Where(x => !string.IsNullOrWhiteSpace(x.Claude))
             .ToList();
         var wouldHide = labelled
@@ -431,14 +428,14 @@ public sealed class BoardHandler
     /// before Greenhouse:Prefilter goes to On.
     /// </remarks>
     private async Task CheckGuessesAsync(
-        string boardToken, IReadOnlyList<GreenhouseJob> jobs, IReadOnlyDictionary<long, string> stored,
+        string boardToken, IReadOnlyList<GreenhouseJob> jobs, IReadOnlyDictionary<string, string> stored,
         IReadOnlyCollection<string>? accepted, ServedPlaces served, CancellationToken ct)
     {
-        var storedJobs = jobs.Where(j => stored.ContainsKey(j.GreenhouseJobId)).ToList();
+        var storedJobs = jobs.Where(j => stored.ContainsKey(j.SourceJobId)).ToList();
         if (storedJobs.Count == 0) return;
 
         var facts = await _store.StoredFactsAsync(
-            boardToken, [.. storedJobs.Select(j => j.GreenhouseJobId)], ct);
+            KeyOf(boardToken), [.. storedJobs.Select(j => j.SourceJobId)], ct);
 
         CheckLocations(boardToken, storedJobs, facts, served);
 
@@ -449,7 +446,7 @@ public sealed class BoardHandler
             .ToList();
         if (guessed.Count == 0) return;
 
-        string[] LabelOf(GreenhouseJob j) => facts.GetValueOrDefault(j.GreenhouseJobId)?.Functions ?? [];
+        string[] LabelOf(GreenhouseJob j) => facts.GetValueOrDefault(j.SourceJobId)?.Functions ?? [];
 
         var labelled = guessed.Where(x => LabelOf(x.Job).Length > 0).ToList();
         var wrong = labelled.Where(x => !LabelOf(x.Job).Contains(x.Guess!)).ToList();
@@ -489,12 +486,11 @@ public sealed class BoardHandler
     /// </remarks>
     public const int BackfillBatchSize = 100;
 
-    // The board's own job id is the correlation key, as a string, because that
-    // is what the endpoints take. It maps back to the long the collection is
-    // keyed on.
+    // The board's own job id is the correlation key: the string the endpoints
+    // take is the stored sourceJobId, so results map back with no conversion.
     private static List<IngestJob> ToIngestJobs(IReadOnlyList<GreenhouseJob> jobs) =>
         [.. jobs.Select(j => new IngestJob(
-            j.GreenhouseJobId.ToString(),
+            j.SourceJobId,
             j.Source.Listed.Title ?? "",
             j.Source.Company,
             j.Source.Listed.Location,
@@ -521,17 +517,17 @@ public sealed class BoardHandler
             var both = ToIngestJobs(changed);
             var seen = both.Select(j => j.JobId).ToHashSet();
 
-            var backlog = await _store.NeedingIngestAiAsync(boardToken, BackfillBatchSize, ct);
-            both.AddRange(backlog.Where(p => seen.Add(p.GreenhouseJobId.ToString())).Select(ToIngestJob));
+            var backlog = await _store.NeedingIngestAiAsync(KeyOf(boardToken), BackfillBatchSize, ct);
+            both.AddRange(backlog.Where(p => seen.Add(p.SourceJobId)).Select(ToIngestJob));
 
-            var reread = await _store.NeedingFactsReReadAsync(boardToken, BackfillBatchSize, ct);
-            var factsOnly = reread.Where(p => seen.Add(p.GreenhouseJobId.ToString())).Select(ToIngestJob).ToList();
+            var reread = await _store.NeedingFactsReReadAsync(KeyOf(boardToken), BackfillBatchSize, ct);
+            var factsOnly = reread.Where(p => seen.Add(p.SourceJobId)).Select(ToIngestJob).ToList();
 
-            var facts = await _batcher!.SubmitAsync(boardToken, AiBatchRecord.Facts, [.. both, .. factsOnly], now, ct);
+            var facts = await _batcher!.SubmitAsync(KeyOf(boardToken), AiBatchRecord.Facts, [.. both, .. factsOnly], now, ct);
             // No parse batch with ParseAtIngest off -- and so no parse marker,
             // so the posting is visible as soon as its facts land.
             var parses = _parseAtIngest
-                ? await _batcher.SubmitAsync(boardToken, AiBatchRecord.Parse, both, now, ct)
+                ? await _batcher.SubmitAsync(KeyOf(boardToken), AiBatchRecord.Parse, both, now, ct)
                 : 0;
 
             if (facts + parses > 0)
@@ -547,7 +543,7 @@ public sealed class BoardHandler
     }
 
     private static IngestJob ToIngestJob(StoredJobContent p) =>
-        new(p.GreenhouseJobId.ToString(), p.Title, p.Company, p.Location, p.Content);
+        new(p.SourceJobId, p.Title, p.Company, p.Location, p.Content);
 
     /// <summary>
     /// Run the ingest AI reads over postings that have never had them.
@@ -563,7 +559,7 @@ public sealed class BoardHandler
         List<IngestJob> aiJobs;
         try
         {
-            var pending = await _store.NeedingIngestAiAsync(boardToken, BackfillBatchSize, ct);
+            var pending = await _store.NeedingIngestAiAsync(KeyOf(boardToken), BackfillBatchSize, ct);
             if (pending.Count == 0) return;
 
             _log.LogInformation(
@@ -571,7 +567,7 @@ public sealed class BoardHandler
                 boardToken, pending.Count);
 
             aiJobs = [.. pending.Select(p => new IngestJob(
-                p.GreenhouseJobId.ToString(), p.Title, p.Company, p.Location, p.Content))];
+                p.SourceJobId, p.Title, p.Company, p.Location, p.Content))];
         }
         catch (Exception e)
         {
@@ -597,7 +593,7 @@ public sealed class BoardHandler
     {
         try
         {
-            var pending = await _store.NeedingFactsReReadAsync(boardToken, BackfillBatchSize, ct);
+            var pending = await _store.NeedingFactsReReadAsync(KeyOf(boardToken), BackfillBatchSize, ct);
             if (pending.Count == 0) return;
 
             _log.LogInformation(
@@ -605,13 +601,13 @@ public sealed class BoardHandler
                 boardToken, pending.Count);
 
             List<IngestJob> jobs = [.. pending.Select(p => new IngestJob(
-                p.GreenhouseJobId.ToString(), p.Title, p.Company, p.Location, p.Content))];
+                p.SourceJobId, p.Title, p.Company, p.Location, p.Content))];
 
             var facts = await ChunkedAsync(jobs, IngestAiClient.FactsChunkSize,
                 chunk => _ai!.ExtractFactsAsync(chunk, ct));
 
             var saved = await _store.SaveIngestAiAsync(
-                boardToken, ByJobId(facts), new Dictionary<long, BsonDocument>(), null, now, ct);
+                KeyOf(boardToken), facts, new Dictionary<string, BsonDocument>(), null, now, ct);
 
             _log.LogInformation(
                 "Board {Board}: re-read {Facts} fact read(s) over {Rows} row(s)",
@@ -648,7 +644,7 @@ public sealed class BoardHandler
                 });
 
             var saved = await _store.SaveIngestAiAsync(
-                boardToken, ByJobId(facts), ByJobId(parsed), parseVersion, now, ct);
+                KeyOf(boardToken), facts, parsed, parseVersion, now, ct);
 
             _log.LogInformation(
                 "Board {Board}: stored {Facts} fact read(s) and {Parsed} parse(s) over {Rows} row(s)",
@@ -675,7 +671,7 @@ public sealed class BoardHandler
         var logo = _config.LogoUrlFor(boardToken);
         try
         {
-            var stamped = await _store.StampCompanyLogoAsync(boardToken, logo, ct);
+            var stamped = await _store.StampCompanyLogoAsync(KeyOf(boardToken), logo, ct);
             if (stamped > 0)
                 _log.LogInformation("Board {Board}: set the company logo on {Count} row(s)", boardToken, stamped);
         }
@@ -685,19 +681,13 @@ public sealed class BoardHandler
         }
     }
 
-    /// <summary>Re-key the API's string job ids back to the collection's long ids.</summary>
+    /// <summary>The stored board key for this board, e.g. <c>greenhouse:wizinc</c>.</summary>
     /// <remarks>
-    /// A key that will not parse is dropped rather than guessed at. Attaching
-    /// one job's facts to another is the failure this whole correlation exists
-    /// to avoid.
+    /// Every store call goes through this; log lines keep the plain token,
+    /// which is what the ledger, the queue and people reading the logs use until
+    /// phase 3 moves them over too.
     /// </remarks>
-    private static Dictionary<long, BsonDocument> ByJobId(Dictionary<string, BsonDocument> source)
-    {
-        var result = new Dictionary<long, BsonDocument>(source.Count);
-        foreach (var (key, value) in source)
-            if (long.TryParse(key, out var id)) result[id] = value;
-        return result;
-    }
+    private string KeyOf(string boardToken) => GreenhouseJob.KeyFor(_source.Name, boardToken);
 
     private static async Task<Dictionary<string, BsonDocument>> ChunkedAsync(
         IReadOnlyList<IngestJob> jobs, int chunkSize,

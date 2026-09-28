@@ -16,8 +16,11 @@ public sealed record AiBatchRecord
 {
     public required string BatchId { get; init; }
     public required string Kind { get; init; }
-    public required string BoardToken { get; init; }
-    public required IReadOnlyList<long> JobIds { get; init; }
+    /// <summary><c>source:token</c>. Records written before 2b hold only a token.</summary>
+    public required string BoardKey { get; init; }
+
+    /// <summary>The board's own job ids. Records written before 2b hold them as longs.</summary>
+    public required IReadOnlyList<string> JobIds { get; init; }
     public string? ParseVersion { get; init; }
     public required DateTime SubmittedAt { get; init; }
 
@@ -51,7 +54,7 @@ public sealed class AiBatchStore : IAiBatchStore
         {
             { "_id", batch.BatchId },
             { "kind", batch.Kind },
-            { "boardToken", batch.BoardToken },
+            { "boardKey", batch.BoardKey },
             { "jobIds", new BsonArray(batch.JobIds) },
             { "parseVersion", batch.ParseVersion is null ? BsonNull.Value : new BsonString(batch.ParseVersion) },
             { "submittedAt", batch.SubmittedAt },
@@ -69,12 +72,25 @@ public sealed class AiBatchStore : IAiBatchStore
         {
             BatchId = d["_id"].AsString,
             Kind = d["kind"].AsString,
-            BoardToken = d["boardToken"].AsString,
-            JobIds = [.. d["jobIds"].AsBsonArray.Select(v => v.ToInt64())],
+            BoardKey = BoardKeyOf(d),
+            JobIds = [.. d["jobIds"].AsBsonArray.Select(JobIdOf)],
             ParseVersion = d.TryGetValue("parseVersion", out var v) && v.IsString ? v.AsString : null,
             SubmittedAt = d["submittedAt"].ToUniversalTime(),
         })];
     }
+
+    /// <summary>
+    /// A batch submitted before 2b and collected after it: every such record is
+    /// a Greenhouse one, keyed by token, with numeric ids. Read both shapes so
+    /// its results land on the same rows (docs/plans/key-migration.md).
+    /// </summary>
+    internal static string BoardKeyOf(BsonDocument d) =>
+        d.TryGetValue("boardKey", out var k) && k.IsString
+            ? k.AsString
+            : GreenhouseJob.KeyFor("greenhouse", d["boardToken"].AsString);
+
+    internal static string JobIdOf(BsonValue v) =>
+        v.IsString ? v.AsString : v.ToInt64().ToString(System.Globalization.CultureInfo.InvariantCulture);
 
     public Task CloseAsync(string batchId, string status, DateTime now, CancellationToken ct) =>
         _batches.UpdateOneAsync(

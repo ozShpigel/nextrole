@@ -1,6 +1,6 @@
 # Plan: the stored key, from `(boardToken, greenhouseJobId)` to `(boardKey, sourceJobId)`
 
-Status: **2a built** (2026-09-28); 2b and 2c planned. Phase 2 of docs/plans/multi-source-ingest.md.
+Status: **2a built and verified in production, 2b built** (2026-09-28); 2c planned. Phase 2 of docs/plans/multi-source-ingest.md.
 
 ## Why
 

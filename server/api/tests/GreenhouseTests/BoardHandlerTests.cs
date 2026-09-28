@@ -60,7 +60,7 @@ public class BoardHandlerTests
         Assert.Equal(0, result.Embedded);
         Assert.Empty(second.Batches);                                    // no Voyage call at all
         Assert.Equal(writesAfterFirstRun, store.UpsertBatchSizes.Count); // and no write
-        Assert.Equal([1, 2], store.Touched.Order());
+        Assert.Equal(["1", "2"], store.Touched.Order());
     }
 
     [Fact]
@@ -155,7 +155,7 @@ public class BoardHandlerTests
         for (var i = 0; i < 6; i++)
         {
             var expected = (float)texts[i].GetHashCode();
-            Assert.Equal(expected, store.Vectors[i + 1][0]);
+            Assert.Equal(expected, store.Vectors[(i + 1).ToString()][0]);
         }
     }
 
@@ -293,7 +293,7 @@ public class BoardHandlerTests
             .HandleCompanyAsync(Build.Token);
 
         Assert.Equal(1, store.CloseCalls);
-        Assert.Equal([1, 2], store.LastCloseSeenIds!.Order());
+        Assert.Equal(["1", "2"], store.LastCloseSeenIds!.Order());
         Assert.Equal(3, result.Closed);
     }
 
@@ -340,7 +340,7 @@ public class BoardHandlerTests
             new FakeEmbeddingClient(), store, WithDomain()).HandleCompanyAsync(Build.Token);
 
         Assert.Equal(1, result.Skipped);
-        Assert.Equal("https://logos.test/example.com", store.StampedLogos[Build.Token]);
+        Assert.Equal("https://logos.test/example.com", store.StampedLogos[$"greenhouse:{Build.Token}"]);
     }
 
     [Fact]
@@ -354,8 +354,8 @@ public class BoardHandlerTests
                 new FakeEmbeddingClient(), store)
             .HandleCompanyAsync(Build.Token);
 
-        Assert.True(store.StampedLogos.ContainsKey(Build.Token));
-        Assert.Null(store.StampedLogos[Build.Token]);
+        Assert.True(store.StampedLogos.ContainsKey($"greenhouse:{Build.Token}"));
+        Assert.Null(store.StampedLogos[$"greenhouse:{Build.Token}"]);
     }
 
     [Fact]

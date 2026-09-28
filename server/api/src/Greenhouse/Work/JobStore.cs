@@ -31,44 +31,44 @@ public sealed class JobStore : IJobStore
     }
 
     /// <summary>
-    /// Content hashes already stored for this board, by Greenhouse job id.
+    /// Content hashes already stored for this board, by the board's own job id.
     /// </summary>
     /// <remarks>
     /// Drives the skip: an unchanged hash costs neither an embedding nor a
     /// write. On a stable board this is the difference between re-embedding
     /// every posting daily and embedding nothing at all.
     /// </remarks>
-    public async Task<Dictionary<long, string>> StoredHashesAsync(string boardToken, CancellationToken ct)
+    public async Task<Dictionary<string, string>> StoredHashesAsync(string boardKey, CancellationToken ct)
     {
         var docs = await _jobs
-            .Find(Builders<BsonDocument>.Filter.Eq(GreenhouseJobFields.BoardToken, boardToken))
+            .Find(Builders<BsonDocument>.Filter.Eq(GreenhouseJobFields.BoardKey, boardKey))
             .Project(Builders<BsonDocument>.Projection
-                .Include(GreenhouseJobFields.GreenhouseJobId).Include(GreenhouseJobFields.ContentHash))
+                .Include(GreenhouseJobFields.SourceJobId).Include(GreenhouseJobFields.ContentHash))
             .ToListAsync(ct);
 
-        var result = new Dictionary<long, string>(docs.Count);
+        var result = new Dictionary<string, string>(docs.Count);
         foreach (var doc in docs)
         {
-            if (!doc.TryGetValue(GreenhouseJobFields.GreenhouseJobId, out var id) || !id.IsNumeric) continue;
-            result[id.ToInt64()] = doc.TryGetValue(GreenhouseJobFields.ContentHash, out var h) && h.IsString ? h.AsString : "";
+            if (!doc.TryGetValue(GreenhouseJobFields.SourceJobId, out var id) || !id.IsString) continue;
+            result[id.AsString] = doc.TryGetValue(GreenhouseJobFields.ContentHash, out var h) && h.IsString ? h.AsString : "";
         }
 
         return result;
     }
 
-    /// <summary>Greenhouse job ids this board currently has open (no closedAt).</summary>
-    public async Task<HashSet<long>> OpenIdsAsync(string boardToken, CancellationToken ct)
+    /// <summary>Job ids this board currently has open (no closedAt).</summary>
+    public async Task<HashSet<string>> OpenIdsAsync(string boardKey, CancellationToken ct)
     {
         var docs = await _jobs
             .Find(Builders<BsonDocument>.Filter.And(
-                Builders<BsonDocument>.Filter.Eq(GreenhouseJobFields.BoardToken, boardToken),
+                Builders<BsonDocument>.Filter.Eq(GreenhouseJobFields.BoardKey, boardKey),
                 Builders<BsonDocument>.Filter.Eq(GreenhouseJobFields.ClosedAt, BsonNull.Value)))
-            .Project(Builders<BsonDocument>.Projection.Include(GreenhouseJobFields.GreenhouseJobId))
+            .Project(Builders<BsonDocument>.Projection.Include(GreenhouseJobFields.SourceJobId))
             .ToListAsync(ct);
 
         return [.. docs
-            .Where(d => d.TryGetValue(GreenhouseJobFields.GreenhouseJobId, out var v) && v.IsNumeric)
-            .Select(d => d[GreenhouseJobFields.GreenhouseJobId].ToInt64())];
+            .Where(d => d.TryGetValue(GreenhouseJobFields.SourceJobId, out var v) && v.IsString)
+            .Select(d => d[GreenhouseJobFields.SourceJobId].AsString)];
     }
 
     /// <summary>
@@ -81,9 +81,12 @@ public sealed class JobStore : IJobStore
     /// already paid for. Holding every vector in memory to write them together
     /// would throw that money away on any failure.
     ///
-    /// The upsert key is (boardToken, greenhouseJobId), backed by a unique
-    /// index, so re-running is idempotent by construction rather than by the
-    /// caller remembering to check first.
+    /// The upsert key is (boardKey, sourceJobId), backed by a unique index, so
+    /// re-running is idempotent by construction rather than by the caller
+    /// remembering to check first. Greenhouse rows still carry the old
+    /// (boardToken, greenhouseJobId) under its own unique index until 2c: a
+    /// write whose new key failed to match an existing row collides there,
+    /// loudly, instead of adding a second row.
     /// </remarks>
     public async Task<(long Upserted, long Modified)> UpsertBatchAsync(
         IReadOnlyList<(GreenhouseJob Job, float[] Vector)> batch, string runId, DateTime now,
@@ -125,8 +128,8 @@ public sealed class JobStore : IJobStore
 
             writes.Add(new UpdateOneModel<BsonDocument>(
                 Builders<BsonDocument>.Filter.And(
-                    Builders<BsonDocument>.Filter.Eq(GreenhouseJobFields.BoardToken, job.BoardToken),
-                    Builders<BsonDocument>.Filter.Eq(GreenhouseJobFields.GreenhouseJobId, job.GreenhouseJobId)),
+                    Builders<BsonDocument>.Filter.Eq(GreenhouseJobFields.BoardKey, job.BoardKey),
+                    Builders<BsonDocument>.Filter.Eq(GreenhouseJobFields.SourceJobId, job.SourceJobId)),
                 new BsonDocument
                 {
                     { "$set", set },
@@ -160,14 +163,14 @@ public sealed class JobStore : IJobStore
     /// closed and reopened unchanged is reopened without being re-embedded.
     /// </remarks>
     public async Task<long> TouchAsync(
-        string boardToken, IReadOnlyCollection<long> ids, string runId, DateTime now, CancellationToken ct)
+        string boardKey, IReadOnlyCollection<string> ids, string runId, DateTime now, CancellationToken ct)
     {
         if (ids.Count == 0) return 0;
 
         var result = await _jobs.UpdateManyAsync(
             Builders<BsonDocument>.Filter.And(
-                Builders<BsonDocument>.Filter.Eq(GreenhouseJobFields.BoardToken, boardToken),
-                Builders<BsonDocument>.Filter.In(GreenhouseJobFields.GreenhouseJobId, ids.Select(i => (BsonValue)i))),
+                Builders<BsonDocument>.Filter.Eq(GreenhouseJobFields.BoardKey, boardKey),
+                Builders<BsonDocument>.Filter.In(GreenhouseJobFields.SourceJobId, ids)),
             Builders<BsonDocument>.Update
                 .Set(GreenhouseJobFields.LastSeenAt, now)
                 .Set(GreenhouseJobFields.LastSeenRunId, runId)
@@ -194,9 +197,9 @@ public sealed class JobStore : IJobStore
     /// </para>
     /// </remarks>
     public async Task<long> SaveIngestAiAsync(
-        string boardToken,
-        IReadOnlyDictionary<long, BsonDocument> facts,
-        IReadOnlyDictionary<long, BsonDocument> parsed,
+        string boardKey,
+        IReadOnlyDictionary<string, BsonDocument> facts,
+        IReadOnlyDictionary<string, BsonDocument> parsed,
         string? parseVersion,
         DateTime now,
         CancellationToken ct,
@@ -231,8 +234,8 @@ public sealed class JobStore : IJobStore
 
             writes.Add(new UpdateOneModel<BsonDocument>(
                 Builders<BsonDocument>.Filter.And(
-                    Builders<BsonDocument>.Filter.Eq(GreenhouseJobFields.BoardToken, boardToken),
-                    Builders<BsonDocument>.Filter.Eq(GreenhouseJobFields.GreenhouseJobId, id)),
+                    Builders<BsonDocument>.Filter.Eq(GreenhouseJobFields.BoardKey, boardKey),
+                    Builders<BsonDocument>.Filter.Eq(GreenhouseJobFields.SourceJobId, id)),
                 update));
         }
 
@@ -266,7 +269,7 @@ public sealed class JobStore : IJobStore
     /// </remarks>
     /// <inheritdoc />
     public async Task<IReadOnlyList<StoredJobContent>> NeedingIngestAiAsync(
-        string boardToken, int limit, CancellationToken ct)
+        string boardKey, int limit, CancellationToken ct)
     {
         // extract_attempts: 0 means nothing has read this posting yet -- the
         // value the initial write sets, and the only thing that distinguishes
@@ -274,7 +277,7 @@ public sealed class JobStore : IJobStore
         // only: a closed one is not scored, so reading it would be spend with
         // no consumer.
         var filter = Builders<BsonDocument>.Filter.And(
-            Builders<BsonDocument>.Filter.Eq(GreenhouseJobFields.BoardToken, boardToken),
+            Builders<BsonDocument>.Filter.Eq(GreenhouseJobFields.BoardKey, boardKey),
             Builders<BsonDocument>.Filter.Eq(GreenhouseJobFields.ClosedAt, BsonNull.Value),
             Builders<BsonDocument>.Filter.Lte(GreenhouseJobFields.ExtractAttempts, 0),
             // Already in an open batch: submitting again would pay twice.
@@ -286,14 +289,14 @@ public sealed class JobStore : IJobStore
 
     /// <inheritdoc />
     public async Task<IReadOnlyList<StoredJobContent>> NeedingFactsReReadAsync(
-        string boardToken, int limit, CancellationToken ct)
+        string boardKey, int limit, CancellationToken ct)
     {
         // Read, and read before must_have_groups existed: `extracted` is a
         // document with no groups in it. Bounded by attempts rather than by
         // success, because a posting the model returns no facts for keeps
         // lacking the field -- without the bound it would be re-read every run.
         var filter = Builders<BsonDocument>.Filter.And(
-            Builders<BsonDocument>.Filter.Eq(GreenhouseJobFields.BoardToken, boardToken),
+            Builders<BsonDocument>.Filter.Eq(GreenhouseJobFields.BoardKey, boardKey),
             Builders<BsonDocument>.Filter.Eq(GreenhouseJobFields.ClosedAt, BsonNull.Value),
             Builders<BsonDocument>.Filter.Type(GreenhouseJobFields.Extracted, BsonType.Document),
             // Owed either field the current read produces. One re-read writes
@@ -324,7 +327,7 @@ public sealed class JobStore : IJobStore
         var docs = await _jobs
             .Find(filter)
             .Project(Builders<BsonDocument>.Projection
-                .Include(GreenhouseJobFields.GreenhouseJobId)
+                .Include(GreenhouseJobFields.SourceJobId)
                 .Include(GreenhouseJobFields.Title)
                 .Include(GreenhouseJobFields.Company)
                 .Include(GreenhouseJobFields.Location)
@@ -338,7 +341,7 @@ public sealed class JobStore : IJobStore
         var result = new List<StoredJobContent>(docs.Count);
         foreach (var d in docs)
         {
-            if (!d.TryGetValue(GreenhouseJobFields.GreenhouseJobId, out var id) || !id.IsNumeric) continue;
+            if (!d.TryGetValue(GreenhouseJobFields.SourceJobId, out var id) || !id.IsString) continue;
 
             // No content, nothing to read. Skipping rather than sending an
             // empty posting to Claude: the call would cost money and return
@@ -347,7 +350,7 @@ public sealed class JobStore : IJobStore
             if (string.IsNullOrWhiteSpace(content)) continue;
 
             result.Add(new StoredJobContent(
-                id.ToInt64(),
+                id.AsString,
                 Str(d, GreenhouseJobFields.Title) ?? "",
                 Str(d, GreenhouseJobFields.Company) ?? "",
                 Str(d, GreenhouseJobFields.Location),
@@ -362,38 +365,38 @@ public sealed class JobStore : IJobStore
 
     /// <inheritdoc />
     public Task<IReadOnlyList<StoredJobContent>> StoredContentForAsync(
-        string boardToken, IReadOnlyCollection<long> ids, CancellationToken ct) =>
+        string boardKey, IReadOnlyCollection<string> ids, CancellationToken ct) =>
         ids.Count == 0
             ? Task.FromResult<IReadOnlyList<StoredJobContent>>([])
             : StoredContentAsync(
                 Builders<BsonDocument>.Filter.And(
-                    Builders<BsonDocument>.Filter.Eq(GreenhouseJobFields.BoardToken, boardToken),
-                    Builders<BsonDocument>.Filter.In(GreenhouseJobFields.GreenhouseJobId, ids.Select(i => (BsonValue)i))),
+                    Builders<BsonDocument>.Filter.Eq(GreenhouseJobFields.BoardKey, boardKey),
+                    Builders<BsonDocument>.Filter.In(GreenhouseJobFields.SourceJobId, ids)),
                 ids.Count, ct);
 
     /// <inheritdoc />
     public async Task MarkAiPendingAsync(
-        string boardToken, IReadOnlyCollection<long> ids, string kind, string batchId, CancellationToken ct)
+        string boardKey, IReadOnlyCollection<string> ids, string kind, string batchId, CancellationToken ct)
     {
         if (ids.Count == 0) return;
         await _jobs.UpdateManyAsync(
             Builders<BsonDocument>.Filter.And(
-                Builders<BsonDocument>.Filter.Eq(GreenhouseJobFields.BoardToken, boardToken),
-                Builders<BsonDocument>.Filter.In(GreenhouseJobFields.GreenhouseJobId, ids.Select(i => (BsonValue)i))),
+                Builders<BsonDocument>.Filter.Eq(GreenhouseJobFields.BoardKey, boardKey),
+                Builders<BsonDocument>.Filter.In(GreenhouseJobFields.SourceJobId, ids)),
             Builders<BsonDocument>.Update.Set(PendingField(kind), batchId),
             cancellationToken: ct);
     }
 
     /// <inheritdoc />
     public async Task ClearAiPendingAsync(
-        string boardToken, IReadOnlyCollection<long> ids, string kind, string batchId, CancellationToken ct)
+        string boardKey, IReadOnlyCollection<string> ids, string kind, string batchId, CancellationToken ct)
     {
         if (ids.Count == 0) return;
         var field = PendingField(kind);
         await _jobs.UpdateManyAsync(
             Builders<BsonDocument>.Filter.And(
-                Builders<BsonDocument>.Filter.Eq(GreenhouseJobFields.BoardToken, boardToken),
-                Builders<BsonDocument>.Filter.In(GreenhouseJobFields.GreenhouseJobId, ids.Select(i => (BsonValue)i)),
+                Builders<BsonDocument>.Filter.Eq(GreenhouseJobFields.BoardKey, boardKey),
+                Builders<BsonDocument>.Filter.In(GreenhouseJobFields.SourceJobId, ids),
                 // Only this batch's marker. A posting resubmitted since belongs
                 // to the newer batch, which clears it when it lands.
                 Builders<BsonDocument>.Filter.Eq(field, batchId)),
@@ -406,25 +409,25 @@ public sealed class JobStore : IJobStore
         : GreenhouseJobFields.AiPendingParse;
 
     /// <inheritdoc />
-    public async Task<Dictionary<long, StoredFacts>> StoredFactsAsync(
-        string boardToken, IReadOnlyCollection<long> ids, CancellationToken ct)
+    public async Task<Dictionary<string, StoredFacts>> StoredFactsAsync(
+        string boardKey, IReadOnlyCollection<string> ids, CancellationToken ct)
     {
-        var result = new Dictionary<long, StoredFacts>(ids.Count);
+        var result = new Dictionary<string, StoredFacts>(ids.Count);
         if (ids.Count == 0) return result;
 
         var docs = await _jobs
             .Find(Builders<BsonDocument>.Filter.And(
-                Builders<BsonDocument>.Filter.Eq(GreenhouseJobFields.BoardToken, boardToken),
-                Builders<BsonDocument>.Filter.In(GreenhouseJobFields.GreenhouseJobId, ids.Select(i => (BsonValue)i))))
+                Builders<BsonDocument>.Filter.Eq(GreenhouseJobFields.BoardKey, boardKey),
+                Builders<BsonDocument>.Filter.In(GreenhouseJobFields.SourceJobId, ids)))
             .Project(Builders<BsonDocument>.Projection
-                .Include(GreenhouseJobFields.GreenhouseJobId)
+                .Include(GreenhouseJobFields.SourceJobId)
                 .Include(GreenhouseJobFields.ExtractedFunctions)
                 .Include(GreenhouseJobFields.ExtractedLocation))
             .ToListAsync(ct);
 
         foreach (var doc in docs)
         {
-            if (!doc.TryGetValue(GreenhouseJobFields.GreenhouseJobId, out var id) || !id.IsNumeric) continue;
+            if (!doc.TryGetValue(GreenhouseJobFields.SourceJobId, out var id) || !id.IsString) continue;
             var extracted = doc.TryGetValue(GreenhouseJobFields.Extracted, out var e) && e.IsBsonDocument
                 ? e.AsBsonDocument
                 : null;
@@ -434,7 +437,7 @@ public sealed class JobStore : IJobStore
             var location = extracted is not null && extracted.TryGetValue("location", out var l) && l.IsString
                 ? l.AsString
                 : null;
-            result[id.ToInt64()] = new StoredFacts(functions, location);
+            result[id.AsString] = new StoredFacts(functions, location);
         }
 
         return result;
@@ -469,7 +472,7 @@ public sealed class JobStore : IJobStore
     }
 
     /// <inheritdoc />
-    public async Task<long> StampCompanyLogoAsync(string boardToken, string? logoUrl, CancellationToken ct)
+    public async Task<long> StampCompanyLogoAsync(string boardKey, string? logoUrl, CancellationToken ct)
     {
         BsonValue value = logoUrl is null ? BsonNull.Value : new BsonString(logoUrl);
 
@@ -478,7 +481,7 @@ public sealed class JobStore : IJobStore
         // existed.
         var result = await _jobs.UpdateManyAsync(
             Builders<BsonDocument>.Filter.And(
-                Builders<BsonDocument>.Filter.Eq(GreenhouseJobFields.BoardToken, boardToken),
+                Builders<BsonDocument>.Filter.Eq(GreenhouseJobFields.BoardKey, boardKey),
                 Builders<BsonDocument>.Filter.Ne(GreenhouseJobFields.CompanyLogo, value)),
             Builders<BsonDocument>.Update.Set(GreenhouseJobFields.CompanyLogo, value),
             cancellationToken: ct);
@@ -487,10 +490,10 @@ public sealed class JobStore : IJobStore
     }
 
     public async Task<long> CloseMissingAsync(
-        string boardToken, IReadOnlyCollection<long> seenIds, int emptyResponseGuardThreshold,
+        string boardKey, IReadOnlyCollection<string> seenIds, int emptyResponseGuardThreshold,
         DateTime now, CancellationToken ct)
     {
-        var open = await OpenIdsAsync(boardToken, ct);
+        var open = await OpenIdsAsync(boardKey, ct);
 
         var decision = CloseDiff.Compute(open, seenIds, emptyResponseGuardThreshold);
 
@@ -499,7 +502,7 @@ public sealed class JobStore : IJobStore
             _log.LogError(
                 "Board {Board}: skipping the close diff -- {Reason}. An empty board is not evidence "
                 + "that every stored role closed at once.",
-                boardToken, decision.SkipReason);
+                boardKey, decision.SkipReason);
             return 0;
         }
 
@@ -508,8 +511,8 @@ public sealed class JobStore : IJobStore
 
         var result = await _jobs.UpdateManyAsync(
             Builders<BsonDocument>.Filter.And(
-                Builders<BsonDocument>.Filter.Eq(GreenhouseJobFields.BoardToken, boardToken),
-                Builders<BsonDocument>.Filter.In(GreenhouseJobFields.GreenhouseJobId, missing.Select(i => (BsonValue)i)),
+                Builders<BsonDocument>.Filter.Eq(GreenhouseJobFields.BoardKey, boardKey),
+                Builders<BsonDocument>.Filter.In(GreenhouseJobFields.SourceJobId, missing),
                 // Re-checked rather than trusted from the read above: between
                 // that query and this write another run could have closed them,
                 // and closedAt must record when a job FIRST went, not the last
@@ -520,7 +523,7 @@ public sealed class JobStore : IJobStore
 
         if (result.ModifiedCount > 0)
             _log.LogInformation("Board {Board}: closed {Count} job(s) no longer listed (kept, not deleted)",
-                boardToken, result.ModifiedCount);
+                boardKey, result.ModifiedCount);
 
         return result.ModifiedCount;
     }

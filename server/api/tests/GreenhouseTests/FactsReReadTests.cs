@@ -35,7 +35,7 @@ public class FactsReReadTests
         """;
 
     private static StoredJobContent Stored(long id) =>
-        new(id, "Software Engineer", "Deliveroo", "London, United Kingdom - Deliveroo", "A real posting body.");
+        new(id.ToString(), "Software Engineer", "Deliveroo", "London, United Kingdom - Deliveroo", "A real posting body.");
 
     [Fact]
     public async Task A_pre_groups_row_gets_its_facts_re_read_and_nothing_else()
@@ -57,7 +57,7 @@ public class FactsReReadTests
         Assert.Empty(store.SavedParsedFor);
         Assert.Empty(store.Vectors);
 
-        var groups = store.SavedFacts[7]["must_have_groups"].AsBsonArray;
+        var groups = store.SavedFacts["7"]["must_have_groups"].AsBsonArray;
         Assert.Equal(2, groups.Count);
         Assert.Equal(["Go", "Ruby", "Python"], groups[0].AsBsonArray.Select(v => v.AsString));
     }

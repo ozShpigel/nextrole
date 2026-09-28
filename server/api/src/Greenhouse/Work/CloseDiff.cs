@@ -4,7 +4,7 @@ namespace ApplicationTracker.Greenhouse;
 /// <summary>What the close diff decided, and why.</summary>
 /// <param name="Close">Greenhouse job ids to mark closed. Empty when skipped.</param>
 /// <param name="SkipReason">Non-null when a guard refused the diff.</param>
-public sealed record CloseDecision(IReadOnlyList<long> Close, string? SkipReason)
+public sealed record CloseDecision(IReadOnlyList<string> Close, string? SkipReason)
 {
     public bool Skipped => SkipReason is not null;
 }
@@ -47,8 +47,8 @@ public static class CloseDiff
     /// </para>
     /// </remarks>
     public static CloseDecision Compute(
-        IReadOnlyCollection<long> storedOpenIds,
-        IReadOnlyCollection<long> seenIds,
+        IReadOnlyCollection<string> storedOpenIds,
+        IReadOnlyCollection<string> seenIds,
         int emptyResponseGuardThreshold)
     {
         if (seenIds.Count == 0 && storedOpenIds.Count >= emptyResponseGuardThreshold)
@@ -57,7 +57,7 @@ public static class CloseDiff
                 $"board returned no jobs while {storedOpenIds.Count} are stored open "
                 + $"(guard threshold {emptyResponseGuardThreshold})");
 
-        var seen = seenIds as HashSet<long> ?? [.. seenIds];
+        var seen = seenIds as HashSet<string> ?? new HashSet<string>(seenIds, StringComparer.Ordinal);
         return new CloseDecision([.. storedOpenIds.Where(id => !seen.Contains(id))], null);
     }
 }

@@ -13,13 +13,24 @@ public sealed record GreenhouseJob
     /// <summary>The <see cref="IJobSource.Name"/> this job came from.</summary>
     public required string SourceName { get; init; }
     public required string BoardToken { get; init; }
-    public required long GreenhouseJobId { get; init; }
 
-    /// <summary>The source-qualified board, e.g. <c>greenhouse:wizinc</c>.</summary>
+    /// <summary>The board's own id, as the string every source can hold. Half of the key.</summary>
+    public required string SourceJobId { get; init; }
+
+    /// <summary>The source-qualified board, e.g. <c>greenhouse:wizinc</c>. The other half.</summary>
     public string BoardKey => KeyFor(SourceName, BoardToken);
 
-    /// <summary>The board's own id, as the string every source can hold.</summary>
-    public string SourceJobId => GreenhouseJobId.ToString(System.Globalization.CultureInfo.InvariantCulture);
+    /// <summary>
+    /// The old key's numeric id, still written on Greenhouse rows so the old
+    /// unique index keeps guarding until it is dropped (2c). Null for any other
+    /// source. Nothing reads it.
+    /// </summary>
+    public long? GreenhouseJobId =>
+        SourceName == "greenhouse"
+        && long.TryParse(SourceJobId, System.Globalization.NumberStyles.AllowLeadingSign,
+            System.Globalization.CultureInfo.InvariantCulture, out var id)
+            ? id
+            : null;
 
     /// <summary>One definition of a board key, shared with the backfill.</summary>
     public static string KeyFor(string sourceName, string boardToken) => $"{sourceName}:{boardToken}";
@@ -47,7 +58,7 @@ public sealed record GreenhouseJob
     /// definition of "unchanged". <see cref="ContentCleaner"/> handles both
     /// entity-encoded HTML (Greenhouse) and plain HTML.
     /// </remarks>
-    public static GreenhouseJob From(string sourceName, string boardToken, long jobId, SourcePosting job)
+    public static GreenhouseJob From(string sourceName, string boardToken, SourcePosting job)
     {
         var cleaned = ContentCleaner.Clean(job.ContentHtml);
 
@@ -66,7 +77,7 @@ public sealed record GreenhouseJob
         {
             SourceName = sourceName,
             BoardToken = boardToken,
-            GreenhouseJobId = jobId,
+            SourceJobId = job.Listed.SourceJobId,
             CleanedContent = cleaned,
             ContentHash = Sha256(payload),
             Source = job,
@@ -93,7 +104,7 @@ public sealed record GreenhouseJob
     public BsonDocument ToStoredFields() => new()
     {
         { GreenhouseJobFields.BoardToken, BoardToken },
-        { GreenhouseJobFields.GreenhouseJobId, GreenhouseJobId },
+        { GreenhouseJobFields.GreenhouseJobId, GreenhouseJobId is { } legacyId ? legacyId : BsonNull.Value },
         { GreenhouseJobFields.BoardKey, BoardKey },
         { GreenhouseJobFields.SourceJobId, SourceJobId },
         { GreenhouseJobFields.Title, Value(Source.Listed.Title) },

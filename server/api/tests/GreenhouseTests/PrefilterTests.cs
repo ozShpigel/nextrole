@@ -186,8 +186,8 @@ public class PrefilterHandlerTests
 
         Assert.Equal(1, result.Prefiltered);
         Assert.Equal(1, result.Embedded);
-        Assert.Equal([1L], store.Hashes.Keys);
-        Assert.DoesNotContain(2L, store.Touched);
+        Assert.Equal(["1"], store.Hashes.Keys);
+        Assert.DoesNotContain("2", store.Touched);
     }
 
     [Fact]
@@ -219,7 +219,7 @@ public class PrefilterHandlerTests
             .HandleCompanyAsync(Build.Token);
 
         Assert.Equal(0, result.Prefiltered);
-        Assert.Contains(2L, store.Touched);
+        Assert.Contains("2", store.Touched);
     }
 
     [Fact]
@@ -239,7 +239,7 @@ public class PrefilterHandlerTests
             .HandleCompanyAsync(Build.Token);
 
         Assert.Equal(1, result.Embedded);
-        Assert.Equal([2L], store.Hashes.Keys);
+        Assert.Equal(["2"], store.Hashes.Keys);
     }
 
     [Fact]
@@ -261,7 +261,7 @@ public class PrefilterHandlerTests
         var store = new FakeJobStore();
         await Build.Handler(Serve(Board((2, "Recruiter"))), new FakeEmbeddingClient(), store, Config())
             .HandleCompanyAsync(Build.Token);
-        store.Functions[2] = [JobFunctions.Infrastructure];
+        store.Functions["2"] = [JobFunctions.Infrastructure];
 
         var log = new ListLogger();
         await Build.Handler(Serve(Board((2, "Recruiter"))), new FakeEmbeddingClient(), store, Config(),
@@ -353,7 +353,7 @@ public class LearnedLocationTests
         await Build.Handler(new StubHandler().EnqueueJson(System.Net.HttpStatusCode.OK, json),
                 new FakeEmbeddingClient(), store, BerlinOnly())
             .HandleCompanyAsync(Build.Token);
-        store.Locations[1] = "Berlin, Germany";
+        store.Locations["1"] = "Berlin, Germany";
 
         var log = new ListLogger();
         await Build.Handler(new StubHandler().EnqueueJson(System.Net.HttpStatusCode.OK, json),

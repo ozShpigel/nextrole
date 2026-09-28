@@ -22,18 +22,18 @@ public class CloseDiffTests
     public void Closes_exactly_what_the_board_stopped_listing()
     {
         var decision = CloseDiff.Compute(
-            storedOpenIds: [1, 2, 3, 4],
-            seenIds: [1, 3],
+            storedOpenIds: ["1", "2", "3", "4"],
+            seenIds: ["1", "3"],
             Threshold);
 
         Assert.False(decision.Skipped);
-        Assert.Equal([2, 4], decision.Close.Order());
+        Assert.Equal(["2", "4"], decision.Close.Order());
     }
 
     [Fact]
     public void Closes_nothing_when_the_board_still_lists_everything()
     {
-        var decision = CloseDiff.Compute([1, 2, 3], [1, 2, 3], Threshold);
+        var decision = CloseDiff.Compute(["1", "2", "3"], ["1", "2", "3"], Threshold);
 
         Assert.False(decision.Skipped);
         Assert.Empty(decision.Close);
@@ -44,7 +44,7 @@ public class CloseDiffTests
     {
         // Seen but not stored open. It is an insert, and must not appear in a
         // set built from stored ids.
-        var decision = CloseDiff.Compute([1], [1, 99], Threshold);
+        var decision = CloseDiff.Compute(["1"], ["1", "99"], Threshold);
 
         Assert.Empty(decision.Close);
     }
@@ -56,7 +56,7 @@ public class CloseDiffTests
         // so it cannot be closed again, and seeing it drives the upsert that
         // clears closedAt. Proven end to end against real Mongo in
         // JobStoreIntegrationTests -- here it is the set arithmetic.
-        var decision = CloseDiff.Compute(storedOpenIds: [1, 2], seenIds: [1, 2, 7], Threshold);
+        var decision = CloseDiff.Compute(storedOpenIds: ["1", "2"], seenIds: ["1", "2", "7"], Threshold);
 
         Assert.Empty(decision.Close);
     }
@@ -66,7 +66,7 @@ public class CloseDiffTests
     [Fact]
     public void An_empty_board_does_not_close_a_large_stored_set()
     {
-        var open = Enumerable.Range(1, 40).Select(i => (long)i).ToList();
+        var open = Enumerable.Range(1, 40).Select(i => i.ToString()).ToList();
 
         var decision = CloseDiff.Compute(open, [], Threshold);
 
@@ -78,7 +78,7 @@ public class CloseDiffTests
     [Fact]
     public void The_guard_fires_exactly_at_the_threshold()
     {
-        var atThreshold = Enumerable.Range(1, Threshold).Select(i => (long)i).ToList();
+        var atThreshold = Enumerable.Range(1, Threshold).Select(i => i.ToString()).ToList();
         Assert.True(CloseDiff.Compute(atThreshold, [], Threshold).Skipped);
 
         var justUnder = atThreshold.Take(Threshold - 1).ToList();
@@ -91,10 +91,10 @@ public class CloseDiffTests
         // The guard must not be a one-way door. A board with three jobs really
         // can go to zero, and never closing those would leave them retrievable
         // forever.
-        var decision = CloseDiff.Compute([1, 2, 3], [], Threshold);
+        var decision = CloseDiff.Compute(["1", "2", "3"], [], Threshold);
 
         Assert.False(decision.Skipped);
-        Assert.Equal([1, 2, 3], decision.Close.Order());
+        Assert.Equal(["1", "2", "3"], decision.Close.Order());
     }
 
     [Fact]
@@ -112,9 +112,9 @@ public class CloseDiffTests
         // The guard is on an EMPTY response, not on a large delta. A board that
         // genuinely closed 39 of 40 roles should close 39 -- suppressing that
         // would need a different, more dangerous heuristic.
-        var open = Enumerable.Range(1, 40).Select(i => (long)i).ToList();
+        var open = Enumerable.Range(1, 40).Select(i => i.ToString()).ToList();
 
-        var decision = CloseDiff.Compute(open, [1], Threshold);
+        var decision = CloseDiff.Compute(open, ["1"], Threshold);
 
         Assert.False(decision.Skipped);
         Assert.Equal(39, decision.Close.Count);

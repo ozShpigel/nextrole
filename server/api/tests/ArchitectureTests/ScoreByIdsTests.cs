@@ -215,7 +215,7 @@ public class ScoreByIdsTests
     [Fact]
     public async Task Nothing_older_than_Matches_shows_is_scored()
     {
-        // "Any" stops at four months. The ids come from the client, so the
+        // "Any" stops at three months. The ids come from the client, so the
         // server refuses the older one rather than trusting the board; a
         // posting of unknown age is shown, so it is scored.
         var (scan, pool, _) = Build();

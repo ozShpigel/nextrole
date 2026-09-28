@@ -32,7 +32,7 @@ public sealed record CandidateFilter
     /// <remarks>
     /// Set by its caller, never by <see cref="FromProfile"/>: the eager scan
     /// uses the default board's 30 days (<see cref="PoolBrowseQuery.DefaultDaysBack"/>),
-    /// the band the "Any" limit of four months (<see cref="PoolBrowseQuery.MaxAgeDays"/>)
+    /// the band the "Any" limit of three months (<see cref="PoolBrowseQuery.MaxAgeDays"/>)
     /// so a wider chip can bring older postings back -- the board applies the
     /// chosen window to the band in the browser.
     /// </remarks>

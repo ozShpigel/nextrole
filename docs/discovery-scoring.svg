@@ -76,7 +76,7 @@
   <rect x="35" y="176" width="830" height="50" rx="10" fill="#f4f1ea" stroke="#2b2521" stroke-width="1.6"/>
   <g text-anchor="middle">
     <text x="450" y="197" font-size="14" font-weight="600" fill="#211c18">Shared job pool — one row per posting, whoever it suits</text>
-    <text x="450" y="215" font-size="10.5" fill="#6b6259">facts read once for everyone · gone from its board → closed, never deleted · older than 4 months → not read</text>
+    <text x="450" y="215" font-size="10.5" fill="#6b6259">facts read once for everyone · gone from its board → closed, never deleted · older than 3 months → not read</text>
   </g>
 
   <!-- ===== bottom row: per user ===== -->

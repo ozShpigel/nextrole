@@ -225,10 +225,27 @@ public class WorkdaySourceTests
     }
 
     [Fact]
-    public async Task A_listing_with_an_unusable_path_fails_the_count_rather_than_quietly_shrinking()
+    public async Task A_stub_in_the_listing_counts_toward_the_total_and_is_skipped()
     {
-        var stub = new StubHandler().EnqueueJson(HttpStatusCode.OK, Workday.Page(2,
-            Workday.Listed("/job/X/A_R1", "A"), Workday.Listed("https://evil.example/x", "B")));
+        // Measured on NVIDIA, 2026-09-28: one of 467 was {"bulletFields": ["JR2018715"]}
+        // -- no title, no path -- and it failed the whole board, every run, when
+        // the count left it out. The site did return it; we just cannot use it.
+        var stub = new StubHandler().EnqueueJson(HttpStatusCode.OK, Workday.Page(3,
+            Workday.Listed("/job/X/A_R1", "A"),
+            """{ "bulletFields": ["JR2018715"] }""",
+            Workday.Listed("https://evil.example/x", "B")));
+
+        var listing = await Workday.Source(stub).ListAsync(Board, default);
+
+        Assert.True(listing.Complete);
+        Assert.Equal(["A_R1"], listing.Postings.Select(p => p.SourceJobId));
+    }
+
+    [Fact]
+    public async Task A_listing_that_really_is_short_still_throws_with_a_stub_in_it()
+    {
+        var stub = new StubHandler().EnqueueJson(HttpStatusCode.OK, Workday.Page(3,
+            Workday.Listed("/job/X/A_R1", "A"), """{ "bulletFields": ["JR2018715"] }"""));
 
         await Assert.ThrowsAsync<BoardFetchException>(() => Workday.Source(stub).ListAsync(Board, default));
     }

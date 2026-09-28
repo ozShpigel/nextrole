@@ -84,6 +84,7 @@ public sealed class IngestBatcher
                     BoardKey = boardKey,
                     JobIds = ids,
                     ParseVersion = batch.ParseVersion,
+                    FactsVersion = kind == AiBatchRecord.Facts ? IngestAiClient.FactsVersion : null,
                     SubmittedAt = now,
                 }, ct);
                 await _jobs.MarkAiPendingAsync(boardKey, ids, kind, batch.BatchId, ct);
@@ -154,7 +155,10 @@ public sealed class IngestBatcher
             // extract_attempts counts, as for a live facts read.
             saved = await _jobs.SaveIngestAiAsync(
                 batch.BoardKey, Wanted(ended.Facts, wanted), new Dictionary<string, BsonDocument>(), null, now, ct,
-                factsAttempted: batch.JobIds);
+                // Stamped with the version it was SUBMITTED with, and not at all
+                // for a batch submitted before versions were recorded.
+                factsAttempted: batch.FactsVersion is null ? null : batch.JobIds,
+                factsVersion: batch.FactsVersion ?? IngestAiClient.FactsVersion);
         }
         else
         {

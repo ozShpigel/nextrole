@@ -49,6 +49,7 @@ public class IngestBatcherTests
     {
         BatchId = id, Kind = kind, BoardKey = $"greenhouse:{Build.Token}", JobIds = [.. jobIds.Select(j => j.ToString())],
         ParseVersion = kind == AiBatchRecord.Parse ? "v-at-submit" : null, SubmittedAt = submittedAt,
+        FactsVersion = kind == AiBatchRecord.Facts ? IngestAiClient.FactsVersion : null,
     };
 
     private static string Submitted(string id, string? parseVersion = null) =>
@@ -304,7 +305,44 @@ public class IngestBatcherTests
 
         Assert.Equal(1, api.Calls);
         Assert.EndsWith("/api/match/job-facts/batches", api.RequestUris[0]);
-        Assert.Equal(AiBatchRecord.Facts, Assert.Single(batches.Rows).Kind);
+        var row = Assert.Single(batches.Rows);
+        Assert.Equal(AiBatchRecord.Facts, row.Kind);
+        Assert.Equal(IngestAiClient.FactsVersion, row.FactsVersion);   // recorded at submit
+    }
+
+    [Fact]
+    public async Task A_facts_batch_submitted_before_versions_stamps_nothing_so_it_stays_owed_a_re_read()
+    {
+        // 2026-09-28: a batch submitted with the old prompt and collected by the
+        // new code stamped the new version on 200 NVIDIA postings' old labels.
+        var jobs = new FakeJobStore();
+        var batches = new FakeBatchStore();
+        batches.Rows.Add(Row("msgbatch_old", AiBatchRecord.Facts, Now.AddMinutes(-30), 1) with { FactsVersion = null });
+        var api = new StubHandler().EnqueueJson(HttpStatusCode.OK, """
+            { "status": "ended", "results": [ { "jobId": "1", "mustHaveTech": ["Go"], "niceToHaveTech": [] } ] }
+            """);
+
+        await Batcher(api, jobs, batches).CollectAsync(Now, CancellationToken.None);
+
+        Assert.Equal(["1"], jobs.SavedAiFor);      // its facts are still stored...
+        Assert.Empty(jobs.FactsAttempted);         // ...but not marked as read by any version
+        Assert.Null(jobs.FactsStampedWith);
+    }
+
+    [Fact]
+    public async Task A_facts_batch_is_stamped_with_the_version_it_was_submitted_with_not_the_current_one()
+    {
+        var jobs = new FakeJobStore();
+        var batches = new FakeBatchStore();
+        batches.Rows.Add(Row("msgbatch_v2", AiBatchRecord.Facts, Now.AddMinutes(-30), 1) with { FactsVersion = 2 });
+        var api = new StubHandler().EnqueueJson(HttpStatusCode.OK, """
+            { "status": "ended", "results": [ { "jobId": "1", "mustHaveTech": ["Go"], "niceToHaveTech": [] } ] }
+            """);
+
+        await Batcher(api, jobs, batches).CollectAsync(Now, CancellationToken.None);
+
+        Assert.Equal(["1"], jobs.FactsAttempted);
+        Assert.Equal(2, jobs.FactsStampedWith);
     }
 
     [Fact]

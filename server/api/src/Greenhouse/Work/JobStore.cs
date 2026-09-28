@@ -195,11 +195,13 @@ public sealed class JobStore : IJobStore
     /// </para>
     /// </remarks>
     /// <param name="factsAttempted">
-    /// Every posting a facts read was sent for. Each is stamped with the current
-    /// <c>facts_version</c> whether or not facts came back, so a re-read by
-    /// version is made once -- a posting the model returns nothing for is not
-    /// re-selected every run.
+    /// Every posting a facts read was sent for. Each is stamped with
+    /// <paramref name="factsVersion"/> whether or not facts came back, so a
+    /// re-read by version is made once -- a posting the model returns nothing
+    /// for is not re-selected every run. Only these are stamped: facts saved
+    /// without it (an old batch) leave the version as it was.
     /// </param>
+    /// <param name="factsVersion">The facts prompt's version the read was made with -- at submit, for a batch.</param>
     public async Task<long> SaveIngestAiAsync(
         string boardKey,
         IReadOnlyDictionary<string, BsonDocument> facts,
@@ -208,10 +210,10 @@ public sealed class JobStore : IJobStore
         DateTime now,
         CancellationToken ct,
         bool countAttempt = true,
-        IReadOnlyCollection<string>? factsAttempted = null)
+        IReadOnlyCollection<string>? factsAttempted = null,
+        int factsVersion = IngestAiClient.FactsVersion)
     {
         var attempted = new HashSet<string>(factsAttempted ?? [], StringComparer.Ordinal);
-        attempted.UnionWith(facts.Keys);
         var ids = facts.Keys.Union(parsed.Keys).Union(attempted).ToList();
         if (ids.Count == 0) return 0;
 
@@ -228,7 +230,7 @@ public sealed class JobStore : IJobStore
             }
 
             if (attempted.Contains(id))
-                set.Add(GreenhouseJobFields.FactsVersion, IngestAiClient.FactsVersion);
+                set.Add(GreenhouseJobFields.FactsVersion, factsVersion);
 
             if (parsed.TryGetValue(id, out var p))
             {
@@ -348,7 +350,8 @@ public sealed class JobStore : IJobStore
     /// moves on (<c>IngestAiClient.FactsVersion</c>).
     /// </summary>
     /// <remarks>
-    /// Version 2 (<c>hardware_engineering</c>): Workday only. Its companies are
+    /// Versions 2 and 3 (<c>hardware_engineering</c>, then physical inspection
+    /// as hardware rather than qa): Workday only. Its companies are
     /// hardware-heavy, and their roles were filed as software. Greenhouse's are
     /// software companies: their rare hardware role is read right when it next
     /// changes, and everything Matches can show turns over within its 90-day

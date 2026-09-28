@@ -1,6 +1,6 @@
 # Plan: a `hardware_engineering` kind of work
 
-Status: **built** (2026-09-28), not yet deployed. Decided: as recommended, except the relabel -- Workday postings only (below).
+Status: **built and deployed** (2026-09-28; KLA verified). Decided: as recommended, except the relabel -- Workday postings only (below). Facts version 3 followed the same day -- see "What the first deploy got wrong".
 
 ## Why
 
@@ -118,6 +118,24 @@ words is exactly the weak proxy AGENTS.md warns against. The source is exact.
   `software_engineering`. **That list is the acceptance check:** if a real
   software role lost its label, the boundary line in the prompt is wrong.
 - The pool-wide eligible count for a DevOps profile drops (158 today).
+
+## What the first deploy got wrong
+
+- **The version was stamped at collect time.** A facts batch NVIDIA submitted
+  under the old prompt was collected by the new code, which stamped
+  `facts_version` 2 on 200 postings' old labels -- marking them current, so
+  never re-read. Fixed: the version is recorded on the batch at *submit*
+  (`AiBatchRecord.FactsVersion`, as `ParseVersion` is); a batch with none
+  stamps nothing; only postings a read was sent for are stamped.
+- **Physical inspection went to `qa`.** On KLA, "Incoming Inspection",
+  "Process Engineer" and "Customer Acceptance Engineer" -- qa is a neighbour of
+  software, so they stayed eligible. The facts prompt now says: inspecting,
+  validating, characterising or accepting physical parts, boards, chips or
+  machines is hardware, not qa.
+- Both are **facts version 3**: every Workday posting is re-read once more
+  (KLA's 63 again, a few cents), which also repairs the 200 without editing the
+  database by hand. NVIDIA's run had also failed that day on a stub listing
+  entry (docs/plans/workday-adapter.md), so its re-read had not started.
 
 ## Decisions (2026-09-28)
 

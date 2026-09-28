@@ -46,6 +46,12 @@ Public, undocumented, no key: what each careers site's own page calls.
   - **The age is fuzzy.** `postedOn` is "Posted Today", "Posted 5 Days Ago",
     "Posted 30+ Days Ago" (44 of KLA's 75). No exact date in the list.
   - `locationsText` is a place ("Yavne, Israel") or a count ("2 Locations").
+  - **A listed entry can be a stub**: `{"bulletFields": ["JR2018715"]}`, no title,
+    no path (NVIDIA, 2026-09-28 -- gone again within the hour; a posting being
+    unpublished). It counts in the total. Completeness is therefore the entries
+    *returned* against the total; a stub is skipped and logged, never stored, and
+    so never closed. The first build counted only usable ids, and one stub failed
+    NVIDIA's whole run (fixed with the facts-version fix below).
 - **Detail**: `GET https://{host}.myworkdayjobs.com/wday/cxs/{tenant}/{site}{externalPath}`
   returns `jobPostingInfo`: `title`, `jobDescription` (plain HTML, not
   entity-encoded), `location`, `additionalLocations` (when there are more),

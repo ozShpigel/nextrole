@@ -72,7 +72,11 @@ calls it, never the reverse, and the tests drive it by calling the method.
    splitting and retrying on a 400. `input_type: "document"`.
 6. `BulkWriteAsync` **per batch**, upserting on `(boardToken, greenhouseJobId)`
    behind a unique index. Per batch, not at the end, so a failure keeps the
-   earlier batches and the money already spent on them.
+   earlier batches and the money already spent on them. Every row also carries
+   the source-neutral key `(boardKey, sourceJobId)` -- `greenhouse:wizinc`,
+   `"7184512"` -- under its own unique index, filled for older rows on consumer
+   startup; the upsert moves onto it in the next release
+   (docs/plans/key-migration.md).
 7. Stamp the board's logo on every row it has (see below).
 8. Close what is gone; reopen what came back. **Never delete.**
 

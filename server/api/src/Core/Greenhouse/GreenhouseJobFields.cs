@@ -25,6 +25,16 @@ public static class GreenhouseJobFields
     /// <summary>Greenhouse's own job id. The other half of the upsert key.</summary>
     public const string GreenhouseJobId = "greenhouseJobId";
 
+    /// <summary>
+    /// <c>source:token</c>, e.g. <c>greenhouse:wizinc</c>. Half of the key every
+    /// source shares (docs/plans/key-migration.md). Written since 2a; not yet
+    /// read -- the upsert still matches on <see cref="BoardToken"/>.
+    /// </summary>
+    public const string BoardKey = "boardKey";
+
+    /// <summary>The board's own job id, as a string. The other half of that key.</summary>
+    public const string SourceJobId = "sourceJobId";
+
     public const string Title = "title";
     public const string Company = "company";
     public const string AbsoluteUrl = "absoluteUrl";

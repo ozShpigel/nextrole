@@ -10,8 +10,19 @@ namespace ApplicationTracker.Greenhouse;
 /// </summary>
 public sealed record GreenhouseJob
 {
+    /// <summary>The <see cref="IJobSource.Name"/> this job came from.</summary>
+    public required string SourceName { get; init; }
     public required string BoardToken { get; init; }
     public required long GreenhouseJobId { get; init; }
+
+    /// <summary>The source-qualified board, e.g. <c>greenhouse:wizinc</c>.</summary>
+    public string BoardKey => KeyFor(SourceName, BoardToken);
+
+    /// <summary>The board's own id, as the string every source can hold.</summary>
+    public string SourceJobId => GreenhouseJobId.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+    /// <summary>One definition of a board key, shared with the backfill.</summary>
+    public static string KeyFor(string sourceName, string boardToken) => $"{sourceName}:{boardToken}";
     public required string ContentHash { get; init; }
     public required string CleanedContent { get; init; }
     public required SourcePosting Source { get; init; }
@@ -36,7 +47,7 @@ public sealed record GreenhouseJob
     /// definition of "unchanged". <see cref="ContentCleaner"/> handles both
     /// entity-encoded HTML (Greenhouse) and plain HTML.
     /// </remarks>
-    public static GreenhouseJob From(string boardToken, long jobId, SourcePosting job)
+    public static GreenhouseJob From(string sourceName, string boardToken, long jobId, SourcePosting job)
     {
         var cleaned = ContentCleaner.Clean(job.ContentHtml);
 
@@ -53,6 +64,7 @@ public sealed record GreenhouseJob
 
         return new GreenhouseJob
         {
+            SourceName = sourceName,
             BoardToken = boardToken,
             GreenhouseJobId = jobId,
             CleanedContent = cleaned,
@@ -82,6 +94,8 @@ public sealed record GreenhouseJob
     {
         { GreenhouseJobFields.BoardToken, BoardToken },
         { GreenhouseJobFields.GreenhouseJobId, GreenhouseJobId },
+        { GreenhouseJobFields.BoardKey, BoardKey },
+        { GreenhouseJobFields.SourceJobId, SourceJobId },
         { GreenhouseJobFields.Title, Value(Source.Listed.Title) },
         { GreenhouseJobFields.Company, Value(Source.Company) },
         { GreenhouseJobFields.AbsoluteUrl, Value(Source.Url) },

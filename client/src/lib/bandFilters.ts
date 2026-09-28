@@ -12,10 +12,10 @@ import type { DiscoveredJobSummary } from './types';
 // asks for 0), so "Any" can bring old postings back, and the chosen window --
 // 30 days by default -- is applied the way the server applies it to the scored
 // list (GreenhouseJobRepository.PostedWithin).
-// "Any" still stops at four months -- the same cap as the server
+// "Any" still stops at three months -- the same cap as the server
 // (PoolBrowseQuery.MaxAgeDays). An evergreen posting open for a year is not a
 // job worth showing, and the close diff never catches it.
-export const MAX_AGE_DAYS = 120;
+export const MAX_AGE_DAYS = 90;
 
 export interface BandFilters {
   daysBack?: number;

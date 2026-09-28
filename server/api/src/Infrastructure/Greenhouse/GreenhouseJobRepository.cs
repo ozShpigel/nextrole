@@ -362,7 +362,7 @@ public sealed class GreenhouseJobRepository : IPoolJobRepository
         // PoolJobRepository.BrowseAsync, over this collection's fields.
         //
         // DaysBack is "posted within N days" by the company's own posting date
-        // (PostedWithin). 0 is "Any", which still stops at four months
+        // (PostedWithin). 0 is "Any", which still stops at three months
         // (PoolBrowseQuery.MaxAgeDays). The band asks with 0 and is windowed
         // further in the browser.
         clauses.Add(PostedWithin(PoolBrowseQuery.EffectiveDays(query.DaysBack)));

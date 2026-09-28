@@ -457,8 +457,13 @@ public class PrefilterAgeTests
     }
 
     [Fact]
-    public void A_posting_inside_four_months_is_read() =>
-        Assert.Null(Prefilter.Decide(Job(Now.AddDays(-100), null), ServedPlaces.From(Served), null, Now));
+    public void A_posting_inside_three_months_is_read() =>
+        Assert.Null(Prefilter.Decide(Job(Now.AddDays(-80), null), ServedPlaces.From(Served), null, Now));
+
+    [Fact]
+    public void A_posting_just_past_three_months_is_skipped() =>
+        Assert.Equal(PrefilterSkip.Age,
+            Prefilter.Decide(Job(Now.AddDays(-100), null), ServedPlaces.From(Served), null, Now)?.Reason);
 
     [Fact]
     public void The_update_date_decides_only_when_there_is_no_posting_date()
@@ -474,5 +479,5 @@ public class PrefilterAgeTests
 
     [Fact]
     public void The_limit_is_the_one_Matches_uses() =>
-        Assert.Equal(120, ApplicationTracker.Core.Matching.PoolBrowseQuery.MaxAgeDays);
+        Assert.Equal(90, ApplicationTracker.Core.Matching.PoolBrowseQuery.MaxAgeDays);
 }

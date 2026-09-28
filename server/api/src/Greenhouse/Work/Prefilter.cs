@@ -192,7 +192,7 @@ public static class Prefilter
     public static PrefilterSkip? Decide(
         ListedPosting job, ServedPlaces served, IReadOnlyCollection<string>? accepted, DateTime? now = null)
     {
-        // Older than Matches ever shows ("Any" is four months), by the
+        // Older than Matches ever shows ("Any" is three months), by the
         // posting's own date -- the same rule and the same limit as the board
         // (PoolBrowseQuery.MaxAgeDays), so nothing that could be shown is
         // skipped. A posting with no date is read, as it would be shown.

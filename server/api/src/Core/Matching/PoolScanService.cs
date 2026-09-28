@@ -292,7 +292,7 @@ public sealed class PoolScanService : IPoolScanService
             var jobs = await _pool.GetByIdsAsync(affordable, ct);
 
             // Never score what Matches never shows: older than the "Any"
-            // limit (four months). The board does not send such ids, but the
+            // limit (three months). The board does not send such ids, but the
             // ids are the client's, so the rule is enforced here -- this path
             // also scores before an Add (ScoreBeforeSave). An unknown age is
             // scored, as it is shown.

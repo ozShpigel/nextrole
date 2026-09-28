@@ -37,13 +37,13 @@ public sealed record PoolBrowseQuery
     /// The oldest posting Matches ever shows, in days -- what "Any" means.
     /// </summary>
     /// <remarks>
-    /// Four months. A role first published longer ago and still open is
+    /// Three months (four until 2026-09-28). A role first published longer ago and still open is
     /// usually an evergreen pipeline or a listing nobody closed, and the close
     /// diff cannot catch it, because it never leaves the board. The chip still
     /// says "Any" -- to a reader it is any posting worth seeing -- and every
     /// window is capped here, so none can reach past it.
     /// </remarks>
-    public const int MaxAgeDays = 120;
+    public const int MaxAgeDays = 90;
 
     /// <summary>The window actually applied: the chosen one, "Any" as <see cref="MaxAgeDays"/>, never longer.</summary>
     public static int EffectiveDays(int daysBack) =>

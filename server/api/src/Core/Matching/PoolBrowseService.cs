@@ -151,7 +151,7 @@ public sealed class PoolBrowseService : IPoolBrowseService
         // No exclusions: the band is the whole relevant set, including what is
         // already scored, so the board is one list rather than two that have to
         // be reconciled in the client.
-        // Never older than Matches will show ("Any" is four months): an older
+        // Never older than Matches will show ("Any" is three months): an older
         // posting would take a band slot only to be dropped below.
         var band = await _pool.FindCandidatesAsync(
             filter with { MaxAgeDays = PoolBrowseQuery.MaxAgeDays }, [], limit, ct);

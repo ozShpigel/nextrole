@@ -58,6 +58,17 @@ public sealed record IngestJob(
 /// </remarks>
 public sealed class IngestAiClient
 {
+    /// <summary>
+    /// The facts prompt's version, stored with every read as <c>facts_version</c>.
+    /// </summary>
+    /// <remarks>
+    /// Bump it when the facts prompt changes what it would say about a posting
+    /// already read, and name the sources to re-read in
+    /// <c>JobStore.FactsReReadSources</c>. 2: <c>hardware_engineering</c> added
+    /// (docs/plans/hardware-engineering-function.md). Unversioned rows are 1.
+    /// </remarks>
+    public const int FactsVersion = 2;
+
     private readonly HttpClient _http;
     private readonly ILogger _log;
 

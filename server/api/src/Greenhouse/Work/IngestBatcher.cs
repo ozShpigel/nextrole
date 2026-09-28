@@ -153,7 +153,8 @@ public sealed class IngestBatcher
 
             // extract_attempts counts, as for a live facts read.
             saved = await _jobs.SaveIngestAiAsync(
-                batch.BoardKey, Wanted(ended.Facts, wanted), new Dictionary<string, BsonDocument>(), null, now, ct);
+                batch.BoardKey, Wanted(ended.Facts, wanted), new Dictionary<string, BsonDocument>(), null, now, ct,
+                factsAttempted: batch.JobIds);
         }
         else
         {

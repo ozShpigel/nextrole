@@ -504,12 +504,20 @@ searched for.
 
 - **The list** is fixed in code (`JobFunctions.All`: software_engineering,
   infrastructure, data_engineering, data_science, analytics, qa, security,
-  product, design, sales, marketing, customer_success, operations). Free text
-  would repeat the location problem.
+  product, design, sales, marketing, customer_success, operations,
+  hardware_engineering). Free text would repeat the location problem.
+  `hardware_engineering` came with the first hardware company, KLA: without it
+  the facts read filed mechanical and optics roles as software
+  (docs/plans/hardware-engineering-function.md). It is nobody's neighbour;
+  embedded work carries both it and software_engineering.
 - **Postings** get up to two in `extracted.functions`, from the job-facts read.
   Off-list values are dropped server-side. An absent field marks a row as owed a
   facts re-read (same rule as `must_have_groups`), so stored postings are
   labelled by the existing re-read; an empty array means "read, unclear".
+  Every facts read stamps `facts_version` (`IngestAiClient.FactsVersion`); a
+  posting read by an older version is re-read once, but only on the sources in
+  `JobStore.FactsReReadSources` -- Workday for version 2. Greenhouse postings are
+  read right when they next change, and turn over within Matches' 90 days.
 - **Profiles** get up to three in `StructuredProfile.Functions`, from the CV
   read. Not rendered into prompts, so scores do not move. A profile saved before
   this has none until the CV is uploaded again.

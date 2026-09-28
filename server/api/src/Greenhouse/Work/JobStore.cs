@@ -1,4 +1,5 @@
 using ApplicationTracker.Core.Greenhouse;
+using ApplicationTracker.Core.Matching;
 using Microsoft.Extensions.Logging;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization;
@@ -193,6 +194,12 @@ public sealed class JobStore : IJobStore
     /// bounded number of calls in its lifetime rather than one a day forever.
     /// </para>
     /// </remarks>
+    /// <param name="factsAttempted">
+    /// Every posting a facts read was sent for. Each is stamped with the current
+    /// <c>facts_version</c> whether or not facts came back, so a re-read by
+    /// version is made once -- a posting the model returns nothing for is not
+    /// re-selected every run.
+    /// </param>
     public async Task<long> SaveIngestAiAsync(
         string boardKey,
         IReadOnlyDictionary<string, BsonDocument> facts,
@@ -200,9 +207,12 @@ public sealed class JobStore : IJobStore
         string? parseVersion,
         DateTime now,
         CancellationToken ct,
-        bool countAttempt = true)
+        bool countAttempt = true,
+        IReadOnlyCollection<string>? factsAttempted = null)
     {
-        var ids = facts.Keys.Union(parsed.Keys).ToList();
+        var attempted = new HashSet<string>(factsAttempted ?? [], StringComparer.Ordinal);
+        attempted.UnionWith(facts.Keys);
+        var ids = facts.Keys.Union(parsed.Keys).Union(attempted).ToList();
         if (ids.Count == 0) return 0;
 
         var writes = new List<WriteModel<BsonDocument>>(ids.Count);
@@ -217,6 +227,9 @@ public sealed class JobStore : IJobStore
                 set.Add(GreenhouseJobFields.ExtractedAt, now);
             }
 
+            if (attempted.Contains(id))
+                set.Add(GreenhouseJobFields.FactsVersion, IngestAiClient.FactsVersion);
+
             if (parsed.TryGetValue(id, out var p))
             {
                 set.Add(GreenhouseJobFields.Parsed, p);
@@ -225,8 +238,9 @@ public sealed class JobStore : IJobStore
                     parseVersion is null ? BsonNull.Value : new BsonString(parseVersion));
             }
 
+            // A posting only attempted -- no facts back -- still counts as read.
             var update = new BsonDocument { { "$set", set } };
-            if (countAttempt)
+            if (countAttempt && (facts.ContainsKey(id) || attempted.Contains(id)))
                 update.Add("$inc", new BsonDocument { { GreenhouseJobFields.ExtractAttempts, 1 } });
 
             writes.Add(new UpdateOneModel<BsonDocument>(
@@ -292,18 +306,29 @@ public sealed class JobStore : IJobStore
         // document with no groups in it. Bounded by attempts rather than by
         // success, because a posting the model returns no facts for keeps
         // lacking the field -- without the bound it would be re-read every run.
-        var filter = Builders<BsonDocument>.Filter.And(
-            Builders<BsonDocument>.Filter.Eq(GreenhouseJobFields.BoardKey, boardKey),
-            Builders<BsonDocument>.Filter.Eq(GreenhouseJobFields.ClosedAt, BsonNull.Value),
-            Builders<BsonDocument>.Filter.Type(GreenhouseJobFields.Extracted, BsonType.Document),
-            // Owed either field the current read produces. One re-read writes
-            // the whole extracted document, so it settles both at once.
-            Builders<BsonDocument>.Filter.Or(
-                Builders<BsonDocument>.Filter.Exists(GreenhouseJobFields.ExtractedMustHaveGroups, false),
-                Builders<BsonDocument>.Filter.Exists(GreenhouseJobFields.ExtractedFunctions, false)),
-            Builders<BsonDocument>.Filter.Gt(GreenhouseJobFields.ExtractAttempts, 0),
-            Builders<BsonDocument>.Filter.Lt(GreenhouseJobFields.ExtractAttempts, MaxFactsReReadAttempts),
-            Builders<BsonDocument>.Filter.Eq(GreenhouseJobFields.AiPendingFacts, BsonNull.Value));
+        var f = Builders<BsonDocument>.Filter;
+        var filter = f.And(
+            f.Eq(GreenhouseJobFields.BoardKey, boardKey),
+            f.Eq(GreenhouseJobFields.ClosedAt, BsonNull.Value),
+            f.Type(GreenhouseJobFields.Extracted, BsonType.Document),
+            f.Gt(GreenhouseJobFields.ExtractAttempts, 0),
+            f.Eq(GreenhouseJobFields.AiPendingFacts, BsonNull.Value),
+            f.Or(
+                // Owed either field the current read produces. One re-read writes
+                // the whole extracted document, so it settles both at once.
+                f.And(
+                    f.Or(
+                        f.Exists(GreenhouseJobFields.ExtractedMustHaveGroups, false),
+                        f.Exists(GreenhouseJobFields.ExtractedFunctions, false)),
+                    f.Lt(GreenhouseJobFields.ExtractAttempts, MaxFactsReReadAttempts)),
+                // Read by an older facts prompt, on a source that prompt got
+                // wrong. Once per posting: the read stamps the version, facts or
+                // none, so no attempts ceiling is needed.
+                f.And(
+                    f.In(GreenhouseJobFields.Source, FactsReReadSources),
+                    f.Or(
+                        f.Exists(GreenhouseJobFields.FactsVersion, false),
+                        f.Lt(GreenhouseJobFields.FactsVersion, IngestAiClient.FactsVersion)))));
 
         return await StoredContentAsync(filter, limit, ct);
     }
@@ -317,6 +342,19 @@ public sealed class JobStore : IJobStore
     /// that and keeps its old flat facts, which are counted as before.
     /// </remarks>
     public const int MaxFactsReReadAttempts = 3;
+
+    /// <summary>
+    /// The sources whose postings are re-read when the facts prompt's version
+    /// moves on (<c>IngestAiClient.FactsVersion</c>).
+    /// </summary>
+    /// <remarks>
+    /// Version 2 (<c>hardware_engineering</c>): Workday only. Its companies are
+    /// hardware-heavy, and their roles were filed as software. Greenhouse's are
+    /// software companies: their rare hardware role is read right when it next
+    /// changes, and everything Matches can show turns over within its 90-day
+    /// window -- so re-reading ~1,200 postings (~$2) buys almost nothing.
+    /// </remarks>
+    public static readonly string[] FactsReReadSources = [WorkdaySource.SourceName];
 
     private async Task<IReadOnlyList<StoredJobContent>> StoredContentAsync(
         FilterDefinition<BsonDocument> filter, int limit, CancellationToken ct)

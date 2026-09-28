@@ -117,6 +117,14 @@ public static class GreenhouseJobFields
     public const string ExtractedAt = "extracted_at";
 
     /// <summary>
+    /// Which version of the facts prompt last read this posting
+    /// (<c>IngestAiClient.FactsVersion</c>). Absent on postings read before
+    /// versions existed. Written on every facts read attempt, facts or none,
+    /// so a re-read by version happens once.
+    /// </summary>
+    public const string FactsVersion = "facts_version";
+
+    /// <summary>
     /// How many times extraction has been tried for this job.
     /// </summary>
     /// <remarks>

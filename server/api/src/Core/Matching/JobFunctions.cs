@@ -33,6 +33,18 @@ namespace ApplicationTracker.Core.Matching;
 public static class JobFunctions
 {
     public const string SoftwareEngineering = "software_engineering";
+
+    /// <summary>
+    /// Mechanical, electrical and electronics, optics, RF, chip design and
+    /// verification, process and manufacturing, physical integration and test,
+    /// and the lab work around them (docs/plans/hardware-engineering-function.md).
+    /// </summary>
+    /// <remarks>
+    /// Added with the first hardware company (KLA): without it the facts read
+    /// filed "Mechanical Design Engineer" as software_engineering, and 48 of
+    /// KLA's 63 postings passed a DevOps profile's filter.
+    /// </remarks>
+    public const string HardwareEngineering = "hardware_engineering";
     public const string Infrastructure = "infrastructure";
     public const string DataEngineering = "data_engineering";
     public const string DataScience = "data_science";
@@ -49,7 +61,7 @@ public static class JobFunctions
     public static readonly IReadOnlyList<string> All =
     [
         SoftwareEngineering, Infrastructure, DataEngineering, DataScience, Analytics, Qa, Security,
-        Product, Design, Sales, Marketing, CustomerSuccess, Operations,
+        Product, Design, Sales, Marketing, CustomerSuccess, Operations, HardwareEngineering,
     ];
 
     /// <summary>At most this many functions per posting: a hybrid role is two, never five.</summary>
@@ -82,6 +94,10 @@ public static class JobFunctions
         [Marketing] = [Sales],
         [CustomerSuccess] = [Sales],
         [Operations] = [],
+        // Nobody's neighbour, and none of its own: keeping hardware roles out of
+        // software profiles is the point. Work that is both (embedded,
+        // firmware, drivers) carries both labels and so reaches both.
+        [HardwareEngineering] = [],
     };
 
     /// <summary>

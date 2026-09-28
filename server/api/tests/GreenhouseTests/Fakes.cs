@@ -136,6 +136,9 @@ public sealed class FakeJobStore : IJobStore
 
     public List<string> SavedAiFor { get; } = [];
 
+    /// <summary>Every id a save said a facts read was attempted for.</summary>
+    public List<string> FactsAttempted { get; } = [];
+
     /// <summary>The facts document each save wrote, by job id.</summary>
     public Dictionary<string, MongoDB.Bson.BsonDocument> SavedFacts { get; } = [];
 
@@ -146,8 +149,10 @@ public sealed class FakeJobStore : IJobStore
         string boardToken,
         IReadOnlyDictionary<string, MongoDB.Bson.BsonDocument> facts,
         IReadOnlyDictionary<string, MongoDB.Bson.BsonDocument> parsed,
-        string? parseVersion, DateTime now, CancellationToken ct, bool countAttempt = true)
+        string? parseVersion, DateTime now, CancellationToken ct, bool countAttempt = true,
+        IReadOnlyCollection<string>? factsAttempted = null)
     {
+        FactsAttempted.AddRange(factsAttempted ?? []);
         if (!countAttempt) UncountedSaves++;
         LastParseVersion = parseVersion ?? LastParseVersion;
         SavedAiFor.AddRange(facts.Keys.Union(parsed.Keys));

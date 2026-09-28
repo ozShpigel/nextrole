@@ -1,4 +1,5 @@
 using ApplicationTracker.Core.Greenhouse;
+using ApplicationTracker.Core.Matching;
 using ApplicationTracker.Greenhouse;
 using Microsoft.Extensions.Logging.Abstractions;
 using MongoDB.Bson;
@@ -208,6 +209,55 @@ public sealed class JobStoreIntegrationTests : IAsyncLifetime
         Assert.Equal(["7184512", "55"], pending["msgbatch_old"].JobIds);
         Assert.Equal(Key, pending["msgbatch_new"].BoardKey);
         Assert.Equal(["R-12"], pending["msgbatch_new"].JobIds);
+    }
+
+    // ---- the facts version: a re-read by version, once (hardware_engineering) -------
+
+    /// <summary>A stored posting whose facts were read, as it looks before versions.</summary>
+    private async Task ReadAsync(string source, string token, string id, int attempts, int? version = null)
+    {
+        await _store.EnsureIndexesAsync(default);
+        await _store.UpsertBatchAsync([(Job(token, id, source), new float[4])], "seed", DateTime.UtcNow, default);
+        var set = Builders<BsonDocument>.Update
+            .Set(GreenhouseJobFields.Extracted, new BsonDocument
+            {
+                { "must_have_groups", new BsonArray() }, { "functions", new BsonArray { "software_engineering" } },
+            })
+            .Set(GreenhouseJobFields.ExtractAttempts, attempts);
+        if (version is { } v) set = set.Set(GreenhouseJobFields.FactsVersion, v);
+        await _jobs.UpdateOneAsync(Builders<BsonDocument>.Filter.Eq(GreenhouseJobFields.SourceJobId, id), set);
+    }
+
+    private async Task<List<string>> ReReadAsync(string boardKey) =>
+        [.. (await _store.NeedingFactsReReadAsync(boardKey, 100, default)).Select(p => p.SourceJobId)];
+
+    [SkippableFact]
+    public async Task A_workday_posting_read_by_an_older_prompt_is_re_read_whatever_its_attempts()
+    {
+        Skip.If(Uri is null, SkipReason);
+        await ReadAsync("workday", "acme", "Stale_R1", attempts: 3);                 // past the old ceiling
+        await ReadAsync("workday", "acme", "Current_R2", attempts: 1, version: IngestAiClient.FactsVersion);
+        await ReadAsync("greenhouse", "wizinc", "9", attempts: 1);                     // unversioned, but Greenhouse
+
+        Assert.Equal(["Stale_R1"], await ReReadAsync("workday:acme"));
+        Assert.Empty(await ReReadAsync(Key));   // Greenhouse ages out instead (FactsReReadSources)
+    }
+
+    [SkippableFact]
+    public async Task A_read_that_returns_nothing_still_stamps_the_version_so_it_is_made_once()
+    {
+        Skip.If(Uri is null, SkipReason);
+        await ReadAsync("workday", "acme", "Stale_R1", attempts: 3);
+        Assert.Equal(["Stale_R1"], await ReReadAsync("workday:acme"));
+
+        // The model returned no facts for it: the attempt alone is recorded.
+        await _store.SaveIngestAiAsync("workday:acme", new Dictionary<string, BsonDocument>(),
+            new Dictionary<string, BsonDocument>(), null, DateTime.UtcNow, default, factsAttempted: ["Stale_R1"]);
+
+        Assert.Empty(await ReReadAsync("workday:acme"));
+        var row = await _jobs.Find(Builders<BsonDocument>.Filter.Eq(GreenhouseJobFields.SourceJobId, "Stale_R1")).SingleAsync();
+        Assert.Equal(IngestAiClient.FactsVersion, row[GreenhouseJobFields.FactsVersion].AsInt32);
+        Assert.Equal(4, row[GreenhouseJobFields.ExtractAttempts].AsInt32);
     }
 
     [SkippableFact]

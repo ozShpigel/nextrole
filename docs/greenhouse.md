@@ -65,7 +65,10 @@ calls it, never the reverse, and the tests drive it by calling the method.
    early destroys requirements, which is the signal the source exists for.
 3. **Keep what is stored whole; decide what is worth paying for.** A NEW
    posting the pre-read filter rules out (see below) is not embedded, read or
-   stored. Everything stored is kept as it is; `department` and `office` are
+   stored. The filter runs twice (docs/plans/two-stage-prefilter.md): on the
+   listing, so a posting it rules out there costs no detail request, and on the
+   detail, with the exact date and full locations, over what the first kept.
+   For Greenhouse the listing is the detail, so the second decides nothing new. Everything stored is kept as it is; `department` and `office` are
    stored so narrowing it is a query, not a re-ingest.
 4. Skip anything whose content hash is unchanged — no embedding, no write.
 5. Embed what remains, batched by estimated token budget (~100K, cap 128 items),

@@ -1,6 +1,6 @@
 # Plan: one ingest, many job sources
 
-Status: **phases 1-2 built and verified in production, phase 3 built** (2026-09-28); 4-7 planned.
+Status: **phases 1-3 built and verified in production, phase 4 built** (2026-09-28); 5-7 planned.
 
 ## Why now
 
@@ -200,7 +200,7 @@ being a research session.
 |---|---|---|---|
 | 1 | `IJobSource` + `GreenhouseSource` wrapping today's `BoardClient`; `CompanyHandler` → `BoardHandler` calls the interface; contract suite over Greenhouse | none | **done** |
 | 2 | Storage key migration to `(boardKey, sourceJobId)` | none (verified by counts before/after) | 1 day |
-| 3 | `boards.json` with `source`; old `companies` list still loads | none | 0.5 day |
+| 3 | `boards.json` with `source`; old `companies` list still loads | none | **done** |
 | 4 | Two-stage prefilter in the handler (list → detail) | none for Greenhouse | 0.5 day |
 | 5 | **Workday** adapter (docs/plans/workday-adapter.md, minus its id hash) | +10 companies, ~570 roles | 2-3 days |
 | 6 | **Lever** (US + EU), then **Comeet** once measured, then **Ashby** | +more | 1 day each |

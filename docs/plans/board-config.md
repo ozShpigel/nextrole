@@ -1,6 +1,6 @@
 # Plan: boards, not companies -- `boards.json`, and everything per board on the board key
 
-Status: **built** (2026-09-28), not yet deployed. Phase 3 of docs/plans/multi-source-ingest.md.
+Status: **built and verified in production** (2026-09-28; the deploy needed #131, see below). Phase 3 of docs/plans/multi-source-ingest.md.
 Phases 1 and 2 are built and verified in production.
 
 ## Why
@@ -110,6 +110,16 @@ data change is a startup backfill of a small operational collection.
 1. **Renamed to `boards.json`**; the old shape and the old setting keep loading.
 2. **`boardToken` is still written** on queue messages and ledger rows until 2c,
    so every step stays reversible by code alone, as in phase 2.
+
+## What the deploy missed (#131)
+
+The ingest's own `appsettings.json` still set `Companies:ConfigPath` to
+`companies.json`. That setting is honoured as a fallback and outranks the new
+default, so after the rename the publisher and the consumer refused to start --
+loudly, nothing written. The box check above looked only at `.env.greenhouse`,
+and the shipped-file tests loaded `boards.json` by name. Fixed by pointing the
+setting at `boards.json` and adding a test that resolves the path the way the
+process does (`BoardsConfig.PathFrom`, from the shipped appsettings).
 
 ## Known limit until 2c
 

@@ -268,11 +268,11 @@ public class IngestBatcherTests
         var batcher = Batcher(api, store, batches);
 
         var handler = new BoardHandler(
-            Build.Source(new StubHandler().EnqueueJson(HttpStatusCode.OK, Build.BoardJson((1, "Backend Engineer", LongContent)))),
-            new FakeEmbeddingClient(), store, CompaniesConfig.ForTesting(Build.Token),
+            [Build.Source(new StubHandler().EnqueueJson(HttpStatusCode.OK, Build.BoardJson((1, "Backend Engineer", LongContent))))],
+            new FakeEmbeddingClient(), store, BoardsConfig.ForTesting(Build.Token),
             NullLogger<BoardHandler>.Instance, Client(api), batcher);
 
-        await handler.HandleCompanyAsync(Build.Token);
+        await handler.HandleBoardAsync(Build.Board);
 
         Assert.Equal(2, api.Calls);
         Assert.EndsWith("/api/match/job-facts/batches", api.RequestUris[0]);
@@ -295,11 +295,11 @@ public class IngestBatcherTests
         var batches = new FakeBatchStore();
 
         var handler = new BoardHandler(
-            Build.Source(new StubHandler().EnqueueJson(HttpStatusCode.OK, Build.BoardJson((1, "Backend Engineer", LongContent)))),
-            new FakeEmbeddingClient(), store, CompaniesConfig.ForTesting(Build.Token),
+            [Build.Source(new StubHandler().EnqueueJson(HttpStatusCode.OK, Build.BoardJson((1, "Backend Engineer", LongContent))))],
+            new FakeEmbeddingClient(), store, BoardsConfig.ForTesting(Build.Token),
             NullLogger<BoardHandler>.Instance, Client(api), Batcher(api, store, batches), parseAtIngest: false);
 
-        await handler.HandleCompanyAsync(Build.Token);
+        await handler.HandleBoardAsync(Build.Board);
 
         Assert.Equal(1, api.Calls);
         Assert.EndsWith("/api/match/job-facts/batches", api.RequestUris[0]);
@@ -316,11 +316,11 @@ public class IngestBatcherTests
         var batches = new FakeBatchStore();
 
         var handler = new BoardHandler(
-            Build.Source(new StubHandler().EnqueueJson(HttpStatusCode.OK, Build.BoardJson((1, "Backend Engineer", LongContent)))),
-            new FakeEmbeddingClient(), store, CompaniesConfig.ForTesting(Build.Token),
+            [Build.Source(new StubHandler().EnqueueJson(HttpStatusCode.OK, Build.BoardJson((1, "Backend Engineer", LongContent))))],
+            new FakeEmbeddingClient(), store, BoardsConfig.ForTesting(Build.Token),
             NullLogger<BoardHandler>.Instance, Client(api), Batcher(api, store, batches));
 
-        await handler.HandleCompanyAsync(Build.Token, liveReads: true);
+        await handler.HandleBoardAsync(Build.Board, liveReads: true);
 
         Assert.Empty(batches.Rows);
         Assert.NotEmpty(api.RequestUris);

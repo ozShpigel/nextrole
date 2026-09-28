@@ -50,7 +50,7 @@ public class FactsReReadTests
         await Build.Handler(
                 new StubHandler().EnqueueJson(HttpStatusCode.OK, Build.BoardJson()),
                 embedder, store, ai: Client(api))
-            .HandleCompanyAsync(Build.Token);
+            .HandleBoardAsync(Build.Board);
 
         Assert.Equal(1, api.Calls);
         Assert.Contains("/api/match/job-facts", api.RequestUris[0]);
@@ -74,7 +74,7 @@ public class FactsReReadTests
         await Build.Handler(
                 new StubHandler().EnqueueJson(HttpStatusCode.OK, Build.BoardJson()),
                 new FakeEmbeddingClient(), store, ai: Client(api))
-            .HandleCompanyAsync(Build.Token);
+            .HandleBoardAsync(Build.Board);
 
         // 100 postings at 50 per facts chunk.
         Assert.Equal(BoardHandler.BackfillBatchSize / ApplicationTracker.Core.Matching.IngestAiClient.FactsChunkSize, api.Calls);
@@ -90,7 +90,7 @@ public class FactsReReadTests
         var result = await Build.Handler(
                 new StubHandler().EnqueueJson(HttpStatusCode.OK, Build.BoardJson()),
                 new FakeEmbeddingClient(), store, ai: Client(api))
-            .HandleCompanyAsync(Build.Token);
+            .HandleBoardAsync(Build.Board);
 
         Assert.NotNull(result);
         Assert.Empty(store.SavedAiFor);

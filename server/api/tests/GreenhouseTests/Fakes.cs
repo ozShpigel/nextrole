@@ -275,27 +275,30 @@ internal static class Build
 
     public static BoardHandler Handler(
         StubHandler board, IEmbeddingClient embeddings, IJobStore store,
-        CompaniesConfig? config = null,
+        BoardsConfig? config = null,
         ApplicationTracker.Core.Matching.IngestAiClient? ai = null,
         PrefilterMode prefilter = PrefilterMode.Off,
         IDemand? demand = null,
         Microsoft.Extensions.Logging.ILogger<BoardHandler>? log = null,
         bool parseAtIngest = true) =>
-        new(Source(board), embeddings, store,
-            config ?? CompaniesConfig.ForTesting(Token), log ?? NullLogger<BoardHandler>.Instance, ai,
+        new([Source(board)], embeddings, store,
+            config ?? BoardsConfig.ForTesting(Token), log ?? NullLogger<BoardHandler>.Instance, ai,
             prefilter: prefilter, demand: demand, parseAtIngest: parseAtIngest);
 
     /// <summary>
     /// The board token every test uses.
     /// </summary>
     /// <remarks>
-    /// Built in memory through <c>CompaniesConfig.ForTesting</c> and deliberately
+    /// Built in memory through <c>BoardsConfig.ForTesting</c> and deliberately
     /// NOT a real company. No Greenhouse token appears in code or in a test --
-    /// the only place a real one exists is <c>config/companies.json</c>, so
+    /// the only place a real one exists is <c>config/boards.json</c>, so
     /// going from one company to fifty stays an edit to that file and nothing
     /// else.
     /// </remarks>
     public const string Token = "test-board";
+
+    /// <summary>The Greenhouse board for <see cref="Token"/>, as the config builds it.</summary>
+    public static BoardConfig Board => BoardsConfig.ForTesting(Token).All[0];
 
     public static string BoardJson(params (long Id, string Title, string Content)[] jobs) =>
         BoardJson(jobs.Length, jobs);

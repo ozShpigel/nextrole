@@ -91,6 +91,11 @@ a Workday row has no `greenhouseJobId`, and two of them on one board would
 collide on `(boardToken, null)`. Until then they are a free extra guard, so they
 stay.
 
+The run ledger's old `uniq_day_board` goes with them (added by phase 3,
+docs/plans/board-config.md): until it does, two boards sharing a token on
+different sources cannot both have a row for the same day. The same release
+stops writing `boardToken` on queue messages and ledger rows.
+
 ## Tests
 
 - `JobStore` has no test against a real Mongo today, and it is where the change

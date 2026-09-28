@@ -145,8 +145,8 @@ services:
       start_period: 30s
 
   # The Greenhouse source's fan-out. A cron container like pool-ingest: it
-  # writes one pending ledger row and publishes one message per board token in
-  # config/companies.json, then exits.
+  # writes one pending ledger row and publishes one message per board in
+  # config/boards.json, then exits.
   #
   #   docker compose --profile cron run --rm greenhouse publish
   #

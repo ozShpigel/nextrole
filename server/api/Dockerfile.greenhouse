@@ -33,12 +33,12 @@ WORKDIR /app
 COPY --from=build /app .
 
 # The board list ships with the image, as roles.json does for pool-ingest. Still
-# configuration -- Companies__ConfigPath points elsewhere when you want it to --
+# configuration -- Boards__ConfigPath points elsewhere when you want it to --
 # but baking a default means the box needs no hand-placed file, and manual state
 # on the box is what no `git pull` fixes.
 # Copied by the publish above (CopyToOutputDirectory in the csproj), so this is
 # only here to fail loudly if that ever stops working.
-RUN test -f /app/config/companies.json
+RUN test -f /app/config/boards.json
 
 # No CMD default on purpose: Program.cs refuses to run without publish|consume.
 # Guessing wrong is either a day with no ingest or a second fan-out.

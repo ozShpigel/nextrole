@@ -19,9 +19,9 @@ public class BoardHandlerSourceTests
         public int DetailCalls { get; private set; }
         public string Name => "fake";
 
-        public Task<Listing> ListAsync(string boardToken, CancellationToken ct) => Task.FromResult(listing);
+        public Task<Listing> ListAsync(BoardConfig board, CancellationToken ct) => Task.FromResult(listing);
 
-        public Task<SourcePosting?> DetailAsync(string boardToken, ListedPosting posting, CancellationToken ct)
+        public Task<SourcePosting?> DetailAsync(BoardConfig board, ListedPosting posting, CancellationToken ct)
         {
             DetailCalls++;
             return Task.FromResult(detail(posting));
@@ -33,8 +33,11 @@ public class BoardHandlerSourceTests
 
     private static SourcePosting Full(ListedPosting p) => new(p, Body, $"https://x/{p.SourceJobId}", "Test Co", null);
 
+    /// <summary>A board on the fake source. Built directly: config load only accepts real sources.</summary>
+    private static readonly BoardConfig Board = new() { Source = "fake", Token = Build.Token };
+
     private static BoardHandler Handler(IJobSource source, FakeJobStore store) =>
-        new(source, new FakeEmbeddingClient(), store, CompaniesConfig.ForTesting(Build.Token),
+        new([source], new FakeEmbeddingClient(), store, BoardsConfig.ForTesting(Build.Token),
             NullLogger<BoardHandler>.Instance);
 
     [Fact]
@@ -46,7 +49,7 @@ public class BoardHandlerSourceTests
             new Listing([Listed("1"), Listed("2")], Complete: true, Total: 2),
             p => p.SourceJobId == "2" ? null : Full(p));
 
-        var result = await Handler(source, store).HandleCompanyAsync(Build.Token);
+        var result = await Handler(source, store).HandleBoardAsync(Board);
 
         Assert.Equal(2, result.Fetched);
         Assert.Equal(1, result.Embedded);
@@ -61,7 +64,7 @@ public class BoardHandlerSourceTests
         var store = new FakeJobStore();
         var source = new FakeSource(new Listing([Listed("1")], Complete: false, Total: null), Full);
 
-        var result = await Handler(source, store).HandleCompanyAsync(Build.Token);
+        var result = await Handler(source, store).HandleBoardAsync(Board);
 
         Assert.Equal(1, result.Embedded);
         Assert.Equal(0, store.CloseCalls);
@@ -74,7 +77,7 @@ public class BoardHandlerSourceTests
         var store = new FakeJobStore();
         var source = new FakeSource(new Listing([Listed("1"), Listed("2")], Complete: true, Total: 2), Full);
 
-        await Handler(source, store).HandleCompanyAsync(Build.Token);
+        await Handler(source, store).HandleBoardAsync(Board);
 
         Assert.Equal(1, store.CloseCalls);
         Assert.Equal(["1", "2"], store.LastCloseSeenIds!.Order());
@@ -87,7 +90,7 @@ public class BoardHandlerSourceTests
         var withDetail = listed with { Detail = Full(listed) };
         var source = new FakeSource(new Listing([withDetail], Complete: true, Total: 1), Full);
 
-        await Handler(source, new FakeJobStore()).HandleCompanyAsync(Build.Token);
+        await Handler(source, new FakeJobStore()).HandleBoardAsync(Board);
 
         Assert.Equal(0, source.DetailCalls);
     }
@@ -100,7 +103,7 @@ public class BoardHandlerSourceTests
         var store = new FakeJobStore();
         var source = new FakeSource(new Listing([Listed("R-12"), Listed("5")], Complete: true, Total: 2), Full);
 
-        var result = await Handler(source, store).HandleCompanyAsync(Build.Token);
+        var result = await Handler(source, store).HandleBoardAsync(Board);
 
         Assert.Equal(2, result.Fetched);
         Assert.Equal(["5", "R-12"], store.Hashes.Keys.Order(StringComparer.Ordinal));
@@ -113,7 +116,7 @@ public class BoardHandlerSourceTests
         var store = new FakeJobStore();
         var source = new FakeSource(new Listing([Listed(" "), Listed("5")], Complete: true, Total: 2), Full);
 
-        var result = await Handler(source, store).HandleCompanyAsync(Build.Token);
+        var result = await Handler(source, store).HandleBoardAsync(Board);
 
         Assert.Equal(1, result.Fetched);
         Assert.Equal(["5"], store.Hashes.Keys);
@@ -128,7 +131,7 @@ public class BoardHandlerSourceTests
         var store = new FakeJobStore();
         var source = new FakeSource(new Listing([Listed("1")], Complete: true, Total: 1), Full);
 
-        await Handler(source, store).HandleCompanyAsync(Build.Token);
+        await Handler(source, store).HandleBoardAsync(Board);
 
         Assert.Equal([$"fake:{Build.Token}"], store.BoardsSeen);
     }

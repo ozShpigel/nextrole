@@ -16,11 +16,14 @@ public sealed class GreenhouseSource : IJobSource
 
     public GreenhouseSource(IBoardClient board) => _board = board;
 
-    public string Name => "greenhouse";
+    /// <summary>The source name in <c>boards.json</c> and in every stored board key.</summary>
+    public const string SourceName = "greenhouse";
 
-    public async Task<Listing> ListAsync(string boardToken, CancellationToken ct)
+    public string Name => SourceName;
+
+    public async Task<Listing> ListAsync(BoardConfig board, CancellationToken ct)
     {
-        var jobs = await _board.FetchAsync(boardToken, ct);
+        var jobs = await _board.FetchAsync(board.Token, ct);
 
         // Complete: BoardClient has already thrown on a count mismatch. A board
         // that gives no meta.total at all is accepted, as it was before this
@@ -29,7 +32,7 @@ public sealed class GreenhouseSource : IJobSource
         return new Listing([.. jobs.Select(Map)], Complete: true, Total: jobs.Count);
     }
 
-    public Task<SourcePosting?> DetailAsync(string boardToken, ListedPosting posting, CancellationToken ct) =>
+    public Task<SourcePosting?> DetailAsync(BoardConfig board, ListedPosting posting, CancellationToken ct) =>
         Task.FromResult(posting.Detail);
 
     private static ListedPosting Map(BoardJob job)

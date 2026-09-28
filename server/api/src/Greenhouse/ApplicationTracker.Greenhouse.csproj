@@ -26,13 +26,13 @@
 
   <ItemGroup>
     <!-- The board-token list ships with the image, exactly as roles.json does
-         for PoolIngest. Still configuration (Companies__ConfigPath points
+         for PoolIngest. Still configuration (Boards__ConfigPath points
          elsewhere when you want it to) but baking a default means the box needs
          no hand-placed file. Manual state on the box is what no `git pull`
          fixes (AGENTS.md). -->
-    <None Update="config/companies.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="config/boards.json" CopyToOutputDirectory="PreserveNewest" />
     <!-- One small board for local runs (the root docker-compose.yml default). -->
-    <None Update="config/companies.dev.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="config/boards.dev.json" CopyToOutputDirectory="PreserveNewest" />
     <None Update="appsettings.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 

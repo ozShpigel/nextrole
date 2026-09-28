@@ -49,10 +49,14 @@ try
     var mongoUri = Require(configuration, "MongoDB:ConnectionString");
     var databaseName = configuration["MongoDB:Database"] ?? "job-tracker";
     var rabbitUri = Require(configuration, "Rabbit:Uri");
-    var companiesPath = configuration["Companies:ConfigPath"] ?? "config/companies.json";
+    // Boards:ConfigPath; Companies:ConfigPath, its name before sources, still
+    // honoured so an environment that set it keeps working (docs/plans/board-config.md).
+    var boardsPath = configuration["Boards:ConfigPath"]
+        ?? configuration["Companies:ConfigPath"]
+        ?? "config/boards.json";
 
     // Model and dimensions are shared configuration, bound identically by the
-    // API (GreenhouseEmbeddingOptions). They are NOT in companies.json, which
+    // API (GreenhouseEmbeddingOptions). They are NOT in boards.json, which
     // the API cannot read -- see that file's _limits_comment.
     var embedding = configuration.GetSection(GreenhouseEmbeddingOptions.SectionName)
         .Get<GreenhouseEmbeddingOptions>() ?? new GreenhouseEmbeddingOptions();
@@ -60,7 +64,8 @@ try
     // messages and embeds nothing, so demanding a billed API key to fan out a
     // day's work would fail the daily timer over a credential it never uses.
 
-    var companies = CompaniesConfig.Load(companiesPath);
+    var boards = BoardsConfig.Load(boardsPath);
+    log.LogInformation("Boards: {Count} from {Path}", boards.All.Count, boardsPath);
 
     var database = new MongoClient(MongoClientSettings.FromConnectionString(mongoUri))
         .GetDatabase(databaseName);
@@ -134,7 +139,7 @@ try
     {
         var runId = Guid.NewGuid().ToString();
 
-        // Before the fan-out: postings of a board no longer in companies.json
+        // Before the fan-out: postings of a board no longer in boards.json
         // are never fetched again, so nothing else would ever close them. Never
         // fails the publish -- the day's ingest matters more than a cleanup the
         // next run can do.
@@ -143,7 +148,7 @@ try
             await new RemovedBoards(
                     new JobStore(jobs, loggerFactory.CreateLogger<JobStore>()),
                     loggerFactory.CreateLogger<RemovedBoards>())
-                .CloseAsync(companies.Companies, DateTime.UtcNow, ct);
+                .CloseAsync([.. boards.All.Select(b => b.Key)], DateTime.UtcNow, ct);
         }
         catch (Exception e) when (e is not OperationCanceledException)
         {
@@ -153,11 +158,11 @@ try
         var publisher = new CompanyPublisher(
             connection, ledger, loggerFactory.CreateLogger<CompanyPublisher>());
 
-        var published = await publisher.PublishAsync(companies.Companies, runId, ct);
+        var published = await publisher.PublishAsync(boards.All, runId, ct);
 
         // Non-zero if any company could not be dispatched, so a cron failure is
         // visible rather than a green tick over a partial fan-out.
-        return published == companies.Companies.Count ? 0 : 1;
+        return published == boards.All.Count ? 0 : 1;
     }
 
     // consume -- the only mode that embeds, and so the only one that needs a key.
@@ -250,7 +255,7 @@ try
         throw new InvalidOperationException(
             $"Greenhouse:Prefilter is '{prefilterSetting}'. Expected off, log or on.");
     log.LogInformation("Pre-read filter: {Mode}, {Locations} served location(s)",
-        prefilter, companies.ServedLocations.Count);
+        prefilter, boards.ServedLocations.Count);
 
     // Off by default: the ingest reads facts only, and the first user to score
     // a posting parses it (stored for everyone after). Parsing at ingest is
@@ -260,11 +265,15 @@ try
     var parseAtIngest = configuration.GetValue("Greenhouse:ParseAtIngest", false);
     log.LogInformation("Parse at ingest: {ParseAtIngest}", parseAtIngest ? "on" : "off (parsed by the first scorer)");
 
+    // Every source this build can read, by name. BoardsConfig.KnownSources
+    // refuses a board on any other at load.
+    IJobSource[] sources = [new GreenhouseSource(new BoardClient(boardHttp, loggerFactory.CreateLogger<BoardClient>()))];
+
     var handler = new BoardHandler(
-        new GreenhouseSource(new BoardClient(boardHttp, loggerFactory.CreateLogger<BoardClient>())),
+        sources,
         new VoyageEmbeddingClient(voyageHttp, embedding, loggerFactory.CreateLogger<VoyageEmbeddingClient>()),
         store,
-        companies,
+        boards,
         loggerFactory.CreateLogger<BoardHandler>(),
         ingestAi,
         useBatchApi ? batcher : null,
@@ -273,7 +282,7 @@ try
         parseAtIngest);
 
     var consumer = new CompanyConsumer(
-        connection, handler, ledger, loggerFactory.CreateLogger<CompanyConsumer>());
+        connection, handler, ledger, boards, loggerFactory.CreateLogger<CompanyConsumer>());
 
     var collector = batcher is null ? Task.CompletedTask : CollectForeverAsync(batcher, ct);
 
@@ -282,7 +291,7 @@ try
     var triggerPublisher = new CompanyPublisher(connection, ledger, loggerFactory.CreateLogger<CompanyPublisher>());
     var triggers = new DemandTriggers(
         database,
-        (runId, token) => triggerPublisher.PublishAsync(companies.Companies, runId, token, live: true),
+        (runId, token) => triggerPublisher.PublishAsync(boards.All, runId, token, live: true),
         prefilter,
         loggerFactory.CreateLogger<DemandTriggers>());
     var triggerLoop = TriggerForeverAsync(triggers, log, ct);

@@ -448,7 +448,7 @@ public sealed class JobStore : IJobStore
     {
         var rows = await _jobs.Aggregate()
             .Match(Builders<BsonDocument>.Filter.Eq(GreenhouseJobFields.ClosedAt, BsonNull.Value))
-            .Group(new BsonDocument { { "_id", "$" + GreenhouseJobFields.BoardToken }, { "open", new BsonDocument("$sum", 1) } })
+            .Group(new BsonDocument { { "_id", "$" + GreenhouseJobFields.BoardKey }, { "open", new BsonDocument("$sum", 1) } })
             .ToListAsync(ct);
 
         return rows
@@ -457,13 +457,13 @@ public sealed class JobStore : IJobStore
     }
 
     /// <inheritdoc />
-    public async Task<long> CloseBoardsAsync(IReadOnlyCollection<string> boardTokens, DateTime now, CancellationToken ct)
+    public async Task<long> CloseBoardsAsync(IReadOnlyCollection<string> boardKeys, DateTime now, CancellationToken ct)
     {
-        if (boardTokens.Count == 0) return 0;
+        if (boardKeys.Count == 0) return 0;
 
         var result = await _jobs.UpdateManyAsync(
             Builders<BsonDocument>.Filter.And(
-                Builders<BsonDocument>.Filter.In(GreenhouseJobFields.BoardToken, boardTokens),
+                Builders<BsonDocument>.Filter.In(GreenhouseJobFields.BoardKey, boardKeys),
                 // Only open ones: closedAt records when a posting FIRST went.
                 Builders<BsonDocument>.Filter.Eq(GreenhouseJobFields.ClosedAt, BsonNull.Value)),
             Builders<BsonDocument>.Update.Set(GreenhouseJobFields.ClosedAt, now),

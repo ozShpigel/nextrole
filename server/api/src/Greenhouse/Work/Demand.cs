@@ -14,7 +14,7 @@ public interface IDemand
 
     /// <summary>
     /// The location terms of users' profiles ("tel aviv", "israel"), served
-    /// on top of <c>served_locations</c> in companies.json.
+    /// on top of <c>served_locations</c> in boards.json.
     /// </summary>
     Task<IReadOnlyList<string>> WantedLocationsAsync(CancellationToken ct);
 }

@@ -23,14 +23,14 @@ namespace ApplicationTracker.Greenhouse;
 /// </remarks>
 public interface IJobSource
 {
-    /// <summary>"greenhouse", "workday", ... -- the stored <c>source</c> field.</summary>
+    /// <summary>"greenhouse", "workday", ... -- the stored <c>source</c> field, and <see cref="BoardConfig.Source"/>.</summary>
     string Name { get; }
 
     /// <summary>
     /// Every posting on the board, lightweight. Throws, or reports
     /// <c>Complete = false</c> -- never a silently short list.
     /// </summary>
-    Task<Listing> ListAsync(string boardToken, CancellationToken ct);
+    Task<Listing> ListAsync(BoardConfig board, CancellationToken ct);
 
     /// <summary>
     /// The full posting, for one the handler will keep.
@@ -44,7 +44,7 @@ public interface IJobSource
     /// A source whose listing already carries everything (Greenhouse) sets
     /// <see cref="ListedPosting.Detail"/> and is never asked.
     /// </remarks>
-    Task<SourcePosting?> DetailAsync(string boardToken, ListedPosting posting, CancellationToken ct);
+    Task<SourcePosting?> DetailAsync(BoardConfig board, ListedPosting posting, CancellationToken ct);
 }
 
 /// <param name="Complete">

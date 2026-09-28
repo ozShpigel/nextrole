@@ -10,7 +10,7 @@ namespace GreenhouseTests;
 /// </summary>
 /// <remarks>
 /// That this file compiles without a single AMQP type is itself the assertion
-/// that the transport does not leak into <c>HandleCompanyAsync</c>.
+/// that the transport does not leak into <c>HandleBoardAsync</c>.
 /// </remarks>
 public class BoardHandlerTests
 {
@@ -28,7 +28,7 @@ public class BoardHandlerTests
         var embeddings = new FakeEmbeddingClient();
         var store = new FakeJobStore();
 
-        var result = await Build.Handler(board, embeddings, store).HandleCompanyAsync(Build.Token);
+        var result = await Build.Handler(board, embeddings, store).HandleBoardAsync(Build.Board);
 
         Assert.Equal(2, result.Fetched);
         Assert.Equal(2, result.Embedded);
@@ -44,7 +44,7 @@ public class BoardHandlerTests
         var store = new FakeJobStore();
         var first = new FakeEmbeddingClient();
         await Build.Handler(new StubHandler().EnqueueJson(HttpStatusCode.OK, json), first, store)
-            .HandleCompanyAsync(Build.Token);
+            .HandleBoardAsync(Build.Board);
 
         // The store carries the first run's hashes into the second, so its
         // write log carries the first run's writes too. The assertion is that
@@ -54,7 +54,7 @@ public class BoardHandlerTests
         // Same board, same content, second run.
         var second = new FakeEmbeddingClient();
         var result = await Build.Handler(new StubHandler().EnqueueJson(HttpStatusCode.OK, json), second, store)
-            .HandleCompanyAsync(Build.Token);
+            .HandleBoardAsync(Build.Board);
 
         Assert.Equal(2, result.Skipped);
         Assert.Equal(0, result.Embedded);
@@ -72,7 +72,7 @@ public class BoardHandlerTests
                     (1, "Backend Engineer", LongContent),
                     (2, "Platform Engineer", LongContent))),
                 new FakeEmbeddingClient(), store)
-            .HandleCompanyAsync(Build.Token);
+            .HandleBoardAsync(Build.Board);
 
         var embeddings = new FakeEmbeddingClient();
         var result = await Build.Handler(
@@ -80,7 +80,7 @@ public class BoardHandlerTests
                     (1, "Backend Engineer", LongContent),
                     (2, "Platform Engineer", LongContent + "&lt;p&gt;now with Kubernetes&lt;/p&gt;"))),
                 embeddings, store)
-            .HandleCompanyAsync(Build.Token);
+            .HandleBoardAsync(Build.Board);
 
         Assert.Equal(1, result.Embedded);
         Assert.Equal(1, result.Skipped);
@@ -98,12 +98,12 @@ public class BoardHandlerTests
         await Build.Handler(
                 new StubHandler().EnqueueJson(HttpStatusCode.OK, Build.BoardJson((1, "Backend Engineer", LongContent))),
                 new FakeEmbeddingClient(), store)
-            .HandleCompanyAsync(Build.Token);
+            .HandleBoardAsync(Build.Board);
 
         var result = await Build.Handler(
                 new StubHandler().EnqueueJson(HttpStatusCode.OK, Build.BoardJson((1, "Staff Backend Engineer", LongContent))),
                 new FakeEmbeddingClient(), store)
-            .HandleCompanyAsync(Build.Token);
+            .HandleBoardAsync(Build.Board);
 
         Assert.Equal(1, result.Embedded);
         Assert.Equal(0, result.Skipped);
@@ -122,12 +122,12 @@ public class BoardHandlerTests
             .ToArray();
 
         var store = new FakeJobStore();
-        var config = CompaniesConfig.ForTesting(Build.Token) with { MaxBatchItems = 2 };
+        var config = BoardsConfig.ForTesting(Build.Token) with { MaxBatchItems = 2 };
 
         await Build.Handler(
                 new StubHandler().EnqueueJson(HttpStatusCode.OK, Build.BoardJson(jobs)),
                 new FakeEmbeddingClient(), store, config)
-            .HandleCompanyAsync(Build.Token);
+            .HandleBoardAsync(Build.Board);
 
         Assert.Equal([2, 2, 1], store.UpsertBatchSizes);
     }
@@ -144,12 +144,12 @@ public class BoardHandlerTests
 
         var store = new FakeJobStore();
         var embeddings = new FakeEmbeddingClient();
-        var config = CompaniesConfig.ForTesting(Build.Token) with { MaxBatchItems = 2 };
+        var config = BoardsConfig.ForTesting(Build.Token) with { MaxBatchItems = 2 };
 
         await Build.Handler(
                 new StubHandler().EnqueueJson(HttpStatusCode.OK, Build.BoardJson(jobs)),
                 embeddings, store, config)
-            .HandleCompanyAsync(Build.Token);
+            .HandleBoardAsync(Build.Board);
 
         var texts = embeddings.Batches.SelectMany(b => b).ToList();
         for (var i = 0; i < 6; i++)
@@ -173,7 +173,7 @@ public class BoardHandlerTests
                 new StubHandler().EnqueueJson(HttpStatusCode.OK, Build.BoardJson(
                     (1, "A", LongContent), (2, "B", LongContent))),
                 short1, store)
-            .HandleCompanyAsync(Build.Token));
+            .HandleBoardAsync(Build.Board));
 
         Assert.Empty(store.UpsertBatchSizes);
     }
@@ -186,7 +186,7 @@ public class BoardHandlerTests
         await Build.Handler(
                 new StubHandler().EnqueueJson(HttpStatusCode.OK, Build.BoardJson((1, "A", LongContent))),
                 embeddings, new FakeJobStore())
-            .HandleCompanyAsync(Build.Token);
+            .HandleBoardAsync(Build.Board);
 
         Assert.Equal("document", Assert.Single(embeddings.InputTypes));
     }
@@ -202,7 +202,7 @@ public class BoardHandlerTests
                 new StubHandler().EnqueueJson(HttpStatusCode.OK, Build.BoardJson(
                     2, (1, "A", LongContent), (1, "A again", LongContent))),
                 new FakeEmbeddingClient(), store)
-            .HandleCompanyAsync(Build.Token);
+            .HandleBoardAsync(Build.Board);
 
         Assert.Equal(1, result.Fetched);
         Assert.Equal(1, result.Embedded);
@@ -224,7 +224,7 @@ public class BoardHandlerTests
         await Assert.ThrowsAsync<BoardFetchException>(() => Build.Handler(
                 new StubHandler().EnqueueJson(status, """{"error":"nope"}"""),
                 new FakeEmbeddingClient(), store)
-            .HandleCompanyAsync(Build.Token));
+            .HandleBoardAsync(Build.Board));
 
         Assert.Equal(0, store.CloseCalls);
         Assert.Empty(store.UpsertBatchSizes);
@@ -244,7 +244,7 @@ public class BoardHandlerTests
                 new StubHandler().EnqueueJson(HttpStatusCode.OK, Build.BoardJson(
                     50, (1, "A", LongContent), (2, "B", LongContent))),
                 new FakeEmbeddingClient(), store)
-            .HandleCompanyAsync(Build.Token));
+            .HandleBoardAsync(Build.Board));
 
         Assert.Contains("meta.total=50", e.Message);
         Assert.Equal(0, store.CloseCalls);
@@ -258,7 +258,7 @@ public class BoardHandlerTests
         await Assert.ThrowsAsync<BoardFetchException>(() => Build.Handler(
                 new StubHandler().EnqueueJson(HttpStatusCode.OK, """{ "jobs": [ {"id": 1, "ti"""),
                 new FakeEmbeddingClient(), store)
-            .HandleCompanyAsync(Build.Token));
+            .HandleBoardAsync(Build.Board));
 
         Assert.Equal(0, store.CloseCalls);
     }
@@ -274,7 +274,7 @@ public class BoardHandlerTests
         await Assert.ThrowsAsync<EmbeddingException>(() => Build.Handler(
                 new StubHandler().EnqueueJson(HttpStatusCode.OK, Build.BoardJson((1, "A", LongContent))),
                 failing, store)
-            .HandleCompanyAsync(Build.Token));
+            .HandleBoardAsync(Build.Board));
 
         Assert.Equal(0, store.CloseCalls);
     }
@@ -290,7 +290,7 @@ public class BoardHandlerTests
                 new StubHandler().EnqueueJson(HttpStatusCode.OK, Build.BoardJson(
                     (1, "A", LongContent), (2, "B", LongContent))),
                 new FakeEmbeddingClient(), store)
-            .HandleCompanyAsync(Build.Token);
+            .HandleBoardAsync(Build.Board);
 
         Assert.Equal(1, store.CloseCalls);
         Assert.Equal(["1", "2"], store.LastCloseSeenIds!.Order());
@@ -308,7 +308,7 @@ public class BoardHandlerTests
         var result = await Build.Handler(
                 new StubHandler().EnqueueJson(HttpStatusCode.OK, Build.BoardJson(0)),
                 new FakeEmbeddingClient(), store)
-            .HandleCompanyAsync(Build.Token);
+            .HandleBoardAsync(Build.Board);
 
         Assert.Equal(0, result.Fetched);
         Assert.Equal(1, store.CloseCalls);
@@ -317,7 +317,7 @@ public class BoardHandlerTests
 
     // ---- the company logo --------------------------------------------------
 
-    private static CompaniesConfig WithDomain() => CompaniesConfig.Parse($$"""
+    private static BoardsConfig WithDomain() => BoardsConfig.Parse($$"""
         {
           "companies": ["{{Build.Token}}"],
           "company_domains": { "{{Build.Token}}": "example.com" },
@@ -334,10 +334,10 @@ public class BoardHandlerTests
         var json = Build.BoardJson((1, "Backend Engineer", LongContent));
         var store = new FakeJobStore();
         await Build.Handler(new StubHandler().EnqueueJson(HttpStatusCode.OK, json),
-            new FakeEmbeddingClient(), store).HandleCompanyAsync(Build.Token);
+            new FakeEmbeddingClient(), store).HandleBoardAsync(Build.Board);
 
         var result = await Build.Handler(new StubHandler().EnqueueJson(HttpStatusCode.OK, json),
-            new FakeEmbeddingClient(), store, WithDomain()).HandleCompanyAsync(Build.Token);
+            new FakeEmbeddingClient(), store, WithDomain()).HandleBoardAsync(WithDomain().All[0]);
 
         Assert.Equal(1, result.Skipped);
         Assert.Equal("https://logos.test/example.com", store.StampedLogos[$"greenhouse:{Build.Token}"]);
@@ -352,7 +352,7 @@ public class BoardHandlerTests
         await Build.Handler(
                 new StubHandler().EnqueueJson(HttpStatusCode.OK, Build.BoardJson((1, "Backend Engineer", LongContent))),
                 new FakeEmbeddingClient(), store)
-            .HandleCompanyAsync(Build.Token);
+            .HandleBoardAsync(Build.Board);
 
         Assert.True(store.StampedLogos.ContainsKey($"greenhouse:{Build.Token}"));
         Assert.Null(store.StampedLogos[$"greenhouse:{Build.Token}"]);
@@ -368,7 +368,7 @@ public class BoardHandlerTests
         var result = await Build.Handler(
                 new StubHandler().EnqueueJson(HttpStatusCode.OK, Build.BoardJson((1, "Backend Engineer", LongContent))),
                 new FakeEmbeddingClient(), store, WithDomain())
-            .HandleCompanyAsync(Build.Token);
+            .HandleBoardAsync(Build.Board);
 
         Assert.Equal(1, result.Embedded);
         Assert.Equal(1, store.CloseCalls);
@@ -382,16 +382,30 @@ public class BoardHandlerTests
         await Assert.ThrowsAnyAsync<Exception>(() => Build.Handler(
                 new StubHandler().EnqueueJson(HttpStatusCode.InternalServerError, "{}"),
                 new FakeEmbeddingClient(), store, WithDomain())
-            .HandleCompanyAsync(Build.Token));
+            .HandleBoardAsync(Build.Board));
 
         Assert.Empty(store.StampedLogos);
     }
 
     [Fact]
-    public async Task Refuses_a_blank_board_token()
+    public async Task Refuses_a_missing_board()
     {
         await Assert.ThrowsAnyAsync<ArgumentException>(() =>
             Build.Handler(new StubHandler(), new FakeEmbeddingClient(), new FakeJobStore())
-                .HandleCompanyAsync("   "));
+                .HandleBoardAsync(null!));
+    }
+
+    [Fact]
+    public async Task A_board_on_a_source_this_build_does_not_have_fails_loudly_before_any_fetch()
+    {
+        // Config load refuses unknown sources, so this is a registration bug --
+        // and it must not quietly do nothing for that board every day.
+        var board = new StubHandler();
+        var e = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            Build.Handler(board, new FakeEmbeddingClient(), new FakeJobStore())
+                .HandleBoardAsync(new BoardConfig { Source = "workday", Token = "acme" }));
+
+        Assert.Contains("workday:acme", e.Message);
+        Assert.Equal(0, board.Calls);
     }
 }

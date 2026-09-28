@@ -8,15 +8,21 @@ namespace GreenhouseTests;
 /// The board list is configuration, and loading it is fatal when it is wrong.
 /// </summary>
 /// <remarks>
-/// Every token in this file is invented. The only place a real Greenhouse token
-/// exists is <c>config/companies.json</c> -- which is what makes "one company to
-/// fifty" an edit to that file and nothing else.
+/// Every token in this file is invented. The only place a real board token
+/// exists is <c>config/boards.json</c> -- which is what makes "one company to
+/// fifty" an edit to that file and nothing else. Most tests here use the old
+/// <c>companies</c> shape on purpose: it must keep loading exactly as it did.
 /// </remarks>
-public class CompaniesConfigTests
+public class BoardsConfigTests
 {
+    private static List<string> Tokens(BoardsConfig config) => [.. config.All.Select(b => b.Token)];
+
+    private static string? Logo(BoardsConfig config, string token) =>
+        config.LogoUrlFor(config.BoardFor($"greenhouse:{token}")!);
+
     private static string WriteTemp(string json)
     {
-        var path = Path.Combine(Path.GetTempPath(), $"companies-{Guid.NewGuid():N}.json");
+        var path = Path.Combine(Path.GetTempPath(), $"boards-{Guid.NewGuid():N}.json");
         File.WriteAllText(path, json);
         return path;
     }
@@ -27,7 +33,7 @@ public class CompaniesConfigTests
         // The failure this prevents is invisible: a run against a guessed board
         // list still ingests jobs, they are simply the wrong company's.
         Assert.Throws<FileNotFoundException>(() =>
-            CompaniesConfig.Load(Path.Combine(Path.GetTempPath(), $"absent-{Guid.NewGuid():N}.json")));
+            BoardsConfig.Load(Path.Combine(Path.GetTempPath(), $"absent-{Guid.NewGuid():N}.json")));
     }
 
     [Fact]
@@ -35,7 +41,7 @@ public class CompaniesConfigTests
     {
         // The same company under two tokens: every posting would be stored,
         // read and scored twice. Case does not make it a different domain.
-        var e = Assert.Throws<InvalidOperationException>(() => CompaniesConfig.Parse("""
+        var e = Assert.Throws<InvalidOperationException>(() => BoardsConfig.Parse("""
             { "companies": ["nice", "niceltd", "wizinc"],
               "company_domains": { "nice": "nice.com", "niceltd": "NICE.com", "wizinc": "wiz.io" } }
             """));
@@ -48,12 +54,12 @@ public class CompaniesConfigTests
     [Fact]
     public void Distinct_domains_load()
     {
-        var config = CompaniesConfig.Parse("""
+        var config = BoardsConfig.Parse("""
             { "companies": ["nice", "wizinc"],
               "company_domains": { "nice": "nice.com", "wizinc": "wiz.io" } }
             """);
 
-        Assert.Equal(2, config.CompanyDomains.Count);
+        Assert.Equal(2, config.All.Count(b => b.Domain is not null));
     }
 
     [Fact]
@@ -62,8 +68,8 @@ public class CompaniesConfigTests
         var path = WriteTemp("""{ "companies": [] }""");
         try
         {
-            var e = Assert.Throws<InvalidOperationException>(() => CompaniesConfig.Load(path));
-            Assert.Contains("no companies", e.Message);
+            var e = Assert.Throws<InvalidOperationException>(() => BoardsConfig.Load(path));
+            Assert.Contains("no boards", e.Message);
         }
         finally { File.Delete(path); }
     }
@@ -74,7 +80,7 @@ public class CompaniesConfigTests
         var path = WriteTemp("""{ "companies": ["", "   "] }""");
         try
         {
-            Assert.Throws<InvalidOperationException>(() => CompaniesConfig.Load(path));
+            Assert.Throws<InvalidOperationException>(() => BoardsConfig.Load(path));
         }
         finally { File.Delete(path); }
     }
@@ -91,9 +97,9 @@ public class CompaniesConfigTests
             """);
         try
         {
-            var config = CompaniesConfig.Load(path);
+            var config = BoardsConfig.Load(path);
 
-            Assert.Equal(["alpha-co", "beta_co"], config.Companies);
+            Assert.Equal(["alpha-co", "beta_co"], Tokens(config));
             Assert.Equal(50_000, config.EmbedBatchTokenBudget);
             Assert.Equal(64, config.MaxBatchItems);
         }
@@ -107,7 +113,7 @@ public class CompaniesConfigTests
         // This file ships inside the ingestion image and the API cannot read
         // it, so a model named here could differ from the one retrieval uses --
         // and that disagreement produces an empty result set, not an error.
-        var properties = typeof(CompaniesConfig).GetProperties().Select(p => p.Name).ToList();
+        var properties = typeof(BoardsConfig).GetProperties().Select(p => p.Name).ToList();
 
         Assert.DoesNotContain(nameof(GreenhouseEmbeddingOptions.Model), properties);
         Assert.DoesNotContain(nameof(GreenhouseEmbeddingOptions.Dimensions), properties);
@@ -116,13 +122,13 @@ public class CompaniesConfigTests
     [Fact]
     public void The_comment_keys_in_the_shipped_file_do_not_break_the_parse()
     {
-        // config/companies.json carries _comment keys, the way roles.json does.
+        // config/boards.json carries _comment keys, the way roles.json does.
         var path = WriteTemp("""
             { "_comment": "why this list looks like this", "companies": ["alpha-co"] }
             """);
         try
         {
-            Assert.Equal(["alpha-co"], CompaniesConfig.Load(path).Companies);
+            Assert.Equal(["alpha-co"], Tokens(BoardsConfig.Load(path)));
         }
         finally { File.Delete(path); }
     }
@@ -136,8 +142,8 @@ public class CompaniesConfigTests
         var path = WriteTemp("""{ "companies": ["https://boards.greenhouse.io/alpha"] }""");
         try
         {
-            var e = Assert.Throws<InvalidOperationException>(() => CompaniesConfig.Load(path));
-            Assert.Contains("not a valid Greenhouse board token", e.Message);
+            var e = Assert.Throws<InvalidOperationException>(() => BoardsConfig.Load(path));
+            Assert.Contains("not a valid greenhouse board token", e.Message);
         }
         finally { File.Delete(path); }
     }
@@ -150,7 +156,7 @@ public class CompaniesConfigTests
         {
             // Order is the human's, not sorted: the run log then reads the way
             // the list was written.
-            Assert.Equal(["zeta-co", "alpha-co"], CompaniesConfig.Load(path).Companies);
+            Assert.Equal(["zeta-co", "alpha-co"], Tokens(BoardsConfig.Load(path)));
         }
         finally { File.Delete(path); }
     }
@@ -161,7 +167,7 @@ public class CompaniesConfigTests
         var path = WriteTemp("""{ "companies": ["  alpha-co  "] }""");
         try
         {
-            Assert.Equal(["alpha-co"], CompaniesConfig.Load(path).Companies);
+            Assert.Equal(["alpha-co"], Tokens(BoardsConfig.Load(path)));
         }
         finally { File.Delete(path); }
     }
@@ -174,7 +180,7 @@ public class CompaniesConfigTests
         var path = WriteTemp(json);
         try
         {
-            Assert.Throws<InvalidOperationException>(() => CompaniesConfig.Load(path));
+            Assert.Throws<InvalidOperationException>(() => BoardsConfig.Load(path));
         }
         finally { File.Delete(path); }
     }
@@ -184,7 +190,7 @@ public class CompaniesConfigTests
     [Fact]
     public void Resolves_a_logo_url_from_the_configured_domain()
     {
-        var config = CompaniesConfig.Parse("""
+        var config = BoardsConfig.Parse("""
             {
               "companies": ["alpha-co", "beta-co"],
               "company_domains": { "Alpha-Co": " Alpha.example " },
@@ -193,21 +199,21 @@ public class CompaniesConfigTests
             """);
 
         // Matched case-insensitively and normalised, the way tokens are.
-        Assert.Equal("https://logos.test/alpha.example.png", config.LogoUrlFor("alpha-co"));
+        Assert.Equal("https://logos.test/alpha.example.png", Logo(config, "alpha-co"));
         // No domain, no logo: the card falls back to its initial.
-        Assert.Null(config.LogoUrlFor("beta-co"));
+        Assert.Null(Logo(config, "beta-co"));
     }
 
     [Fact]
     public void Defaults_to_the_keyless_favicon_service()
     {
-        var config = CompaniesConfig.Parse("""
+        var config = BoardsConfig.Parse("""
             { "companies": ["alpha-co"], "company_domains": { "alpha-co": "alpha.example" } }
             """);
 
         Assert.Equal(
             "https://www.google.com/s2/favicons?domain=alpha.example&sz=128",
-            config.LogoUrlFor("alpha-co"));
+            Logo(config, "alpha-co"));
     }
 
     [Fact]
@@ -215,7 +221,7 @@ public class CompaniesConfigTests
     {
         // A typo in one of the two. Guessing which would put a logo on the
         // wrong board, or silently on none.
-        var e = Assert.Throws<InvalidOperationException>(() => CompaniesConfig.Parse("""
+        var e = Assert.Throws<InvalidOperationException>(() => BoardsConfig.Parse("""
             { "companies": ["alpha-co"], "company_domains": { "alpha-cp": "alpha.example" } }
             """));
         Assert.Contains("not in companies", e.Message);
@@ -228,7 +234,7 @@ public class CompaniesConfigTests
     [InlineData("")]
     public void A_domain_that_is_not_a_bare_hostname_is_fatal(string domain)
     {
-        Assert.Throws<InvalidOperationException>(() => CompaniesConfig.Parse(
+        Assert.Throws<InvalidOperationException>(() => BoardsConfig.Parse(
             $$"""{ "companies": ["alpha-co"], "company_domains": { "alpha-co": "{{domain}}" } }"""));
     }
 
@@ -238,13 +244,13 @@ public class CompaniesConfigTests
     public void A_template_without_the_placeholder_or_https_is_fatal(string template)
     {
         // Without {domain}, every company would show the same logo.
-        Assert.Throws<InvalidOperationException>(() => CompaniesConfig.Parse(
+        Assert.Throws<InvalidOperationException>(() => BoardsConfig.Parse(
             $$"""{ "companies": ["alpha-co"], "logo_url_template": "{{template}}" }"""));
     }
 
     [Theory]
-    [InlineData("companies.json")]
-    [InlineData("companies.dev.json")]   // the local default (docker-compose.yml)
+    [InlineData("boards.json")]
+    [InlineData("boards.dev.json")]   // the local default (docker-compose.yml)
     public void The_shipped_file_loads(string file)
     {
         // The real file is the one config a typo in it would break in
@@ -255,9 +261,10 @@ public class CompaniesConfigTests
             dir = Path.GetDirectoryName(dir);
         Assert.NotNull(dir);
 
-        var config = CompaniesConfig.Load(Path.Combine(dir!, relative));
+        var config = BoardsConfig.Load(Path.Combine(dir!, relative));
 
-        Assert.All(config.CompanyDomains.Keys, token => Assert.NotNull(config.LogoUrlFor(token)));
+        // Every shipped board is on a known source and has a domain, so a logo.
+        Assert.All(config.All, board => Assert.NotNull(config.LogoUrlFor(board)));
     }
 
     [Fact]
@@ -265,27 +272,122 @@ public class CompaniesConfigTests
     {
         // The in-memory path tests use must not be a laxer one, or the tests
         // would be exercising a config shape the file could never produce.
-        Assert.Throws<InvalidOperationException>(() => CompaniesConfig.ForTesting());
-        Assert.Throws<InvalidOperationException>(() => CompaniesConfig.ForTesting("not a token"));
-        Assert.Equal(["alpha-co"], CompaniesConfig.ForTesting("alpha-co").Companies);
+        Assert.Throws<InvalidOperationException>(() => BoardsConfig.ForTesting());
+        Assert.Throws<InvalidOperationException>(() => BoardsConfig.ForTesting("not a token"));
+        Assert.Equal(["alpha-co"], Tokens(BoardsConfig.ForTesting("alpha-co")));
     }
 
     [Fact]
     public void The_shipped_config_file_is_valid()
     {
         // Guards the file itself, not just the loader. A typo in
-        // config/companies.json otherwise fails for the first time in
+        // config/boards.json otherwise fails for the first time in
         // production, at 05:30 UTC.
         var path = Path.Combine(
-            RepoRoot(), "server", "api", "src", "Greenhouse", "config", "companies.json");
+            RepoRoot(), "server", "api", "src", "Greenhouse", "config", "boards.json");
 
         Assert.True(File.Exists(path), $"Expected the shipped board list at {path}");
 
-        var config = CompaniesConfig.Load(path);
-        Assert.NotEmpty(config.Companies);
+        var config = BoardsConfig.Load(path);
+        Assert.NotEmpty(config.All);
+        // Written in the new shape: the old one is only for paths still set to an old file.
+        Assert.Contains("\"boards\"", File.ReadAllText(path));
         Assert.True(config.EmbedBatchTokenBudget > 0);
         Assert.True(config.MaxBatchItems > 0);
     }
+
+    // ---- the boards shape (docs/plans/board-config.md) -------------------------
+
+    [Fact]
+    public void Loads_boards_with_their_source_token_and_domain()
+    {
+        var config = BoardsConfig.Parse("""
+            { "boards": [
+                { "source": "greenhouse", "token": " alpha-co ", "domain": "Alpha.Example" },
+                { "source": "greenhouse", "token": "beta-co", "name": "Beta" }
+            ] }
+            """);
+
+        Assert.Equal(["greenhouse:alpha-co", "greenhouse:beta-co"], config.All.Select(b => b.Key));
+        Assert.Equal("alpha.example", config.All[0].Domain);
+        Assert.Null(config.All[1].Domain);
+        Assert.Equal("Beta", config.All[1].Name);
+        Assert.Same(config.All[1], config.BoardFor("GREENHOUSE:Beta-Co"));
+        Assert.Null(config.BoardFor("greenhouse:gamma-co"));
+    }
+
+    [Fact]
+    public void The_old_shape_loads_as_the_same_greenhouse_boards()
+    {
+        // A path still pointing at an old companies.json keeps working, and
+        // means exactly what it meant.
+        var old = BoardsConfig.Parse("""
+            { "companies": ["alpha-co", "beta-co"], "company_domains": { "alpha-co": "alpha.example" } }
+            """);
+        var current = BoardsConfig.Parse("""
+            { "boards": [
+                { "source": "greenhouse", "token": "alpha-co", "domain": "alpha.example" },
+                { "source": "greenhouse", "token": "beta-co" }
+            ] }
+            """);
+
+        Assert.Equal(current.All, old.All);
+    }
+
+    [Fact]
+    public void Both_shapes_in_one_file_is_fatal()
+    {
+        // Two lists that can disagree about what runs.
+        var e = Assert.Throws<InvalidOperationException>(() => BoardsConfig.Parse("""
+            { "boards": [ { "source": "greenhouse", "token": "alpha-co" } ], "companies": ["beta-co"] }
+            """));
+        Assert.Contains("both boards and companies", e.Message);
+    }
+
+    [Fact]
+    public void A_board_on_an_unknown_source_is_fatal()
+    {
+        var e = Assert.Throws<InvalidOperationException>(() => BoardsConfig.Parse("""
+            { "boards": [ { "source": "workday", "token": "acme" } ] }
+            """));
+        Assert.Contains("'workday'", e.Message);
+        Assert.Contains("greenhouse", e.Message);   // and says which sources ARE known
+    }
+
+    [Fact]
+    public void A_board_listed_twice_is_fatal_rather_than_dropped()
+    {
+        // With a source and a domain on each entry, two copies can disagree;
+        // silently keeping the first would pick one without saying so.
+        var e = Assert.Throws<InvalidOperationException>(() => BoardsConfig.Parse("""
+            { "boards": [
+                { "source": "greenhouse", "token": "alpha-co", "domain": "alpha.example" },
+                { "source": "greenhouse", "token": "Alpha-Co" }
+            ] }
+            """));
+        Assert.Contains("twice", e.Message);
+    }
+
+    [Fact]
+    public void The_same_domain_on_two_boards_is_fatal_in_the_new_shape_too()
+    {
+        var e = Assert.Throws<InvalidOperationException>(() => BoardsConfig.Parse("""
+            { "boards": [
+                { "source": "greenhouse", "token": "alpha-co", "domain": "alpha.example" },
+                { "source": "greenhouse", "token": "alpha-uk", "domain": "ALPHA.example" }
+            ] }
+            """));
+        Assert.Contains("greenhouse:alpha-co", e.Message);
+        Assert.Contains("greenhouse:alpha-uk", e.Message);
+    }
+
+    [Theory]
+    [InlineData("""{ "boards": [] }""")]
+    [InlineData("""{ "boards": [ { "source": "greenhouse", "token": "" } ] }""")]
+    [InlineData("""{ "boards": [ { "source": "greenhouse", "token": "not a token" } ] }""")]
+    [InlineData("""{ "boards": [ { "token": "alpha-co" } ] }""")]
+    public void A_malformed_board_list_is_fatal(string json) =>
+        Assert.Throws<InvalidOperationException>(() => BoardsConfig.Parse(json));
 
     private static string RepoRoot()
     {

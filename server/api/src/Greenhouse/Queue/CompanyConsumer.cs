@@ -30,14 +30,17 @@ public sealed class CompanyConsumer
     private readonly IConnection _connection;
     private readonly BoardHandler _handler;
     private readonly RunLedger _ledger;
+    private readonly BoardsConfig _boards;
     private readonly ILogger<CompanyConsumer> _log;
 
     public CompanyConsumer(
-        IConnection connection, BoardHandler handler, RunLedger ledger, ILogger<CompanyConsumer> log)
+        IConnection connection, BoardHandler handler, RunLedger ledger, BoardsConfig boards,
+        ILogger<CompanyConsumer> log)
     {
         _connection = connection;
         _handler = handler;
         _ledger = ledger;
+        _boards = boards;
         _log = log;
     }
 
@@ -101,20 +104,32 @@ public sealed class CompanyConsumer
             _log.LogError(e, "Unparseable message; dead-lettering it");
         }
 
-        if (message is null || string.IsNullOrWhiteSpace(message.BoardToken))
+        if (message?.Key is not { } key)
         {
             // Nothing to retry and nothing to record: we cannot even name the
-            // company. Straight to the DLQ, where a human can look at it.
+            // board. Straight to the DLQ, where a human can look at it.
             await channel.BasicNackAsync(delivery.DeliveryTag, multiple: false, requeue: false, ct);
+            return;
+        }
+
+        if (_boards.BoardFor(key) is not { } board)
+        {
+            // Removed from the config between publish and consume. Acked, not
+            // dead-lettered: there is nothing a retry could do, and the removed-
+            // boards step closes its postings on the next publish. The ledger
+            // row is resolved so the day does not look unfinished forever.
+            _log.LogWarning("Board {Board}: no longer configured; acknowledging without a run", key);
+            await _ledger.MarkFailedAsync(message.Day, key, message.BoardToken,
+                new InvalidOperationException($"{key} is no longer in the boards config"), DateTime.UtcNow, ct);
+            await channel.BasicAckAsync(delivery.DeliveryTag, multiple: false, ct);
             return;
         }
 
         try
         {
-            var result = await _handler.HandleCompanyAsync(message.BoardToken, ct, liveReads: message.Live);
+            var result = await _handler.HandleBoardAsync(board, ct, liveReads: message.Live);
 
-            await _ledger.MarkDoneAsync(
-                message.Day, message.BoardToken, result.ToCounts(), DateTime.UtcNow, ct);
+            await _ledger.MarkDoneAsync(message.Day, board, result.ToCounts(), DateTime.UtcNow, ct);
 
             // ACK ONLY NOW. Everything above is durable: the jobs are upserted
             // per batch and the ledger row says done. Acking any earlier would
@@ -125,7 +140,7 @@ public sealed class CompanyConsumer
             _log.LogInformation(
                 "Board {Board}: done -- {Fetched} fetched, {Embedded} embedded, {Skipped} skipped, "
                 + "{Closed} closed, {Tokens} tokens billed",
-                message.BoardToken, result.Fetched, result.Embedded, result.Skipped,
+                board.Token, result.Fetched, result.Embedded, result.Skipped,
                 result.Closed, result.TokensBilled);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
@@ -133,13 +148,13 @@ public sealed class CompanyConsumer
             // Shutdown, not failure. No ack and no nack: let the broker
             // redeliver it to whoever comes up next.
             _log.LogWarning("Board {Board}: interrupted by shutdown; leaving it unacked for redelivery",
-                message.BoardToken);
+                board.Token);
         }
         catch (Exception e)
         {
-            _log.LogError(e, "Board {Board}: failed", message.BoardToken);
+            _log.LogError(e, "Board {Board}: failed", board.Token);
 
-            await _ledger.MarkFailedAsync(message.Day, message.BoardToken, e, DateTime.UtcNow, ct);
+            await _ledger.MarkFailedAsync(message.Day, board.Key, board.Token, e, DateTime.UtcNow, ct);
 
             // requeue: false -- to the DLQ, not back to the queue.
             //

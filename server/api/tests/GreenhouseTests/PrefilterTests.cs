@@ -164,8 +164,8 @@ public class PrefilterHandlerTests
             Func<TState, Exception?, string> formatter) => Lines.Add(formatter(state, exception));
     }
 
-    private static CompaniesConfig Config() =>
-        CompaniesConfig.ForTesting(Build.Token) with { ServedLocations = ["Tel Aviv"] };
+    private static BoardsConfig Config() =>
+        BoardsConfig.ForTesting(Build.Token) with { ServedLocations = ["Tel Aviv"] };
 
     // Every job on Build.BoardJson is in Tel Aviv, in "Engineering".
     private static string Board(params (long Id, string Title)[] jobs) =>
@@ -182,7 +182,7 @@ public class PrefilterHandlerTests
         var result = await Build.Handler(Serve(Board((1, "Platform Engineer"), (2, "Recruiter"))),
                 embeddings, store, Config(), prefilter: PrefilterMode.On,
                 demand: new Demand(JobFunctions.Infrastructure))
-            .HandleCompanyAsync(Build.Token);
+            .HandleBoardAsync(Build.Board);
 
         Assert.Equal(1, result.Prefiltered);
         Assert.Equal(1, result.Embedded);
@@ -198,7 +198,7 @@ public class PrefilterHandlerTests
         var result = await Build.Handler(Serve(Board((1, "Platform Engineer"), (2, "Recruiter"))),
                 new FakeEmbeddingClient(), store, Config(), prefilter: PrefilterMode.Log,
                 demand: new Demand(JobFunctions.Infrastructure))
-            .HandleCompanyAsync(Build.Token);
+            .HandleBoardAsync(Build.Board);
 
         Assert.Equal(0, result.Prefiltered);
         Assert.Equal(2, result.Embedded);
@@ -211,12 +211,12 @@ public class PrefilterHandlerTests
         // touch and hand it to the close diff.
         var store = new FakeJobStore();
         await Build.Handler(Serve(Board((2, "Recruiter"))), new FakeEmbeddingClient(), store, Config())
-            .HandleCompanyAsync(Build.Token);
+            .HandleBoardAsync(Build.Board);
 
         var result = await Build.Handler(Serve(Board((2, "Recruiter"))),
                 new FakeEmbeddingClient(), store, Config(), prefilter: PrefilterMode.On,
                 demand: new Demand(JobFunctions.Infrastructure))
-            .HandleCompanyAsync(Build.Token);
+            .HandleBoardAsync(Build.Board);
 
         Assert.Equal(0, result.Prefiltered);
         Assert.Contains("2", store.Touched);
@@ -231,12 +231,12 @@ public class PrefilterHandlerTests
 
         await Build.Handler(Serve(json), new FakeEmbeddingClient(), store, Config(),
                 prefilter: PrefilterMode.On, demand: new Demand(JobFunctions.Infrastructure))
-            .HandleCompanyAsync(Build.Token);
+            .HandleBoardAsync(Build.Board);
         Assert.Empty(store.Hashes);
 
         var result = await Build.Handler(Serve(json), new FakeEmbeddingClient(), store, Config(),
                 prefilter: PrefilterMode.On, demand: new Demand(JobFunctions.Infrastructure, JobFunctions.Operations))
-            .HandleCompanyAsync(Build.Token);
+            .HandleBoardAsync(Build.Board);
 
         Assert.Equal(1, result.Embedded);
         Assert.Equal(["2"], store.Hashes.Keys);
@@ -247,7 +247,7 @@ public class PrefilterHandlerTests
     {
         var result = await Build.Handler(Serve(Board((2, "Recruiter"))), new FakeEmbeddingClient(),
                 new FakeJobStore(), Config(), prefilter: PrefilterMode.On, demand: new Demand())
-            .HandleCompanyAsync(Build.Token);
+            .HandleBoardAsync(Build.Board);
 
         Assert.Equal(0, result.Prefiltered);
         Assert.Equal(1, result.Embedded);
@@ -260,13 +260,13 @@ public class PrefilterHandlerTests
         // hiring role): the title guess says operations, an infra user wants it.
         var store = new FakeJobStore();
         await Build.Handler(Serve(Board((2, "Recruiter"))), new FakeEmbeddingClient(), store, Config())
-            .HandleCompanyAsync(Build.Token);
+            .HandleBoardAsync(Build.Board);
         store.Functions["2"] = [JobFunctions.Infrastructure];
 
         var log = new ListLogger();
         await Build.Handler(Serve(Board((2, "Recruiter"))), new FakeEmbeddingClient(), store, Config(),
                 prefilter: PrefilterMode.Log, demand: new Demand(JobFunctions.Infrastructure), log: log)
-            .HandleCompanyAsync(Build.Token);
+            .HandleBoardAsync(Build.Board);
 
         var check = Assert.Single(log.Lines, l => l.Contains("pre-read filter check"));
         Assert.Contains("0 right, 1 wrong, 1 wrong in a way that would hide a wanted posting", check);
@@ -306,16 +306,16 @@ public class LearnedLocationTests
 
     // Every job on Build.BoardJson is in Tel Aviv. The config serves only
     // Berlin, so Tel Aviv is served only if a profile brings it.
-    private static CompaniesConfig BerlinOnly() =>
-        CompaniesConfig.ForTesting(Build.Token) with { ServedLocations = ["Berlin"] };
+    private static BoardsConfig BerlinOnly() =>
+        BoardsConfig.ForTesting(Build.Token) with { ServedLocations = ["Berlin"] };
 
-    private static Task<CompanyResult> Run(CompaniesConfig config, Demand demand) =>
+    private static Task<CompanyResult> Run(BoardsConfig config, Demand demand) =>
         Build.Handler(
                 new StubHandler().EnqueueJson(System.Net.HttpStatusCode.OK,
                     Build.BoardJson((1, "Platform Engineer", Content))),
                 new FakeEmbeddingClient(), new FakeJobStore(), config,
                 prefilter: PrefilterMode.On, demand: demand)
-            .HandleCompanyAsync(Build.Token);
+            .HandleBoardAsync(Build.Board);
 
     [Fact]
     public async Task A_place_nobody_is_in_is_skipped()
@@ -352,14 +352,14 @@ public class LearnedLocationTests
         var store = new FakeJobStore();
         await Build.Handler(new StubHandler().EnqueueJson(System.Net.HttpStatusCode.OK, json),
                 new FakeEmbeddingClient(), store, BerlinOnly())
-            .HandleCompanyAsync(Build.Token);
+            .HandleBoardAsync(Build.Board);
         store.Locations["1"] = "Berlin, Germany";
 
         var log = new ListLogger();
         await Build.Handler(new StubHandler().EnqueueJson(System.Net.HttpStatusCode.OK, json),
                 new FakeEmbeddingClient(), store, BerlinOnly(), prefilter: PrefilterMode.Log,
                 demand: new Demand(), log: log)
-            .HandleCompanyAsync(Build.Token);
+            .HandleBoardAsync(Build.Board);
 
         var check = Assert.Single(log.Lines, l => l.Contains("location check"));
         Assert.Contains("1 of 1 stored posting(s) resolve to countries nobody is in", check);
@@ -371,7 +371,7 @@ public class LearnedLocationTests
     {
         // No configured list means no location filtering. A user's "berlin"
         // must not turn that into "only Berlin".
-        var result = await Run(CompaniesConfig.ForTesting(Build.Token), new Demand { Locations = ["berlin"] });
+        var result = await Run(BoardsConfig.ForTesting(Build.Token), new Demand { Locations = ["berlin"] });
 
         Assert.Equal(0, result.Prefiltered);
     }

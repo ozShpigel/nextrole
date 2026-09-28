@@ -52,8 +52,10 @@ passes and `ContentCleanerTests` pins them.
 idempotent, throws on failure. **No transport type appears in it**; the queue
 calls it, never the reverse, and the tests drive it by calling the method.
 
-1. Fetch the whole board, through the source's `IJobSource` (`GreenhouseSource`
-   today). Everything below is shared by every source; only the fetch and the
+1. Fetch the whole board, through the source's `IJobSource` -- `GreenhouseSource`,
+   or `WorkdaySource` for a company's own Workday careers site
+   (docs/plans/workday-adapter.md: pages of 20, detail per posting, one request a
+   second). Everything below is shared by every source; only the fetch and the
    proof that the listing is whole are the adapter's. A listing the source
    cannot prove complete is stored but closes nothing, and a posting whose
    detail could not be read is skipped and left open. Every adapter passes

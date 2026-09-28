@@ -259,7 +259,16 @@ try
 
     // Every source this build can read, by name. BoardsConfig.KnownSources
     // refuses a board on any other at load.
-    IJobSource[] sources = [new GreenhouseSource(new BoardClient(boardHttp, loggerFactory.CreateLogger<BoardClient>()))];
+    // Workday: each company's own careers backend, read gently (WorkdayLimits)
+    // and identifying itself honestly rather than as a browser.
+    var workdayHttp = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
+    workdayHttp.DefaultRequestHeaders.UserAgent.ParseAdd("NextRole-ingest/1.0 (+https://nextrole.cloud)");
+
+    IJobSource[] sources =
+    [
+        new GreenhouseSource(new BoardClient(boardHttp, loggerFactory.CreateLogger<BoardClient>())),
+        new WorkdaySource(workdayHttp, loggerFactory.CreateLogger<WorkdaySource>()),
+    ];
 
     var handler = new BoardHandler(
         sources,

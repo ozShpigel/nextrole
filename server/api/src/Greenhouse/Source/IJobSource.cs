@@ -62,6 +62,10 @@ public sealed record Listing(IReadOnlyList<ListedPosting> Postings, bool Complet
 /// <param name="PostedAt">When the posting first went up, if the board says. UTC.</param>
 /// <param name="UpdatedAt">The board's own last-edited date, if it gives one. UTC.</param>
 /// <param name="Detail">Set when the listing already carries the full posting.</param>
+/// <param name="DetailRef">
+/// What this source needs to fetch the full posting (Workday: the posting's
+/// path). Opaque to everything but the source; null when <paramref name="Detail"/> is set.
+/// </param>
 public sealed record ListedPosting(
     string SourceJobId,
     string? Title,
@@ -70,7 +74,8 @@ public sealed record ListedPosting(
     IReadOnlyList<string> Departments,
     DateTime? PostedAt,
     DateTime? UpdatedAt,
-    SourcePosting? Detail = null);
+    SourcePosting? Detail = null,
+    string? DetailRef = null);
 
 /// <summary>What gets stored.</summary>
 /// <param name="ContentHtml">

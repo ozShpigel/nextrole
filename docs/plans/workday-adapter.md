@@ -1,7 +1,10 @@
 # Plan: the Workday adapter
 
-Status: **plan**, 2026-09-26. Not built. Phase 5 of
-docs/plans/multi-source-ingest.md -- build that plan's phases 1-4 first.
+Status: **built** (2026-09-28), no Workday board configured yet -- KLA is added
+in its own change (Rollout). Revised the same day after phases 1-4 of
+docs/plans/multi-source-ingest.md shipped and the API was probed again. Phase 5.
+The first version (2026-09-26) predates the source interface and the string
+key; what it proposed that is now settled differently is listed at the end.
 
 ## Why
 
@@ -19,144 +22,146 @@ employers, and one adapter covers all of them.
 | F5 | `ffive.wd5` / `f5jobs` | 5 | 4 |
 
 About 500 Israel engineering roles -- NVIDIA alone is half of what all 20
-Greenhouse companies give. Qualcomm has left Workday (careers.qualcomm.com);
-Palo Alto Networks and NetApp run their own sites; Mobileye is on Lever (EU) --
-the next adapter, not this one.
+Greenhouse companies give.
 
-## The API (public, undocumented)
+## The API, as measured on 2026-09-28
 
-What each careers site's own page calls. No key.
+Public, undocumented, no key: what each careers site's own page calls.
 
 - **List**: `POST https://{host}.myworkdayjobs.com/wday/cxs/{tenant}/{site}/jobs`
-  with `{"appliedFacets":{}, "limit":20, "offset":N, "searchText":""}` returns
-  `{ total, jobPostings[], facets[] }`. A posting in the list has only
-  `title`, `externalPath`, `locationsText` ("Yavne, Israel", or "3 Locations"),
-  a fuzzy `postedOn` ("Posted 30+ Days Ago") and `bulletFields` (the req id).
-  **20 per page, no bigger.**
+  with `{"appliedFacets":{...}, "limit":20, "offset":N, "searchText":""}`.
+  A posting in the list is `title`, `externalPath`, `locationsText`,
+  `postedOn`, `bulletFields` -- nothing else.
+  - **`total` is on the first page only.** Every later page says `total: 0`
+    (KLA: `[75, 0, 0, 0]`). Completeness is page one's total against the count
+    collected over all pages.
+  - **`total` is capped at 2000.** NVIDIA's whole site reports exactly 2000 and
+    still returns a full page at offset 1980. A listing whose first-page total
+    is 2000 cannot be proven whole, and is not treated as whole.
+  - **Narrowing is by nested facet.** `locationMainGroup` groups
+    `locationHierarchy1` (countries), `locations` (sites) and
+    `locationHierarchy2` (type); the applied key is the nested one:
+    `{"locationHierarchy1": ["<Israel id>", "<UK id>"]}`. NVIDIA narrowed to
+    Israel + UK: **467** -- listable in full.
+  - **The age is fuzzy.** `postedOn` is "Posted Today", "Posted 5 Days Ago",
+    "Posted 30+ Days Ago" (44 of KLA's 75). No exact date in the list.
+  - `locationsText` is a place ("Yavne, Israel") or a count ("2 Locations").
 - **Detail**: `GET https://{host}.myworkdayjobs.com/wday/cxs/{tenant}/{site}{externalPath}`
-  returns `jobPostingInfo`: `id` (a hex GUID), `jobReqId`, `title`,
-  `startDate` (**the exact posting date**, "2026-09-23"), `location`,
-  `additionalLocations`, `country`, `timeType`, `externalUrl` (the apply link),
-  `jobDescription` (HTML). `hiringOrganization.name` is the legal entity
-  ("4050 ORBK LTD Israel"), so the display name comes from config.
-- **Facets**: the list response names the site's facets (`locationMainGroup`,
-  `jobFamilyGroup`, ...). Their ids differ per tenant.
-
-Undocumented means it can change without notice, and a tenant can add bot
-protection. Both must fail loudly (below), never quietly empty a board.
+  returns `jobPostingInfo`: `title`, `jobDescription` (plain HTML, not
+  entity-encoded), `location`, `additionalLocations` (when there are more),
+  `startDate` (**the exact posting date**, `2026-09-28`), `jobReqId`,
+  `jobPostingId` (the path's last segment), `externalUrl` (the apply link), `id`
+  (a GUID). `hiringOrganization` is a legal entity ("Orbotech LTD"), so the
+  display name comes from config.
+- **Ids.** In the list, the only id is the path. `bulletFields` is a display
+  field each tenant configures: on KLA it is the requisition id for 56 of 75
+  postings, and for the other 19 the path ends in a repost suffix
+  (`..._2640335-2`) that `bulletFields` does not show.
 
 ## Design
 
-### Fit into the existing pipeline, don't fork it
-
-The Greenhouse pipeline -- hash skip, close diff, pre-read filter, embeddings,
-facts, parse on first score, triggers, auto-close, Matches -- is keyed on
-`(boardToken, greenhouseJobId: long)` with a unique index, and consumes
-`BoardJob`. The adapter produces `BoardJob`s and stores into the same
-collection, so everything downstream works unchanged.
-
-- **Board token**: `wd-nvidia`, `wd-kla` -- a prefix that cannot collide with a
-  Greenhouse slug. Passes `CompaniesConfig`'s token rule (letters, digits,
-  `-`, `_`) as is.
-- **Job id** -- *superseded by docs/plans/multi-source-ingest.md*, which
-  migrates the stored key to `(boardKey, sourceJobId: string)` once for every
-  source, so Workday stores `jobReqId` as is and needs no hash. The original
-  idea, kept for the record: `greenhouseJobId` is a `long`. Workday's are strings (`id` GUID,
-  `jobReqId`). Map to a stable 63-bit hash of `"{tenant}:{jobReqId}"` (first 8
-  bytes of SHA-256, sign bit cleared), and store the original as
-  `source_job_id` for debugging. Collision odds across a few thousand postings
-  are ~1e-12; the unique index would reject one loudly rather than merge two.
-  *Alternative rejected for now*: generalise the key to a string -- cleaner,
-  but it migrates a unique index and every stored row for no user-visible gain.
-  Revisit if a third source makes the hash feel like a workaround.
-- **`source`** field: `"workday"` (Greenhouse rows keep `"greenhouse"`).
-
-### Config
-
-A second list in `companies.json`, validated like the first:
+### A board
 
 ```json
-"workday": [
-  { "token": "wd-nvidia", "name": "NVIDIA", "host": "nvidia.wd5", "tenant": "nvidia",
-    "site": "NVIDIAExternalCareerSite", "domain": "nvidia.com" }
-]
+{ "source": "workday", "token": "nvidia", "name": "NVIDIA", "domain": "nvidia.com",
+  "host": "nvidia.wd5", "tenant": "nvidia", "site": "NVIDIAExternalCareerSite",
+  "facets": { "locationHierarchy1": ["2fcb99c455831013ea52bbe14cf9326c", "2fcb99c455831013ea52f785717432d2"] } }
 ```
 
-Fatal on a missing field or a token that collides with a Greenhouse one, like
-every other config mistake. `publish` fans out both lists; the message carries
-the token, and the consumer picks the client by prefix.
+- `host`, `tenant`, `site` and `name` required for Workday, fatal at load when
+  missing (as every config mistake is). `host` must be `<name>.wd<n>`, so a
+  value cannot point the fetch at another domain.
+- `facets` optional. KLA's `Israel` site needs none. For a whole-company site it
+  narrows server-side, and it is what makes NVIDIA listable at all.
+- Board key `workday:nvidia`; domain one-board rule unchanged.
 
-### Fetching (`WorkdayBoardClient : IBoardClient`)
+### `WorkdaySource : IJobSource`
 
-1. **Narrow on the server, by location facet.** NVIDIA's whole site is
-   thousands of postings; paging through all of them daily is 100+ requests
-   for mostly out-of-scope roles. From the first page's `facets`, pick the
-   location facet values whose names match served locations (Israel, United
-   Kingdom, ...) and re-query with them applied. If no facet value matches,
-   fall back to the whole site (correct, just slower) and log it.
-2. **Page** 20 at a time, sequentially, with a short delay -- a careers site,
-   not an API built for this. A browser-like `Accept: application/json`
-   header (the root returns 406 without one).
-3. **Guard: a failed fetch is not an empty board.** Any page failing throws;
-   the collected count must equal `total`, or it throws (the same rule as
-   Greenhouse's `meta.total`). Control never reaches the close diff.
-4. **Detail only for postings not stored.** Stored ones are present-in-list =
-   touched (the hash skip's role). New ones get one detail request each,
-   bounded concurrency (2-3). A detail failure skips that posting this run --
-   it is retried next run, and closing is driven by the list, so it cannot be
-   closed by mistake.
-5. **Map** detail to `BoardJob`: `Title`, `Location` (location +
-   additional + country), `Offices` from additional locations, `Content` =
-   `jobDescription` (through `ContentCleaner`; check whether Workday HTML is
-   entity-encoded like Greenhouse's -- the cleaner handles both),
-   `FirstPublished` = `startDate`, `UpdatedAt` = none, `AbsoluteUrl` =
-   `externalUrl`, `CompanyName` from config.
+- **`ListAsync`**: pages of 20 in order, until a short page. Throws on any
+  failed page (as Greenhouse does), and when the count collected differs from
+  page one's total. A first-page total of 2000 is reported `Complete = false`:
+  store what came back, close nothing, and log that the board needs facets.
+  Each posting: id from the path, title, `locationsText` (a count like
+  "2 Locations" is left out -- it names no place, so the filter reads it), no
+  dates. `Detail` null: the detail is a separate request.
+- **`DetailAsync`**: one GET; maps `startDate` to `PostedAt`,
+  `location` + `additionalLocations` to the locations, `jobDescription` to the
+  content, `externalUrl` to the apply link, `name` from config as the company.
+  A failed request returns null: that posting is skipped this run and left
+  open, as the handler already does.
+- **Politeness** (`WorkdayLimits`): one request at a time for the source, one
+  second between any two, up to 3 attempts with doubling backoff on 429/5xx
+  (the site's Retry-After when given, capped at a minute). A careers site's own
+  backend, not an API built for this. Requests identify themselves as
+  `NextRole-ingest/1.0 (+https://nextrole.cloud)`, not as a browser.
 
-### The pre-read filter, in two stages
+### Through the existing pipeline
 
-The list has title and location but only a fuzzy age; the exact date is in the
-detail. So:
+Phases 1-4 already do the rest:
 
-- **Stage 1, on the list (before any detail request):** location and function
-  (`Prefilter.Decide` without the age rule). "3 Locations" resolves to
-  nothing and is read -- unknown never hides. This also saves detail requests.
-- **Stage 2, after the detail (before embedding or any Claude read):** the age
-  rule with the exact `startDate`.
+- **Stage 1** (the listing) skips by location and function; the age rule
+  passes, the listing has no date. **Stage 2** (the detail) has the exact date
+  and full locations and applies the whole rule. So a 30+-days-old posting
+  costs one detail request and nothing more.
+- Cleaning, hashing, embedding, the Claude reads, the close diff: unchanged.
 
-### Change detection -- a known trade
+### Stored postings: read their detail daily
 
-Greenhouse re-hashes every posting's content daily for free. Workday would need
-a detail request per stored posting per day to do the same. Instead: a stored
-posting present in the list is unchanged; its text is re-read only if its
-**title** changed, or on a weekly sweep of details. Workday descriptions rarely
-change after posting; the sweep bounds how stale one can get. Recorded here as
-a knowing gap, not a silent one.
+The first version of this plan re-read a stored posting only when its title
+changed, or on a weekly sweep, to save one request per posting per day. That
+needs new handler state (the stored title, a sweep clock) and gives up exact
+change detection. Measured instead: NVIDIA's narrowed site is 467 postings; at
+one request a second that is under eight minutes, once a day, with no Claude
+cost for an unchanged hash. **Recommended: read every kept posting's detail
+daily, as the handler already does**, and revisit only if a tenant rate-limits.
 
-## Tests (the silent failures first)
+## Tests
 
-- A page failing mid-way throws; collected != `total` throws -- the close diff
-  never runs on a partial list.
-- A detail failure skips that posting only; nothing is closed for it.
-- Stage 1 skips on location/function without a detail request; stage 2 skips
-  on age with the exact date.
-- The id hash is stable across runs and differs across tenants.
-- Config: missing field, token collision, bad host -- all fatal.
-- Facet fallback: no matching location value -> whole site, logged.
+`JobSourceContract` over canned Workday responses (list pages, details), plus:
 
-Driven with canned list/detail JSON through `StubHandler`, as the Greenhouse
-tests are; one opt-in integration test against a real small site (KLA's
-Israel site, ~76 postings).
+- page one's total against the collected count; a failed middle page throws;
+  a 2000 total is `Complete = false`;
+- the detail's `startDate` becomes `PostedAt`; a failed detail is null;
+- `externalPath` to id, including a repost suffix;
+- config: missing `host`/`tenant`/`site`/`name` is fatal; a `host` that is not
+  `*.wd<n>` is fatal; facets pass through to the request body;
+- politeness: requests are sequential and a 429 is retried with backoff.
+
+One opt-in integration test against KLA's real Israel site (75 postings).
 
 ## Rollout
 
-1. Build, with the filter's existing check lines and the audit sample question
-   still open (new sources have the same blind spot as new boards).
-2. Local: `wd-kla` only (~76 postings, Israel-only site) -- small and fast.
-3. Production: KLA first, then NVIDIA (the big one), then the rest, reading the
-   skip and check lines per board, as with the Greenhouse batches.
+1. Build. Verified against KLA's real Israel site by the opt-in
+   `WorkdayLiveTests` (`GREENHOUSE_WORKDAY_LIVE=1`): the whole listing proven
+   complete, a posting read in full with its exact date. No local ingest run:
+   the pipeline around the source is the one already running in production.
+2. Production: add KLA to `boards.json` in its own change, and read the filter,
+   `to embed` and batch lines for that board.
+3. Then NVIDIA with its facets, then the rest.
 
-## Estimate
+## Decisions (2026-09-28)
 
-3-5 days, most of it in the fetch guards, the two-stage filter and their
-tests. Ask before building if the id hash, the weekly-sweep trade or the
-location-facet narrowing should go differently.
+All three as recommended.
+
+1. **The id: `jobPostingId` (the path's last segment, e.g.
+   `Senior-Software-Engineer_2640335-2`).** Recommended. It is in the listing
+   on every tenant, unique by construction (it is the posting's URL), and it is
+   what the detail echoes back. The requisition id is not in the listing
+   reliably (`bulletFields` is per-tenant display), and reposts share one. The
+   cost: if Workday re-slugs a posting, it closes and returns as new -- one
+   re-read.
+2. **Narrowing: explicit `facets` per board in `boards.json`.** Recommended over
+   the first plan's "pick facet values whose names match served locations at
+   run time": the facet parameter differs per tenant (`locationHierarchy1` on
+   NVIDIA), the match would be a guess by name, and a wrong guess silently
+   lists nothing. The cost: a user in a city outside the facets never sees
+   that company's postings there, which is the same trade as `served_locations`
+   and is written next to the facet ids.
+3. **Stored postings: detail read daily** (above). Recommended.
+
+## Settled differently since the first version
+
+- No id hash: the stored key is a string since phase 2.
+- No `companies.json` list: a board is a `boards.json` entry since phase 3.
+- The two-stage filter exists since phase 4; the adapter only leaves the
+  listing's date empty and fills the detail's.

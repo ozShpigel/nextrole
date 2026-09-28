@@ -26,8 +26,11 @@ public sealed record ExpectedPosting(string Id, string Title, DateTime? PostedAt
 /// </remarks>
 public abstract class JobSourceContract
 {
-    /// <summary>The board every call is made for. Sources read only what they need from it.</summary>
-    protected static readonly BoardConfig Board = new() { Source = "contract", Token = "contract-board" };
+    /// <summary>
+    /// The board every call is made for. A source whose boards carry more than
+    /// a token (Workday: host, tenant, site) supplies one of its own.
+    /// </summary>
+    protected virtual BoardConfig Board { get; } = new() { Source = "contract", Token = "contract-board" };
 
     /// <summary>A source over a healthy board holding exactly <see cref="Expected"/>.</summary>
     protected abstract IJobSource Healthy();
@@ -99,7 +102,14 @@ public abstract class JobSourceContract
     [Fact]
     public async Task Titles_and_dates_map_to_the_right_fields_in_utc()
     {
-        var listed = (await Healthy().ListAsync(Board, default)).Postings.ToDictionary(p => p.SourceJobId);
+        // On the posting as read in full: that is what is stored and what the
+        // filter's second stage judges. A listing may carry no date at all
+        // (Workday's says "Posted 30+ Days Ago"); for Greenhouse the listing
+        // and the detail are one.
+        var source = Healthy();
+        var listed = new Dictionary<string, ListedPosting>();
+        foreach (var posting in (await source.ListAsync(Board, default)).Postings)
+            listed[posting.SourceJobId] = (posting.Detail ?? await source.DetailAsync(Board, posting, default))!.Listed;
 
         foreach (var e in Expected)
         {

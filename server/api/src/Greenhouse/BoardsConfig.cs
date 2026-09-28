@@ -26,6 +26,22 @@ public sealed record BoardConfig
     /// </summary>
     [JsonPropertyName("name")] public string? Name { get; init; }
 
+    /// <summary>Workday: the site's host, <c>&lt;name&gt;.wd&lt;n&gt;</c> of <c>&lt;name&gt;.wd&lt;n&gt;.myworkdayjobs.com</c>.</summary>
+    [JsonPropertyName("host")] public string? Host { get; init; }
+
+    /// <summary>Workday: the tenant in the API path.</summary>
+    [JsonPropertyName("tenant")] public string? Tenant { get; init; }
+
+    /// <summary>Workday: the careers site in the API path.</summary>
+    [JsonPropertyName("site")] public string? Site { get; init; }
+
+    /// <summary>
+    /// Workday: facets applied to the listing, narrowing it server-side --
+    /// e.g. <c>{ "locationHierarchy1": ["&lt;Israel id&gt;"] }</c>. What makes a
+    /// whole-company site listable at all: its total is capped at 2000.
+    /// </summary>
+    [JsonPropertyName("facets")] public Dictionary<string, List<string>>? Facets { get; init; }
+
     [JsonIgnore] public string Key => GreenhouseJob.KeyFor(Source, Token);
 }
 
@@ -123,7 +139,7 @@ public sealed record BoardsConfig
 
     /// <summary>The sources this build can read. A board on any other is a config error.</summary>
     public static readonly IReadOnlySet<string> KnownSources =
-        new HashSet<string>(StringComparer.Ordinal) { GreenhouseSource.SourceName };
+        new HashSet<string>(StringComparer.Ordinal) { GreenhouseSource.SourceName, WorkdaySource.SourceName };
 
     private static readonly JsonSerializerOptions Json = new()
     {
@@ -239,6 +255,9 @@ public sealed record BoardsConfig
                 Token = raw.Token?.Trim() ?? "",
                 Domain = Domain(raw.Domain, raw.Token, what),
                 Name = string.IsNullOrWhiteSpace(raw.Name) ? null : raw.Name.Trim(),
+                Host = raw.Host?.Trim(),
+                Tenant = raw.Tenant?.Trim(),
+                Site = raw.Site?.Trim(),
             };
 
             if (!KnownSources.Contains(board.Source))
@@ -247,6 +266,7 @@ public sealed record BoardsConfig
                     + $"Known sources: {string.Join(", ", KnownSources.Order())}.");
 
             CheckToken(board.Source, board.Token, what);
+            CheckSourceFields(board, what);
 
             // Unlike the old list, a repeat is fatal rather than dropped: with a
             // source and a domain on each entry, two entries can disagree.
@@ -302,6 +322,47 @@ public sealed record BoardsConfig
                 $"{what} contains '{token}', which is not a valid {source} board token "
                 + "(letters, digits, '-' and '_' only). For Greenhouse the token is the slug in "
                 + "boards.greenhouse.io/<token>, not a company's display name or URL.");
+    }
+
+    // Each source's own fields: required where the source needs them, and
+    // refused where it does not -- a Workday field on a Greenhouse board is a
+    // board filed under the wrong source, and ignoring it would hide that.
+    private static void CheckSourceFields(BoardConfig board, string what)
+    {
+        var workdayFields = board.Host is not null || board.Tenant is not null
+                            || board.Site is not null || board.Facets is not null;
+
+        if (board.Source != WorkdaySource.SourceName)
+        {
+            if (workdayFields)
+                throw new InvalidOperationException(
+                    $"{what}: {board.Key} has host/tenant/site/facets, which only a workday board takes.");
+            return;
+        }
+
+        string Required(string? value, string field) => string.IsNullOrWhiteSpace(value)
+            ? throw new InvalidOperationException($"{what}: {board.Key} is a workday board and needs {field}.")
+            : value;
+
+        Required(board.Name, "name");   // the posting's own is a legal entity, not a display name
+
+        // The host is put into a URL: it must be exactly a Workday host, so a
+        // typo cannot send the fetch to another domain.
+        if (!System.Text.RegularExpressions.Regex.IsMatch(Required(board.Host, "host"), @"^[a-z0-9-]+\.wd[0-9]+$"))
+            throw new InvalidOperationException(
+                $"{what}: {board.Key} has host '{board.Host}'. Expected <name>.wd<n>, as in nvidia.wd5 "
+                + "for nvidia.wd5.myworkdayjobs.com.");
+
+        foreach (var (field, value) in new[] { ("tenant", board.Tenant), ("site", board.Site) })
+            if (!Required(value, field).All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_'))
+                throw new InvalidOperationException($"{what}: {board.Key} has {field} '{value}': letters, digits, '-' and '_' only.");
+
+        foreach (var (facet, ids) in board.Facets ?? [])
+            if (facet.Length == 0 || !facet.All(char.IsAsciiLetterOrDigit) || ids is null || ids.Count == 0
+                || ids.Any(id => string.IsNullOrEmpty(id) || !id.All(char.IsAsciiLetterOrDigit)))
+                throw new InvalidOperationException(
+                    $"{what}: {board.Key} has a malformed facet '{facet}'. Expected a facet parameter name "
+                    + "mapped to a non-empty list of facet value ids, as the site's own listing reports them.");
     }
 
     // A bare hostname: no scheme, no path. It is substituted into a URL, so

@@ -106,6 +106,37 @@ public static class Prefilter
             "procurement", "administrative", "receptionist")),
     ];
 
+    // Hardware work, by words that name it plainly (docs/plans/hardware-
+    // engineering-function.md). Chosen from KLA's and NVIDIA's real titles:
+    // "Senior Package Layout Engineer", "Senior Opto-Mechanical Engineer",
+    // "Physical Design STA Engineer", "Senior IC Failure Analysis Engineer".
+    private static readonly Regex Hardware = Words(
+        "hardware", "mechanical", "electrical", "electronics", "electronic", "optics", "optical", "opto",
+        "photonics", "laser", "rf", "analog", "pcb", "board design", "layout", "vlsi", "asic", "rtl", "dft",
+        "sta", "soc", "physical design", "chip design", "chip", "silicon", "post-silicon", "thermal",
+        "technician", "practical engineer", "physicist", "failure analysis", "signal integrity",
+        "power integrity", "interposer", "packaging", "npi");
+
+    // Any of these and a hardware word is not enough: software written for
+    // hardware is software ("Senior Software Engineer, Chip Design", "Senior
+    // Firmware Engineer - NVLink Switch", "Linux Driver Developer"), and a
+    // security or AI title is read however hardware it sounds.
+    private static readonly Regex SoftwareForHardware = Words(
+        "software", "firmware", "embedded", "developer", "programmer", "sdk", "driver", "drivers", "devops",
+        "sre", "site reliability", "cloud", "platform", "data", "machine learning", "ml", "ai", "algorithm",
+        "algorithms", "security", "linux", "kubernetes", "backend", "frontend", "full stack", "web", "mobile",
+        "qa");
+
+    /// <summary>
+    /// Whether a title plainly names hardware work -- a hardware word, and no
+    /// word that makes it software written for hardware.
+    /// </summary>
+    public static bool IsHardwareTitle(string? title)
+    {
+        var t = title ?? "";
+        return Hardware.IsMatch(t) && !SoftwareForHardware.IsMatch(t) && !Ambiguous.IsMatch(t);
+    }
+
     // Department names are team labels, not job titles -- "People", "G&A",
     // "Go To Market" -- so they get a few extra words. Only consulted when the
     // title gave no answer and had no technical word in it.
@@ -119,13 +150,26 @@ public static class Prefilter
     /// <summary>
     /// The function a posting clearly belongs to, or null when it is not clear.
     /// </summary>
-    public static string? GuessFunction(string? title, IEnumerable<string?>? departments)
+    /// <param name="hardwareTitles">
+    /// Guess <c>hardware_engineering</c> from the title. Off, a technical word
+    /// always means read -- which is every hardware title ("Mechanical Engineer").
+    /// </param>
+    public static string? GuessFunction(
+        string? title, IEnumerable<string?>? departments, bool hardwareTitles = false)
     {
         var t = title ?? "";
-        if (Technical.IsMatch(t) || Ambiguous.IsMatch(t)) return null;
+        if (Ambiguous.IsMatch(t)) return null;
 
+        // The one guess a technical word does not stop: hardware is the kind of
+        // work whose titles are full of them.
+        var hardware = hardwareTitles && IsHardwareTitle(t);
+        if (Technical.IsMatch(t)) return hardware ? JobFunctions.HardwareEngineering : null;
+
+        // The plain title rules first, so "HR Business Partner, Hardware" is
+        // operations, not hardware.
         var byTitle = FirstMatch(TitleRules, t);
         if (byTitle is not null) return byTitle;
+        if (hardware) return JobFunctions.HardwareEngineering;
 
         // The title said nothing either way ("Manager, EMEA"): the department
         // decides, but only a department with no technical or ambiguous word
@@ -189,8 +233,10 @@ public static class Prefilter
     /// The functions users accept (their own, widened by neighbours). Null means
     /// no user has recorded any, and then nothing is skipped by function.
     /// </param>
+    /// <param name="hardwareTitles">Skip by a hardware title guess (<see cref="GuessFunction"/>).</param>
     public static PrefilterSkip? Decide(
-        ListedPosting job, ServedPlaces served, IReadOnlyCollection<string>? accepted, DateTime? now = null)
+        ListedPosting job, ServedPlaces served, IReadOnlyCollection<string>? accepted, DateTime? now = null,
+        bool hardwareTitles = false)
     {
         // Older than Matches ever shows ("Any" is three months), by the
         // posting's own date -- the same rule and the same limit as the board
@@ -207,13 +253,13 @@ public static class Prefilter
 
         if (accepted is null || accepted.Count == 0) return null;
 
-        var guess = GuessFunction(job.Title, job.Departments);
+        var guess = GuessFunction(job.Title, job.Departments, hardwareTitles);
         return guess is not null && !accepted.Contains(guess)
             ? new PrefilterSkip(PrefilterSkip.Function, guess)
             : null;
     }
 
-    /// <inheritdoc cref="Decide(ListedPosting, ServedPlaces, IReadOnlyCollection{string}?, DateTime?)"/>
+    /// <inheritdoc cref="Decide(ListedPosting, ServedPlaces, IReadOnlyCollection{string}?, DateTime?, bool)"/>
     public static PrefilterSkip? Decide(
         ListedPosting job, IReadOnlyList<string> servedLocations, IReadOnlyCollection<string>? accepted) =>
         Decide(job, ServedPlaces.From(servedLocations), accepted);

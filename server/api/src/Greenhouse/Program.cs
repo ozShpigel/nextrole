@@ -249,6 +249,16 @@ try
     log.LogInformation("Pre-read filter: {Mode}, {Locations} served location(s)",
         prefilter, boards.ServedLocations.Count);
 
+    // Hardware title rules (Prefilter.IsHardwareTitle): Log by default --
+    // measured against Claude's labels by the "hardware title check" line,
+    // switched to On only once its "would hide" reads ~0.
+    var hardwareSetting = configuration["Greenhouse:HardwareTitleRules"] ?? nameof(PrefilterMode.Log);
+    if (!Enum.TryParse<PrefilterMode>(hardwareSetting, ignoreCase: true, out var hardwareTitles)
+        || !Enum.IsDefined(hardwareTitles))
+        throw new InvalidOperationException(
+            $"Greenhouse:HardwareTitleRules is '{hardwareSetting}'. Expected off, log or on.");
+    log.LogInformation("Hardware title rules: {Mode}", hardwareTitles);
+
     // Off by default: the ingest reads facts only, and the first user to score
     // a posting parses it (stored for everyone after). Parsing at ingest is
     // batched at half price but paid for every posting read; on demand is
@@ -286,7 +296,8 @@ try
         prefilter,
         PoolDemandReader.For(database),
         parseAtIngest,
-        tooOld);
+        tooOld,
+        hardwareTitles);
 
     var consumer = new CompanyConsumer(
         connection, handler, ledger, boards, loggerFactory.CreateLogger<CompanyConsumer>());

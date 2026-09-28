@@ -1,3 +1,4 @@
+using ApplicationTracker.Core.Matching;
 using ApplicationTracker.Greenhouse;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
@@ -347,5 +348,75 @@ public class BoardHandlerSourceTests
         await Remembering(source, new FakeJobStore(), memory, PrefilterMode.Log).HandleBoardAsync(Board);
 
         Assert.Equal(["1"], source.DetailFor);
+    }
+
+    // ---- hardware title rules (Greenhouse:HardwareTitleRules) ------------------------
+
+    private sealed class Wants(params string[] functions) : IDemand
+    {
+        public Task<IReadOnlyList<string>> WantedFunctionsAsync(CancellationToken ct) =>
+            Task.FromResult<IReadOnlyList<string>>(functions);
+
+        public Task<IReadOnlyList<string>> WantedLocationsAsync(CancellationToken ct) =>
+            Task.FromResult<IReadOnlyList<string>>([]);
+    }
+
+    private static BoardHandler WithHardwareTitles(IJobSource source, FakeJobStore store, PrefilterMode hardware,
+        Lines? log = null) =>
+        new([source], new FakeEmbeddingClient(), store,
+            BoardsConfig.Parse($$"""{ "companies": ["{{Build.Token}}"], "served_locations": ["Tel Aviv"] }"""),
+            (Microsoft.Extensions.Logging.ILogger<BoardHandler>?)log ?? NullLogger<BoardHandler>.Instance,
+            prefilter: PrefilterMode.On, demand: new Wants(JobFunctions.SoftwareEngineering),
+            hardwareTitles: hardware);
+
+    private static ListedPosting Titled(string id, string title) => Listed(id) with { Title = title };
+
+    [Fact]
+    public async Task On_a_hardware_title_nobody_wants_costs_no_detail_request()
+    {
+        var source = new FakeSource(new Listing(
+            [Titled("1", "Senior VLSI Engineer"), Titled("2", "Senior Software Engineer")], Complete: true, Total: 2), Full);
+
+        var result = await WithHardwareTitles(source, new FakeJobStore(), PrefilterMode.On).HandleBoardAsync(Board);
+
+        Assert.Equal(["2"], source.DetailFor);
+        Assert.Equal(1, result.Prefiltered);
+    }
+
+    [Fact]
+    public async Task Log_measures_the_hardware_titles_against_claudes_labels_and_skips_nothing()
+    {
+        // Stored postings: one Claude labelled hardware (right), one software (wrong -- and a
+        // software user wants it, so it "would hide").
+        var store = new FakeJobStore();
+        store.Hashes["1"] = "h1";
+        store.Hashes["2"] = "h2";
+        store.Functions["1"] = [JobFunctions.HardwareEngineering];
+        store.Functions["2"] = [JobFunctions.SoftwareEngineering];
+        var log = new Lines();
+        var source = new FakeSource(new Listing(
+            [Titled("1", "Senior VLSI Engineer"), Titled("2", "Senior PCB Layout Engineer"), Titled("3", "Thermal Engineer")],
+            Complete: true, Total: 3), Full);
+
+        var result = await WithHardwareTitles(source, store, PrefilterMode.Log, log).HandleBoardAsync(Board);
+
+        Assert.Equal(0, result.Prefiltered);                        // Log skips nothing
+        Assert.Contains("3", source.DetailFor);                     // the new hardware title is still read
+        var line = Assert.Single(log.All, l => l.Contains("hardware title check (Log)"));
+        Assert.Contains("2 stored posting(s) called hardware by the title, 2 labelled by Claude: 1 right, 1 wrong, 1 wrong in a way that would hide", line);
+    }
+
+    [Fact]
+    public async Task Long_detail_reads_log_their_progress()
+    {
+        var log = new Lines();
+        var source = new FakeSource(new Listing(
+            [.. Enumerable.Range(1, 250).Select(i => Listed(i.ToString()))], Complete: true, Total: 250), Full);
+
+        await new BoardHandler([source], new FakeEmbeddingClient(), new FakeJobStore(),
+                BoardsConfig.ForTesting(Build.Token), log).HandleBoardAsync(Board);
+
+        Assert.Equal(["reading details, 100 of 250", "reading details, 200 of 250"],
+            log.All.Where(l => l.Contains("reading details")).Select(l => l[(l.IndexOf("reading") )..]));
     }
 }

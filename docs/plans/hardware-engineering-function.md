@@ -91,10 +91,15 @@ words is exactly the weak proxy AGENTS.md warns against. The source is exact.
 
 ### Not in this change
 
-- **Title rules in the pre-read filter** (skip "Mechanical Engineer" before any
-  read when nobody wants hardware). Worth doing for NVIDIA, but its check
-  (`CheckGuessesAsync`: "would hide a wanted posting") compares guesses to
-  Claude's labels -- which need the new label first. A follow-up, measured.
+- **Title rules in the pre-read filter** -- built as a follow-up (2026-09-28):
+  `Prefilter.IsHardwareTitle` is a hardware word ("VLSI", "PCB", "chip design",
+  "mechanical", "thermal", "technician", ...) with no word that makes it software
+  for hardware ("software", "firmware", "driver", "AI", "security", ...); the
+  plain title rules (HR, sales) still come first. Behind its own switch,
+  `Greenhouse:HardwareTitleRules`, **Log by default**: the "hardware title check"
+  line compares the guess with Claude's labels on stored postings, and it goes to
+  On only once "would hide a wanted posting" reads ~0 -- read against facts
+  version 3 labels, so after NVIDIA's re-read has drained.
 - The Evaluator: unchanged. It never sees the label.
 
 ## Tests

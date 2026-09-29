@@ -83,6 +83,16 @@ is (named country first), and the places are unioned
 - "UK (remote)" → GB
 - "Mig Ha'emek,ISR" → IL (after step 2)
 
+**Then the parts' agreement.** The first run on the box (2026-09-29) cut every
+UK profile's misses to 0 of 571, and added "Rochester, MN" (5) to all of them.
+Neither part names one country: Rochester is GB and US, and MN is Minnesota
+and Mongolia. A bare "London" also took "Burlington, MA" (Morocco's code) and
+"San Francisco, CA" (Canada's). The parts of one place describe the same
+place, so when none names a country, a place is the countries all its parts
+agree on ("Rochester, MN" → US), and everything only when they agree on
+nothing. "Los Angeles, CA; Bay Area, CA" stays US and CA: "Bay Area" is not in
+the table, so that place is just "CA", which is truly both.
+
 The ingest's pre-read filter keeps the plain union (`Places.CountriesOf`).
 There, a wider set only ever costs a read.
 

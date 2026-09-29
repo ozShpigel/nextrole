@@ -262,6 +262,7 @@ public class LocationMatchTests
     [InlineData("Amsterdam, Netherlands")]
     [InlineData("Tel Aviv, Israel")]
     [InlineData("London, Ontario, Canada")]              // the profile said which London
+    [InlineData("Rochester, MN")]                        // measured: England has a Rochester too
     public void A_named_UK_profile_does_not_take_postings_from_elsewhere(string location)
     {
         Assert.False(Match(location, "UK", "London, UK"));
@@ -275,6 +276,19 @@ public class LocationMatchTests
         // as both is the only reading that cannot hide a UK posting.
         Assert.True(Match("London, Ontario, Canada", "London", "London"));
         Assert.False(Match("Amsterdam, Netherlands", "London", "London"));
+    }
+
+    [Theory]
+    // Measured 2026-09-29: each passed a bare "London" profile when a place was
+    // the plain union of its parts -- "CA" is Canada's code as well as
+    // California, "MA" Morocco's as well as Massachusetts.
+    [InlineData("Burlington, MA (hybrid)")]
+    [InlineData("San Francisco, CA (hybrid)")]
+    [InlineData("Los Angeles, CA")]
+    [InlineData("Rochester, MN")]
+    public void A_bare_London_profile_does_not_take_US_places_that_share_a_code(string location)
+    {
+        Assert.False(Match(location, "London", "London"));
     }
 
     [Theory]

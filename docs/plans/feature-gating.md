@@ -1,6 +1,6 @@
 # Coming-soon feature gating
 
-Status: Part 1 built (branch `feature-gating-access`); Part 2 planned (2026-09-29). From the owner's task description,
+Status: Part 1 shipped (#148); Part 2 built (branch `feature-gating-ui`) (2026-09-29). From the owner's task description,
 reviewed against the code. Out of scope entirely: Telegram alerts, and "notify
 me" (no interest endpoint and no `featureInterest` collection).
 

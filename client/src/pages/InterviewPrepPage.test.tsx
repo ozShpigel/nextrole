@@ -127,3 +127,28 @@ describe('InterviewPrepPage', () => {
     });
   });
 });
+
+describe('InterviewPrepPage — practice interview (coming soon)', () => {
+  it('links to the practice interview for a visitor who has it', async () => {
+    vi.mocked(matchApi).mockResolvedValue(mockPrepResponse);
+    vi.mocked(api).mockImplementation(async (path: string) => (path === '/features' ? { PracticeInterview: true } : {}));
+
+    renderWithRouter(<InterviewPrepPage />);
+
+    const link = await screen.findByRole('link', { name: /start a practice interview/i });
+    expect(link).toHaveAttribute('href', '/practice-interview');
+  });
+
+  it('shows a locked control to everyone else, and keeps the question bank', async () => {
+    vi.mocked(matchApi).mockResolvedValue(mockPrepResponse);
+    vi.mocked(api).mockImplementation(async (path: string) => (path === '/features' ? { PracticeInterview: false } : {}));
+
+    renderWithRouter(<InterviewPrepPage />);
+
+    const locked = await screen.findByRole('button', { name: /start a practice interview/i });
+    expect(locked).toHaveAttribute('aria-disabled', 'true');
+    expect(screen.queryByRole('link', { name: /start a practice interview/i })).not.toBeInTheDocument();
+    // The question bank is not gated.
+    expect(await screen.findByText('Interview Questions')).toBeInTheDocument();
+  });
+});

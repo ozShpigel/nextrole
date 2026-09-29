@@ -6,6 +6,7 @@ import { useSaveInterviewPrep } from '../lib/mutations';
 import type { InterviewPrepResponse, QaEntry } from '../lib/types';
 import { Skeleton } from '../components/ui/skeleton';
 import { QaCardGrid } from '../components/QaCardGrid';
+import { LockedButton, useCanUse } from '../components/ComingSoon';
 import {
   SaveResult,
   type SaveResultData,
@@ -13,6 +14,7 @@ import {
 
 const ED_BTN = 'rounded-full border px-3.5 py-[0.5rem] text-[0.68rem] font-semibold uppercase tracking-[0.08em] transition-all disabled:opacity-50 disabled:pointer-events-none';
 const ED_PRIMARY = `${ED_BTN} border-[var(--ed-accent)] bg-[var(--ed-accent)] text-[var(--ed-paper)] hover:bg-[var(--ed-accent-deep)]`;
+const ED_GHOST = `${ED_BTN} border-[var(--ed-rule)] text-[var(--ed-ink-soft)] hover:border-[var(--ed-ink)] hover:text-[var(--ed-ink)]`;
 const ED_DANGER = `${ED_BTN} border-[var(--ed-rule)] text-[var(--ed-no)] hover:border-[var(--ed-no)] hover:bg-[var(--ed-no)]/10`;
 
 /* ------------------------------------------------------------------ */
@@ -32,6 +34,7 @@ function SectionHeader({ name }: { name: string }) {
 export default function InterviewPrepPage() {
   const query = useInterviewPrep();
   const saveMutation = useSaveInterviewPrep();
+  const practice = useCanUse('PracticeInterview');
   const [initialized, setInitialized] = useState(false);
 
   const [qa, setQa] = useState<QaEntry[]>([]);
@@ -100,9 +103,16 @@ export default function InterviewPrepPage() {
           Interview <span className="italic font-medium text-[var(--ed-accent)]">Prep</span>
         </h1>
         <div className="mt-5 flex items-center gap-5 flex-wrap">
-          <Link to="/practice-interview" className={`${ED_PRIMARY} inline-flex items-center gap-[0.45rem]`}>
-            <MessageSquare size={15} /> Start a practice interview
-          </Link>
+          {practice === true && (
+            <Link to="/practice-interview" className={`${ED_PRIMARY} inline-flex items-center gap-[0.45rem]`}>
+              <MessageSquare size={15} /> Start a practice interview
+            </Link>
+          )}
+          {practice === false && (
+            <LockedButton feature="PracticeInterview" className={ED_GHOST}>
+              Start a practice interview
+            </LockedButton>
+          )}
           <Link
             to="/interview-insights"
             className="inline-flex items-center gap-[0.4rem] text-[0.72rem] font-semibold uppercase tracking-[0.1em] text-[var(--ed-ink-soft)] transition-colors hover:text-[var(--ed-ink)]"

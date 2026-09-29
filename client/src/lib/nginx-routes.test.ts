@@ -63,6 +63,17 @@ function allowedPaths(): string[] {
 }
 
 describe('nginx.conf proxies what the client calls', () => {
+  it('proxies /api/features, which every locked control reads', () => {
+    // The public config returns a JSON 404 for any /api path it does not list,
+    // and a failed features request reads as "locked" -- so without this entry
+    // every coming-soon feature would lock for everyone, the owner included,
+    // with no error anywhere (docs/plans/feature-gating.md).
+    const calls = sourceFiles(join(CLIENT, 'src')).some((f) => /api\(\s*['"`]\/features['"`]/.test(readFileSync(f, 'utf8')));
+    expect(calls).toBe(true);
+    const conf = readFileSync(join(CLIENT, 'nginx.conf'), 'utf8');
+    expect(conf).toMatch(/location\s+=?\s*\/api\/features\s*\{/);
+  });
+
   it('allows every /api/match path matchApi() uses', () => {
     const allowed = allowedPaths();
     const missing = calledPaths().filter((p) => !allowed.includes(p));

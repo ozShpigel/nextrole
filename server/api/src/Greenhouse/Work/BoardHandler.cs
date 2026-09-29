@@ -1,5 +1,6 @@
 using ApplicationTracker.Core.Greenhouse;
 using ApplicationTracker.Core.Matching;
+using ApplicationTracker.Infrastructure.Greenhouse;
 using Microsoft.Extensions.Logging;
 using MongoDB.Bson;
 

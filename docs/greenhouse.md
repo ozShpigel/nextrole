@@ -203,8 +203,10 @@ what the board returns for free:
   **Skipped only when clearly elsewhere**, like the function rule. A text match
   on a served term reads the posting; otherwise the location is resolved to
   countries (`Places`, an offline GeoNames list: cities over 15,000 people,
-  countries and aliases, US/Canadian states -- `Data/places.tsv`, rebuilt by
-  `Data/build_places.py`). "Munich" is Germany, so a Berlin user's `germany`
+  countries with their two- and three-letter codes and aliases, US/Canadian
+  states -- `Infrastructure/Greenhouse/Data/places.tsv`, rebuilt by
+  `build_places.py` beside it; Matches' location rule reads the same table,
+  see `docs/plans/country-location-match.md`). "Munich" is Germany, so a Berlin user's `germany`
   serves it even though the board never wrote the country. Names are ambiguous
   (London is GB and CA; "IL" is Israel and Illinois), so a posting's countries
   are the union and it is read if any is served -- ambiguity can only cost a

@@ -14,6 +14,15 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Place name -> countries (Greenhouse/Places.cs), for the ingest's pre-read
+         filter and Matches' location rule. Embedded, not copied: it is data the
+         code cannot run without, not configuration. Rebuilt by
+         Greenhouse/Data/build_places.py from GeoNames (CC BY 4.0). -->
+    <EmbeddedResource Include="Greenhouse/Data/places.tsv" LogicalName="places.tsv" />
+    <None Remove="Greenhouse/Data/build_places.py" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- For IHttpContextAccessor (per-caller Anthropic key selection in ClaudeClient) -->
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>

@@ -59,9 +59,10 @@ public class LocationMatchTests
     [Fact]
     public void The_one_UK_value_with_no_country_still_matches_on_the_city()
     {
-        // 'London (hybrid)' carries no country at all, so the country term
-        // alone cannot see it.
-        Assert.False(Match("London (hybrid)", "United Kingdom"));
+        // 'London (hybrid)' carries no country at all. The term alone could
+        // not see it -- this asserted False until the country check -- and
+        // London resolves to the UK (among others), so now it does.
+        Assert.True(Match("London (hybrid)", "United Kingdom"));
         Assert.True(Match("London (hybrid)", "London"));
     }
 
@@ -78,10 +79,10 @@ public class LocationMatchTests
         // Maya's real profile string, extracted verbatim from an uploaded CV.
         const string candidate = "Open to relocation to London, UK";
 
-        // The gap: country-only cannot see it.
-        Assert.False(Match("London", "UK"));
-
-        // Closed by asking whether the candidate's own location says London.
+        // Once the gap: the term alone could not see it. Closed first by
+        // asking whether the candidate's own location says London, and now by
+        // the country too -- London is in the UK.
+        Assert.True(Match("London", "UK"));
         Assert.True(Match("London", "UK", candidate));
     }
 
@@ -128,10 +129,11 @@ public class LocationMatchTests
         Assert.True(Match("LONDON", "UK", "open to relocation to london, uk"));
 
         // No candidate location at all: the reverse question cannot be asked,
-        // and must simply not match rather than throw or pass everything.
-        Assert.False(Match("London", "UK", null));
-        Assert.False(Match("London", "UK", ""));
-        Assert.False(Match("London", "UK", "   "));
+        // and must simply not match rather than throw or pass everything. (A
+        // city in another country: London would now pass a UK term by country.)
+        Assert.False(Match("Barcelona", "UK", null));
+        Assert.False(Match("Barcelona", "UK", ""));
+        Assert.False(Match("Barcelona", "UK", "   "));
     }
 
     [Fact]
@@ -202,5 +204,97 @@ public class LocationMatchTests
         Assert.True(Match("Tel Aviv, Israel", "Israel"));
         Assert.True(Match("Prague, Czech Republic (hybrid)", "Czech Republic"));
         Assert.True(Match("Tokyo, Japan (hybrid)", "Japan"));
+    }
+
+    // ── By country (docs/plans/country-location-match.md) ────────────────────
+    //
+    // Measured 2026-09-29 over every open posting: the text rule alone had a
+    // "London, UK" profile missing ~38 London postings, a bare "London" missing
+    // ~270 UK ones outside London, and "London, England" seeing 22 of ~577.
+    // Every location below is a real stored value from that run.
+
+    public static readonly TheoryData<string> MeasuredUkSpellings =
+    [
+        "London (hybrid)", "London, England (hybrid)", "London; Sunnyvale (hybrid)", "London, England",
+        "London", "London, United Kingdom (hybrid)", "United Kingdom (remote)", "UK (remote)",
+        "Cardiff, London or Remote (UK)", "Crawley, United Kingdom", "Glasgow, United Kingdom",
+        "Manchester, United Kingdom (hybrid)", "Reading, United Kingdom", "Cambridge, UK",
+        "Edinburgh, UK (hybrid)", "Belfast, United Kingdom", "Cheadle, United Kingdom", "Uxbridge, UK (hybrid)",
+        "Ware, UK", "London, England, United Kingdom", "Remote (UK)",
+        "Amsterdam, Netherlands; London, United Kingdom", "Israel; London; Mountain View (hybrid)",
+        "Germany; London (hybrid)", "Leonberg, Germany; London (hybrid)", "Amsterdam; Paris; London",
+    ];
+
+    // As Matches builds them: the term is the profile location's last part.
+    public static readonly TheoryData<string, string> UkProfiles = new()
+    {
+        { "UK", "London, UK" },
+        { "United Kingdom", "London, United Kingdom" },
+        { "England", "London, England" },
+        { "London", "London" },
+        { "UK", "Manchester, UK" },
+        { "UK", "Open to relocation to London, UK" },
+    };
+
+    public static TheoryData<string, string, string> EveryUkSpellingForEveryUkProfile()
+    {
+        var data = new TheoryData<string, string, string>();
+        foreach (var location in MeasuredUkSpellings)
+            foreach (var profile in UkProfiles)
+                data.Add(location, (string)profile[0], (string)profile[1]);
+        return data;
+    }
+
+    [Theory]
+    [MemberData(nameof(EveryUkSpellingForEveryUkProfile))]
+    public void Every_measured_UK_spelling_reaches_every_way_a_UK_profile_is_written(
+        string location, string term, string profileLocation)
+    {
+        Assert.True(Match(location, term, profileLocation),
+            $"'{location}' is a UK posting and must reach a profile located '{profileLocation}'.");
+    }
+
+    [Theory]
+    // Measured in the same run, and not in the UK.
+    [InlineData("New York, NY (hybrid)")]
+    [InlineData("Birmingham, Alabama, United States")]   // England has a Birmingham too
+    [InlineData("New York, USA (remote)")]
+    [InlineData("Amsterdam, Netherlands")]
+    [InlineData("Tel Aviv, Israel")]
+    [InlineData("London, Ontario, Canada")]              // the profile said which London
+    public void A_named_UK_profile_does_not_take_postings_from_elsewhere(string location)
+    {
+        Assert.False(Match(location, "UK", "London, UK"));
+        Assert.False(Match(location, "England", "London, England"));
+    }
+
+    [Fact]
+    public void A_bare_London_profile_also_takes_London_Ontario()
+    {
+        // The accepted cost: "London" alone does not say which, and reading it
+        // as both is the only reading that cannot hide a UK posting.
+        Assert.True(Match("London, Ontario, Canada", "London", "London"));
+        Assert.False(Match("Amsterdam, Netherlands", "London", "London"));
+    }
+
+    [Theory]
+    // Applied Materials writes the three-letter code.
+    [InlineData("Mig Ha'emek,ISR", "Israel", "Tel Aviv, Israel")]
+    [InlineData("Rehovot,ISR", "Israel", "Rishon LeZion, Israel")]
+    [InlineData("England-Berkshire,GBR", "UK", "London, UK")]
+    public void A_three_letter_country_code_is_its_country(string location, string term, string profileLocation)
+    {
+        Assert.True(Match(location, term, profileLocation));
+    }
+
+    [Theory]
+    // Whatever the countries say, a posting the text rule keeps is kept: the
+    // country check only ever adds. "Kyiv, Ukraine" contains "uk" -- a known,
+    // unmeasured-in-practice false positive of the text rule, unchanged here.
+    [InlineData("Kyiv, Ukraine", "UK", "London, UK")]
+    [InlineData("Somewhere, Israel", "Israel", "Tel Aviv, Israel")]
+    public void The_text_rule_still_keeps_what_it_kept(string location, string term, string profileLocation)
+    {
+        Assert.True(Match(location, term, profileLocation));
     }
 }

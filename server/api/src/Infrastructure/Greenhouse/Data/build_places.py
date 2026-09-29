@@ -1,4 +1,4 @@
-"""Build places.tsv -- place name -> the countries it can mean -- for the pre-read filter.
+"""Build places.tsv -- place name -> the countries it can mean -- for the pre-read filter and Matches.
 
 Source: GeoNames (https://www.geonames.org), CC BY 4.0. Download next to this
 script, then run it:
@@ -41,20 +41,25 @@ def add(name, countries):
     places[key].update(countries)
 
 
-# Countries: official name, and ISO-2 as a whole segment ("Remote (IT)").
+# Countries: official name, and ISO-2 and ISO-3 as a whole segment ("Remote
+# (IT)", "Rehovot,ISR" -- Applied Materials writes the three-letter code).
+# Twelve ISO-3 codes are also a small town's name ("can" is a town in Turkey,
+# "bra" one in Italy); those keys union to both, so "Remote (CAN)" still reads
+# as Canada. Measured 2026-09-29.
 for row in csv.reader(open("countryInfo.txt", encoding="utf-8"), delimiter="\t"):
     if not row or row[0].startswith("#"):
         continue
-    iso2, name = row[0], row[4]
+    iso2, iso3, name = row[0], row[1], row[4]
     add(name, {iso2})
     add(iso2, {iso2})
+    add(iso3, {iso2})
 
 # How boards actually write countries.
 ALIASES = {
     "GB": ["UK", "U.K.", "Great Britain", "Britain", "England", "Scotland", "Wales", "Northern Ireland"],
     "US": ["USA", "U.S.", "U.S.A.", "United States of America", "America"],
     "AE": ["UAE", "U.A.E."],
-    "NL": ["Holland", "The Netherlands"],
+    "NL": ["Holland", "Netherlands"],   # GeoNames names it "The Netherlands"
     "KR": ["South Korea", "Korea"],
     "CZ": ["Czechia", "Czech Republic"],
     "TR": ["Turkiye", "Türkiye"],

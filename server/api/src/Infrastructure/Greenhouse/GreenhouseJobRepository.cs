@@ -172,10 +172,12 @@ public sealed class GreenhouseJobRepository : IPoolJobRepository
         // to 6" when the limit did most of the cutting -- measured once at 44
         // matched and 6 returned, off by a factor of seven for anyone
         // diagnosing recall.
+        // Once per scan, not per posting: the profile's countries do not change.
+        var countries = Places.CountriesOfProfile(filter.LocationText ?? filter.LocationTerm);
         var located = docs
             .Select(ToPoolJob)
             .Where(j => !exclude.Contains(j.Id))
-            .Where(j => MatchesLocation(j, filter.LocationTerm, filter.LocationText))
+            .Where(j => MatchesLocation(j, filter.LocationTerm, filter.LocationText, countries))
             .Where(j => MatchesSeniority(j, filter.SeniorityBands))
             .OrderBy(j => rank.TryGetValue(j.Id, out var r) ? r : int.MaxValue)
             .ToList();
@@ -199,8 +201,9 @@ public sealed class GreenhouseJobRepository : IPoolJobRepository
 
         _log.LogInformation(
             "Greenhouse candidates: {Fetched} vector hit(s), {Excluded} already scored, "
-            + "{Matched} in {Term} at {Bands}, returning top {Returned} of those (limit {Limit})",
+            + "{Matched} in {Term} ({Countries}) at {Bands}, returning top {Returned} of those (limit {Limit})",
             ids.Count, exclude.Count, matched.Count, filter.LocationTerm ?? "(any)",
+            countries.Count > 0 ? string.Join("/", countries.Order()) : "no country recognised",
             filter.SeniorityBands.Count > 0 ? string.Join("/", filter.SeniorityBands) : "(any level)",
             candidates.Count, limit);
 
@@ -230,24 +233,44 @@ public sealed class GreenhouseJobRepository : IPoolJobRepository
     /// </summary>
     /// <remarks>
     /// <para>
-    /// Substring, case-insensitive, and <b>permissive on absence</b> — the
-    /// pool's rule, and the extraction is best-effort, so a job whose location
-    /// could not be read must never become invisible to everyone.
+    /// <b>Permissive on absence</b> — the pool's rule, and the extraction is
+    /// best-effort, so a job whose location could not be read must never
+    /// become invisible to everyone.
     /// </para>
     /// <para>
-    /// "UK" and "United Kingdom" are treated as the same thing because the
-    /// extraction genuinely emits both, on the same board, for the same city.
-    /// This is a small, explicit alias list rather than a general gazetteer:
-    /// anything cleverer would be guessing, and a wrong guess silently hides
-    /// jobs.
+    /// <b>By country first.</b> Both sides resolve through <see cref="Places"/>,
+    /// and a posting in any of the candidate's countries passes. Without it the
+    /// rule compared spellings, and measured over every open posting
+    /// (2026-09-29, docs/plans/country-location-match.md) a "London, UK"
+    /// profile missed ~38 London postings ("London (hybrid)", "London,
+    /// England"), a bare "London" missed ~270 UK ones outside London, and
+    /// "London, England" saw 22 of ~577.
+    /// </para>
+    /// <para>
+    /// <b>Then the text rule, unchanged</b> — substring, case-insensitive, UK
+    /// and United Kingdom as aliases. This used to be the reason for having no
+    /// gazetteer: "a wrong guess silently hides jobs". It still holds, which is
+    /// why the country check is only ever an extra way IN: a posting the text
+    /// rule keeps is kept whatever the countries say, so a wrong resolution can
+    /// show one posting too many and can never hide one.
     /// </para>
     /// </remarks>
-    public static bool MatchesLocation(PoolJob job, string? term, string? candidateLocation = null)
+    public static bool MatchesLocation(PoolJob job, string? term, string? candidateLocation = null) =>
+        MatchesLocation(job, term, candidateLocation, Places.CountriesOfProfile(candidateLocation ?? term));
+
+    /// <inheritdoc cref="MatchesLocation(PoolJob, string?, string?)"/>
+    /// <param name="candidateCountries">The candidate's countries, resolved once per scan
+    /// (<see cref="Places.CountriesOfProfile"/>).</param>
+    public static bool MatchesLocation(
+        PoolJob job, string? term, string? candidateLocation, IReadOnlySet<string> candidateCountries)
     {
         if (string.IsNullOrWhiteSpace(term)) return true;
 
         var location = job.Location;
         if (string.IsNullOrWhiteSpace(location)) return true;   // unstated passes
+
+        if (candidateCountries.Count > 0 && Places.CountriesOfPosting(location).Overlaps(candidateCountries))
+            return true;
 
         foreach (var candidate in Aliases(term.Trim()))
             if (location.Contains(candidate, StringComparison.OrdinalIgnoreCase))

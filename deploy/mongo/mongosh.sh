@@ -11,5 +11,9 @@ script="$1"
 envfile="${2:-.env.greenhouse}"
 [ -f "$script" ] || { echo "no such script: $script" >&2; exit 1; }
 [ -f "$envfile" ] || { echo "no such env file: $envfile" >&2; exit 1; }
-docker run --rm --env-file "$envfile" -v "$PWD/$script:/s.js:ro" mongo:7 \
+# A places.tsv next to this file (the ingest's place table) is mounted too,
+# for the scripts that resolve locations to countries.
+places=""
+[ -f places.tsv ] && places="-v $PWD/places.tsv:/places.tsv:ro"
+docker run --rm --env-file "$envfile" -v "$PWD/$script:/s.js:ro" $places mongo:7 \
   sh -c 'mongosh --quiet "$MongoDB__ConnectionString" /s.js'

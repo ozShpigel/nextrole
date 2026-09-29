@@ -317,5 +317,6 @@ app.MapMatchEndpoints();
 app.MapPoolEndpoints();
 app.MapMockInterviewEndpoints();
 app.MapEmailParseEndpoints();
+app.MapFeatureEndpoints();
 
 app.Run();

@@ -1,3 +1,4 @@
+using ApplicationTracker.Api.Features;
 using ApplicationTracker.Core.AI;
 using ApplicationTracker.Core.Email;
 using Microsoft.AspNetCore.Mvc;
@@ -54,6 +55,10 @@ public static class EmailParseEndpoints
         // other batched AI calls. Also reachable/allowlisted in demo, so this
         // isn't optional the way an internal-only call would be.
         .RequireRateLimiting("discovery")
+        // The one step only auto-update takes: cards then move through the
+        // status endpoint a manual drag uses, which stays free
+        // (docs/plans/feature-gating.md).
+        .RequireFeature(FeatureNames.AutoUpdate)
         .WithName("ParseEmail")
         .WithSummary("Parse a job-related email using AI");
 

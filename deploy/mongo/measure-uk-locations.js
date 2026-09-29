@@ -80,14 +80,17 @@ const SEPARATORS = /[,;/|()\[\]&]| [-–—] | or | and /i;
 const keyOf = p => p.trim().toLowerCase().replace(/[‘’]/g, "'").split(" ").filter(Boolean).join(" ");
 function namedFirst(text) {
   const all = new Set(), named = new Set();
+  let agreed = null;
   if (!text || !text.trim()) return all;
   for (const piece of text.split(SEPARATORS).concat([text])) {
     const c = piece === undefined ? null : table.get(keyOf(piece));
     if (!c) continue;
     c.forEach(x => all.add(x));
     if (c.length === 1) named.add(c[0]);
+    agreed = agreed === null ? new Set(c) : new Set([...agreed].filter(x => c.includes(x)));
   }
-  return named.size ? named : all;
+  if (named.size) return named;
+  return agreed && agreed.size ? agreed : all;
 }
 function postingCountries(text) {
   const out = new Set();

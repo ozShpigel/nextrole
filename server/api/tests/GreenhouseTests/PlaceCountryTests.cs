@@ -27,6 +27,14 @@ public class PlaceCountryTests
     [InlineData("London (hybrid)", new[] { "CA", "GB" })]
     [InlineData("Germany; London (hybrid)", new[] { "CA", "DE", "GB" })] // each place in the list counts
     [InlineData("Amsterdam, Netherlands; London, United Kingdom", new[] { "GB", "NL" })]
+    // No part names one country, so the parts agree on one: measured 2026-09-29,
+    // each passed a UK profile when a place was the plain union of its parts.
+    [InlineData("Rochester, MN", new[] { "US" })]                        // GB/US, Minnesota/Mongolia
+    [InlineData("Burlington, MA (hybrid)", new[] { "US" })]              // CA/US, Massachusetts/Morocco
+    [InlineData("San Francisco, CA (hybrid)", new[] { "US" })]           // California, not Canada
+    // Still Canada too: "Bay Area" is not in the table, so that place is just
+    // "CA" -- truly both. It reaches only a bare "London" profile (GB and CA).
+    [InlineData("Los Angeles, CA; Bay Area, CA", new[] { "CA", "US" })]
     public void A_posting_is_each_listed_place_read_like_a_profile(string location, string[] expected)
     {
         Assert.Equal(expected, Places.CountriesOfPosting(location).Order());

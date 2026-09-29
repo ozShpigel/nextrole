@@ -100,12 +100,15 @@ public static class Places
     // ONE place ("Birmingham, Alabama, United States"), so they are not here.
     private static readonly Regex PlaceList = new(@"[;|]", RegexOptions.Compiled);
 
-    // The countries a text names unambiguously when there are any, otherwise
-    // everything it can mean.
+    // The countries one place means. In order: the ones its parts name
+    // unambiguously; else the ones every part agrees on -- the parts of one
+    // place describe the same place, so "Rochester, MN" (GB/US, US/Mongolia)
+    // is the US; else everything any part can mean.
     private static HashSet<string> NamedFirst(string? text)
     {
         var all = new HashSet<string>(StringComparer.Ordinal);
         var named = new HashSet<string>(StringComparer.Ordinal);
+        HashSet<string>? agreed = null;
         if (string.IsNullOrWhiteSpace(text)) return all;
 
         foreach (var piece in Separators.Split(text).Append(text))
@@ -113,8 +116,11 @@ public static class Places
             if (!Table.Value.TryGetValue(Key(piece), out var countries)) continue;
             all.UnionWith(countries);
             if (countries.Length == 1) named.Add(countries[0]);
+            if (agreed is null) agreed = new HashSet<string>(countries, StringComparer.Ordinal);
+            else agreed.IntersectWith(countries);
         }
-        return named.Count > 0 ? named : all;
+        if (named.Count > 0) return named;
+        return agreed is { Count: > 0 } ? agreed : all;
     }
 
     private static string Key(string piece) =>

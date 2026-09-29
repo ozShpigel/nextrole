@@ -1,10 +1,12 @@
 using System.Text.RegularExpressions;
 
-namespace ApplicationTracker.Greenhouse;
+namespace ApplicationTracker.Infrastructure.Greenhouse;
 
 /// <summary>
 /// Place name -> the countries it can mean, from GeoNames (cities over 15,000
-/// people, countries, common aliases, US and Canadian states). Offline, no AI.
+/// people, countries and their ISO codes, common aliases, US and Canadian
+/// states). Offline, no AI. Shared by the ingest's pre-read filter and
+/// Matches' location rule (<see cref="GreenhouseJobRepository.MatchesLocation"/>).
 /// </summary>
 /// <remarks>
 /// <para>
@@ -59,6 +61,62 @@ public static class Places
         return countries.Count == 1 ? countries.First() : null;
     }
 
+    /// <summary>
+    /// The countries a candidate's own location means: the ones it names
+    /// unambiguously when there are any, otherwise everything it can mean.
+    /// </summary>
+    /// <remarks>
+    /// "London, UK" is GB, not GB and Canada: the profile said which London.
+    /// A bare "London" is both -- the one reading that cannot hide a UK job.
+    /// Prose ("Open to relocation to London, UK") resolves by its pieces, and
+    /// the pieces that are not places resolve to nothing. Empty when nothing
+    /// is recognised.
+    /// </remarks>
+    public static IReadOnlySet<string> CountriesOfProfile(string? location) => NamedFirst(location);
+
+    /// <summary>
+    /// The countries a posting's location means, each place in its list read
+    /// the way a profile is (<see cref="CountriesOfProfile"/>), then unioned.
+    /// </summary>
+    /// <remarks>
+    /// Not <see cref="CountriesOf"/>'s plain union: "Birmingham, Alabama, United
+    /// States" would be GB and US there -- England has a Birmingham -- and
+    /// Matches would score a US posting for every UK candidate. Per place,
+    /// because a posting lists several: "Germany; London (hybrid)" is Germany,
+    /// and London too. Empty when nothing is recognised.
+    /// </remarks>
+    public static IReadOnlySet<string> CountriesOfPosting(string? location)
+    {
+        var result = new HashSet<string>(StringComparer.Ordinal);
+        if (string.IsNullOrWhiteSpace(location)) return result;
+
+        foreach (var place in PlaceList.Split(location))
+            result.UnionWith(NamedFirst(place));
+        return result;
+    }
+
+    // What separates the places in a posting's list: "Amsterdam, Netherlands;
+    // London, United Kingdom", "London | Remote". Commas separate the parts of
+    // ONE place ("Birmingham, Alabama, United States"), so they are not here.
+    private static readonly Regex PlaceList = new(@"[;|]", RegexOptions.Compiled);
+
+    // The countries a text names unambiguously when there are any, otherwise
+    // everything it can mean.
+    private static HashSet<string> NamedFirst(string? text)
+    {
+        var all = new HashSet<string>(StringComparer.Ordinal);
+        var named = new HashSet<string>(StringComparer.Ordinal);
+        if (string.IsNullOrWhiteSpace(text)) return all;
+
+        foreach (var piece in Separators.Split(text).Append(text))
+        {
+            if (!Table.Value.TryGetValue(Key(piece), out var countries)) continue;
+            all.UnionWith(countries);
+            if (countries.Length == 1) named.Add(countries[0]);
+        }
+        return named.Count > 0 ? named : all;
+    }
+
     private static string Key(string piece) =>
         string.Join(' ', piece.Trim().ToLowerInvariant()
             .Replace('‘', '\'').Replace('’', '\'')
@@ -81,24 +139,5 @@ public static class Places
             table[line[..tab]] = line[(tab + 1)..].Split(',');
         }
         return table;
-    }
-}
-
-/// <summary>What the product serves: location terms, and the countries they unambiguously mean.</summary>
-/// <param name="Terms">Configured <c>served_locations</c> plus terms learned from profiles.</param>
-/// <param name="Countries">The countries those terms mean (<see cref="Places.CountryOfTerm"/>).</param>
-public sealed record ServedPlaces(IReadOnlyList<string> Terms, IReadOnlySet<string> Countries)
-{
-    /// <summary>No terms at all: no location filtering.</summary>
-    public bool IsEmpty => Terms.Count == 0;
-
-    public static readonly ServedPlaces None = new([], new HashSet<string>());
-
-    public static ServedPlaces From(IEnumerable<string> terms)
-    {
-        var list = terms.Where(t => !string.IsNullOrWhiteSpace(t)).Select(t => t.Trim())
-            .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-        var countries = list.Select(Places.CountryOfTerm).OfType<string>().ToHashSet(StringComparer.Ordinal);
-        return new ServedPlaces(list, countries);
     }
 }

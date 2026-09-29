@@ -7,6 +7,7 @@ import { formatDate, formatTime, daysSince, hasRealJobUrl } from '../lib/format'
 import { CompanyAvatar } from '../components/CompanyAvatar';
 import { StatusBadge, StatusModal } from '../components/Status';
 import { ImportJobModal } from '../components/ImportJobModal';
+import { LockedButton, useCanUse } from '../components/ComingSoon';
 import { INTERVIEWING_STATUSES } from '../lib/tracker';
 
 interface Application {
@@ -86,8 +87,16 @@ function Card(
           <h3 className="text-[16px] font-medium leading-[1.3] text-[var(--ed-ink)] mt-[0.1rem] line-clamp-2">{app.jobTitle}</h3>
         </div>
       </div>
-      {/* stopPropagation so clicking an action button doesn't also navigate */}
-      <div className="mt-auto flex gap-2 items-center flex-wrap pt-1" onClick={(e) => e.stopPropagation()}>{children}</div>
+      {/* stopPropagation so clicking an action button doesn't also navigate --
+          and pressing Enter on one, or inside a dialog it opened (React
+          bubbles portal events through the component tree), doesn't either */}
+      <div
+        className="mt-auto flex gap-2 items-center flex-wrap pt-1"
+        onClick={(e) => e.stopPropagation()}
+        onKeyDown={(e) => e.stopPropagation()}
+      >
+        {children}
+      </div>
     </article>
   );
 }
@@ -187,6 +196,8 @@ export default function ActivePage() {
   // null until the initial default is applied (see the layout effect below)
   // or the user taps a tab — whichever comes first.
   const [mobileTab, setMobileTab] = useState<MobileTabKey | null>(null);
+  const autoUpdate = useCanUse('AutoUpdate');
+  const autoApply = useCanUse('AutoApply');
 
   const { added, ready, appliedFresh, appliedStale, inProcess } = useMemo(() => {
     const all = apps as Application[];
@@ -230,15 +241,36 @@ export default function ActivePage() {
     updateStatus.mutate({ appId, newStatus: 'Applied' });
   }
 
-  function IAppliedLink({ appId }: { appId: string }) {
+  // Applying happens on the employer's site: "Mark as applied" only moves the
+  // card, and says so, where "I applied" read as though NextRole had sent the
+  // application. One-click apply is the coming-soon feature that would.
+  function ApplyActions({ app }: { app: Application }) {
     return (
-      <button
-        type="button"
-        className="text-[13px] font-medium uppercase tracking-[0.06em] text-[var(--ed-ink-faint)] hover:text-[var(--ed-ink)] transition-colors disabled:opacity-50 disabled:pointer-events-none"
-        onClick={() => markApplied(appId)}
-      >
-        I applied &rarr;
-      </button>
+      <>
+        {hasRealJobUrl(app.jobUrl) && (
+          <a
+            href={app.jobUrl!}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={`${ED_GHOST} px-3 py-[0.4rem] inline-flex items-center gap-[0.35rem]`}
+          >
+            <ExternalLink size={12} aria-hidden="true" />
+            Apply on job site
+          </a>
+        )}
+        <button
+          type="button"
+          className="text-[13px] font-medium uppercase tracking-[0.06em] text-[var(--ed-ink-faint)] hover:text-[var(--ed-ink)] transition-colors disabled:opacity-50 disabled:pointer-events-none"
+          onClick={() => markApplied(app.id)}
+        >
+          Mark as applied &rarr;
+        </button>
+        {autoApply === false && (
+          <LockedButton feature="AutoApply" className={`${ED_GHOST} px-3 py-[0.4rem]`}>
+            One-click apply
+          </LockedButton>
+        )}
+      </>
     );
   }
 
@@ -317,7 +349,7 @@ export default function ActivePage() {
                   <RefreshCw size={12} className={generatePack.isPending && generatePack.variables === a.id ? 'animate-spin' : ''} aria-hidden="true" />
                   Regenerate
                 </button>
-                <IAppliedLink appId={a.id} />
+                <ApplyActions app={a} />
                 <RemoveButton appId={a.id} company={a.company} jobUrl={a.jobUrl} />
               </Card>
             ))}
@@ -426,14 +458,29 @@ export default function ActivePage() {
         <header className="mb-9">
           <div className="flex items-center justify-between gap-4 flex-wrap">
             <Link to="/search" className="text-[var(--ed-accent)] cursor-pointer text-[13px] font-medium tracking-[0.02em] inline-flex items-center gap-[0.4rem] transition-all hover:-translate-x-[3px]">&larr; Back to Matches</Link>
-            <button
-              type="button"
-              className={`${ED_GHOST} px-3 py-[0.4rem] inline-flex items-center gap-[0.35rem]`}
-              onClick={() => setShowImportModal(true)}
-            >
-              <LinkIcon size={12} aria-hidden="true" />
-              Import Job
-            </button>
+            <div className="flex items-center gap-3 flex-wrap">
+              {/* Auto-update is the mailbot moving cards from recruiting email.
+                  A label, not a toggle: there is no per-user switch behind it
+                  yet (docs/plans/feature-gating.md). */}
+              {autoUpdate === true && (
+                <span className="text-[13px] font-medium uppercase tracking-[0.06em] text-[var(--ed-ink-soft)]">
+                  Auto-update on
+                </span>
+              )}
+              {autoUpdate === false && (
+                <LockedButton feature="AutoUpdate" className={`${ED_GHOST} px-3 py-[0.4rem]`}>
+                  Auto-update
+                </LockedButton>
+              )}
+              <button
+                type="button"
+                className={`${ED_GHOST} px-3 py-[0.4rem] inline-flex items-center gap-[0.35rem]`}
+                onClick={() => setShowImportModal(true)}
+              >
+                <LinkIcon size={12} aria-hidden="true" />
+                Import Job
+              </button>
+            </div>
           </div>
           <div className="mt-5 border-t-[3px] border-double border-[var(--ed-rule-strong)]" />
         </header>

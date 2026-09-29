@@ -145,6 +145,9 @@ public class FeatureGatingTests
 
         Assert.Null(options.Problem());
         Assert.Equal(FeatureStatus.ComingSoon, options.Status[FeatureNames.AutoUpdate]);
+        // Locked since the locked UI shipped with it (Part 2); the owner keeps it.
+        Assert.Equal(FeatureStatus.ComingSoon, options.Status[FeatureNames.PracticeInterview]);
+        Assert.Contains(Owner, options.AllowedUsers[FeatureNames.PracticeInterview]);
     }
 
     // ── The gate ─────────────────────────────────────────────────────────────

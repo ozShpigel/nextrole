@@ -155,6 +155,20 @@ export function useAuthStatus() {
   });
 }
 
+// Which coming-soon features this visitor may use (docs/plans/feature-gating.md).
+// The server enforces the same answer on every gated route; this only decides
+// what to render. Changes with a config deploy, never within a session.
+export type FeatureName = 'AutoUpdate' | 'AutoApply' | 'PracticeInterview' | 'InterviewInsights';
+
+export function useFeatures() {
+  return useQuery<Partial<Record<FeatureName, boolean>>>({
+    queryKey: ['features'],
+    queryFn: () => api('/features'),
+    staleTime: Infinity,
+    retry: false,
+  });
+}
+
 
 // Has this visitor uploaded a CV yet? One definition, because three places
 // now branch on it — the onboarding gate that redirects, the nav that hides

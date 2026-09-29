@@ -17,6 +17,7 @@ import ResumePackPage from './pages/ResumePackPage';
 import SettingsPage from './pages/SettingsPage';
 import InterviewPrepPage from './pages/InterviewPrepPage';
 import MockInterviewPage from './pages/MockInterviewPage';
+import { FeatureRoute } from './components/ComingSoon';
 import InterviewInsightsPage from './pages/InterviewInsightsPage';
 import NotFoundPage from './pages/NotFoundPage';
 
@@ -36,7 +37,14 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
             <Route path="/tracker/:id/pack" element={<ResumePackPage />} />
             <Route path="/messages" element={<MessagesPage />} />
             <Route path="/interview-prep" element={<InterviewPrepPage />} />
-            <Route path="/practice-interview" element={<MockInterviewPage />} />
+            <Route
+              path="/practice-interview"
+              element={
+                <FeatureRoute feature="PracticeInterview" backTo="/interview-prep" backLabel="Back to Interview Prep">
+                  <MockInterviewPage />
+                </FeatureRoute>
+              }
+            />
             <Route path="/interview-insights" element={<InterviewInsightsPage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/processing" element={<Navigate to="/search" replace />} />

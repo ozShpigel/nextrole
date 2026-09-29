@@ -1,4 +1,5 @@
 using ApplicationTracker.Api.DTOs;
+using ApplicationTracker.Api.Features;
 using ApplicationTracker.Core.AI;
 using ApplicationTracker.Core.Models;
 using ApplicationTracker.Core.Profile;
@@ -16,9 +17,13 @@ public static class MockInterviewEndpoints
 
     public static WebApplication MapMockInterviewEndpoints(this WebApplication app)
     {
+        // Every route in the group is gated: the practice interview is hidden
+        // whole, past sessions included (docs/plans/feature-gating.md).
+        var group = app.MapGroup("/api/mock-interview").RequireFeature(FeatureNames.PracticeInterview);
+
         // Stateless turn engine: client sends the full transcript, gets back the
         // interviewer's next reply (nudge on the prior answer + next question).
-        app.MapPost("/api/mock-interview/turn", async (
+        group.MapPost("/turn", async (
             [FromBody] MockInterviewTurnRequest request,
             IClaudeClient claude,
             IUserContext user,
@@ -63,7 +68,7 @@ public static class MockInterviewEndpoints
         .WithSummary("Generate the interviewer's next turn (stateless; client holds the transcript)");
 
         // End-of-session debrief: score the transcript + return feedback/rewrites.
-        app.MapPost("/api/mock-interview/debrief", async (
+        group.MapPost("/debrief", async (
             [FromBody] MockInterviewTurnRequest request,
             IClaudeClient claude,
             IUserContext user,
@@ -104,7 +109,7 @@ public static class MockInterviewEndpoints
         .WithSummary("Score a finished mock interview and return feedback + rewrites");
 
         // Persist a completed session for later review.
-        app.MapPost("/api/mock-interview/sessions", async (
+        group.MapPost("/sessions", async (
             [FromBody] SaveMockSessionRequest request,
             IUserContext user,
             IMockInterviewRepository repo,
@@ -145,7 +150,7 @@ public static class MockInterviewEndpoints
         .WithSummary("Persist a completed mock interview session");
 
         // List saved sessions (lightweight — no transcripts).
-        app.MapGet("/api/mock-interview/sessions", async (
+        group.MapGet("/sessions", async (
             IUserContext user,
 
             IMockInterviewRepository repo,
@@ -171,7 +176,7 @@ public static class MockInterviewEndpoints
         .WithSummary("List saved mock interview sessions (lightweight projection)");
 
         // Full session (transcript + debrief) for review.
-        app.MapGet("/api/mock-interview/sessions/{id:guid}", async (
+        group.MapGet("/sessions/{id:guid}", async (
             Guid id,
             IUserContext user,
             IMockInterviewRepository repo,
@@ -183,7 +188,7 @@ public static class MockInterviewEndpoints
         .WithName("GetMockInterviewSession")
         .WithSummary("Get a saved mock interview session with full transcript and debrief");
 
-        app.MapDelete("/api/mock-interview/sessions/{id:guid}", async (
+        group.MapDelete("/sessions/{id:guid}", async (
             Guid id,
             IUserContext user,
             IMockInterviewRepository repo,
@@ -207,7 +212,7 @@ public static class MockInterviewEndpoints
         // Closed loop: adopt a debrief rewrite into the interview-prep Q&A rubric.
         // Appends through the existing upsert path so it snapshots into history
         // (undoable) and never touches the scoring fields.
-        app.MapPost("/api/mock-interview/adopt-rubric", async (
+        group.MapPost("/adopt-rubric", async (
             [FromBody] AdoptRubricRequest request,
             IUserContext user,
             IProfileProvider provider,

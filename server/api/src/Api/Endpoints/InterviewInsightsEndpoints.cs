@@ -1,3 +1,4 @@
+using ApplicationTracker.Api.Features;
 using ApplicationTracker.Core.AI;
 using ApplicationTracker.Core.Models;
 using ApplicationTracker.Core.Repositories;
@@ -14,9 +15,13 @@ public static class InterviewInsightsEndpoints
 
     public static WebApplication MapInterviewInsightsEndpoints(this WebApplication app)
     {
+        // Every route in the group is gated. Free today, so this changes nothing
+        // until config says otherwise (docs/plans/feature-gating.md).
+        var group = app.MapGroup("/api/interview-insights").RequireFeature(FeatureNames.InterviewInsights);
+
         // Cross-application retro log, most recent interview first. GET is
         // never demo-gated (the middleware only blocks mutating verbs).
-        app.MapGet("/api/interview-insights/retros", async (
+        group.MapGet("/retros", async (
             IUserContext user,
 
             IInterviewRepository interviewRepo,
@@ -46,7 +51,7 @@ public static class InterviewInsightsEndpoints
 
         // The persisted, standing insight (if any) plus how stale it is relative
         // to the current retro set. Pure read — never demo-gated.
-        app.MapGet("/api/interview-insights", async (
+        group.MapGet("", async (
             IUserContext user,
 
             IInterviewRepository interviewRepo,
@@ -64,7 +69,7 @@ public static class InterviewInsightsEndpoints
         // from the previous summary — see InterviewInsight's doc comment) and
         // persists it. This is now a write (unlike the old ephemeral synthesis),
         // so it's a normal demo-blocked mutation, not allowlisted.
-        app.MapPost("/api/interview-insights/synthesize", async (
+        group.MapPost("/synthesize", async (
             IUserContext user,
 
             IInterviewRepository interviewRepo,

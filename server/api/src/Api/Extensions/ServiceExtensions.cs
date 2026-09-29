@@ -1,3 +1,4 @@
+using ApplicationTracker.Api.Features;
 using ApplicationTracker.Api.Identity;
 using ApplicationTracker.Core.AI;
 using ApplicationTracker.Core.Identity;
@@ -27,6 +28,15 @@ public static class ServiceExtensions
         services.Configure<IdentityOptions>(configuration.GetSection(IdentityOptions.SectionName));
         services.AddSingleton<IdentityResolver>();
         services.AddScoped<IUserContext, HttpUserContext>();
+
+        // Coming-soon gating (docs/plans/feature-gating.md). An unknown feature
+        // name in config fails startup: it would otherwise lock someone out
+        // silently.
+        services.AddOptions<FeatureOptions>()
+            .Bind(configuration.GetSection(FeatureOptions.SectionName))
+            .Validate(o => o.Problem() is not { } problem ? true : throw new InvalidOperationException(problem))
+            .ValidateOnStart();
+        services.AddSingleton<IFeatureAccess, ConfigFeatureAccess>();
 
         // Sessions: the cookie carries an opaque token, and this is what turns
         // it into a userId (docs/auth.md, Phase 1.5).

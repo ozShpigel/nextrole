@@ -111,22 +111,28 @@ public static class Prefilter
     // engineering-function.md). Chosen from KLA's and NVIDIA's real titles:
     // "Senior Package Layout Engineer", "Senior Opto-Mechanical Engineer",
     // "Physical Design STA Engineer", "Senior IC Failure Analysis Engineer".
+    // No "soc": in a security title it is the Security Operations Center, and
+    // "SOC Analyst" was skipped as hardware (measured 2026-09-29). A chip SoC
+    // title carries another word here ("SoC Physical Design", "ASIC").
     private static readonly Regex Hardware = Words(
         "hardware", "mechanical", "electrical", "electronics", "electronic", "optics", "optical", "opto",
         "photonics", "laser", "rf", "analog", "pcb", "board design", "layout", "vlsi", "asic", "rtl", "dft",
-        "sta", "soc", "physical design", "chip design", "chip", "silicon", "post-silicon", "thermal",
+        "sta", "physical design", "chip design", "chip", "silicon", "post-silicon", "thermal",
         "technician", "practical engineer", "physicist", "failure analysis", "signal integrity",
         "power integrity", "interposer", "packaging", "npi");
 
     // Any of these and a hardware word is not enough: software written for
     // hardware is software ("Senior Software Engineer, Chip Design", "Senior
     // Firmware Engineer - NVLink Switch", "Linux Driver Developer"), and a
-    // security or AI title is read however hardware it sounds.
+    // security or AI title is read however hardware it sounds. So are IT
+    // support ("Help Desk Technician", "End User Support Technician") and
+    // quality ("Senior NPI Hardware Quality Engineer", which Claude files as
+    // qa) -- each measured as a wrong hardware guess on 2026-09-29.
     private static readonly Regex SoftwareForHardware = Words(
         "software", "firmware", "embedded", "developer", "programmer", "sdk", "driver", "drivers", "devops",
         "sre", "site reliability", "cloud", "platform", "data", "machine learning", "ml", "ai", "algorithm",
         "algorithms", "security", "linux", "kubernetes", "backend", "frontend", "full stack", "web", "mobile",
-        "qa");
+        "qa", "quality", "help desk", "service desk", "desktop support", "it support", "end user support");
 
     /// <summary>
     /// Whether a title plainly names hardware work -- a hardware word, and no

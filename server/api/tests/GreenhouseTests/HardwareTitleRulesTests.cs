@@ -49,6 +49,25 @@ public class HardwareTitleRulesTests
     public void A_title_that_is_software_or_says_nothing_of_hardware_is_read(string title) =>
         Assert.Null(Prefilter.GuessFunction(title, [], hardwareTitles: true));
 
+    [Theory]
+    // Measured 2026-09-29 by the check line, with the rule On: each was called
+    // hardware by the title and labelled otherwise by Claude.
+    [InlineData("SOC Analyst")]                               // Security Operations Center, labelled security
+    [InlineData("SOC Engineer")]
+    [InlineData("Senior NPI Hardware Quality Engineer")]      // labelled qa
+    [InlineData("Help Desk Technician (Tier 1)")]             // IT support
+    [InlineData("End User Support Technician")]
+    public void A_measured_wrong_hardware_guess_is_no_longer_hardware(string title) =>
+        Assert.False(Prefilter.IsHardwareTitle(title), $"'{title}' is not hardware work.");
+
+    [Theory]
+    // Still hardware without "soc": a chip title carries another hardware word.
+    [InlineData("SoC Physical Design Engineer")]
+    [InlineData("Senior ASIC DFT Engineer")]
+    [InlineData("SoC Verification Engineer, ASIC")]
+    public void A_chip_SoC_title_is_still_hardware(string title) =>
+        Assert.True(Prefilter.IsHardwareTitle(title));
+
     [Fact]
     public void The_plain_title_rules_still_come_first() =>
         Assert.Equal(JobFunctions.Operations,

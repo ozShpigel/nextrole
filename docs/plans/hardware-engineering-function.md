@@ -147,3 +147,31 @@ words is exactly the weak proxy AGENTS.md warns against. The source is exact.
 1. **Name and scope** as above, including chip design and lab technicians.
 2. **No neighbours**; embedded work carries two labels.
 3. **Re-read Workday postings once** (~$0.50-0.80); Greenhouse ages out.
+
+## The title rules, measured On (2026-09-29)
+
+`Greenhouse:HardwareTitleRules` went On on the box on 2026-09-28, before its
+"would hide" had a clean reading. The first run's check lines:
+
+| Boards | Called hardware | Right | Wrong | Would hide |
+|---|---|---|---|---|
+| Workday (fresh v3 labels): NVIDIA, KLA, Thales, Cisco, Motorola Solutions, Medtronic | 149 | 135 (91%) | 14 | 1 |
+| Greenhouse (pre-v3 labels): nebius, wayve, catonetworks | 10 | 0 | 10 | 5 |
+
+- **Most wrong ones are harmless.** NPI and hardware program or build
+  managers are labelled operations, which nobody wants, so they are skipped
+  either way.
+- **Four of the Greenhouse "would hide" are stale labels, not rule errors.**
+  "Mechanical Design Engineer" is labelled software_engineering there because
+  it was read before hardware_engineering existed, and Greenhouse is not
+  re-read (decision 3 above).
+- **Three are real, and are fixed in the word lists:**
+  - "SOC Analyst" (Security Operations Center, labelled security): `soc` is
+    removed from the hardware words. Chip SoC titles carry another word.
+  - "Senior NPI Hardware Quality Engineer" (labelled qa): `quality` is added
+    to the not-hardware list.
+  - "Help Desk Technician" and "End User Support Technician" (IT support):
+    "help desk", "service desk", "desktop support", "it support" and "end user
+    support" are added to the not-hardware list too.
+- Each change only makes the hardware guess less often. A title it no longer
+  calls hardware is read, at about $0.0015, and never lost.

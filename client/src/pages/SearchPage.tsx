@@ -180,8 +180,8 @@ function MatchScore({ job, align = 'end', pulse = true }: { job: DiscoveredJobSu
 // shape, so the score keeps the visual weight while the card gains presence.
 // Unscored: the empty ring with the same quiet shimmer block the number will
 // replace — never a number (see MatchScore).
-const RING_SIZE = 56;
-const RING_STROKE = 4;
+const RING_SIZE = 48;
+const RING_STROKE = 3.5;
 const RING_R = (RING_SIZE - RING_STROKE) / 2;
 const RING_C = 2 * Math.PI * RING_R;
 
@@ -223,7 +223,7 @@ function ScoreRing({ job, pulse = true }: { job: DiscoveredJobSummary; pulse?: b
       </svg>
       <div className="absolute inset-0 flex items-center justify-center">
         {scored ? (
-          <span className="inline-flex items-baseline text-[16px] font-medium leading-none tabular-nums animate-in fade-in duration-500" style={{ color: tone }}>
+          <span className="inline-flex items-baseline text-[15px] font-medium leading-none tabular-nums animate-in fade-in duration-500" style={{ color: tone }}>
             {job.score}
             <span className="ml-[1px] text-[0.6em] text-[var(--ed-ink-faint)]">%</span>
           </span>
@@ -310,7 +310,14 @@ function MatchCard({ job, index, saved, dismissed, onSelect, onSave, onDismiss, 
       }}
     >
       <div className="flex items-start justify-between gap-3">
-        <CompanyAvatar name={job.company} logo={job.company_logo} size={44} shape="tile" />
+        <div className="flex items-center gap-3 min-w-0">
+          <CompanyAvatar name={job.company} logo={job.company_logo} size={40} shape="tile" />
+          {isNew(job.date_posted) && (
+            <span className="rounded-full border border-[var(--ed-accent)]/40 bg-[var(--ed-accent)]/15 px-[0.6rem] py-[0.2rem] text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--ed-accent)]">
+              New
+            </span>
+          )}
+        </div>
         <ScoreRing job={job} pulse={pulse} />
       </div>
 
@@ -328,16 +335,7 @@ function MatchCard({ job, index, saved, dismissed, onSelect, onSave, onDismiss, 
           close to each other. mt-auto takes the card's spare height. */}
       <div className="mt-auto pt-4 flex flex-col gap-2">
         <SalaryLine salary={job.salary} />
-        {(age || isNew(job.date_posted)) && (
-          <div className="flex items-center gap-x-2 flex-wrap text-[13px] text-[var(--ed-ink-faint)] tabular-nums">
-            {age && <span>{age}</span>}
-            {isNew(job.date_posted) && (
-              <span className="border border-[var(--ed-rule)] text-[var(--ed-ink-soft)] rounded-full px-[0.55rem] py-[0.05rem]">
-                New
-              </span>
-            )}
-          </div>
-        )}
+        {age && <p className="text-[13px] text-[var(--ed-ink-faint)] tabular-nums">{age}</p>}
       </div>
 
       <div className="flex gap-3 items-center" onClick={(e) => e.stopPropagation()}>
@@ -392,8 +390,8 @@ function MatchCardSkeleton({ index }: { index: number }) {
       data-index={index}
     >
       <div className="flex items-start justify-between gap-3">
-        <span className={`${block} w-11 h-11 rounded-[28%]`} />
-        <span className={`${block} w-14 h-14 rounded-full`} />
+        <span className={`${block} w-10 h-10 rounded-[28%]`} />
+        <span className={`${block} w-12 h-12 rounded-full`} />
       </div>
       <div className="flex flex-col gap-2">
         <div className="flex justify-between gap-2">
@@ -1110,7 +1108,7 @@ export default function SearchPage() {
                   {upload?.phase === 'reading' ? 'Reading your résumé…' : 'Finding your matches…'}
                 </p>
               )}
-              <div className={`grid grid-cols-[repeat(auto-fill,minmax(15rem,17.5rem))] justify-start gap-4`}>
+              <div className={`grid grid-cols-[repeat(auto-fill,minmax(16rem,1fr))] gap-4`}>
                 {Array.from({ length: SKELETON_CARDS }, (_, i) => <MatchCardSkeleton key={i} index={i} />)}
               </div>
             </div>
@@ -1187,7 +1185,7 @@ export default function SearchPage() {
             </>
           ) : (
             /* Default browse view — full card grid. */
-            <div className={`flex-1 min-w-0 grid grid-cols-[repeat(auto-fill,minmax(15rem,17.5rem))] justify-start gap-4`}>
+            <div className={`flex-1 min-w-0 grid grid-cols-[repeat(auto-fill,minmax(16rem,1fr))] gap-4`}>
               {/* Scored and unscored in one grid, identical but for the score
                   slot. The unscored ones are the rest of the band — retrieved,
                   relevant, not yet judged — shown because retrieval is nearly

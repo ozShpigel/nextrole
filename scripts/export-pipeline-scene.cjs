@@ -4,6 +4,10 @@
 // replaced by a SMIL ring fill. A README image runs no script, but SMIL and
 // CSS animations inside an SVG do play.
 //
+// Two files, for the README's <picture>: the site's dark theme, and a light
+// one on white from the light token values (the app ships dark only; the
+// light file exists for GitHub's light mode).
+//
 // Rerun after changing the scene, with the client dev server up:
 //   cd client && bun run dev
 //   node scripts/export-pipeline-scene.cjs [http://localhost:5173/]
@@ -13,13 +17,13 @@ const path = require('path');
 const root = path.resolve(__dirname, '..');
 const { chromium } = require(path.join(root, 'e2e/node_modules/playwright'));
 const CSS = fs.readFileSync(path.join(root, 'client/src/index.css'), 'utf8');
-const OUT = path.join(root, 'docs/images/pipeline-scene.svg');
+const OUT = (theme) => path.join(root, `docs/images/pipeline-scene-${theme}.svg`);
 const URL = process.argv[2] ?? 'http://localhost:5173/';
 
 // Pull the scene's rules: from the section header to the brand-flicker block.
 const start = CSS.indexOf('.nr-scene-wrap');
 const end = CSS.indexOf('/* Nav brand mark');
-let css = CSS.slice(start, end)
+const CSS_SCENE = CSS.slice(start, end)
   .split('\n')
   .filter((l) => !/^\.nr-(scene-wrap|tilt)|\.nr-tilt/.test(l.trim()))
   .join('\n');
@@ -38,11 +42,16 @@ let css = CSS.slice(start, end)
   await scene.waitFor();
   await p.waitForTimeout(1500);
 
-  const { markup, vars } = await scene.evaluate((svg) => {
-    const cs = getComputedStyle(svg);
+  const { markup, themes } = await scene.evaluate((svg) => {
     const names = ['--ed-accent', '--ed-paper', '--ed-panel', '--ed-ink', '--ed-ink-soft', '--ed-ink-faint', '--ed-rule-strong',
       '--nr-flag-white', '--nr-flag-il-blue', '--nr-flag-uk-blue', '--nr-flag-uk-red'];
-    const vars = Object.fromEntries(names.map((n) => [n, cs.getPropertyValue(n).trim()]));
+    const read = () => { const cs = getComputedStyle(svg); return Object.fromEntries(names.map((n) => [n, cs.getPropertyValue(n).trim()])); };
+    const html = document.documentElement;
+    const dark = read();
+    html.classList.remove('dark');
+    const light = { ...read(), '--ed-paper': '#ffffff' };
+    html.classList.add('dark');
+    const themes = { dark, light };
     const clone = svg.cloneNode(true);
     // The score: final number, ring filled by SMIL in its round's window.
     const C = 2 * Math.PI * 10, CYCLE = 12, LONG = 24, SCORES = [92, 88];
@@ -68,19 +77,22 @@ let css = CSS.slice(start, end)
     clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
     clone.setAttribute('width', '720');
     clone.setAttribute('height', '400');
-    return { markup: new XMLSerializer().serializeToString(clone), vars };
+    return { markup: new XMLSerializer().serializeToString(clone), themes };
   });
   await b.close();
 
-  vars['--font-sans'] = "'Instrument Sans', 'Segoe UI', system-ui, -apple-system, Helvetica, Arial, sans-serif";
-  for (const [k, v] of Object.entries(vars)) css = css.split(`var(${k})`).join(v);
-  if (/var\(--(?!d,)/.test(css)) throw new Error('unresolved var: ' + css.match(/var\(--[^)]+\)/)[0]);
-  // The score's final color, from the ramp (the React code sets it per frame).
+  for (const [theme, vars] of Object.entries(themes)) {
+    vars['--font-sans'] = "'Instrument Sans', 'Segoe UI', system-ui, -apple-system, Helvetica, Arial, sans-serif";
+    let css = CSS_SCENE;
+    for (const [k, v] of Object.entries(vars)) css = css.split(`var(${k})`).join(v);
+    if (/var\(--(?!d,)/.test(css)) throw new Error('unresolved var: ' + css.match(/var\(--[^)]+\)/)[0]);
+    if (Object.values(vars).some((v) => !v)) throw new Error(`${theme}: a token read empty`);
 
-  const style = `<style>${css.replace(/\s+/g, ' ')}</style>`;
-  const bg = `<rect x="-40" y="-40" width="800" height="480" fill="${vars['--ed-paper'] || '#000'}"/>`;
-  let out = markup.replace(/<defs>/, `${style}<defs>`).replace(/<\/defs>/, `</defs>${bg}`);
-  out = out.replace('viewBox="0 0 720 400"', 'viewBox="-10 -10 740 420"');
-  fs.writeFileSync(OUT, out);
-  console.log('wrote', path.relative(root, OUT), (out.length / 1024).toFixed(1) + ' KB');
+    const style = `<style>${css.replace(/\s+/g, ' ')}</style>`;
+    const bg = `<rect x="-40" y="-40" width="800" height="480" fill="${vars['--ed-paper']}"/>`;
+    let out = markup.replace(/<defs>/, `${style}<defs>`).replace(/<\/defs>/, `</defs>${bg}`);
+    out = out.replace('viewBox="0 0 720 400"', 'viewBox="-10 -10 740 420"');
+    fs.writeFileSync(OUT(theme), out);
+    console.log('wrote', path.relative(root, OUT(theme)), (out.length / 1024).toFixed(1) + ' KB');
+  }
 })();

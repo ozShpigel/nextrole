@@ -37,7 +37,7 @@ from AI MATCHING to Gmail and Interviews light when the AI reads a reply or
 preps an interview. The two tiny flags use national colours, declared as
 `--nr-flag-*` in the `.nr-scene` block: marks, the same exception as company
 logos. The README shows an exported copy,
-`docs/images/pipeline-scene.svg`: rerun `scripts/export-pipeline-scene.cjs`
+`docs/images/pipeline-scene-{dark,light}.svg`: rerun `scripts/export-pipeline-scene.cjs`
 after changing the scene. It was the first page past
 the old visual limits, which have since been retired app-wide (see Visual
 freedom above). Its `nr-` classes are specific to the SVG scene; the

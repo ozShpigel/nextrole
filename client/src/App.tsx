@@ -1,7 +1,9 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Navigate, NavLink, Outlet, useLocation, useNavigationType } from 'react-router-dom';
 import { Search, Kanban, Mail, GraduationCap, User } from 'lucide-react';
-import { useHasProfile, useProfile, useResumeFile } from './lib/queries';
+import { useAuthStatus, useHasProfile, useProfile, useResumeFile } from './lib/queries';
+import { apiUrl } from './lib/api';
+import { GoogleMark } from './components/GoogleMark';
 import { NoticeBanner } from './components/NoticeBanner';
 import { isCvUploadInProgress, useCvUpload } from './lib/cvUpload';
 import { BrandMark } from './components/BrandMark';
@@ -105,6 +107,21 @@ function ScrollToTop() {
   return null;
 }
 
+// True once the window has scrolled past the top. The nav is fully
+// transparent at the top — the page's own background (grain, glow) shows
+// through it, so there is no band — and only takes a translucent, blurred
+// backing once content is scrolling underneath it.
+function useScrolled(): boolean {
+  const [scrolled, setScrolled] = useState(() => typeof window !== 'undefined' && window.scrollY > 4);
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 4);
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+  return scrolled;
+}
+
 export default function App() {
   // Every link in the nav leads somewhere a visitor without a CV cannot use —
   // OnboardingGate bounces them straight back to "/" from all five. Showing
@@ -113,12 +130,14 @@ export default function App() {
   // (still loading) hides them too, so they arrive once instead of flashing
   // in and out on first paint.
   const hasProfile = useHasProfile();
+  const scrolled = useScrolled();
+  const auth = useAuthStatus().data;
   return (
     <div className="relative">
-      <nav data-app-nav className="bg-background/80 backdrop-blur-[20px] border-b border-border sticky top-0 z-50">
+      <nav data-app-nav className={`sticky top-0 z-50 transition-[background-color,backdrop-filter] duration-300 ${scrolled ? 'bg-[var(--ed-paper)]/55 backdrop-blur-[20px]' : 'bg-transparent'}`}>
         <div className="w-full px-8 flex items-center gap-4 md:gap-10 h-14">
           <NavLink to="/" className="shrink-0 inline-flex items-center gap-[0.4rem] font-serif font-bold text-[1rem] text-foreground tracking-[-0.01em] transition-opacity hover:opacity-75">
-            <BrandMark size={24} className="text-foreground" />
+            <BrandMark size={24} className="text-foreground" flicker />
             NextRole
           </NavLink>
           {/* min-w-0 lets this shrink below its content width inside the flex
@@ -133,6 +152,26 @@ export default function App() {
                 <NavLink key={to} to={to} className={navLinkClass}>{label}</NavLink>
               ))}
             </div>
+          )}
+          {/* Optional, never a gate. The uid cookie (docs/multi-user.md) stays the
+              only identity and uploading a CV is still the whole onboarding —
+              this is the recovery path for the one real hole in cookie-only
+              identity: clearing cookies or switching device otherwise loses the
+              account for good. Shown only to a visitor we don't already
+              recognise (hasProfile === false, not falsy — `undefined` means the
+              profile queries are still loading, and rendering on that flashes
+              the link in and out). Linking an already-onboarded session to a
+              Google account belongs in Settings, and the Gmail mailbox scope
+              (gmail.readonly, a restricted scope) is deliberately NOT requested
+              here — sign-in asks for openid/email/profile only. */}
+          {hasProfile === false && auth?.available && !auth.signedIn && (
+            <a
+              href={apiUrl('/auth/google/start')}
+              className="ml-auto shrink-0 inline-flex items-center gap-2 rounded-full border border-border px-4 py-[0.4rem] text-[13px] font-medium text-foreground transition-colors hover:bg-[var(--ed-accent)]/10"
+            >
+              <GoogleMark size="14" />
+              Sign in with Google
+            </a>
           )}
         </div>
       </nav>

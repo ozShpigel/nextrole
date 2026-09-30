@@ -14,3 +14,14 @@ The frontend uses a custom **Forest Ledger** theme (originally a Glassdoor-inspi
 ## RTL / bidi content
 
 The frontend is an English LTR SPA, but content can be mixed Hebrew RTL (AI summaries, prompts, interview text) — render those nodes with `dir="rtl"`/`dir="auto"`.
+
+## Landing pipeline scene — the one color/glow exception
+
+`client/src/components/PipelineScene.tsx` (styles: `.nr-scene` block in
+`client/src/index.css`) is allowed what the UI rules forbid everywhere else:
+accent-lit faces, glowing edges and packets, a floor glow, and idle motion.
+The owner chose this on 2026-09-30 for the Landing hero's "wow". It is
+scoped to that component. Don't reuse its classes elsewhere, and don't read
+it as permission to decorate other pages. Even here the colors are tokens
+(`--ed-accent` mixed toward `--ed-paper`), the only score is on the
+`scoreColor` ramp, and reduced motion gets a still final frame.

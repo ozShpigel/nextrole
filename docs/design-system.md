@@ -11,6 +11,15 @@ The frontend uses a custom **Forest Ledger** theme (originally a Glassdoor-inspi
 - **Status colors are centralized**: application statuses → `STATUS_TONE` in `components/Status.tsx` (also drives the Statistics breakdown bars) — extend it rather than re-coloring badges inline.
 - **Reference**: `design-prototypes/editorial-broadsheet.html` is a self-contained mockup of the *original broadsheet* look — layout structure still matches, but colors/type/shape predate the Forest Ledger refresh.
 
+## Visual freedom (2026-09-30)
+
+The earlier visual limits — flat surfaces, accent only for the primary
+action, two font weights, the 40/16/13 type scale, the display face only for
+the wordmark — are retired app-wide by the owner. What still binds is the
+guardrail list in `AGENTS.md` → UI rules: dark only, tokens not hex, the score
+ramp only for scores, `--ed-no` for errors and destructive actions, a
+reduced-motion fallback for every animation, and RTL on Hebrew content.
+
 ## RTL / bidi content
 
 The frontend is an English LTR SPA, but content can be mixed Hebrew RTL (AI summaries, prompts, interview text) — render those nodes with `dir="rtl"`/`dir="auto"`.

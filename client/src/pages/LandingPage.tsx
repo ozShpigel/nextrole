@@ -314,10 +314,10 @@ export default function Landing() {
             <button
               type="button"
               onClick={onUploadClick}
-              className="group inline-flex items-center gap-2 rounded-full bg-[var(--ed-accent)] text-[var(--ed-paper)] px-6 py-[0.65rem] text-[0.74rem] font-semibold uppercase tracking-[0.08em] transition-all hover:bg-[var(--ed-accent-deep)] hover:-translate-y-[1px]"
+              className="group inline-flex items-center gap-2 rounded-full bg-[var(--ed-accent)] text-[var(--ed-paper)] px-4 py-[0.45rem] text-[13px] font-semibold tracking-[0.01em] transition-all hover:bg-[var(--ed-accent-deep)] hover:-translate-y-[1px]"
             >
-              <Upload size={14} className="transition-transform group-hover:-translate-y-0.5" aria-hidden="true" />
-              {ours?.phase === 'error' ? 'Try another file' : 'Upload your résumé'}
+              <Upload size={13}className="transition-transform group-hover:-translate-y-0.5" aria-hidden="true" />
+              {ours?.phase === 'error' ? 'Try another file' : 'Upload Resume'}
             </button>
             )}
             <input

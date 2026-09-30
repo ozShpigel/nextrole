@@ -310,7 +310,14 @@ function MatchCard({ job, index, saved, dismissed, onSelect, onSave, onDismiss, 
       }}
     >
       <div className="flex items-start justify-between gap-3">
-        <CompanyAvatar name={job.company} logo={job.company_logo} size={40} shape="tile" />
+        <div className="flex items-center gap-3 min-w-0">
+          <CompanyAvatar name={job.company} logo={job.company_logo} size={40} shape="tile" />
+          {isNew(job.date_posted) && (
+            <span className="rounded-full border border-[var(--ed-accent)]/40 bg-[var(--ed-accent)]/15 px-[0.6rem] py-[0.2rem] text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--ed-accent)]">
+              New
+            </span>
+          )}
+        </div>
         <ScoreRing job={job} pulse={pulse} />
       </div>
 
@@ -328,16 +335,7 @@ function MatchCard({ job, index, saved, dismissed, onSelect, onSave, onDismiss, 
           close to each other. mt-auto takes the card's spare height. */}
       <div className="mt-auto pt-4 flex flex-col gap-2">
         <SalaryLine salary={job.salary} />
-        {(age || isNew(job.date_posted)) && (
-          <div className="flex items-center gap-x-2 flex-wrap text-[13px] text-[var(--ed-ink-faint)] tabular-nums">
-            {age && <span>{age}</span>}
-            {isNew(job.date_posted) && (
-              <span className="border border-[var(--ed-rule)] text-[var(--ed-ink-soft)] rounded-full px-[0.55rem] py-[0.05rem]">
-                New
-              </span>
-            )}
-          </div>
-        )}
+        {age && <p className="text-[13px] text-[var(--ed-ink-faint)] tabular-nums">{age}</p>}
       </div>
 
       <div className="flex gap-3 items-center" onClick={(e) => e.stopPropagation()}>

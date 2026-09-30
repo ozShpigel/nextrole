@@ -133,4 +133,29 @@ public class FactsReReadTests
         Assert.Empty(facts["8"]["functions"].AsBsonArray);
         Assert.False(facts["9"].Contains("functions"));
     }
+
+    [Fact]
+    public async Task A_salary_estimate_is_stored_only_when_the_api_sent_one()
+    {
+        // Same rule as functions: an API older than the estimate sends no
+        // field, and the row keeps no field. Null means "read, no estimate".
+        const string Facts = """
+            { "results": [
+                { "jobId": "7", "mustHaveTech": [], "niceToHaveTech": [], "salaryEstimate": { "min": 420000, "max": 540000, "currency": "ILS" } },
+                { "jobId": "8", "mustHaveTech": [], "niceToHaveTech": [], "salaryEstimate": null },
+                { "jobId": "9", "mustHaveTech": [], "niceToHaveTech": [] } ] }
+            """;
+        var facts = await Client(new StubHandler().EnqueueJson(HttpStatusCode.OK, Facts))
+            .ExtractFactsAsync(
+                [new IngestJob("7", "t", "c", null, "body"), new IngestJob("8", "t", "c", null, "body"),
+                 new IngestJob("9", "t", "c", null, "body")],
+                CancellationToken.None);
+
+        var estimate = facts["7"]["salary_estimate"].AsBsonDocument;
+        Assert.Equal(420000, estimate["min"].ToInt64());
+        Assert.Equal(540000, estimate["max"].ToInt64());
+        Assert.Equal("ILS", estimate["currency"].AsString);
+        Assert.True(facts["8"]["salary_estimate"].IsBsonNull);
+        Assert.False(facts["9"].Contains("salary_estimate"));
+    }
 }

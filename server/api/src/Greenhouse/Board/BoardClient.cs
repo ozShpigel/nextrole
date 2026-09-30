@@ -41,7 +41,9 @@ public sealed class BoardClient : IBoardClient
     /// </remarks>
     public async Task<IReadOnlyList<BoardJob>> FetchAsync(string boardToken, CancellationToken ct)
     {
-        var url = $"v1/boards/{Uri.EscapeDataString(boardToken)}/jobs?content=true";
+        // pay_transparency adds each job's published pay ranges and changes
+        // nothing else: meta.total still matches (measured 2026-09-30).
+        var url = $"v1/boards/{Uri.EscapeDataString(boardToken)}/jobs?content=true&pay_transparency=true";
 
         HttpResponseMessage response;
         try

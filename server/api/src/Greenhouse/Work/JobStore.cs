@@ -356,8 +356,10 @@ public sealed class JobStore : IJobStore
     /// software companies: their rare hardware role is read right when it next
     /// changes, and everything Matches can show turns over within its 90-day
     /// window -- so re-reading ~1,200 postings (~$2) buys almost nothing.
+    /// Version 4 (<c>salaryEstimate</c>): every source, since every posting
+    /// lacks an estimate. One read per posting, 100 per board per run.
     /// </remarks>
-    public static readonly string[] FactsReReadSources = [WorkdaySource.SourceName];
+    public static readonly string[] FactsReReadSources = [WorkdaySource.SourceName, GreenhouseSource.SourceName];
 
     private async Task<IReadOnlyList<StoredJobContent>> StoredContentAsync(
         FilterDefinition<BsonDocument> filter, int limit, CancellationToken ct)
@@ -564,6 +566,33 @@ public sealed class JobStore : IJobStore
             Builders<BsonDocument>.Update.Set(GreenhouseJobFields.CompanyLogo, value),
             cancellationToken: ct);
 
+        return result.ModifiedCount;
+    }
+
+    /// <inheritdoc />
+    public async Task<long> StampPostedSalariesAsync(
+        string boardKey, IReadOnlyCollection<(string SourceJobId, SalaryRange? Salary)> salaries, CancellationToken ct)
+    {
+        if (salaries.Count == 0) return 0;
+
+        // One conditional update per posting, filtered on $ne, so a stable
+        // board writes nothing. $ne also matches a missing field, which is
+        // how rows stored before this field existed receive it.
+        var f = Builders<BsonDocument>.Filter;
+        var writes = salaries.Select(s =>
+        {
+            BsonValue value = s.Salary is null
+                ? BsonNull.Value
+                : new BsonDocument { { "min", s.Salary.Min }, { "max", s.Salary.Max }, { "currency", s.Salary.Currency } };
+            return new UpdateOneModel<BsonDocument>(
+                f.And(
+                    f.Eq(GreenhouseJobFields.BoardKey, boardKey),
+                    f.Eq(GreenhouseJobFields.SourceJobId, s.SourceJobId),
+                    f.Ne(GreenhouseJobFields.PostedSalary, value)),
+                Builders<BsonDocument>.Update.Set(GreenhouseJobFields.PostedSalary, value));
+        }).ToList();
+
+        var result = await _jobs.BulkWriteAsync(writes, new BulkWriteOptions { IsOrdered = false }, ct);
         return result.ModifiedCount;
     }
 

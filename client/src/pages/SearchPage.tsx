@@ -11,7 +11,7 @@ import { isCvUploadInProgress, isScoringHeld, useCvUpload } from '../lib/cvUploa
 import { useSaveJob, useDismissJob, useMarkViewed } from '../lib/mutations';
 import type { DiscoveredJobSummary } from '../lib/types';
 import { VERDICT_LABELS } from '../lib/scoring';
-import { cityCountry, formatAge, isNew, hasRealJobUrl } from '../lib/format';
+import { cityCountry, formatAge, formatSalaryRange, isNew, hasRealJobUrl } from '../lib/format';
 import AnalysisCard, { edVerdictColor } from '../components/AnalysisCard';
 import { CompanyAvatar } from '../components/CompanyAvatar';
 import { JobDescriptionText } from '../components/JobDescriptionText';
@@ -175,6 +175,93 @@ function MatchScore({ job, align = 'end', pulse = true }: { job: DiscoveredJobSu
   );
 }
 
+// The card's score: the number inside a ring that fills
+// to it, both in the score's band color. The ring is the card's one strong
+// shape, so the score keeps the visual weight while the card gains presence.
+// Unscored: the empty ring with the same quiet shimmer block the number will
+// replace — never a number (see MatchScore).
+const RING_SIZE = 56;
+const RING_STROKE = 4;
+const RING_R = (RING_SIZE - RING_STROKE) / 2;
+const RING_C = 2 * Math.PI * RING_R;
+
+function ScoreRing({ job, pulse = true }: { job: DiscoveredJobSummary; pulse?: boolean }) {
+  const anchorRef = useRef<HTMLDivElement>(null);
+  const [open, setOpen] = useState(false);
+  // Fills from empty one frame after mount, so the arc draws in.
+  const [drawn, setDrawn] = useState(false);
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => setDrawn(true));
+    return () => cancelAnimationFrame(frame);
+  }, []);
+
+  const scored = job.score !== null && job.score !== undefined;
+  const tone = edVerdictColor(job.verdict);
+  const highlights = job.match_analysis?.quickHighlights;
+  const hasHighlights = scored && !!highlights && highlights.length > 0;
+  const fill = scored ? Math.min(Math.max(job.score!, 0), 100) / 100 : 0;
+
+  return (
+    <div
+      ref={anchorRef}
+      className="relative shrink-0"
+      style={{ width: RING_SIZE, height: RING_SIZE }}
+      onMouseEnter={() => hasHighlights && setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
+    >
+      <svg width={RING_SIZE} height={RING_SIZE} viewBox={`0 0 ${RING_SIZE} ${RING_SIZE}`} aria-hidden="true" className="-rotate-90">
+        <circle cx={RING_SIZE / 2} cy={RING_SIZE / 2} r={RING_R} fill="none" stroke="var(--ed-rule)" strokeWidth={RING_STROKE} />
+        {scored && (
+          <circle
+            cx={RING_SIZE / 2} cy={RING_SIZE / 2} r={RING_R}
+            fill="none" stroke={tone} strokeWidth={RING_STROKE} strokeLinecap="round"
+            strokeDasharray={RING_C}
+            strokeDashoffset={RING_C * (1 - (drawn ? fill : 0))}
+            className="transition-[stroke-dashoffset] duration-700 ease-out motion-reduce:transition-none"
+          />
+        )}
+      </svg>
+      <div className="absolute inset-0 flex items-center justify-center">
+        {scored ? (
+          <span className="inline-flex items-baseline text-[16px] font-medium leading-none tabular-nums animate-in fade-in duration-500" style={{ color: tone }}>
+            {job.score}
+            <span className="ml-[1px] text-[0.6em] text-[var(--ed-ink-faint)]">%</span>
+          </span>
+        ) : (
+          <>
+            <span
+              aria-hidden="true"
+              data-testid="score-placeholder"
+              className={`block w-[1.5rem] h-[14px] rounded-md ${pulse ? 'ed-shimmer' : 'bg-[var(--ed-rule)]'}`}
+            />
+            <span className="sr-only">Not scored yet</span>
+          </>
+        )}
+      </div>
+      {open && hasHighlights && <RationaleTooltip anchorRef={anchorRef} highlights={highlights!} />}
+    </div>
+  );
+}
+
+// Pay, the way a reader weighs a role: the company's own range ("Base
+// salary"), else the model's estimate, labelled as one ("Estimated salary"),
+// else an honest "Salary not listed" — never a blank that reads as missing.
+function SalaryLine({ salary }: { salary: DiscoveredJobSummary['salary'] }) {
+  if (!salary) {
+    return <p className="text-[16px] text-[var(--ed-ink-faint)]">Salary not listed</p>;
+  }
+  return (
+    <div className="flex flex-col gap-[0.2rem]">
+      <p className="text-[22px] font-semibold leading-none tracking-[-0.01em] text-[var(--ed-ink)] tabular-nums">
+        {formatSalaryRange(salary.min, salary.max, salary.currency)}
+      </p>
+      <p className="text-[13px] text-[var(--ed-ink-faint)]">
+        {salary.source === 'posted' ? 'Base salary' : 'Estimated salary'}
+      </p>
+    </div>
+  );
+}
+
 interface MatchCardProps {
   job: DiscoveredJobSummary;
   index: number;
@@ -201,12 +288,15 @@ function MatchCard({ job, index, saved, dismissed, onSelect, onSave, onDismiss, 
   const unscored = job.score === null || job.score === undefined;
   useDwell(ref, job.id, unscored && !saved && !dismissed ? onVisible : undefined);
 
+  const place = [cityCountry(job.location), job.is_remote ? 'Remote' : null].filter(Boolean).join(' · ');
+  const age = formatAge(job.date_posted, job.date_updated);
+
   return (
     <article
       ref={ref}
       data-job-id={job.id}
-      className={`ed-rise group border rounded-2xl p-5 flex flex-col gap-3 transition-colors ${dismissed ? 'opacity-40' : ''} border-[var(--ed-rule)] ${
-        clickable ? 'cursor-pointer hover:border-[var(--ed-ink-faint)]' : ''
+      className={`ed-rise group relative rounded-[18px] border bg-[color-mix(in_oklab,var(--ed-ink)_7%,var(--ed-panel))] p-5 flex flex-col gap-4 min-h-[22rem] transition-[border-color,transform,box-shadow] duration-200 ${dismissed ? 'opacity-40' : ''} border-[var(--ed-rule)] ${
+        clickable ? 'cursor-pointer hover:border-[var(--ed-ink-faint)] hover:-translate-y-[2px] motion-reduce:hover:translate-y-0' : ''
       }`}
       style={{ animationDelay: `${Math.min(index, 12) * 40}ms` }}
       role={clickable ? 'button' : undefined}
@@ -220,24 +310,29 @@ function MatchCard({ job, index, saved, dismissed, onSelect, onSave, onDismiss, 
       }}
     >
       <div className="flex items-start justify-between gap-3">
-        <CompanyAvatar name={job.company} logo={job.company_logo} size={36} />
-        <MatchScore job={job} pulse={pulse} />
+        <CompanyAvatar name={job.company} logo={job.company_logo} size={44} shape="tile" />
+        <ScoreRing job={job} pulse={pulse} />
       </div>
 
-      <div className="min-w-0">
-        <div className="flex items-center gap-x-2 flex-wrap text-[13px] text-[var(--ed-ink-faint)] mb-[0.15rem] tabular-nums">
-          <span className="font-medium text-[var(--ed-ink-soft)]">{job.company}</span>
-          {cityCountry(job.location) && <span>{cityCountry(job.location)}</span>}
-          {job.is_remote && <span>Remote</span>}
+      <div className="min-w-0 flex flex-col gap-2">
+        <div className="flex items-baseline justify-between gap-3 tabular-nums">
+          <span className="min-w-0 truncate text-[16px] font-medium text-[var(--ed-ink-soft)]">{job.company}</span>
+          {place && <span className="shrink-0 max-w-[55%] truncate text-[13px] text-[var(--ed-ink-faint)]">{place}</span>}
         </div>
-        <h3 className="text-[16px] font-medium leading-[1.3] text-[var(--ed-ink)] line-clamp-2">
+        <h3 className="text-[16px] font-medium leading-[1.35] text-[var(--ed-ink)] line-clamp-3">
           {job.title}
         </h3>
-        {(formatAge(job.date_posted, job.date_updated) || isNew(job.date_posted)) && (
-          <div className="flex items-center gap-x-2 flex-wrap text-[13px] text-[var(--ed-ink-faint)] mt-[0.35rem] tabular-nums">
-            {formatAge(job.date_posted, job.date_updated) && <span>{formatAge(job.date_posted, job.date_updated)}</span>}
+      </div>
+
+      {/* Pay and age read as one block, sitting low: far from the title,
+          close to each other. mt-auto takes the card's spare height. */}
+      <div className="mt-auto pt-4 flex flex-col gap-2">
+        <SalaryLine salary={job.salary} />
+        {(age || isNew(job.date_posted)) && (
+          <div className="flex items-center gap-x-2 flex-wrap text-[13px] text-[var(--ed-ink-faint)] tabular-nums">
+            {age && <span>{age}</span>}
             {isNew(job.date_posted) && (
-              <span className="border border-[var(--ed-rule)] text-[var(--ed-ink-faint)] rounded-full px-[0.5rem] py-[0.05rem]">
+              <span className="border border-[var(--ed-rule)] text-[var(--ed-ink-soft)] rounded-full px-[0.55rem] py-[0.05rem]">
                 New
               </span>
             )}
@@ -245,27 +340,38 @@ function MatchCard({ job, index, saved, dismissed, onSelect, onSave, onDismiss, 
         )}
       </div>
 
-      <div className="mt-auto flex gap-2 items-center pt-2" onClick={(e) => e.stopPropagation()}>
+      <div className="flex gap-3 items-center" onClick={(e) => e.stopPropagation()}>
         {!saved && !dismissed && (
           <button
             type="button"
             title="Dismiss"
             aria-label="Dismiss"
-            className="shrink-0 w-8 h-8 rounded-full border border-[var(--ed-rule)] flex items-center justify-center text-[var(--ed-ink-faint)] transition-all hover:border-[var(--ed-no)] hover:text-[var(--ed-no)]"
+            className="shrink-0 w-10 h-10 rounded-full border border-[var(--ed-rule)] flex items-center justify-center text-[var(--ed-ink-faint)] transition-all hover:border-[var(--ed-no)] hover:text-[var(--ed-no)]"
             onClick={() => onDismiss(job.id)}
           >
             <X className="w-4 h-4" strokeWidth={2.5} />
           </button>
         )}
         {!saved && !dismissed && (
-          <button type="button" className={`${ED_BTN} ml-auto border-[var(--ed-accent)] text-[var(--ed-accent)] hover:bg-[var(--ed-accent)] hover:text-[var(--ed-paper)]`} onClick={() => onSave(job.id)}>Add</button>
+          <button
+            type="button"
+            className="ml-auto h-10 px-5 inline-flex items-center justify-center gap-2 rounded-full border border-[var(--ed-accent)]/70 bg-[var(--ed-accent)]/25 text-[13px] font-medium text-[var(--ed-accent)] shadow-[0_0_18px_-6px_var(--ed-accent)] transition-colors hover:bg-[var(--ed-accent)] hover:text-[var(--ed-paper)]"
+            onClick={() => onSave(job.id)}
+          >
+            <Plus className="w-4 h-4" strokeWidth={2.5} aria-hidden="true" />
+            Save
+          </button>
         )}
         {saved && (
-          <span className="ed-confirm ml-auto inline-flex items-center gap-[0.3rem] rounded-full border border-[var(--ed-rule)] px-4 py-[0.5rem] text-[13px] font-medium text-[var(--ed-ink-faint)]">
-            <Check className="w-3.5 h-3.5" strokeWidth={2.5} aria-hidden="true" /> Added
+          <span className="ed-confirm ml-auto h-10 px-5 inline-flex items-center justify-center gap-2 rounded-full border border-[var(--ed-accent)]/70 bg-[var(--ed-accent)]/25 text-[13px] font-medium text-[var(--ed-accent)]">
+            <Check className="w-4 h-4" strokeWidth={2.5} aria-hidden="true" /> Saved
           </span>
         )}
-        {dismissed && <span className="ml-auto rounded-full border border-[var(--ed-rule)] px-4 py-[0.5rem] text-[13px] font-medium text-[var(--ed-ink-faint)]">Dismissed</span>}
+        {dismissed && (
+          <span className="ml-auto h-10 px-5 inline-flex items-center justify-center rounded-full border border-[var(--ed-rule)] text-[13px] font-medium text-[var(--ed-ink-faint)]">
+            Dismissed
+          </span>
+        )}
       </div>
     </article>
   );
@@ -282,24 +388,24 @@ function MatchCardSkeleton({ index }: { index: number }) {
     <div
       aria-hidden="true"
       data-testid="match-card-skeleton"
-      className="border border-[var(--ed-rule)] rounded-2xl p-5 flex flex-col gap-3"
+      className="rounded-[18px] border border-[var(--ed-rule)] bg-[color-mix(in_oklab,var(--ed-ink)_7%,var(--ed-panel))] p-5 flex flex-col gap-4 min-h-[22rem]"
       data-index={index}
     >
       <div className="flex items-start justify-between gap-3">
-        <span className={`${block} w-9 h-9 rounded-full`} />
-        <span className={`${block} w-[3.25rem] h-[40px] rounded-lg`} />
+        <span className={`${block} w-11 h-11 rounded-[28%]`} />
+        <span className={`${block} w-14 h-14 rounded-full`} />
       </div>
       <div className="flex flex-col gap-2">
-        <div className="flex gap-2">
-          <span className={`${block} h-[13px] w-[35%] rounded-full`} />
-          <span className={`${block} h-[13px] w-[30%] rounded-full`} />
+        <div className="flex justify-between gap-2">
+          <span className={`${block} h-[16px] w-[40%] rounded-full`} />
+          <span className={`${block} h-[13px] w-[28%] rounded-full`} />
         </div>
         <span className={`${block} h-[16px] w-[85%] rounded-full`} />
         <span className={`${block} h-[16px] w-[55%] rounded-full`} />
       </div>
-      <div className="mt-auto flex items-center pt-2">
-        <span className={`${block} w-8 h-8 rounded-full`} />
-        <span className={`${block} ml-auto w-[4.5rem] h-[34px] rounded-full`} />
+      <div className="mt-auto flex items-center gap-3">
+        <span className={`${block} w-10 h-10 rounded-full`} />
+        <span className={`${block} ml-auto w-[5.5rem] h-10 rounded-full`} />
       </div>
     </div>
   );
@@ -1004,7 +1110,7 @@ export default function SearchPage() {
                   {upload?.phase === 'reading' ? 'Reading your résumé…' : 'Finding your matches…'}
                 </p>
               )}
-              <div className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 ${!filtersOpen ? '2xl:grid-cols-5' : ''}`}>
+              <div className={`grid grid-cols-[repeat(auto-fill,minmax(15rem,17.5rem))] justify-start gap-4`}>
                 {Array.from({ length: SKELETON_CARDS }, (_, i) => <MatchCardSkeleton key={i} index={i} />)}
               </div>
             </div>
@@ -1081,7 +1187,7 @@ export default function SearchPage() {
             </>
           ) : (
             /* Default browse view — full card grid. */
-            <div className={`flex-1 min-w-0 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 ${!filtersOpen ? '2xl:grid-cols-5' : ''}`}>
+            <div className={`flex-1 min-w-0 grid grid-cols-[repeat(auto-fill,minmax(15rem,17.5rem))] justify-start gap-4`}>
               {/* Scored and unscored in one grid, identical but for the score
                   slot. The unscored ones are the rest of the band — retrieved,
                   relevant, not yet judged — shown because retrieval is nearly

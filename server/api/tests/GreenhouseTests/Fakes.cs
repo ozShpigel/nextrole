@@ -1,3 +1,4 @@
+using ApplicationTracker.Core.Matching;
 using System.Net;
 using System.Text;
 using ApplicationTracker.Core.Greenhouse;
@@ -277,6 +278,17 @@ public sealed class FakeJobStore : IJobStore
         if (StampThrows is not null) throw StampThrows;
         StampedLogos[boardToken] = logoUrl;
         return Task.FromResult(1L);
+    }
+
+    /// <summary>The published pay stamped per board key, by source job id.</summary>
+    public Dictionary<string, Dictionary<string, SalaryRange?>> StampedSalaries { get; } = [];
+
+    public Task<long> StampPostedSalariesAsync(
+        string boardKey, IReadOnlyCollection<(string SourceJobId, SalaryRange? Salary)> salaries, CancellationToken ct)
+    {
+        var board = StampedSalaries.TryGetValue(boardKey, out var b) ? b : StampedSalaries[boardKey] = [];
+        foreach (var (id, salary) in salaries) board[id] = salary;
+        return Task.FromResult((long)salaries.Count);
     }
 
     public Task<long> CloseMissingAsync(

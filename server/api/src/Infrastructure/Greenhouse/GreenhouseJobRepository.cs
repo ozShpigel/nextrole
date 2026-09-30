@@ -1,6 +1,7 @@
 using ApplicationTracker.Core.Greenhouse;
 using ApplicationTracker.Core.Matching;
 using ApplicationTracker.Core.Repositories;
+using ApplicationTracker.Infrastructure.Repositories;
 using Microsoft.Extensions.Logging;
 using MongoDB.Bson;
 using MongoDB.Driver;
@@ -535,6 +536,9 @@ public sealed class GreenhouseJobRepository : IPoolJobRepository
         ActualJobLevel = ExtractedStr(d, "seniority"),
         DiscoveredAt = Date(d, GreenhouseJobFields.FirstSeenAt),
         Site = "greenhouse",
+        Salary = JobSalary.From(
+            SalaryDocument.Read(d, GreenhouseJobFields.PostedSalary, estimate: false),
+            SalaryDocument.Read(SalaryDocument.Extracted(d), "salary_estimate", estimate: true)),
     };
 
     // Null when unreadable: "parse it inline", a slower correct answer. See

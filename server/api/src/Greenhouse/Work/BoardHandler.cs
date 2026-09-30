@@ -321,6 +321,7 @@ public sealed class BoardHandler
         await _store.TouchAsync(board.Key, unchanged, runId, now, ct);
 
         await StampLogoAsync(board, ct);
+        await StampPostedSalariesAsync(board, jobs, ct);
 
         // The diff is driven by the LISTING, never by what was read in full: a
         // posting whose detail failed is still on the board, and must not be
@@ -985,6 +986,31 @@ public sealed class BoardHandler
         }
     }
 
+
+    /// <summary>
+    /// Stamp each read posting's published pay range onto its row.
+    /// </summary>
+    /// <remarks>
+    /// Never throws, for the logo's reason: pay is display-only, and failing
+    /// the company over it would nack a message whose embeddings are already
+    /// written and paid for. The next run stamps it again. Only postings read
+    /// this run -- a Workday posting skipped as listed-as-before keeps what it
+    /// has, and a posting the prefilter skipped was never stored.
+    /// </remarks>
+    private async Task StampPostedSalariesAsync(BoardConfig board, IReadOnlyList<GreenhouseJob> jobs, CancellationToken ct)
+    {
+        try
+        {
+            var stamped = await _store.StampPostedSalariesAsync(
+                board.Key, [.. jobs.Select(j => (j.SourceJobId, j.Source.PostedSalary))], ct);
+            if (stamped > 0)
+                _log.LogInformation("Board {Board}: set the published pay range on {Count} row(s)", board.Token, stamped);
+        }
+        catch (Exception e) when (e is not OperationCanceledException)
+        {
+            _log.LogError(e, "Board {Board}: could not set published pay ranges", board.Token);
+        }
+    }
 
     private static async Task<Dictionary<string, BsonDocument>> ChunkedAsync(
         IReadOnlyList<IngestJob> jobs, int chunkSize,

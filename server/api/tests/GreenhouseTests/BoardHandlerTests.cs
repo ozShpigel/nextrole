@@ -1,3 +1,4 @@
+using ApplicationTracker.Core.Matching;
 using System.Net;
 using ApplicationTracker.Core.Greenhouse;
 using ApplicationTracker.Greenhouse;
@@ -341,6 +342,27 @@ public class BoardHandlerTests
 
         Assert.Equal(1, result.Skipped);
         Assert.Equal("https://logos.test/example.com", store.StampedLogos[$"greenhouse:{Build.Token}"]);
+    }
+
+    [Fact]
+    public async Task Stamps_the_published_pay_range_on_every_run()
+    {
+        // Restamped like the logo, not carried on the upsert: an unchanged
+        // posting -- every posting stored before pay existed -- must get it too.
+        var json = Build.BoardJson((1, "Backend Engineer", LongContent), (2, "Data Engineer", LongContent))
+            .Replace("\"id\": 1,", "\"id\": 1, \"pay_input_ranges\": [ { \"min_cents\": 13500000, \"max_cents\": 19500000, \"currency_type\": \"USD\", \"title\": \"Pay Range\" } ],");
+        var store = new FakeJobStore();
+        await Build.Handler(new StubHandler().EnqueueJson(HttpStatusCode.OK, json),
+            new FakeEmbeddingClient(), store).HandleBoardAsync(Build.Board);
+        store.StampedSalaries.Clear();
+
+        var result = await Build.Handler(new StubHandler().EnqueueJson(HttpStatusCode.OK, json),
+            new FakeEmbeddingClient(), store).HandleBoardAsync(Build.Board);
+
+        Assert.Equal(2, result.Skipped);
+        var stamped = store.StampedSalaries[$"greenhouse:{Build.Token}"];
+        Assert.Equal(new SalaryRange(135_000, 195_000, "USD"), stamped["1"]);
+        Assert.Null(stamped["2"]);
     }
 
     [Fact]

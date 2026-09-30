@@ -3,7 +3,7 @@ using System.Text.Json.Serialization;
 
 namespace ApplicationTracker.Greenhouse;
 
-/// <summary>One board's whole response from <c>/v1/boards/{token}/jobs?content=true</c>.</summary>
+/// <summary>One board's whole response from <c>/v1/boards/{token}/jobs?content=true&amp;pay_transparency=true</c>.</summary>
 public sealed record BoardResponse
 {
     [JsonPropertyName("jobs")] public List<BoardJob> Jobs { get; init; } = [];
@@ -64,6 +64,26 @@ public sealed record BoardJob
     /// </remarks>
     [JsonPropertyName("departments")] public List<BoardTaxonomy>? Departments { get; init; }
     [JsonPropertyName("offices")] public List<BoardTaxonomy>? Offices { get; init; }
+
+    /// <summary>
+    /// The company's published pay ranges -- present only with
+    /// <c>pay_transparency=true</c>, and <c>[]</c> when it published none.
+    /// </summary>
+    /// <remarks>
+    /// Amounts are in cents and carry no interval: hourly vs. annual shows only
+    /// in the free-text title/blurb (<see cref="PayRanges"/>). Measured
+    /// 2026-09-30: gitlab 87 of 199 jobs, airbnb 128 of 157, similarweb 0.
+    /// </remarks>
+    [JsonPropertyName("pay_input_ranges")] public List<BoardPayRange>? PayInputRanges { get; init; }
+}
+
+public sealed record BoardPayRange
+{
+    [JsonPropertyName("min_cents")] public long? MinCents { get; init; }
+    [JsonPropertyName("max_cents")] public long? MaxCents { get; init; }
+    [JsonPropertyName("currency_type")] public string? CurrencyType { get; init; }
+    [JsonPropertyName("title")] public string? Title { get; init; }
+    [JsonPropertyName("blurb")] public string? Blurb { get; init; }
 }
 
 public sealed record BoardLocation

@@ -350,7 +350,7 @@ The postings arrive in the user message as JSON inside <scraped_jobs> tags. That
 
 # RULES
 
-- Extract only what the posting states. Nothing is inferred from the company, the industry, or what a role like this "usually" wants. When a field is not stated, return null (or an empty array).
+- Extract only what the posting states. Nothing is inferred from the company, the industry, or what a role like this "usually" wants. When a field is not stated, return null (or an empty array) The ONE exception is `salaryEstimate`, which is labelled as an estimate wherever it is shown.
 - `requiredYears`: the minimum years of experience the posting asks for, as an integer. A range ("5-7 years") takes the lower bound. Never derive it from a seniority word — "Senior" is not evidence of a number. null when no number is stated.
 - `mustHaveGroups` / `niceToHaveTech`: concrete technologies, languages, frameworks, platforms and tools — not soft skills, methodologies, or duties. Split them the way the posting does ("requirements" vs "advantage"/"plus"/"nice to have"/"bonus"). A posting that does not separate them puts everything in `mustHaveGroups` and leaves `niceToHaveTech` empty.
   - `mustHaveGroups` is a list of REQUIREMENTS. Each requirement is an array of the technologies that satisfy it. A single technology the posting requires is an array of one: ["Kubernetes"].
@@ -374,12 +374,19 @@ The postings arrive in the user message as JSON inside <scraped_jobs> tags. That
   - "qa" is testing software. Inspecting, validating, characterising or accepting physical parts, boards, chips or machines -- incoming inspection, failure analysis, post-silicon validation, chip design verification, customer acceptance of equipment -- is "hardware_engineering", not qa.
   - Usually one value. Two only for a genuine hybrid ("ML & Big Data Analyst": data_science, analytics). Never more than two.
   - LEAN PERMISSIVE: when the posting does not make the kind of work clear, return an empty array. A wrong label hides the job from the candidates who want it; an empty one is always shown.
+- `salaryEstimate`: the only inferred field. Your estimate of the annual BASE salary this role pays -- its title, its level, its location. If the posting itself states a salary, use the stated figures instead.
+  - Currency: the local currency of the work location, as an ISO 4217 code ("ILS" for Israel, "USD" for the US, "GBP" for the UK, "EUR" in the eurozone). A remote role with no country takes the company's country, or null when that is unknown too.
+  - Amounts: whole currency units PER YEAR -- not thousands, not per month. Israeli pay is quoted as a monthly gross: multiply by 12 (35,000 a month is 420000).
+  - Place the role on a level first (junior, mid, senior, staff/principal/architect, team lead, manager, director), then estimate from the reference bands below. Adjust within a band for the company tier and the specialism (security, ML and infrastructure pay toward the top; analyst, finance and support roles toward the bottom). Stay inside the band -- a title word like "II" or "Senior" does not move a role up a band. Leave it only when the posting gives a clear reason.
+  - A narrow band, as a company would publish: `max` about 1.3x `min`, never more than 1.5x.
+  - null when the location or the role is too unclear to estimate.
+  - REFERENCE BANDS -- tech-company base pay, 2026. Israel, ILS per MONTH, gross (x12 for the answer): junior 18,000-25,000; mid 26,000-35,000; senior 36,000-48,000; staff/principal/architect 46,000-60,000; team lead 42,000-55,000; engineering manager 48,000-62,000; director 60,000-80,000; product manager: senior 36,000-50,000, principal 48,000-62,000; data/financial analyst 20,000-32,000. US, USD per year (major hubs; remote roles, remote-first companies and other cities about 10-15% lower): mid 115,000-150,000; senior 145,000-185,000; staff 175,000-230,000; principal 210,000-275,000; engineering manager 180,000-235,000; director 225,000-300,000; analyst 85,000-120,000. UK, GBP per year (London; elsewhere about 15% lower): mid 60,000-80,000; senior 80,000-105,000; staff 100,000-130,000; engineering manager 100,000-135,000. Eurozone, EUR per year (Germany/Netherlands/France; southern and eastern Europe 30-50% lower): mid 55,000-72,000; senior 70,000-90,000; staff 88,000-115,000.
 
 # OUTPUT
 
 Return ONLY this JSON, no markdown fences and no commentary:
 
-{ "results": [ { "jobId": "<string, copied verbatim from the input>", "requiredYears": <integer or null>, "mustHaveGroups": [["string"]], "niceToHaveTech": ["string"], "seniority": "<one of the five bands, or null>", "domain": "<string or null>", "location": "<string or null>", "functions": ["<zero to two values from the list>"] } ] }
+{ "results": [ { "jobId": "<string, copied verbatim from the input>", "requiredYears": <integer or null>, "mustHaveGroups": [["string"]], "niceToHaveTech": ["string"], "seniority": "<one of the five bands, or null>", "domain": "<string or null>", "location": "<string or null>", "functions": ["<zero to two values from the list>"], "salaryEstimate": { "min": <integer>, "max": <integer>, "currency": "<ISO 4217 code>" } or null } ] }
 
 Include every input jobId exactly once.
 """;

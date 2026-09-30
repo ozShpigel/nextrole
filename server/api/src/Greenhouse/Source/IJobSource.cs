@@ -1,3 +1,5 @@
+using ApplicationTracker.Core.Matching;
+
 namespace ApplicationTracker.Greenhouse;
 
 /// <summary>
@@ -83,9 +85,14 @@ public sealed record ListedPosting(
 /// the shared path, never by the adapter.
 /// </param>
 /// <param name="Url">The apply link.</param>
+/// <param name="PostedSalary">
+/// The company's own published annual pay range, when the source carries one
+/// and it passed <c>SalaryBounds</c>. Restamped every run, never hashed.
+/// </param>
 public sealed record SourcePosting(
     ListedPosting Listed,
     string? ContentHtml,
     string? Url,
     string? Company,
-    string? RequisitionId);
+    string? RequisitionId,
+    SalaryRange? PostedSalary = null);

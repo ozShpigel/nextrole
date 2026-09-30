@@ -758,7 +758,7 @@ public sealed class ClaudeClient : IClaudeClient
     // new field and answered only the flat list gets each name as its own
     // requirement -- the old behaviour, never a worse one. Shared by the live
     // and batch paths: whatever arrives, it is normalised the same way.
-    private static List<JobFacts> NormalizeJobFacts(IEnumerable<JobFacts> results) =>
+    private List<JobFacts> NormalizeJobFacts(IEnumerable<JobFacts> results) =>
         [.. results.Select(r =>
         {
             var groups = RequirementGroups.From(r.MustHaveGroups, r.MustHaveTech);
@@ -769,8 +769,26 @@ public sealed class ClaudeClient : IClaudeClient
                 // Off-list values are dropped here, so storage only ever holds
                 // the fixed list the filter compares against.
                 Functions = JobFunctions.Normalize(r.Functions, JobFunctions.MaxPerJob),
+                // The prompt says what an estimate may be; this is the check.
+                // Anything that fails -- unknown currency, inverted, too wide,
+                // not a year's pay -- is dropped rather than repaired.
+                SalaryEstimate = CheckedEstimate(r.JobId, r.SalaryEstimate),
             };
         })];
+
+    private SalaryEstimate? CheckedEstimate(string jobId, SalaryEstimate? e)
+    {
+        if (e is null) return null;
+        if (SalaryBounds.Check(e.Min, e.Max, e.Currency, estimate: true) is { } ok)
+            return new SalaryEstimate { Min = ok.Min, Max = ok.Max, Currency = ok.Currency };
+
+        // Logged, because a dropped estimate is otherwise indistinguishable
+        // from the model declining to give one -- and a check that fires often
+        // is a prompt that needs fixing, not a posting without a salary.
+        _logger.LogWarning("Salary estimate dropped for job {JobId}: {Min}-{Max} {Currency} failed SalaryBounds",
+            jobId, e.Min, e.Max, e.Currency);
+        return null;
+    }
 
     public string ParseVersion =>
         ParseVersioning.Compute(AnalystPrompt, _scoring.AnalystBatch.Model, _scoring.AnalystBatch.Temperature);

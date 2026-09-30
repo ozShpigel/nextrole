@@ -60,4 +60,18 @@ public sealed record JobFacts
     // empty when the posting does not make it clear. Normalized server-side, so
     // a value off the list never reaches storage.
     public string[] Functions { get; init; } = [];
+    // The one inferred field: the model's estimate of the role's annual base
+    // pay, in the work location's currency. Checked server-side against
+    // SalaryBounds (ClaudeClient.NormalizeJobFacts) and dropped to null when it
+    // fails, so storage only ever holds a range that passed. Shown only when
+    // the company published no range of its own, and always as "Estimated".
+    public SalaryEstimate? SalaryEstimate { get; init; }
+}
+
+/// <summary>The facts read's salary estimate, as the model returns it.</summary>
+public sealed record SalaryEstimate
+{
+    public long Min { get; init; }
+    public long Max { get; init; }
+    public string? Currency { get; init; }
 }

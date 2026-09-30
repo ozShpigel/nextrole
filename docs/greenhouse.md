@@ -502,9 +502,13 @@ otherwise this as "Estimated salary", otherwise "Salary not listed".
 Calibrated 2026-09-30 on 27 real postings (20 Israeli, 7 US with published
 ranges, pay text removed before the read): the median estimate midpoint was
 1.10x the published one (baseline without bands: 1.31x), single postings
-±20-30%. The same posting can move a band between runs. Adding it bumped
-`FactsVersion` to 4 and put every source in `FactsReReadSources`: one re-read
-per open posting, 100 per board per run, about $2 per 1,200 postings.
+±20-30%. The same posting can move a band between runs.
+
+No backfill: `FactsVersion` was deliberately not bumped, so only new and
+changed postings get an estimate (on the read they get anyway); stored ones
+show their published range or "Salary not listed" until the pool turns over.
+Backfilling later is a `FactsVersion` bump plus the sources in
+`FactsReReadSources` -- about $2 per 1,200 postings.
 
 ## Retrieval
 

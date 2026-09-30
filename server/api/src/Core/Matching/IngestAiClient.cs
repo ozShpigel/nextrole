@@ -68,10 +68,17 @@ public sealed class IngestAiClient
     /// (docs/plans/hardware-engineering-function.md). 3: inspecting, validating
     /// or accepting physical parts is hardware, not qa -- and the re-read of
     /// NVIDIA postings a pre-2 batch collected after the deploy had wrongly
-    /// stamped 2. 4: <c>salaryEstimate</c> added -- every source is re-read
-    /// once. Unversioned rows are 1.
+    /// stamped 2. Unversioned rows are 1.
+    /// <para>
+    /// Deliberately NOT bumped for <c>salaryEstimate</c> (2026-09-30): a bump
+    /// would re-read every stored posting to backfill it, and with one user
+    /// that spend buys nothing the pool's own turnover won't -- new and
+    /// changed postings get an estimate on the read they get anyway, and the
+    /// rest show their published range or "Salary not listed". To backfill
+    /// later, bump this and name the sources in <c>FactsReReadSources</c>.
+    /// </para>
     /// </remarks>
-    public const int FactsVersion = 4;
+    public const int FactsVersion = 3;
 
     private readonly HttpClient _http;
     private readonly ILogger _log;

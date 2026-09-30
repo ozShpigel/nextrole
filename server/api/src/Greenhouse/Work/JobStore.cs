@@ -356,10 +356,8 @@ public sealed class JobStore : IJobStore
     /// software companies: their rare hardware role is read right when it next
     /// changes, and everything Matches can show turns over within its 90-day
     /// window -- so re-reading ~1,200 postings (~$2) buys almost nothing.
-    /// Version 4 (<c>salaryEstimate</c>): every source, since every posting
-    /// lacks an estimate. One read per posting, 100 per board per run.
     /// </remarks>
-    public static readonly string[] FactsReReadSources = [WorkdaySource.SourceName, GreenhouseSource.SourceName];
+    public static readonly string[] FactsReReadSources = [WorkdaySource.SourceName];
 
     private async Task<IReadOnlyList<StoredJobContent>> StoredContentAsync(
         FilterDefinition<BsonDocument> filter, int limit, CancellationToken ct)

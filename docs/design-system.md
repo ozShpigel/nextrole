@@ -24,13 +24,13 @@ reduced-motion fallback for every animation, and RTL on Hebrew content.
 
 The frontend is an English LTR SPA, but content can be mixed Hebrew RTL (AI summaries, prompts, interview text) — render those nodes with `dir="rtl"`/`dir="auto"`.
 
-## Landing pipeline scene — the one color/glow exception
+## Landing pipeline scene
 
-`client/src/components/PipelineScene.tsx` (styles: `.nr-scene` block in
-`client/src/index.css`) is allowed what the UI rules forbid everywhere else:
-accent-lit faces, glowing edges and packets, a floor glow, and idle motion.
-The owner chose this on 2026-09-30 for the Landing hero's "wow". It is
-scoped to that component. Don't reuse its classes elsewhere, and don't read
-it as permission to decorate other pages. Even here the colors are tokens
-(`--ed-accent` mixed toward `--ed-paper`), the only score is on the
-`scoreColor` ramp, and reduced motion gets a still final frame.
+`client/src/components/PipelineScene.tsx` (styles: the `.nr-scene` block in
+`client/src/index.css`) is the Landing hero: accent-lit faces, glowing edges
+and packets, a floor glow, and a 12s story loop. It was the first page past
+the old visual limits, which have since been retired app-wide (see Visual
+freedom above). Its `nr-` classes are specific to the SVG scene; the
+guardrails still hold in it: tokens only (`--ed-accent` mixed toward
+`--ed-paper`), the one score on the `scoreColor` ramp, and a still final
+frame under reduced motion.

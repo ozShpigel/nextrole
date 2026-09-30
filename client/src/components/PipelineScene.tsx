@@ -8,9 +8,9 @@ import { scoreColor } from '../lib/format';
 // into your ranked list, Gmail sends a reply in, and the match goes on to
 // an interview. Change the pipeline and this should change with it.
 //
-// This scene is the one sanctioned exception to "no decorative color or
-// glow" (docs/design-system.md → Landing pipeline scene): accent-lit faces
-// and glowing edges are allowed here and nowhere else.
+// Accent-lit faces and glowing edges by design (docs/design-system.md →
+// Landing pipeline scene); the AGENTS.md guardrails still hold here: tokens
+// only, the score on the score ramp, a still frame under reduced motion.
 //
 // Pure SVG, laid out on a grid and projected here, so every object sits on
 // the same floor and the routes stay on the grid lines. Colors come from

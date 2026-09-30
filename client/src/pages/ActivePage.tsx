@@ -1,13 +1,14 @@
 import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Sparkles, RefreshCw, ExternalLink, X, Link as LinkIcon, Archive, ChevronDown, Pencil } from 'lucide-react';
+import { Sparkles, RefreshCw, ExternalLink, X, Link as LinkIcon, Archive, ChevronDown, Pencil, Zap, MailCheck } from 'lucide-react';
 import { useApplications } from '../lib/queries';
 import { useGeneratePack, useUpdateAppStatus } from '../lib/mutations';
 import { formatDate, formatTime, daysSince, hasRealJobUrl } from '../lib/format';
 import { CompanyAvatar } from '../components/CompanyAvatar';
 import { StatusBadge, StatusModal } from '../components/Status';
 import { ImportJobModal } from '../components/ImportJobModal';
-import { LockedButton, useCanUse } from '../components/ComingSoon';
+import { LockedButton, LockedFeatureRow, useCanUse } from '../components/ComingSoon';
+import { SavesLeft } from '../components/SavesLeft';
 import { INTERVIEWING_STATUSES } from '../lib/tracker';
 
 interface Application {
@@ -198,6 +199,7 @@ export default function ActivePage() {
   const [mobileTab, setMobileTab] = useState<MobileTabKey | null>(null);
   const autoUpdate = useCanUse('AutoUpdate');
   const autoApply = useCanUse('AutoApply');
+  const importJob = useCanUse('ImportJob');
 
   const { added, ready, appliedFresh, appliedStale, inProcess } = useMemo(() => {
     const all = apps as Application[];
@@ -467,22 +469,45 @@ export default function ActivePage() {
                   Auto-update on
                 </span>
               )}
-              {autoUpdate === false && (
-                <LockedButton feature="AutoUpdate" className={`${ED_GHOST} px-3 py-[0.4rem]`}>
-                  Auto-update
-                </LockedButton>
+              <SavesLeft />
+              {/* Hidden, not locked, without the feature: the server refuses
+                  the import for anyone off its allowlist. */}
+              {importJob === true && (
+                <button
+                  type="button"
+                  className={`${ED_GHOST} px-3 py-[0.4rem] inline-flex items-center gap-[0.35rem]`}
+                  onClick={() => setShowImportModal(true)}
+                >
+                  <LinkIcon size={12} aria-hidden="true" />
+                  Import Job
+                </button>
               )}
-              <button
-                type="button"
-                className={`${ED_GHOST} px-3 py-[0.4rem] inline-flex items-center gap-[0.35rem]`}
-                onClick={() => setShowImportModal(true)}
-              >
-                <LinkIcon size={12} aria-hidden="true" />
-                Import Job
-              </button>
             </div>
           </div>
           <div className="mt-5 border-t-[3px] border-double border-[var(--ed-rule-strong)]" />
+
+          {/* What this board will do by itself, once it can: shown locked to
+              a visitor without the feature (docs/plans/feature-gating.md). */}
+          {(autoApply === false || autoUpdate === false) && (
+            <div className="mt-6 flex flex-col gap-3">
+              {autoApply === false && (
+                <LockedFeatureRow
+                  feature="AutoApply"
+                  label="Auto apply"
+                  description="Applies to your saved roles for you, with a résumé tailored to each."
+                  Icon={Zap}
+                />
+              )}
+              {autoUpdate === false && (
+                <LockedFeatureRow
+                  feature="AutoUpdate"
+                  label="Auto update"
+                  description="Moves your cards as recruiters reply: interviews, rejections and offers."
+                  Icon={MailCheck}
+                />
+              )}
+            </div>
+          )}
         </header>
 
         {isLoading ? (

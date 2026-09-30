@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using ApplicationTracker.Api.Features;
 using ApplicationTracker.Core.Identity;
 using ApplicationTracker.Core.Matching;
 using ApplicationTracker.Core.Models;
@@ -162,6 +163,7 @@ public static class PoolEndpoints
             IMatchSnapshotRepository snapshots,
             IStatusUpdateRepository statusRepo,
             IPoolScanService scan,
+            IUserQuotaRepository quota,
             ILogger<Program> logger,
             CancellationToken ct) =>
         {
@@ -170,6 +172,11 @@ public static class PoolEndpoints
 
             if (await state.IsSavedAsync(user.UserId, jobId, ct))
                 return Results.Ok(new { status = "already_saved" });
+
+            // After the already-saved check, so re-saving never costs an add;
+            // before scoring, so a refused save spends nothing.
+            if (!await quota.TryConsumeAddAsync(user.UserId, ActiveBoardAllowance.AddsPerDay, ct))
+                return ActiveBoardAllowance.Exhausted();
 
             // The score is this user's and does not live on the pool document.
             // Ingest stopped scoring when the pool became shared, so
@@ -206,8 +213,20 @@ public static class PoolEndpoints
                 user.UserId, job, score,
                 job.CompanyLogo is null ? await pool.FindCompanyLogoAsync(job.Company, ct) : null);
 
-            var (created, _) = await ApplicationCreation.CreateAsync(
-                user.UserId, application, apps, snapshots, statusRepo, logger, ct);
+            Application created;
+            try
+            {
+                bool isNew;
+                (created, isNew) = await ApplicationCreation.CreateAsync(
+                    user.UserId, application, apps, snapshots, statusRepo, logger, ct);
+                // Already on the board by another path: nothing was added.
+                if (!isNew) await quota.RefundAddAsync(user.UserId, CancellationToken.None);
+            }
+            catch
+            {
+                await quota.RefundAddAsync(user.UserId, CancellationToken.None);
+                throw;
+            }
 
             // Only after the application exists. Marking first and failing the
             // create would hide the job from Matches with nothing in the
@@ -276,6 +295,7 @@ public static class PoolEndpoints
             IApplicationRepository apps,
             IMatchSnapshotRepository snapshots,
             IStatusUpdateRepository statusRepo,
+            IUserQuotaRepository quota,
             ILogger<Program> logger,
             CancellationToken ct) =>
         {
@@ -297,10 +317,22 @@ public static class PoolEndpoints
 
             foreach (var url in urls)
             {
+                // Each URL claims one of today's adds before it is fetched or
+                // scored, so one past the limit costs nothing; any that do not
+                // end up on the board hand theirs back.
+                if (!await quota.TryConsumeAddAsync(user.UserId, ActiveBoardAllowance.AddsPerDay, ct))
+                {
+                    results.Add(new ImportResult(url, "failed", null, null, null, null, ActiveBoardAllowance.ExhaustedMessage));
+                    continue;
+                }
+
                 var job = await listings.FetchByUrlAsync(url, ct);
                 if (job is null)
+                {
+                    await quota.RefundAddAsync(user.UserId, CancellationToken.None);
                     results.Add(new ImportResult(url, "failed", null, null, null, null,
                         "Couldn't fetch this job — check the link, or paste the description instead."));
+                }
                 else
                     fetched.Add((url, job));
             }
@@ -372,14 +404,16 @@ public static class PoolEndpoints
 
                     try
                     {
-                        await ApplicationCreation.CreateAsync(
+                        var (_, isNew) = await ApplicationCreation.CreateAsync(
                             user.UserId, application, apps, snapshots, statusRepo, logger, ct);
+                        if (!isNew) await quota.RefundAddAsync(user.UserId, CancellationToken.None);
 
                         results.Add(new ImportResult(url, "saved", job.Title, job.Company,
                             application.MatchScore, application.MatchVerdict, null));
                     }
                     catch (Exception e)
                     {
+                        await quota.RefundAddAsync(user.UserId, CancellationToken.None);
                         logger.LogError(e, "Import could not save {Title} at {Company}", job.Title, job.Company);
                         results.Add(new ImportResult(url, "failed", job.Title, job.Company,
                             application.MatchScore, application.MatchVerdict,
@@ -390,6 +424,8 @@ public static class PoolEndpoints
 
             return Results.Ok(new { results });
         })
+        // Coming soon for everyone but the allowlist (docs/plans/feature-gating.md).
+        .RequireFeature(FeatureNames.ImportJob)
         .WithName("ImportJobsByUrl")
         .WithSummary("Fetch one or more postings by URL, score them, and add them to the tracker")
         .RequireRateLimiting("match");

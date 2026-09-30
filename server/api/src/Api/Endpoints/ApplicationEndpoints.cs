@@ -167,14 +167,24 @@ public static class ApplicationEndpoints
             IApplicationRepository repo,
             IMatchSnapshotRepository snapshots,
             IStatusUpdateRepository statusRepo,
+            IUserQuotaRepository quota,
             ILogger<Program> logger,
             CancellationToken ct) =>
         {
+            // Only a job going onto the board's Added column counts toward the
+            // daily add limit. One recorded at a later status (already applied,
+            // interviewing) is logging history, not adding a job to work on.
+            // Outside the try below: its catch turns everything into a 500.
+            var countsAsAdd = application.Status == ApplicationStatus.DecidedToApply;
+            if (countsAsAdd && !await quota.TryConsumeAddAsync(user.UserId, ActiveBoardAllowance.AddsPerDay, ct))
+                return ActiveBoardAllowance.Exhausted();
+
             try
             {
                 // Shared with the pool's "Add to tracker" — see ApplicationCreation.
                 var (created, isNew) = await ApplicationCreation.CreateAsync(
                     user.UserId, application, repo, snapshots, statusRepo, logger, ct);
+                if (countsAsAdd && !isNew) await quota.RefundAddAsync(user.UserId, CancellationToken.None);
 
                 return isNew
                     ? Results.Created($"/api/applications/{created.Id}", created)
@@ -182,12 +192,26 @@ public static class ApplicationEndpoints
             }
             catch (Exception ex)
             {
+                if (countsAsAdd) await quota.RefundAddAsync(user.UserId, CancellationToken.None);
                 logger.LogError(ex, "Error creating application");
                 return Results.Problem("Error creating application");
             }
         })
         .WithName("CreateApplication")
         .WithSummary("Create a new application");
+
+        // Today's adds to the Active board, for "n saves left today". Reads
+        // only; consuming happens on the add itself (ActiveBoardAllowance).
+        app.MapGet("/api/applications/allowance", async (
+            IUserContext user,
+            IUserQuotaRepository quota,
+            CancellationToken ct) =>
+        {
+            var used = Math.Min(await quota.AddsUsedTodayAsync(user.UserId, ct), ActiveBoardAllowance.AddsPerDay);
+            return Results.Ok(new { limit = ActiveBoardAllowance.AddsPerDay, used, remaining = ActiveBoardAllowance.AddsPerDay - used });
+        })
+        .WithName("GetAddAllowance")
+        .WithSummary("How many jobs this user can still add to the Active board today");
 
         app.MapGet("/api/applications", async (
             IUserContext user,

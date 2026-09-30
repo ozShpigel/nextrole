@@ -62,4 +62,22 @@ public interface IUserQuotaRepository
 
     /// <summary>Today's scoring spend, for surfacing a ceiling without consuming it.</summary>
     Task<int> ScoresUsedTodayAsync(Guid userId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Atomically claims one of today's adds to the Active board. Returns false
+    /// when the user has already added <paramref name="dailyLimit"/> today.
+    /// </summary>
+    /// <remarks>
+    /// Claimed BEFORE the application is written, like a pack, so concurrent
+    /// saves cannot both slip under the limit. Unlike a pack nothing is spent,
+    /// so an add that does not happen -- it failed, or the job was already on
+    /// the board -- is handed back with <see cref="RefundAddAsync"/>.
+    /// </remarks>
+    Task<bool> TryConsumeAddAsync(Guid userId, int dailyLimit, CancellationToken ct = default);
+
+    /// <summary>Returns one claimed add. Never takes today's count below zero.</summary>
+    Task RefundAddAsync(Guid userId, CancellationToken ct = default);
+
+    /// <summary>Today's adds, for "n saves left today" without consuming one.</summary>
+    Task<int> AddsUsedTodayAsync(Guid userId, CancellationToken ct = default);
 }

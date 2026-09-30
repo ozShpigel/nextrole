@@ -41,11 +41,13 @@ public class FeatureGatingTests
             [FeatureNames.AutoApply] = FeatureStatus.ComingSoon,
             [FeatureNames.PracticeInterview] = FeatureStatus.ComingSoon,
             [FeatureNames.InterviewInsights] = FeatureStatus.Free,
+            [FeatureNames.ImportJob] = FeatureStatus.ComingSoon,
         },
         AllowedUsers =
         {
             [FeatureNames.AutoUpdate] = [Owner],
             [FeatureNames.PracticeInterview] = [Owner],
+            [FeatureNames.ImportJob] = [Owner],
         },
     };
 
@@ -88,6 +90,7 @@ public class FeatureGatingTests
             {
                 [FeatureNames.AutoUpdate] = true, [FeatureNames.AutoApply] = false,
                 [FeatureNames.PracticeInterview] = true, [FeatureNames.InterviewInsights] = true,
+                [FeatureNames.ImportJob] = true,
             },
             await FeatureEndpoints.ForUserAsync(access, Owner));
         Assert.Equal(
@@ -95,6 +98,7 @@ public class FeatureGatingTests
             {
                 [FeatureNames.AutoUpdate] = false, [FeatureNames.AutoApply] = false,
                 [FeatureNames.PracticeInterview] = false, [FeatureNames.InterviewInsights] = true,
+                [FeatureNames.ImportJob] = false,
             },
             await FeatureEndpoints.ForUserAsync(access, Visitor));
     }

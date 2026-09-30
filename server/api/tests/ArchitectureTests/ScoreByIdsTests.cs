@@ -319,6 +319,9 @@ public class ScoreByIdsTests
         }
 
         public Task<int> ScoresUsedTodayAsync(Guid u, CancellationToken ct = default) => Task.FromResult(Claimed);
+        public Task<bool> TryConsumeAddAsync(Guid u, int l, CancellationToken ct = default) => Task.FromResult(true);
+        public Task RefundAddAsync(Guid u, CancellationToken ct = default) => Task.CompletedTask;
+        public Task<int> AddsUsedTodayAsync(Guid u, CancellationToken ct = default) => Task.FromResult(0);
         public Task<bool> TryConsumePackAsync(Guid u, int l, CancellationToken ct = default) => throw new NotSupportedException();
         public Task<int> PacksUsedTodayAsync(Guid u, CancellationToken ct = default) => throw new NotSupportedException();
     }

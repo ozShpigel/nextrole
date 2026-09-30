@@ -13,10 +13,15 @@ const ready = {
   createdAt: '2026-09-20T00:00:00Z', updatedAt: '2026-09-20T00:00:00Z',
 };
 
-function serve(features: Record<string, boolean>, apps: unknown[] = [ready]) {
+function serve(
+  features: Record<string, boolean>,
+  apps: unknown[] = [ready],
+  allowance = { limit: 3, used: 1, remaining: 2 },
+) {
   vi.mocked(api).mockImplementation(async (path: string) => {
     if (path === '/features') return features;
     if (path === '/applications') return apps;
+    if (path === '/applications/allowance') return allowance;
     return {};
   });
 }
@@ -29,16 +34,50 @@ describe('ActivePage — coming-soon features', () => {
     renderWithRouter(<ActivePage />);
 
     expect(await screen.findByText(/auto-update on/i)).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /auto-update/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /auto update/i })).not.toBeInTheDocument();
   });
 
-  it('shows auto-update as a locked control to everyone else', async () => {
+  it('shows auto apply and auto update as locked rows to everyone else', async () => {
     serve({ AutoUpdate: false, AutoApply: false });
     renderWithRouter(<ActivePage />);
 
-    const locked = await screen.findByRole('button', { name: /auto-update/i });
-    expect(locked).toHaveAttribute('aria-disabled', 'true');
+    const autoUpdate = await screen.findByRole('button', { name: /auto update/i });
+    const autoApply = screen.getByRole('button', { name: /^auto apply/i });
+    for (const row of [autoUpdate, autoApply]) {
+      expect(row).toHaveAttribute('aria-disabled', 'true');
+      expect(within(row).getByText(/coming soon/i)).toBeInTheDocument();
+    }
     expect(screen.queryByText(/auto-update on/i)).not.toBeInTheDocument();
+
+    // A picture of a switch, not a control: the row opens the explanation.
+    await userEvent.click(autoApply);
+    expect(await screen.findByRole('dialog')).toBeInTheDocument();
+  });
+
+  it('shows how many jobs can still be added today', async () => {
+    serve({ AutoUpdate: true, AutoApply: true });
+    renderWithRouter(<ActivePage />);
+
+    expect(await screen.findByText('2 saves left today')).toBeInTheDocument();
+  });
+
+  it('says so when none are left', async () => {
+    serve({ AutoUpdate: true, AutoApply: true }, [ready], { limit: 3, used: 3, remaining: 0 });
+    renderWithRouter(<ActivePage />);
+
+    expect(await screen.findByText('No saves left today')).toBeInTheDocument();
+  });
+
+  it('offers Import Job only to a visitor with the feature', async () => {
+    serve({ AutoUpdate: true, AutoApply: true, ImportJob: true });
+    const { unmount } = renderWithRouter(<ActivePage />);
+    expect(await screen.findByRole('button', { name: /import job/i })).toBeInTheDocument();
+    unmount();
+
+    serve({ AutoUpdate: true, AutoApply: true, ImportJob: false });
+    renderWithRouter(<ActivePage />);
+    await screen.findByText(/auto-update on/i);
+    expect(screen.queryByRole('button', { name: /import job/i })).not.toBeInTheDocument();
   });
 
   it('gives a Ready card the job site, a plain mark-as-applied, and a locked one-click apply', async () => {

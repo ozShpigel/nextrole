@@ -19,8 +19,10 @@ public static class FeatureNames
     public const string AutoApply = "AutoApply";
     public const string PracticeInterview = "PracticeInterview";
     public const string InterviewInsights = "InterviewInsights";
+    // Adding a job by pasting its URL (the Active page's "Import job").
+    public const string ImportJob = "ImportJob";
 
-    public static readonly IReadOnlyList<string> All = [AutoUpdate, AutoApply, PracticeInterview, InterviewInsights];
+    public static readonly IReadOnlyList<string> All = [AutoUpdate, AutoApply, PracticeInterview, InterviewInsights, ImportJob];
 }
 
 public sealed class FeatureOptions

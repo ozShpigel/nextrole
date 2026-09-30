@@ -1110,7 +1110,7 @@ export default function SearchPage() {
                   {upload?.phase === 'reading' ? 'Reading your résumé…' : 'Finding your matches…'}
                 </p>
               )}
-              <div className={`grid grid-cols-[repeat(auto-fill,minmax(15rem,17.5rem))] justify-start gap-4`}>
+              <div className={`grid grid-cols-[repeat(auto-fill,minmax(16rem,1fr))] gap-4`}>
                 {Array.from({ length: SKELETON_CARDS }, (_, i) => <MatchCardSkeleton key={i} index={i} />)}
               </div>
             </div>
@@ -1187,7 +1187,7 @@ export default function SearchPage() {
             </>
           ) : (
             /* Default browse view — full card grid. */
-            <div className={`flex-1 min-w-0 grid grid-cols-[repeat(auto-fill,minmax(15rem,17.5rem))] justify-start gap-4`}>
+            <div className={`flex-1 min-w-0 grid grid-cols-[repeat(auto-fill,minmax(16rem,1fr))] gap-4`}>
               {/* Scored and unscored in one grid, identical but for the score
                   slot. The unscored ones are the rest of the band — retrieved,
                   relevant, not yet judged — shown because retrieval is nearly

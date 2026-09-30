@@ -1,9 +1,9 @@
 namespace ApplicationTracker.Api.Endpoints;
 
 /// <summary>
-/// The daily limit on adding jobs to the Active board, shared by every path
-/// that adds one: Save from Matches, import by URL, and creating an
-/// application at DecidedToApply by hand.
+/// The daily limit on adding jobs to the Active board: Save from Matches, and
+/// creating an application at DecidedToApply by hand. Import job is not
+/// counted -- it is a feature of its own, open only to its allowlist.
 /// </summary>
 /// <remarks>
 /// A pacing limit, not a spend one: a few chosen roles a day. Claimed before

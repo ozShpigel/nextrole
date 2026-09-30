@@ -489,10 +489,9 @@ export default function ActivePage() {
           {/* What this board will do by itself, once it can: shown locked to
               a visitor without the feature (docs/plans/feature-gating.md). */}
           {(autoApply === false || autoUpdate === false) && (
-            <div className="mt-6 flex flex-col gap-3">
+            <div className="mt-6 flex flex-col gap-2">
               {autoApply === false && (
                 <LockedFeatureRow
-                  feature="AutoApply"
                   label="Auto apply"
                   description="Applies to your saved roles for you, with a résumé tailored to each."
                   Icon={Zap}
@@ -500,7 +499,6 @@ export default function ActivePage() {
               )}
               {autoUpdate === false && (
                 <LockedFeatureRow
-                  feature="AutoUpdate"
                   label="Auto update"
                   description="Moves your cards as recruiters reply: interviews, rejections and offers."
                   Icon={MailCheck}

@@ -370,11 +370,14 @@ export function useDeleteApplication() {
   });
 }
 
-export function useAddApplication() {
+// `source: 'import'` marks an add made through Import job, which the daily add
+// limit does not count -- honoured by the server only for users who have the
+// ImportJob feature, so the marker is no way around the limit for anyone else.
+export function useAddApplication({ source }: { source?: 'import' } = {}) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (body: Record<string, unknown>) =>
-      api('/applications', {
+      api(source === 'import' ? '/applications?source=import' : '/applications', {
         method: 'POST',
         body: JSON.stringify(body),
       }),

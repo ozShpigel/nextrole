@@ -295,13 +295,15 @@ public static class PoolEndpoints
             IApplicationRepository apps,
             IMatchSnapshotRepository snapshots,
             IStatusUpdateRepository statusRepo,
-            IUserQuotaRepository quota,
             ILogger<Program> logger,
             CancellationToken ct) =>
         {
             // The "Import Job" button: one or more LinkedIn URLs found outside
             // discovery. Fetched directly (no search), scored in one batch, and
             // saved at DecidedToApply so they land in the Added column.
+            //
+            // Not counted against the daily add limit (ActiveBoardAllowance):
+            // importing is a feature of its own, open only to its allowlist.
             var urls = (request.Urls ?? [])
                 .Where(u => !string.IsNullOrWhiteSpace(u))
                 .Select(u => u.Trim())
@@ -317,22 +319,10 @@ public static class PoolEndpoints
 
             foreach (var url in urls)
             {
-                // Each URL claims one of today's adds before it is fetched or
-                // scored, so one past the limit costs nothing; any that do not
-                // end up on the board hand theirs back.
-                if (!await quota.TryConsumeAddAsync(user.UserId, ActiveBoardAllowance.AddsPerDay, ct))
-                {
-                    results.Add(new ImportResult(url, "failed", null, null, null, null, ActiveBoardAllowance.ExhaustedMessage));
-                    continue;
-                }
-
                 var job = await listings.FetchByUrlAsync(url, ct);
                 if (job is null)
-                {
-                    await quota.RefundAddAsync(user.UserId, CancellationToken.None);
                     results.Add(new ImportResult(url, "failed", null, null, null, null,
                         "Couldn't fetch this job — check the link, or paste the description instead."));
-                }
                 else
                     fetched.Add((url, job));
             }
@@ -404,16 +394,14 @@ public static class PoolEndpoints
 
                     try
                     {
-                        var (_, isNew) = await ApplicationCreation.CreateAsync(
+                        await ApplicationCreation.CreateAsync(
                             user.UserId, application, apps, snapshots, statusRepo, logger, ct);
-                        if (!isNew) await quota.RefundAddAsync(user.UserId, CancellationToken.None);
 
                         results.Add(new ImportResult(url, "saved", job.Title, job.Company,
                             application.MatchScore, application.MatchVerdict, null));
                     }
                     catch (Exception e)
                     {
-                        await quota.RefundAddAsync(user.UserId, CancellationToken.None);
                         logger.LogError(e, "Import could not save {Title} at {Company}", job.Title, job.Company);
                         results.Add(new ImportResult(url, "failed", job.Title, job.Company,
                             application.MatchScore, application.MatchVerdict,

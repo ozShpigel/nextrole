@@ -1,4 +1,4 @@
-import { useState, type ReactNode, type ComponentType } from 'react';
+import { useEffect, useRef, useState, type ReactNode, type ComponentType } from 'react';
 import { Link } from 'react-router-dom';
 import { Lock } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
@@ -98,41 +98,55 @@ export function LockedButton(
 }
 
 /**
- * A locked feature as a settings-style row: icon, "Name · Off", what it would
- * do, and a switch drawn off with a lock -- the owner's reference design. The
- * whole row is one button that opens the dialog; the switch is a picture of
- * the state, not a control (aria-hidden), so nothing pretends to toggle.
+ * A feature the visitor cannot use yet, as a settings-style row: icon,
+ * "Name · Off", what it would do, and a switch drawn off. The row itself does
+ * nothing; the switch is the only control, and pressing it says so quietly
+ * ("Currently unavailable") rather than opening anything. It never turns on:
+ * aria-checked stays false and aria-disabled says why.
  */
 export function LockedFeatureRow(
-  { feature, label, description, Icon }: { feature: FeatureName; label: string; description: string; Icon: ComponentType<{ size?: number; className?: string }> },
+  { label, description, Icon }: { label: string; description: string; Icon: ComponentType<{ size?: number; className?: string }> },
 ) {
-  const [open, setOpen] = useState(false);
+  const [notice, setNotice] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(() => () => clearTimeout(timer.current), []);
+
+  function onSwitch() {
+    setNotice(true);
+    clearTimeout(timer.current);
+    timer.current = setTimeout(() => setNotice(false), 2200);
+  }
+
   return (
-    <>
+    <div className="flex items-center gap-3 rounded-2xl border border-[var(--ed-rule)] bg-[color-mix(in_oklab,var(--ed-ink)_4%,var(--ed-panel))] px-4 py-[0.6rem]">
+      <span className="shrink-0 w-8 h-8 rounded-lg border border-[var(--ed-rule)] bg-[color-mix(in_oklab,var(--ed-ink)_6%,transparent)] flex items-center justify-center text-[var(--ed-ink-soft)]">
+        <Icon size={15} />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-[14px] font-normal text-[var(--ed-ink)]">
+          {label} <span className="text-[var(--ed-ink-faint)]">· Off</span>
+        </span>
+        <span className="block text-[12px] text-[var(--ed-ink-faint)] truncate">{description}</span>
+      </span>
+      <span
+        role="status"
+        aria-live="polite"
+        className={`shrink-0 text-[12px] text-[var(--ed-ink-faint)] transition-opacity duration-300 motion-reduce:transition-none ${notice ? 'opacity-100' : 'opacity-0'}`}
+      >
+        {notice ? 'Currently unavailable' : ''}
+      </span>
       <button
         type="button"
+        role="switch"
+        aria-checked="false"
         aria-disabled="true"
-        onClick={() => setOpen(true)}
-        className="w-full text-left flex items-center gap-4 rounded-2xl border border-[var(--ed-rule)] bg-[color-mix(in_oklab,var(--ed-ink)_4%,var(--ed-panel))] px-5 py-4 transition-colors hover:border-[var(--ed-ink-faint)] cursor-pointer"
+        aria-label={label}
+        onClick={onSwitch}
+        className="shrink-0 relative w-10 h-[22px] rounded-full border border-[var(--ed-rule)] bg-[color-mix(in_oklab,var(--ed-ink)_8%,transparent)] cursor-not-allowed"
       >
-        <span className="shrink-0 w-11 h-11 rounded-xl border border-[var(--ed-rule)] bg-[color-mix(in_oklab,var(--ed-ink)_6%,transparent)] flex items-center justify-center text-[var(--ed-ink-soft)]">
-          <Icon size={18} />
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="block text-[16px] font-medium text-[var(--ed-ink)]">
-            {label} <span className="text-[var(--ed-ink-faint)] font-normal">· Off</span>
-          </span>
-          <span className="block text-[13px] text-[var(--ed-ink-faint)] mt-[0.15rem]">{description}</span>
-        </span>
-        <span className="shrink-0 hidden sm:inline-flex"><ComingSoonPill /></span>
-        <span aria-hidden="true" className="shrink-0 relative w-11 h-6 rounded-full border border-[var(--ed-rule)] bg-[color-mix(in_oklab,var(--ed-ink)_8%,transparent)]">
-          <span className="absolute left-[3px] top-1/2 -translate-y-1/2 w-[18px] h-[18px] rounded-full bg-[var(--ed-ink-faint)] flex items-center justify-center">
-            <Lock size={10} className="text-[var(--ed-paper)]" />
-          </span>
-        </span>
+        <span className="absolute left-[3px] top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-[var(--ed-ink-faint)]" />
       </button>
-      <ComingSoonDialog feature={feature} open={open} onOpenChange={setOpen} />
-    </>
+    </div>
   );
 }
 

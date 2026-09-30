@@ -26,7 +26,7 @@ export function ImportJobModal({ onClose }: ImportJobModalProps) {
 
   const importJobs = useImportJobs();
   const scoreJob = useScoreJob();
-  const addApplication = useAddApplication();
+  const addApplication = useAddApplication({ source: 'import' });
 
   const urls = urlsText.split('\n').map((u) => u.trim()).filter(Boolean);
   const tooMany = urls.length > MAX_URLS;

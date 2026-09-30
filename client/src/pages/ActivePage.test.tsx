@@ -34,24 +34,36 @@ describe('ActivePage — coming-soon features', () => {
     renderWithRouter(<ActivePage />);
 
     expect(await screen.findByText(/auto-update on/i)).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /auto update/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('switch', { name: /auto update/i })).not.toBeInTheDocument();
   });
 
-  it('shows auto apply and auto update as locked rows to everyone else', async () => {
+  it('shows auto apply and auto update as switches that stay off, to everyone else', async () => {
     serve({ AutoUpdate: false, AutoApply: false });
     renderWithRouter(<ActivePage />);
 
-    const autoUpdate = await screen.findByRole('button', { name: /auto update/i });
-    const autoApply = screen.getByRole('button', { name: /^auto apply/i });
-    for (const row of [autoUpdate, autoApply]) {
-      expect(row).toHaveAttribute('aria-disabled', 'true');
-      expect(within(row).getByText(/coming soon/i)).toBeInTheDocument();
+    const autoUpdate = await screen.findByRole('switch', { name: /auto update/i });
+    const autoApply = screen.getByRole('switch', { name: /auto apply/i });
+    for (const toggle of [autoUpdate, autoApply]) {
+      expect(toggle).toHaveAttribute('aria-checked', 'false');
+      expect(toggle).toHaveAttribute('aria-disabled', 'true');
     }
     expect(screen.queryByText(/auto-update on/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/currently unavailable/i)).not.toBeInTheDocument();
 
-    // A picture of a switch, not a control: the row opens the explanation.
+    // Pressing the switch only says so, quietly: nothing opens, nothing turns on.
     await userEvent.click(autoApply);
-    expect(await screen.findByRole('dialog')).toBeInTheDocument();
+    expect(await screen.findByText(/currently unavailable/i)).toBeInTheDocument();
+    expect(autoApply).toHaveAttribute('aria-checked', 'false');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('does nothing when the row itself is pressed', async () => {
+    serve({ AutoUpdate: false, AutoApply: false });
+    renderWithRouter(<ActivePage />);
+
+    await userEvent.click(await screen.findByText(/applies to your saved roles/i));
+    expect(screen.queryByText(/currently unavailable/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
   it('shows how many jobs can still be added today', async () => {

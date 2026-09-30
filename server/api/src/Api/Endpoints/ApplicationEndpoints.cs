@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using ApplicationTracker.Api.DTOs;
+using ApplicationTracker.Api.Features;
 using ApplicationTracker.Core.AI;
 using ApplicationTracker.Core.Matching;
 using ApplicationTracker.Core.Models;
@@ -168,14 +169,21 @@ public static class ApplicationEndpoints
             IMatchSnapshotRepository snapshots,
             IStatusUpdateRepository statusRepo,
             IUserQuotaRepository quota,
+            IFeatureAccess features,
             ILogger<Program> logger,
-            CancellationToken ct) =>
+            CancellationToken ct,
+            [FromQuery] string? source = null) =>
         {
             // Only a job going onto the board's Added column counts toward the
             // daily add limit. One recorded at a later status (already applied,
             // interviewing) is logging history, not adding a job to work on.
+            // An add made through Import job does not count either -- it is a
+            // feature of its own, for its allowlist -- but the marker is only
+            // honoured for a user who has that feature, so it is no way around
+            // the limit for anyone else.
             // Outside the try below: its catch turns everything into a 500.
-            var countsAsAdd = application.Status == ApplicationStatus.DecidedToApply;
+            var imported = source == "import" && await features.CanUseAsync(FeatureNames.ImportJob, user.UserId);
+            var countsAsAdd = application.Status == ApplicationStatus.DecidedToApply && !imported;
             if (countsAsAdd && !await quota.TryConsumeAddAsync(user.UserId, ActiveBoardAllowance.AddsPerDay, ct))
                 return ActiveBoardAllowance.Exhausted();
 

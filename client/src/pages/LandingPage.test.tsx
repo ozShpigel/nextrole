@@ -50,7 +50,7 @@ describe("LandingPage", () => {
   it("renders the résumé upload CTA", () => {
     mockProfile(false);
     renderWithRouter(<Landing />);
-    expect(screen.getByRole("button", { name: /upload your résumé/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /upload resume/i })).toBeInTheDocument();
   });
 
   // "Browse your matches" is a promise nobody without a CV can be shown —
@@ -79,7 +79,7 @@ describe("LandingPage", () => {
     const clickSpy = vi.spyOn(HTMLInputElement.prototype, "click");
     renderWithRouter(<Landing />);
 
-    await user.click(screen.getByRole("button", { name: /upload your résumé/i }));
+    await user.click(screen.getByRole("button", { name: /upload resume/i }));
 
     expect(clickSpy).toHaveBeenCalled();
     expect(window.location.pathname).toBe("/");
@@ -98,7 +98,7 @@ describe("LandingPage", () => {
 
     expect(await screen.findByText("Reading your résumé…")).toBeInTheDocument();
     expect(screen.getByTestId("upload-progress")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /upload your résumé/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /upload resume/i })).not.toBeInTheDocument();
     expect(window.location.pathname).toBe("/");
   });
 

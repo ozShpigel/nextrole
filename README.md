@@ -16,6 +16,13 @@
 
 **Live:** [nextrole.cloud](https://nextrole.cloud) — drop in a CV, no signup.
 
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/pipeline-scene-dark.svg">
+    <img src="docs/images/pipeline-scene-light.svg" width="760" alt="How NextRole works: ATS boards and LinkedIn feed a shared pool every day; AI matching scores that pool against each candidate's résumé, so an Israeli and a British résumé get different matches; Gmail tracks the replies, and matches go on to interview prep.">
+  </picture>
+</p>
+
 This README is written for an engineer reviewing the project: what it does in one screen, how it runs, and the decisions worth talking about. Feature-level detail lives in [`docs/`](docs).
 
 ---

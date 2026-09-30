@@ -8,7 +8,8 @@ import { scoreColor } from '../lib/format';
 // counts up and a new match slides into the ranked list, Gmail sends a reply
 // in, and the match goes on to an interview. The story plays twice, once for
 // an Israeli résumé and once for a British one: one pool, a different fit for
-// each. Change the pipeline and this should change with it.
+// each. Change the pipeline and this should change with it, and then rerun
+// scripts/export-pipeline-scene.cjs: the README shows an exported copy.
 //
 // Accent-lit faces and glowing edges by design (docs/design-system.md →
 // Landing pipeline scene); the AGENTS.md guardrails still hold here: tokens

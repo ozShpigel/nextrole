@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef, useLayoutEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { createPortal } from 'react-dom';
-import { X, SlidersHorizontal, Plus, Check, Search } from 'lucide-react';
+import { X, SlidersHorizontal, Plus, Check, Search, ExternalLink } from 'lucide-react';
 import { useScoredJobs, usePoolScan, usePoolBand, useScoreJobs, useCollecting } from '../lib/queries';
 import { matchesBandFilters } from '../lib/bandFilters';
 import { stableOrder } from '../lib/boardOrder';
@@ -127,59 +127,14 @@ function RationaleTooltip({ anchorRef, highlights }: { anchorRef: React.RefObjec
   );
 }
 
-// Hero score — the strongest element per row (40px/500, colored by band).
-// Everything else on the row is neutral ink, so this is the one thing that
-// pops while scanning. Hovering it reveals the green/red flags + a honest-
-// assessment excerpt as a floating panel.
-function MatchScore({ job, align = 'end', pulse = true }: { job: DiscoveredJobSummary; align?: 'start' | 'end'; pulse?: boolean }) {
-  const tone = edVerdictColor(job.verdict);
-
-  // Not scored yet: a quiet block the size of the number, never a number.
-  // Retrieval similarity is the only figure available here for free, and it
-  // orders the field, not the leaderboard (+0.65 against real scores overall,
-  // -0.15 within the top ten) — shown as a score it would reshuffle the moment
-  // the real one arrived. The card otherwise looks exactly like a scored one,
-  // so scoring happens without the board announcing it.
-  if (job.score === null || job.score === undefined) {
-    return (
-      <div className={`relative shrink-0 flex w-[4.5rem] ${align === 'start' ? 'justify-start' : 'justify-end'}`}>
-        <span
-          aria-hidden="true"
-          data-testid="score-placeholder"
-          className={`block w-[3.25rem] h-[40px] rounded-lg ${pulse ? 'ed-shimmer' : 'bg-[var(--ed-rule)]'}`}
-        />
-        <span className="sr-only">Not scored yet</span>
-      </div>
-    );
-  }
-
-  // Absent on jobs scored before this field existed — no tooltip for those,
-  // rather than showing an empty box on hover.
-  const highlights = job.match_analysis?.quickHighlights;
-  const anchorRef = useRef<HTMLDivElement>(null);
-  const [open, setOpen] = useState(false);
-  const hasHighlights = !!highlights && highlights.length > 0;
-
-  return (
-    <div
-      ref={anchorRef}
-      className={`relative shrink-0 flex flex-col gap-[0.1rem] w-[4.5rem] ${align === 'start' ? 'items-start text-left' : 'items-end text-right'}`}
-      onMouseEnter={() => hasHighlights && setOpen(true)}
-      onMouseLeave={() => setOpen(false)}
-    >
-      <span className="text-[40px] font-medium leading-none tabular-nums animate-in fade-in duration-500" style={{ color: tone }}>
-        {job.score}
-      </span>
-      {open && hasHighlights && <RationaleTooltip anchorRef={anchorRef} highlights={highlights!} />}
-    </div>
-  );
-}
-
 // The card's score: the number inside a ring that fills
 // to it, both in the score's band color. The ring is the card's one strong
 // shape, so the score keeps the visual weight while the card gains presence.
 // Unscored: the empty ring with the same quiet shimmer block the number will
-// replace — never a number (see MatchScore).
+// replace — never a number. Retrieval similarity is the only figure available
+// for free, and it orders the field, not the leaderboard (+0.65 against real
+// scores overall, -0.15 within the top ten): shown as a score it would reshuffle
+// the moment the real one arrived.
 const RING_SIZE = 48;
 const RING_STROKE = 3.5;
 const RING_R = (RING_SIZE - RING_STROKE) / 2;
@@ -412,7 +367,7 @@ function MatchCardSkeleton({ index }: { index: number }) {
 const SKELETON_CARDS = 10;
 
 // Compact, flat score badge for list rows — same edVerdictColor() mapping as
-// the 40px hero MatchScore, just small and border-only (no ring/gradient).
+// the card's ScoreRing, just small and border-only (no ring).
 function CompactScoreBadge({ job }: { job: DiscoveredJobSummary }) {
   const tone = edVerdictColor(job.verdict);
   return (
@@ -515,72 +470,95 @@ function MatchDetail({ job, saved, dismissed, onClose, onSave, onDismiss }: Matc
         )}
       </div>
 
-      <div className="flex-1 min-h-0 flex overflow-hidden">
-        {/* Identity + primary actions — a compact card that hugs its own
-            content (not stretched to the panel's full height, which just
-            left a bordered column running down to empty space), sitting
-            above the independently-scrolling description so "Add"/"Dismiss"
-            stay reachable behind a long posting (a left-card/
-            right-description split). */}
-        <div className="w-[38%] min-w-[320px] max-w-[440px] shrink-0 p-6">
-          <div className="border border-[var(--ed-rule)] rounded-xl p-6">
-            <CompanyAvatar name={job.company} logo={job.company_logo} size={52} />
-            <div className="mt-4">
-              <div className="flex items-center gap-x-2 flex-wrap text-[13px] text-[var(--ed-ink-faint)] mb-1">
-                <span className="font-medium text-[var(--ed-ink-soft)]">{job.company}</span>
-                {cityCountry(job.location) && <span>{cityCountry(job.location)}</span>}
-                {job.is_remote && (
-                  <span className="border border-[var(--ed-rule)] rounded-full px-[0.5rem] py-[0.05rem]">Remote</span>
+      {/* One scrolling column: who and what first -- identity, score, pay and
+          the actions -- then the description and the analysis beneath it. */}
+      <div className="flex-1 min-h-0 overflow-y-auto ed-scroll">
+        <div className="max-w-[760px] mx-auto p-6 flex flex-col gap-8">
+          <section className="rounded-[20px] border border-[var(--ed-rule)] bg-[color-mix(in_oklab,var(--ed-ink)_5%,var(--ed-panel))] p-7 flex flex-col gap-5">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <CompanyAvatar name={job.company} logo={job.company_logo} size={56} shape="tile" />
+                {isNew(job.date_posted) && (
+                  <span className="rounded-full border border-[var(--ed-accent)]/40 bg-[var(--ed-accent)]/15 px-[0.6rem] py-[0.2rem] text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--ed-accent)]">
+                    New
+                  </span>
                 )}
               </div>
-              <h2 className="text-[19px] font-medium leading-[1.3] text-[var(--ed-ink)] mb-1">{job.title}</h2>
-              {(formatAge(job.date_posted, job.date_updated) || isNew(job.date_posted)) && (
-                <div className="flex items-center gap-x-2 flex-wrap text-[13px] text-[var(--ed-ink-faint)] tabular-nums">
-                  {formatAge(job.date_posted, job.date_updated) && <span>{formatAge(job.date_posted, job.date_updated)}</span>}
-                  {isNew(job.date_posted) && (
-                    <span className="border border-[var(--ed-rule)] rounded-full px-[0.5rem] py-[0.05rem]">New</span>
-                  )}
-                </div>
+              <ScoreRing job={job} />
+            </div>
+
+            <div className="flex flex-col gap-2 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap text-[15px]">
+                <span className="font-medium text-[var(--ed-ink-soft)]">{job.company}</span>
+                {cityCountry(job.location) && (
+                  <span className="rounded-full bg-[var(--ed-accent)]/12 px-[0.6rem] py-[0.1rem] text-[13px] text-[var(--ed-accent)]">
+                    {cityCountry(job.location)}
+                  </span>
+                )}
+                {job.is_remote && (
+                  <span className="rounded-full border border-[var(--ed-rule)] px-[0.6rem] py-[0.1rem] text-[13px] text-[var(--ed-ink-soft)]">Remote</span>
+                )}
+              </div>
+              <h2 className="text-[28px] font-semibold leading-[1.2] tracking-[-0.01em] text-[var(--ed-ink)]">{job.title}</h2>
+              {formatAge(job.date_posted, job.date_updated) && (
+                <p className="text-[13px] text-[var(--ed-ink-faint)] tabular-nums">{formatAge(job.date_posted, job.date_updated)}</p>
               )}
             </div>
 
-            <div className="mt-4 pt-4 border-t border-[var(--ed-rule)]">
-              <MatchScore job={job} align="start" />
-            </div>
+            <SalaryLine salary={job.salary} />
 
-            <div className="flex gap-2 mt-5">
+            <div className="flex flex-wrap items-center gap-3 pt-1">
               {!saved && !dismissed && (
-                <button type="button" className={`${ED_BTN} flex-1 flex justify-center border-[var(--ed-accent)] text-[var(--ed-accent)] hover:bg-[var(--ed-accent)] hover:text-[var(--ed-paper)]`} onClick={() => onSave(job.id)}>
-                  Add
+                <button
+                  type="button"
+                  className="h-11 px-6 inline-flex items-center justify-center gap-2 rounded-full border border-[var(--ed-accent)]/70 bg-[var(--ed-accent)]/25 text-[14px] font-medium text-[var(--ed-accent)] shadow-[0_0_18px_-6px_var(--ed-accent)] transition-colors hover:bg-[var(--ed-accent)] hover:text-[var(--ed-paper)]"
+                  onClick={() => onSave(job.id)}
+                >
+                  <Plus className="w-4 h-4" strokeWidth={2.5} aria-hidden="true" />
+                  Save
                 </button>
+              )}
+              {saved && (
+                <span className="ed-confirm h-11 px-6 inline-flex items-center justify-center gap-2 rounded-full border border-[var(--ed-accent)]/70 bg-[var(--ed-accent)]/25 text-[14px] font-medium text-[var(--ed-accent)]">
+                  <Check className="w-4 h-4" strokeWidth={2.5} aria-hidden="true" /> Saved
+                </span>
+              )}
+              {dismissed && (
+                <span className="h-11 px-6 inline-flex items-center rounded-full border border-[var(--ed-rule)] text-[14px] font-medium text-[var(--ed-ink-faint)]">Dismissed</span>
+              )}
+              {/* Applying happens on the company's own site: this opens the
+                  original posting. Saving is separate, so a role can be saved
+                  first and applied to later. */}
+              {hasRealJobUrl(job.job_url) && (
+                <a
+                  href={job.job_url!}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="h-11 px-6 inline-flex items-center justify-center gap-2 rounded-full border border-[var(--ed-rule)] bg-[color-mix(in_oklab,var(--ed-ink)_6%,transparent)] text-[14px] font-medium text-[var(--ed-ink-soft)] transition-colors hover:border-[var(--ed-ink-faint)] hover:text-[var(--ed-ink)]"
+                >
+                  <ExternalLink className="w-4 h-4" aria-hidden="true" />
+                  Apply on company site
+                </a>
               )}
               {!saved && !dismissed && (
                 <button
                   type="button"
                   title="Dismiss"
                   aria-label="Dismiss"
-                  className="shrink-0 w-9 h-9 rounded-full border border-[var(--ed-rule)] flex items-center justify-center text-[var(--ed-ink-faint)] transition-all hover:border-[var(--ed-no)] hover:text-[var(--ed-no)]"
+                  className="ml-auto shrink-0 w-11 h-11 rounded-full border border-[var(--ed-rule)] flex items-center justify-center text-[var(--ed-ink-faint)] transition-all hover:border-[var(--ed-no)] hover:text-[var(--ed-no)]"
                   onClick={() => onDismiss(job.id)}
                 >
                   <X className="w-4 h-4" strokeWidth={2.5} />
                 </button>
               )}
-              {saved && (
-                <span className="ed-confirm inline-flex items-center gap-[0.3rem] rounded-full border border-[var(--ed-rule)] px-4 py-[0.5rem] text-[13px] font-medium text-[var(--ed-ink-faint)]">
-                  <Check className="w-3.5 h-3.5" strokeWidth={2.5} aria-hidden="true" /> Added
-                </span>
-              )}
-              {dismissed && <span className="rounded-full border border-[var(--ed-rule)] px-4 py-[0.5rem] text-[13px] font-medium text-[var(--ed-ink-faint)]">Dismissed</span>}
             </div>
-          </div>
-        </div>
+          </section>
 
-        <div className="flex-1 min-w-0 overflow-y-auto ed-scroll p-6">
           {job.description && (
-            <div className="mb-9">
+            <section>
               <span className="block text-[13px] text-[var(--ed-ink-faint)] uppercase tracking-[0.1em] font-medium mb-3">Job Description</span>
               <JobDescriptionText text={job.description} />
-            </div>
+            </section>
           )}
 
           {job.match_analysis && (

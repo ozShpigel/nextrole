@@ -56,7 +56,7 @@ const NAV_LINKS = [
 ];
 
 const navLinkClass = ({ isActive }: { isActive: boolean }): string =>
-  `shrink-0 relative py-[0.4rem] px-[0.7rem] rounded-full text-[0.8rem] font-medium transition-all ${isActive ? 'text-[var(--ed-accent)] bg-[var(--ed-accent)]/10' : 'text-muted-foreground bg-transparent hover:text-foreground'}`;
+  `shrink-0 relative inline-flex items-center gap-2 py-[0.45rem] px-[0.95rem] rounded-full text-[0.8rem] font-medium transition-all ${isActive ? 'text-[var(--ed-accent)] bg-[var(--ed-accent)]/10' : 'text-muted-foreground bg-transparent hover:text-foreground'}`;
 
 const mobileNavLinkClass = ({ isActive }: { isActive: boolean }): string =>
   `flex-1 flex flex-col items-center justify-center gap-1 py-[0.4rem] text-[0.62rem] font-medium transition-all ${isActive ? 'text-[var(--ed-accent)] bg-[var(--ed-accent)]/10' : 'text-[var(--ed-ink-faint)]'}`;
@@ -147,9 +147,12 @@ export default function App() {
               can't fit all five links, so MobileNav (a fixed bottom bar)
               takes over navigation there instead. */}
           {hasProfile && (
-            <div className="ed-scroll hidden md:flex items-center gap-0 min-w-0 overflow-x-auto">
-              {NAV_LINKS.map(({ to, label }) => (
-                <NavLink key={to} to={to} className={navLinkClass}>{label}</NavLink>
+            <div className="ed-scroll hidden md:flex items-center gap-2 min-w-0 overflow-x-auto">
+              {NAV_LINKS.map(({ to, label, Icon }) => (
+                <NavLink key={to} to={to} className={navLinkClass}>
+                  <Icon size={16} strokeWidth={2} aria-hidden="true" className="shrink-0 opacity-80" />
+                  {label}
+                </NavLink>
               ))}
             </div>
           )}

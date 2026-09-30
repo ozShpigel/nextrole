@@ -28,7 +28,15 @@ The frontend is an English LTR SPA, but content can be mixed Hebrew RTL (AI summ
 
 `client/src/components/PipelineScene.tsx` (styles: the `.nr-scene` block in
 `client/src/index.css`) is the Landing hero: accent-lit faces, glowing edges
-and packets, a floor glow, and a 12s story loop. It was the first page past
+and packets, a floor glow, and a story loop. The story is 12s and plays
+twice (24s): ATS boards and LinkedIn feed the shared pool, a candidate's
+résumé and the pool meet in AI MATCHING, and the score lands in Matches —
+once for an Israeli résumé (Tel Aviv, 92) and once for a British one
+(London, 88), to show one pool fitting each résumé differently. Dashed arcs
+from AI MATCHING to Gmail and Interviews light when the AI reads a reply or
+preps an interview. The two tiny flags use national colours, declared as
+`--nr-flag-*` in the `.nr-scene` block: marks, the same exception as company
+logos. It was the first page past
 the old visual limits, which have since been retired app-wide (see Visual
 freedom above). Its `nr-` classes are specific to the SVG scene; the
 guardrails still hold in it: tokens only (`--ed-accent` mixed toward

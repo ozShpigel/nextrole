@@ -2,15 +2,18 @@ import { useEffect, useRef, useState, type CSSProperties, type PointerEvent, typ
 import { scoreColor } from '../lib/format';
 
 // The Landing page's picture of the pipeline — an isometric floor with each
-// stage standing on it and a story playing across it on a loop: a listing
-// comes in from the job boards and lands in the shared pool, the pool and
-// your résumé meet in your matches and a score counts up, a new match slides
-// into your ranked list, Gmail sends a reply in, and the match goes on to
-// an interview. Change the pipeline and this should change with it.
+// stage standing on it and a story playing across it on a loop: listings come
+// in every day from several sources and land in the shared pool, a candidate
+// hands in their résumé, the pool and the résumé meet in AI matching, a score
+// counts up and a new match slides into the ranked list, Gmail sends a reply
+// in, and the match goes on to an interview. The story plays twice, once for
+// an Israeli résumé and once for a British one: one pool, a different fit for
+// each. Change the pipeline and this should change with it.
 //
 // Accent-lit faces and glowing edges by design (docs/design-system.md →
 // Landing pipeline scene); the AGENTS.md guardrails still hold here: tokens
-// only, the score on the score ramp, a still frame under reduced motion.
+// only (the two flags are marks, like company logos), the score on the score
+// ramp, a still frame under reduced motion.
 //
 // Pure SVG, laid out on a grid and projected here, so every object sits on
 // the same floor and the routes stay on the grid lines. Colors come from
@@ -18,11 +21,11 @@ import { scoreColor } from '../lib/format';
 // read CSS variables, but CSS properties set by a class (fill, stop-color)
 // can.
 
-const TILE_W = 32; // half a tile's width, in viewBox units
-const TILE_H = 16; // half a tile's height
+const TILE_W = 28; // half a tile's width, in viewBox units
+const TILE_H = 14; // half a tile's height
 const ORIGIN_X = 360;
-const ORIGIN_Y = 40;
-const GRID = 10;
+const ORIGIN_Y = 44;
+const GRID = 12;
 
 type Pt = [number, number];
 
@@ -34,35 +37,54 @@ function iso(gx: number, gy: number, z = 0): Pt {
 const pts = (ps: Pt[]) => ps.map(([x, y]) => `${x},${y}`).join(' ');
 
 // ---- The story's clock -------------------------------------------------
-// Every story animation runs on one CYCLE-second loop and places its moment
-// inside it with keyTimes, so the beats stay in order without chaining.
+// Every story animation places its moment inside a loop with keyTimes, so the
+// beats stay in order without chaining. What happens in every round (the
+// listings, the packets) loops every CYCLE seconds; what belongs to one
+// round's résumé (its candidate, its flag, its score) loops every LONG.
 const CYCLE = 12;
+const ROUNDS = [
+  { flag: 'il', city: 'TEL AVIV', score: 92 },
+  { flag: 'uk', city: 'LONDON', score: 88 },
+] as const;
+const LONG = CYCLE * ROUNDS.length;
 const BEAT = {
-  ingest: [0.2, 1.8],    // job boards → shared pool
-  pool: [1.9, 3.4],      // shared pool → your matches
-  resume: [1.9, 3.4],    // your résumé → your matches (read on the way)
-  score: [3.5, 4.7],     // the score counts up
-  row: [4.9, 5.5],       // the new match slides into the list
-  lid: [5.8, 6.6],       // the envelope opens
-  gmail: [6.1, 7.5],     // a reply comes in
-  interview: [7.9, 9.3], // your matches → interviews
-  bubble: [9.3, 11.3],   // the interview is under way
+  src1: [0.2, 1.4],        // the sources → the shared pool
+  src2: [0.45, 1.65],
+  src3: [0.7, 1.9],
+  candidate: [1.1, 1.8],   // the round's candidate hands in their résumé
+  scan: [1.6, 2.6],        // the résumé is read
+  pool: [2.3, 3.4],        // shared pool → AI matching
+  resume: [2.3, 3.4],      // résumé → AI matching
+  think: [3.4, 3.9],       // AI matching fires
+  match: [3.9, 4.6],       // AI matching → your matches
+  score: [4.7, 5.9],       // the score counts up
+  row: [5.9, 6.5],         // the new match slides into the list
+  lid: [6.7, 7.5],         // the envelope opens
+  gmail: [7.0, 8.2],       // a reply comes in, read by AI
+  interview: [8.6, 9.8],   // your matches → interviews
+  bubble: [9.8, 11.3],     // the interview is under way, prepped by AI
 } as const;
-const END = 11.35;
+const END = 11.4;
 
-const kt = (s: number) => (Math.min(Math.max(s, 0), CYCLE) / CYCLE).toFixed(4);
-const loop = { dur: `${CYCLE}s`, repeatCount: 'indefinite' } as const;
+const kt = (s: number, cycle = CYCLE) => (Math.min(Math.max(s, 0), cycle) / cycle).toFixed(4);
+const loopOf = (cycle: number) => ({ dur: `${cycle}s`, repeatCount: 'indefinite' }) as const;
+const loop = loopOf(CYCLE);
 
 // Visible from a to b, with short fades either side.
-function Window({ a, b, fade = 0.2 }: { a: number; b: number; fade?: number }) {
+function Window({ a, b, fade = 0.2, cycle = CYCLE }: { a: number; b: number; fade?: number; cycle?: number }) {
   return (
     <animate
       attributeName="opacity"
       values="0;0;1;1;0;0"
-      keyTimes={`0;${kt(a)};${kt(a + fade)};${kt(b)};${kt(b + fade)};1`}
-      {...loop}
+      keyTimes={`0;${kt(a, cycle)};${kt(a + fade, cycle)};${kt(b, cycle)};${kt(b + fade, cycle)};1`}
+      {...loopOf(cycle)}
     />
   );
+}
+
+// A Window that opens only in one round of the long loop.
+function RoundWindow({ round, a, b, fade }: { round: number; a: number; b: number; fade?: number }) {
+  return <Window a={round * CYCLE + a} b={round * CYCLE + b} fade={fade} cycle={LONG} />;
 }
 
 // A quick flash when something arrives.
@@ -109,14 +131,16 @@ function Pad({ gx, gy, r = 1 }: { gx: number; gy: number; r?: number }) {
   return <polygon className="nr-pad" points={pts([iso(gx - r, gy - r), iso(gx + r, gy - r), iso(gx + r, gy + r), iso(gx - r, gy + r)])} />;
 }
 
-// A label lying on the floor, running along the gx axis (down-right) or the
-// gy axis (up-right), the way the grid lines run.
+// The skews that lay flat things on the floor (or on a face) along the gx
+// axis (down-right) or the gy axis (up-right), the way the grid lines run.
+const AXIS = { x: '0.894 0.447 0 1', y: '0.894 -0.447 0 1' } as const;
+
+// A label lying on the floor.
 function FloorLabel({ gx, gy, text, axis = 'x' }: { gx: number; gy: number; text: string; axis?: 'x' | 'y' }) {
   const [x, y] = iso(gx, gy);
-  const m = axis === 'x' ? `matrix(0.894 0.447 0 1 ${x} ${y})` : `matrix(0.894 -0.447 0 1 ${x} ${y})`;
   const width = text.length * 9.4 + 16;
   return (
-    <g transform={m}>
+    <g transform={`matrix(${AXIS[axis]} ${x} ${y})`}>
       <rect className="nr-label-bg" x={0} y={-14} width={width} height={20} rx={3} />
       <text className="nr-label" x={8} y={1}>{text}</text>
     </g>
@@ -128,15 +152,50 @@ function Rise({ delay, children }: { delay: number; children: ReactNode }) {
   return <g className="nr-rise" style={{ '--d': `${delay}s` } as CSSProperties}>{children}</g>;
 }
 
+// An 18×12 flag, drawn from its top-left corner.
+function Flag({ kind }: { kind: 'il' | 'uk' }) {
+  if (kind === 'il') {
+    const star = (flip: number) => pts([[9, 6 - 2.6 * flip], [11.25, 6 + 1.3 * flip], [6.75, 6 + 1.3 * flip]]);
+    return (
+      <g>
+        <rect className="nr-flag-white" width={18} height={12} />
+        <rect className="nr-flag-il" y={1.2} width={18} height={1.8} />
+        <rect className="nr-flag-il" y={9} width={18} height={1.8} />
+        <polygon className="nr-flag-il-star" points={star(1)} />
+        <polygon className="nr-flag-il-star" points={star(-1)} />
+        <rect className="nr-flag-frame" width={18} height={12} />
+      </g>
+    );
+  }
+  return (
+    <g>
+      <g clipPath="url(#nr-flag-clip)">
+        <rect className="nr-flag-uk" width={18} height={12} />
+        <path className="nr-flag-uk-diag" d="M0 0 L18 12 M18 0 L0 12" />
+        <path className="nr-flag-uk-diag-red" d="M0 0 L18 12 M18 0 L0 12" />
+        <rect className="nr-flag-white" x={7.3} width={3.4} height={12} />
+        <rect className="nr-flag-white" y={4.3} width={18} height={3.4} />
+        <rect className="nr-flag-uk-red" x={8.1} width={1.8} height={12} />
+        <rect className="nr-flag-uk-red" y={5.1} width={18} height={1.8} />
+      </g>
+      <rect className="nr-flag-frame" width={18} height={12} />
+    </g>
+  );
+}
+
 // ---- Routes and packets ------------------------------------------------
 
 // Routes run along the grid lines, so each is a list of grid corners.
 const ROUTES = {
-  ingest: [[1, 6], [1, 2], [2, 2]],
-  pool: [[2, 2], [5, 2], [5, 5]],
-  resume: [[4, 9], [4, 5], [5, 5]],
-  gmail: [[8, 2], [8, 5], [5, 5]],
-  interview: [[5, 5], [5, 8], [8, 8]],
+  src1: [[1, 1], [4, 1], [4, 3]],
+  src2: [[1, 3], [4, 3]],
+  src3: [[1, 6], [4, 6], [4, 3]],
+  candidate: [[1, 10], [3, 10], [3, 9]],
+  pool: [[4, 3], [6, 3], [6, 6]],
+  resume: [[3, 9], [3, 7], [6, 7], [6, 6]],
+  match: [[6, 6], [9, 6]],
+  gmail: [[9, 2], [9, 6]],
+  interview: [[9, 6], [9, 10]],
 } satisfies Record<string, [number, number][]>;
 type RouteId = keyof typeof ROUTES;
 const ROUTE_IDS = Object.keys(ROUTES) as RouteId[];
@@ -168,6 +227,87 @@ function StoryPacket({ route, a, b }: { route: RouteId; a: number; b: number }) 
   );
 }
 
+// ---- The stages ----------------------------------------------------------
+
+const AI = { gx: 6, gy: 6 } as const;
+const MATCHES = { gx: 9, gy: 6 } as const;
+const GMAIL = { gx: 9, gy: 2 } as const;
+const INTERVIEWS = { gx: 9, gy: 10 } as const;
+
+// An arc through the air from AI matching to a stage it also reads for.
+function arcPath(from: Pt, to: Pt, lift: number) {
+  const cx = (from[0] + to[0]) / 2;
+  const cy = Math.min(from[1], to[1]) - lift;
+  return `M${from.join(' ')} Q${cx} ${cy} ${to.join(' ')}`;
+}
+const ARCS = {
+  gmail: { d: arcPath(iso(AI.gx, AI.gy, 56), iso(GMAIL.gx, GMAIL.gy, 22), 40), at: BEAT.gmail },
+  interview: { d: arcPath(iso(AI.gx, AI.gy, 56), iso(INTERVIEWS.gx, INTERVIEWS.gy, 12), 30), at: [BEAT.bubble[0] - 0.3, BEAT.bubble[0] + 0.9] },
+} as const;
+
+// The job sources: two ATS boards and LinkedIn, each a small stack of cards.
+const SOURCES = [
+  { gx: 1, gy: 1 },
+  { gx: 1, gy: 3 },
+  { gx: 1, gy: 6 },
+] as const;
+
+// The candidates, back to front. Two of them own the story's résumés.
+const PEOPLE: { gx: number; gy: number; round?: number }[] = [
+  { gx: 0.5, gy: 9.45 },
+  { gx: 1.4, gy: 9.35, round: 0 },
+  { gx: 0.75, gy: 10.4, round: 1 },
+  { gx: 1.6, gy: 10.45 },
+];
+
+// A blocky person: a body and a head.
+function Person({ gx, gy }: { gx: number; gy: number }) {
+  return (
+    <g>
+      <Box gx={gx} gy={gy} w={0.17} d={0.13} h={14} tone="strong" />
+      <Box gx={gx} gy={gy} w={0.12} d={0.12} z={16} h={9} top="nr-top-strong" rim />
+    </g>
+  );
+}
+
+// A standing résumé, its flag at the top, read by a scan line in its round.
+function Resume({ gx, round, reduced }: { gx: number; round: number; reduced: boolean }) {
+  const gy = 9;
+  const [fx, fy] = iso(gx - 0.36, gy + 0.05, 37);
+  return (
+    <g>
+      <Box gx={gx} gy={gy} w={0.44} d={0.05} h={42} rim />
+      <g transform={`matrix(${AXIS.x} ${fx} ${fy}) scale(0.62)`}>
+        <Flag kind={ROUNDS[round].flag} />
+      </g>
+      {[1, 2, 3, 4].map((i) => {
+        const len = i % 2 ? 0.68 : 0.56;
+        const [x1, y1] = iso(gx - 0.36, gy + 0.05, 34 - i * 6.5);
+        const [x2, y2] = iso(gx - 0.36 + len, gy + 0.05, 34 - i * 6.5);
+        return <line key={i} className="nr-ink-line" x1={x1} y1={y1} x2={x2} y2={y2} />;
+      })}
+      {!reduced && (
+        <line
+          className="nr-scan"
+          filter="url(#nr-glow)"
+          opacity={0}
+          x1={iso(gx - 0.44, gy + 0.05, 40)[0]} y1={iso(gx - 0.44, gy + 0.05, 40)[1]}
+          x2={iso(gx + 0.44, gy + 0.05, 40)[0]} y2={iso(gx + 0.44, gy + 0.05, 40)[1]}
+        >
+          <RoundWindow round={round} a={BEAT.scan[0]} b={BEAT.scan[1]} />
+          <animateTransform
+            attributeName="transform"
+            type="translate"
+            values="0 0;0 0;0 36;0 36"
+            keyTimes={`0;${kt(round * CYCLE + BEAT.scan[0], LONG)};${kt(round * CYCLE + BEAT.scan[1], LONG)};1`}
+            {...loopOf(LONG)}
+          />
+        </line>
+      )}
+    </g>
+  );
+}
+
 // ---- Behaviour ---------------------------------------------------------
 
 function usePrefersReducedMotion(): boolean {
@@ -184,38 +324,45 @@ function usePrefersReducedMotion(): boolean {
   return reduced;
 }
 
-const SCORE = 92;
 const RING_R = 10;
 const RING_C = 2 * Math.PI * RING_R;
+const ORBIT_R = 1.3; // grid units
+const ORBIT_RX = ORBIT_R * Math.SQRT2 * TILE_W;
+const ORBIT_RY = ORBIT_R * Math.SQRT2 * TILE_H;
 
 export default function PipelineScene({ className = '' }: { className?: string }) {
-  // Reduced motion gets the story's last frame, still: every stage present,
-  // the score shown, no packets, no rise, no tilt.
+  // Reduced motion gets the first round's last frame, still: every stage
+  // present, the score shown, no packets, no rise, no tilt.
   const reduced = usePrefersReducedMotion();
   const svgRef = useRef<SVGSVGElement>(null);
   const tiltRef = useRef<HTMLDivElement>(null);
-  const numRef = useRef<SVGTextElement>(null);
-  const ringRef = useRef<SVGCircleElement>(null);
+  const numRefs = useRef<(SVGTextElement | null)[]>([]);
+  const ringRefs = useRef<(SVGCircleElement | null)[]>([]);
 
   // The score counts up on the SVG's own clock, so it stays in step with the
-  // SMIL story. Writes to the two nodes directly — no React render per frame.
-  // Reads only; nothing is fetched or saved.
+  // SMIL story: the current round's chip counts, the other waits at 0.
+  // Writes to the nodes directly — no React render per frame. Reads only;
+  // nothing is fetched or saved.
   useEffect(() => {
     if (reduced) return;
     let frame = 0;
-    let last = -1;
+    const last = ROUNDS.map(() => -1);
     const tick = () => {
-      const t = (svgRef.current?.getCurrentTime?.() ?? 0) % CYCLE;
-      const p = Math.min(Math.max((t - BEAT.score[0]) / (BEAT.score[1] - BEAT.score[0]), 0), 1);
-      const n = Math.round(SCORE * (1 - (1 - p) ** 3));
-      if (n !== last && numRef.current && ringRef.current) {
-        last = n;
+      const t = (svgRef.current?.getCurrentTime?.() ?? 0) % LONG;
+      const current = Math.floor(t / CYCLE);
+      const p = Math.min(Math.max((t - current * CYCLE - BEAT.score[0]) / (BEAT.score[1] - BEAT.score[0]), 0), 1);
+      ROUNDS.forEach((round, i) => {
+        const n = i === current ? Math.round(round.score * (1 - (1 - p) ** 3)) : 0;
+        const num = numRefs.current[i];
+        const ring = ringRefs.current[i];
+        if (n === last[i] || !num || !ring) return;
+        last[i] = n;
         const color = scoreColor(n);
-        numRef.current.textContent = String(n);
-        numRef.current.style.fill = color;
-        ringRef.current.style.stroke = color;
-        ringRef.current.style.strokeDashoffset = String(RING_C * (1 - n / 100));
-      }
+        num.textContent = String(n);
+        num.style.fill = color;
+        ring.style.stroke = color;
+        ring.style.strokeDashoffset = String(RING_C * (1 - n / 100));
+      });
       frame = requestAnimationFrame(tick);
     };
     frame = requestAnimationFrame(tick);
@@ -236,8 +383,9 @@ export default function PipelineScene({ className = '' }: { className?: string }
   // Story elements start hidden and are revealed by their animations; with
   // reduced motion there are no animations, so they start shown.
   const hidden = reduced ? 1 : 0;
-  const [chipX, chipY] = iso(6.4, 4.6, 56);
-  const [bubbleX, bubbleY] = iso(9.2, 7.4, 30);
+  const [chipX, chipY] = iso(MATCHES.gx + 3.4, MATCHES.gy - 0.4, 20);
+  const [bubbleX, bubbleY] = iso(INTERVIEWS.gx + 1.2, INTERVIEWS.gy - 0.6, 30);
+  const [aiX, aiY] = iso(AI.gx, AI.gy, 10);
 
   return (
     <div className="nr-scene-wrap" onPointerMove={onPointerMove} onPointerLeave={onPointerLeave}>
@@ -247,7 +395,7 @@ export default function PipelineScene({ className = '' }: { className?: string }
           viewBox="0 0 720 400"
           className={`nr-scene ${reduced ? 'nr-still' : ''} ${className}`}
           role="img"
-          aria-label="How NextRole works: job boards feed a shared pool every day, your résumé scores that pool into your matches, Gmail tracks the replies, and matches go on to interview prep."
+          aria-label="How NextRole works: ATS boards and LinkedIn feed a shared pool every day, AI matching scores that pool against each candidate's résumé — an Israeli one and a British one get different matches — Gmail tracks the replies, and matches go on to interview prep."
           data-testid="pipeline-scene"
         >
           <defs>
@@ -278,12 +426,19 @@ export default function PipelineScene({ className = '' }: { className?: string }
             <mask id="nr-floor-mask">
               <rect width="720" height="400" fill="url(#nr-floor-fade)" />
             </mask>
+            <clipPath id="nr-flag-clip">
+              <rect width={18} height={12} />
+            </clipPath>
             {ROUTE_IDS.map((id) => (
               <path key={id} id={`nr-route-${id}`} d={routePath(ROUTES[id])} />
             ))}
+            <path
+              id="nr-orbit"
+              d={`M${aiX - ORBIT_RX} ${aiY} a${ORBIT_RX} ${ORBIT_RY} 0 1 0 ${2 * ORBIT_RX} 0 a${ORBIT_RX} ${ORBIT_RY} 0 1 0 ${-2 * ORBIT_RX} 0`}
+            />
           </defs>
 
-          {/* Floor: grid, its intersections, and the light under your matches */}
+          {/* Floor: grid, its intersections, and the light under AI matching */}
           <g mask="url(#nr-floor-mask)">
             {Array.from({ length: GRID + 1 }, (_, i) => (
               <g key={i}>
@@ -293,16 +448,17 @@ export default function PipelineScene({ className = '' }: { className?: string }
             ))}
             {Array.from({ length: (GRID + 1) ** 2 }, (_, n) => {
               const [x, y] = iso(n % (GRID + 1), Math.floor(n / (GRID + 1)));
-              return <circle key={n} className="nr-node" cx={x} cy={y} r={1.3} />;
+              return <circle key={n} className="nr-node" cx={x} cy={y} r={1.2} />;
             })}
           </g>
-          <ellipse className="nr-floor-glow" cx={iso(5, 5)[0]} cy={iso(5, 5)[1]} rx={210} ry={105} fill="url(#nr-floor-glow)" />
+          <ellipse className="nr-floor-glow" cx={iso(AI.gx, AI.gy)[0]} cy={iso(AI.gx, AI.gy)[1]} rx={230} ry={115} fill="url(#nr-floor-glow)" />
 
-          <Pad gx={2} gy={2} />
-          <Pad gx={1} gy={6} r={0.9} />
-          <Pad gx={4} gy={9} r={0.8} />
-          <Pad gx={8} gy={2} r={0.9} />
-          <Pad gx={8} gy={8} r={0.9} />
+          {SOURCES.map((s) => <Pad key={`${s.gx}-${s.gy}`} gx={s.gx} gy={s.gy} r={0.75} />)}
+          <Pad gx={4} gy={3} />
+          <Pad gx={1.05} gy={9.9} r={1.05} />
+          <Pad gx={3} gy={9} r={1.05} />
+          <Pad gx={GMAIL.gx} gy={GMAIL.gy} r={0.9} />
+          <Pad gx={INTERVIEWS.gx} gy={INTERVIEWS.gy} r={0.9} />
 
           {/* Routes: dashes flowing along them, a dim packet always on each,
               and the story's packet lighting its route in turn */}
@@ -315,7 +471,7 @@ export default function PipelineScene({ className = '' }: { className?: string }
               })}
               {!reduced && (
                 <polygon className="nr-packet-dim" points={PACKET}>
-                  <animateMotion dur="3.4s" begin={`${n * 0.7}s`} repeatCount="indefinite">
+                  <animateMotion dur="3.4s" begin={`${(n * 0.45).toFixed(2)}s`} repeatCount="indefinite">
                     <mpath href={`#nr-route-${id}`} />
                   </animateMotion>
                 </polygon>
@@ -324,28 +480,32 @@ export default function PipelineScene({ className = '' }: { className?: string }
           ))}
           {!reduced && ROUTE_IDS.map((id) => <StoryPacket key={id} route={id} a={BEAT[id][0]} b={BEAT[id][1]} />)}
 
+          {/* Job sources — two ATS boards and LinkedIn, listings stacked like cards */}
+          <Rise delay={0.15}>
+            {SOURCES.map((s) => (
+              <g key={`${s.gx}-${s.gy}`}>
+                {[0, 1, 2].map((i) => (
+                  <Box key={i} gx={s.gx + i * 0.1} gy={s.gy - i * 0.1} w={0.5} d={0.38} z={i * 7} h={3.5} rim={i === 2} />
+                ))}
+              </g>
+            ))}
+          </Rise>
+
           {/* Shared pool — the listings, stored once for everyone */}
           <Rise delay={0.35}>
             {[0, 1, 2, 3].map((i) => (
-              <Box key={i} gx={2} gy={2} w={0.75} d={0.75} z={i * 11} h={8} tone="strong" rim />
+              <Box key={i} gx={4} gy={3} w={0.72} d={0.72} z={i * 10} h={7} tone="strong" rim />
             ))}
             {!reduced && (
-              <TopFace gx={2} gy={2} w={0.75} d={0.75} z={41} className="nr-flash">
-                <Flash at={BEAT.ingest[1]} />
+              <TopFace gx={4} gy={3} w={0.72} d={0.72} z={37} className="nr-flash">
+                <Flash at={BEAT.src3[1]} />
               </TopFace>
             )}
           </Rise>
 
-          {/* Job boards — listings stacked like cards */}
-          <Rise delay={0.2}>
-            {[0, 1, 2].map((i) => (
-              <Box key={i} gx={1 + i * 0.12} gy={6 - i * 0.12} w={0.62} d={0.45} z={i * 8} h={4} rim={i === 2} />
-            ))}
-          </Rise>
-
           {/* Gmail — an envelope whose lid lifts when a reply comes in */}
           <Rise delay={0.5}>
-            <Box gx={8} gy={2} w={0.62} d={0.42} h={14} />
+            <Box gx={GMAIL.gx} gy={GMAIL.gy} w={0.58} d={0.4} h={13} />
             <g>
               {!reduced && (
                 <animateTransform
@@ -356,22 +516,59 @@ export default function PipelineScene({ className = '' }: { className?: string }
                   {...loop}
                 />
               )}
-              <Box gx={8} gy={2} w={0.64} d={0.44} z={14} h={5} tone="strong" rim />
-              <polyline className="nr-ink-line" points={pts([iso(7.36, 1.56, 19), iso(8.15, 2, 19), iso(7.36, 2.44, 19)])} />
+              <Box gx={GMAIL.gx} gy={GMAIL.gy} w={0.6} d={0.42} z={13} h={5} tone="strong" rim />
+              <polyline
+                className="nr-ink-line"
+                points={pts([iso(GMAIL.gx - 0.6, GMAIL.gy - 0.4, 18), iso(GMAIL.gx + 0.14, GMAIL.gy, 18), iso(GMAIL.gx - 0.6, GMAIL.gy + 0.4, 18)])}
+              />
             </g>
           </Rise>
 
-          {/* Your matches — where the pool and your résumé meet */}
+          {/* AI matching — a core floating over its plinth, sparks on an
+              orbit, and a ping when a listing meets a résumé */}
           <Rise delay={0.05}>
-            <Box gx={5} gy={5} w={1.25} d={1.25} h={16} tone="strong" top="nr-top-strong" rim />
-            <polyline className="nr-edge-accent" filter="url(#nr-glow)" points={pts([iso(3.75, 6.25, 0), iso(6.25, 6.25, 0), iso(6.25, 3.75, 0)])} />
+            <Box gx={AI.gx} gy={AI.gy} w={0.95} d={0.95} h={10} tone="strong" rim />
+            <use href="#nr-orbit" className="nr-orbit" />
+            {!reduced && (
+              <ellipse className="nr-ping" cx={aiX} cy={aiY} rx={ORBIT_RX * 0.5} ry={ORBIT_RY * 0.5} opacity={0}>
+                <animate attributeName="rx" values={`${ORBIT_RX * 0.5};${ORBIT_RX * 0.5};${ORBIT_RX * 2.2};${ORBIT_RX * 2.2}`} keyTimes={`0;${kt(BEAT.think[0])};${kt(BEAT.think[0] + 0.9)};1`} {...loop} />
+                <animate attributeName="ry" values={`${ORBIT_RY * 0.5};${ORBIT_RY * 0.5};${ORBIT_RY * 2.2};${ORBIT_RY * 2.2}`} keyTimes={`0;${kt(BEAT.think[0])};${kt(BEAT.think[0] + 0.9)};1`} {...loop} />
+                <animate attributeName="opacity" values="0;0;1;0;0" keyTimes={`0;${kt(BEAT.think[0])};${kt(BEAT.think[0] + 0.05)};${kt(BEAT.think[0] + 0.9)};1`} {...loop} />
+              </ellipse>
+            )}
+            <g>
+              {!reduced && (
+                <animateTransform attributeName="transform" type="translate" values="0 0;0 -5;0 0" dur="3.2s" repeatCount="indefinite" calcMode="spline" keySplines=".45 0 .55 1;.45 0 .55 1" />
+              )}
+              <Box gx={AI.gx} gy={AI.gy} w={0.5} d={0.5} z={20} h={32} tone="strong" top="nr-top-strong" rim />
+              <TopFace gx={AI.gx} gy={AI.gy} w={0.5} d={0.5} z={52} className="nr-flash">
+                {!reduced && <Flash at={BEAT.think[0]} />}
+              </TopFace>
+            </g>
+            {!reduced && [0, 1.6].map((begin) => (
+              <circle key={begin} className="nr-spark" r={2} filter="url(#nr-glow)">
+                <animateMotion dur="3.2s" begin={`${begin}s`} repeatCount="indefinite">
+                  <mpath href="#nr-orbit" />
+                </animateMotion>
+              </circle>
+            ))}
+          </Rise>
+
+          {/* Your matches — where AI matching sends its scores */}
+          <Rise delay={0.2}>
+            <Box gx={MATCHES.gx} gy={MATCHES.gy} w={1.2} d={1.2} h={15} tone="strong" top="nr-top-strong" rim />
+            <polyline
+              className="nr-edge-accent"
+              filter="url(#nr-glow)"
+              points={pts([iso(MATCHES.gx - 1.2, MATCHES.gy + 1.2, 0), iso(MATCHES.gx + 1.2, MATCHES.gy + 1.2, 0), iso(MATCHES.gx + 1.2, MATCHES.gy - 1.2, 0)])}
+            />
             {/* the ranked list, best match longest at the back */}
-            {[0.95, 0.8, 0.65].map((len, i) => (
-              <Box key={i} gx={4.0 + len} gy={4.2 + i * 0.55} w={len} d={0.2} z={16} h={5} />
+            {[0.92, 0.77, 0.62].map((len, i) => (
+              <Box key={i} gx={MATCHES.gx - 1 + len} gy={MATCHES.gy - 0.78 + i * 0.52} w={len} d={0.19} z={15} h={5} />
             ))}
             {!reduced && (
-              <TopFace gx={5} gy={5} w={1.25} d={1.25} z={16} className="nr-flash">
-                <Flash at={BEAT.pool[1]} />
+              <TopFace gx={MATCHES.gx} gy={MATCHES.gy} w={1.2} d={1.2} z={15} className="nr-flash">
+                <Flash at={BEAT.match[1]} />
               </TopFace>
             )}
             {/* the new match, sliding in at the front; lit once a reply lands */}
@@ -381,51 +578,70 @@ export default function PipelineScene({ className = '' }: { className?: string }
                 {!reduced && (
                   <animateTransform attributeName="transform" type="translate" values="0 -26;0 -26;0 0;0 0" keyTimes={`0;${kt(BEAT.row[0])};${kt(BEAT.row[1])};1`} {...loop} />
                 )}
-                <Box gx={4.85} gy={5.85} w={0.85} d={0.2} z={16} h={5} tone="strong" />
-                <TopFace gx={4.85} gy={5.85} w={0.85} d={0.2} z={21} className="nr-row-hot">
+                <Box gx={MATCHES.gx - 0.17} gy={MATCHES.gy + 0.8} w={0.82} d={0.19} z={15} h={5} tone="strong" />
+                <TopFace gx={MATCHES.gx - 0.17} gy={MATCHES.gy + 0.8} w={0.82} d={0.19} z={20} className="nr-row-hot">
                   {!reduced && <Window a={BEAT.gmail[1]} b={END} />}
                 </TopFace>
               </g>
             </g>
           </Rise>
 
-          {/* Your résumé — a standing sheet, read by a scan line on its way in */}
-          <Rise delay={0.65}>
-            <Box gx={4} gy={9} w={0.5} d={0.05} h={46} rim />
-            {[0, 1, 2, 3, 4].map((i) => {
-              const len = i === 0 ? 0.5 : i % 2 ? 0.75 : 0.62;
-              return (
-                <line
-                  key={i}
-                  className="nr-ink-line"
-                  x1={iso(3.62, 9.05, 38 - i * 7)[0]} y1={iso(3.62, 9.05, 38 - i * 7)[1]}
-                  x2={iso(3.62 + len, 9.05, 38 - i * 7)[0]} y2={iso(3.62 + len, 9.05, 38 - i * 7)[1]}
-                />
-              );
-            })}
-            {!reduced && (
-              <line
-                className="nr-scan"
-                filter="url(#nr-glow)"
-                opacity={0}
-                x1={iso(3.5, 9.05, 43)[0]} y1={iso(3.5, 9.05, 43)[1]}
-                x2={iso(4.5, 9.05, 43)[0]} y2={iso(4.5, 9.05, 43)[1]}
-              >
-                <Window a={BEAT.resume[0] - 0.4} b={BEAT.resume[1] - 0.2} />
-                <animateTransform attributeName="transform" type="translate" values="0 0;0 0;0 38;0 38" keyTimes={`0;${kt(BEAT.resume[0] - 0.4)};${kt(BEAT.resume[1] - 0.2)};1`} {...loop} />
-              </line>
-            )}
-          </Rise>
-
           {/* Interviews — a desk, and the conversation above it */}
           <Rise delay={0.8}>
-            <Box gx={8} gy={8} w={0.55} d={0.55} h={10} tone="strong" rim />
+            <Box gx={INTERVIEWS.gx} gy={INTERVIEWS.gy} w={0.52} d={0.52} h={10} tone="strong" rim />
             {!reduced && (
-              <TopFace gx={8} gy={8} w={0.55} d={0.55} z={10} className="nr-flash">
+              <TopFace gx={INTERVIEWS.gx} gy={INTERVIEWS.gy} w={0.52} d={0.52} z={10} className="nr-flash">
                 <Flash at={BEAT.interview[1]} />
               </TopFace>
             )}
           </Rise>
+
+          {/* The résumés — one per round, each with its flag */}
+          <Rise delay={0.65}>
+            <Resume gx={2.45} round={0} reduced={reduced} />
+            <Resume gx={3.55} round={1} reduced={reduced} />
+          </Rise>
+
+          {/* The candidates — the round's owner steps up, wearing their flag */}
+          <Rise delay={0.9}>
+            {PEOPLE.map((p) => {
+              if (p.round === undefined || reduced) return <Person key={`${p.gx}-${p.gy}`} gx={p.gx} gy={p.gy} />;
+              const o = p.round * CYCLE;
+              const [fx, fy] = iso(p.gx, p.gy, 36);
+              return (
+                <g key={`${p.gx}-${p.gy}`}>
+                  <animateTransform
+                    attributeName="transform"
+                    type="translate"
+                    values="0 0;0 0;0 -6;0 -6;0 0;0 0"
+                    keyTimes={`0;${kt(o + BEAT.candidate[0] - 0.4, LONG)};${kt(o + BEAT.candidate[0], LONG)};${kt(o + BEAT.resume[1], LONG)};${kt(o + BEAT.resume[1] + 0.4, LONG)};1`}
+                    {...loopOf(LONG)}
+                  />
+                  <Person gx={p.gx} gy={p.gy} />
+                  <TopFace gx={p.gx} gy={p.gy} w={0.12} d={0.12} z={25} className="nr-row-hot">
+                    <RoundWindow round={p.round} a={BEAT.candidate[0] - 0.4} b={BEAT.resume[1]} />
+                  </TopFace>
+                  <g transform={`translate(${fx - 7} ${fy - 11}) scale(0.78)`} opacity={0}>
+                    <RoundWindow round={p.round} a={BEAT.candidate[0] - 0.4} b={BEAT.resume[1]} />
+                    <Flag kind={ROUNDS[p.round].flag} />
+                  </g>
+                </g>
+              );
+            })}
+          </Rise>
+
+          {/* AI matching also reads the replies and preps the interviews */}
+          {Object.entries(ARCS).map(([id, arc]) => (
+            <g key={id}>
+              <path className="nr-arc" d={arc.d} />
+              {!reduced && (
+                <path className="nr-arc-lit" d={arc.d} filter="url(#nr-glow)" opacity={0}>
+                  <Window a={arc.at[0]} b={arc.at[1]} fade={0.3} />
+                </path>
+              )}
+            </g>
+          ))}
+
           <g transform={`translate(${bubbleX} ${bubbleY})`} opacity={hidden}>
             {!reduced && <Window a={BEAT.bubble[0]} b={BEAT.bubble[1]} />}
             <rect className="nr-chip" x={-21} y={-13} width={42} height={24} rx={9} />
@@ -437,30 +653,45 @@ export default function PipelineScene({ className = '' }: { className?: string }
             ))}
           </g>
 
-          {/* The score, counting up as the listing meets your résumé */}
-          <g transform={`translate(${chipX} ${chipY})`} opacity={hidden}>
-            {!reduced && <Window a={BEAT.score[0] - 0.1} b={END} />}
-            <rect className="nr-chip" x={-52} y={-17} width={116} height={34} rx={7} />
-            <circle className="nr-ring-track" cx={-34} cy={0} r={RING_R} />
-            <circle
-              ref={ringRef}
-              className="nr-ring"
-              cx={-34} cy={0} r={RING_R}
-              transform="rotate(-90 -34 0)"
-              style={{ stroke: scoreColor(SCORE), strokeDasharray: RING_C, strokeDashoffset: reduced ? RING_C * (1 - SCORE / 100) : RING_C }}
-            />
-            <text ref={numRef} className="nr-score" x={-19} y={6} style={{ fill: scoreColor(SCORE) }}>{reduced ? SCORE : 0}</text>
-            <text className="nr-chip-caption" x={7} y={5}>MATCH</text>
-          </g>
-
           {/* Labels */}
-          <FloorLabel gx={3.05} gy={2.75} text="SHARED POOL" axis="y" />
-          <FloorLabel gx={0.2} gy={4.3} text="EVERY DAY" axis="y" />
-          <FloorLabel gx={-0.15} gy={7.05} text="JOB BOARDS" />
-          <FloorLabel gx={3.25} gy={10.05} text="YOUR RÉSUMÉ" />
-          <FloorLabel gx={3.35} gy={7.45} text="YOUR MATCHES" />
-          <FloorLabel gx={7} gy={3.1} text="GMAIL" />
-          <FloorLabel gx={7.1} gy={9.1} text="INTERVIEWS" />
+          <FloorLabel gx={-0.3} gy={4.2} text="ATS BOARDS" axis="y" />
+          <FloorLabel gx={-0.3} gy={7.1} text="LINKEDIN" axis="y" />
+          <FloorLabel gx={2.3} gy={5.75} text="EVERY DAY" axis="y" />
+          <FloorLabel gx={4.9} gy={3.9} text="SHARED POOL" axis="y" />
+          <FloorLabel gx={3.5} gy={7.7} text="AI MATCHING" />
+          <FloorLabel gx={0.1} gy={11.55} text="CANDIDATES" />
+          <FloorLabel gx={2.2} gy={10.25} text="RÉSUMÉS" />
+          <FloorLabel gx={8.4} gy={7.85} text="MATCHES" />
+          <FloorLabel gx={8.1} gy={3.1} text="GMAIL" />
+          <FloorLabel gx={8.2} gy={11.1} text="INTERVIEWS" />
+          {/* The score, one chip per round: where the listing is, and how well
+              it fits that round's résumé */}
+          {ROUNDS.map((round, i) => {
+            const shown = reduced ? (i === 0 ? 1 : 0) : 0;
+            return (
+              <g key={round.flag} transform={`translate(${chipX} ${chipY})`} opacity={shown}>
+                {!reduced && <RoundWindow round={i} a={BEAT.score[0] - 0.1} b={END} />}
+                <rect className="nr-chip" x={-52} y={-19} width={122} height={52} rx={7} />
+                <circle className="nr-ring-track" cx={-34} cy={-1} r={RING_R} />
+                <circle
+                  ref={(el) => { ringRefs.current[i] = el; }}
+                  className="nr-ring"
+                  cx={-34} cy={-1} r={RING_R}
+                  transform="rotate(-90 -34 -1)"
+                  style={{ stroke: scoreColor(round.score), strokeDasharray: RING_C, strokeDashoffset: reduced ? RING_C * (1 - round.score / 100) : RING_C }}
+                />
+                <text ref={(el) => { numRefs.current[i] = el; }} className="nr-score" x={-19} y={5} style={{ fill: scoreColor(round.score) }}>
+                  {reduced ? round.score : 0}
+                </text>
+                <text className="nr-chip-caption" x={9} y={4}>MATCH</text>
+                <g transform="translate(-43 17) scale(0.72)">
+                  <Flag kind={round.flag} />
+                </g>
+                <text className="nr-city" x={-25} y={25}>{round.city}</text>
+              </g>
+            );
+          })}
+
         </svg>
       </div>
     </div>

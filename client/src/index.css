@@ -437,13 +437,39 @@ html::-webkit-scrollbar-button, .ed-scroll::-webkit-scrollbar-button { display: 
 .nr-scene .nr-score { font-family: var(--font-sans); font-size: 16px; font-weight: 500; font-variant-numeric: tabular-nums; }
 .nr-scene .nr-chip-caption { fill: var(--ed-ink-faint); font-family: var(--font-sans); font-size: 13px; font-weight: 500; letter-spacing: .06em; }
 .nr-scene .nr-dot { fill: var(--ed-ink); }
+.nr-scene .nr-city { fill: var(--ed-ink-soft); font-family: var(--font-sans); font-size: 10.5px; font-weight: 500; letter-spacing: .14em; }
+
+/* the AI matching core: an orbit, sparks on it, a ping when it scores, and
+   the dashed arcs to the other stages it reads for */
+.nr-scene .nr-orbit { fill: none; stroke: color-mix(in oklab, var(--ed-accent) 55%, transparent); stroke-width: 1; stroke-dasharray: 2 6; animation: nr-flow 2.4s linear infinite; }
+.nr-scene .nr-spark { fill: var(--ed-ink); }
+.nr-scene .nr-ping { fill: none; stroke: var(--ed-accent); stroke-width: 1.6; }
+.nr-scene .nr-arc { fill: none; stroke: color-mix(in oklab, var(--ed-accent) 50%, transparent); stroke-width: 1.2; stroke-dasharray: 2 4; }
+.nr-scene .nr-arc-lit { fill: none; stroke: var(--ed-accent); stroke-width: 1.8; stroke-linecap: round; }
+
+/* Tiny national flags on the résumés and the match chip. National colours
+   are marks, like company logos — the one exception to tokens-only. */
+.nr-scene {
+  --nr-flag-white: #ffffff;
+  --nr-flag-il-blue: #0038b8;
+  --nr-flag-uk-blue: #012169;
+  --nr-flag-uk-red: #c8102e;
+}
+.nr-scene .nr-flag-white { fill: var(--nr-flag-white); }
+.nr-scene .nr-flag-il { fill: var(--nr-flag-il-blue); }
+.nr-scene .nr-flag-il-star { fill: none; stroke: var(--nr-flag-il-blue); stroke-width: .7; }
+.nr-scene .nr-flag-uk { fill: var(--nr-flag-uk-blue); }
+.nr-scene .nr-flag-uk-red { fill: var(--nr-flag-uk-red); }
+.nr-scene .nr-flag-uk-diag { stroke: var(--nr-flag-white); stroke-width: 2.6; }
+.nr-scene .nr-flag-uk-diag-red { stroke: var(--nr-flag-uk-red); stroke-width: .9; }
+.nr-scene .nr-flag-frame { fill: none; stroke: color-mix(in oklab, var(--ed-ink) 35%, transparent); stroke-width: .6; }
 
 /* entrance: each stage rises onto the floor */
 @keyframes nr-rise { from { opacity: 0; transform: translateY(-30px); } to { opacity: 1; transform: none; } }
 .nr-scene .nr-rise { animation: nr-rise .9s cubic-bezier(.2,.8,.2,1) both; animation-delay: calc(var(--d, 0s) + .5s); }
 
 @media (prefers-reduced-motion: reduce) {
-  .nr-scene .nr-route, .nr-scene .nr-floor-glow, .nr-scene .nr-rise { animation: none; }
+  .nr-scene .nr-route, .nr-scene .nr-floor-glow, .nr-scene .nr-rise, .nr-scene .nr-orbit { animation: none; }
   .nr-tilt { transition: none; transform: none !important; }
 }
 

@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode, type ComponentType } from 'react';
 import { Link } from 'react-router-dom';
 import { Lock } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
@@ -23,6 +23,10 @@ const FEATURE_COPY: Record<FeatureName, { title: string; description: string }> 
   InterviewInsights: {
     title: 'Interview insights',
     description: 'Patterns across your interview retros: what went well, and what to work on.',
+  },
+  ImportJob: {
+    title: 'Import job',
+    description: 'Adds a job you found elsewhere to your board by pasting its link: fetched, scored and saved in one step.',
   },
 };
 
@@ -90,6 +94,59 @@ export function LockedButton(
       </button>
       <ComingSoonDialog feature={feature} open={open} onOpenChange={setOpen} />
     </>
+  );
+}
+
+/**
+ * A feature the visitor cannot use yet, as a settings-style row: icon,
+ * "Name · Off", what it would do, and a switch drawn off. The row itself does
+ * nothing; the switch is the only control, and pressing it says so quietly
+ * ("Currently unavailable") rather than opening anything. It never turns on:
+ * aria-checked stays false and aria-disabled says why.
+ */
+export function LockedFeatureRow(
+  { label, description, Icon }: { label: string; description: string; Icon: ComponentType<{ size?: number; className?: string }> },
+) {
+  const [notice, setNotice] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(() => () => clearTimeout(timer.current), []);
+
+  function onSwitch() {
+    setNotice(true);
+    clearTimeout(timer.current);
+    timer.current = setTimeout(() => setNotice(false), 2200);
+  }
+
+  return (
+    <div className="flex items-center gap-3 rounded-2xl border border-[var(--ed-rule)] bg-[color-mix(in_oklab,var(--ed-ink)_4%,var(--ed-panel))] px-4 py-[0.6rem]">
+      <span className="shrink-0 w-8 h-8 rounded-lg border border-[var(--ed-rule)] bg-[color-mix(in_oklab,var(--ed-ink)_6%,transparent)] flex items-center justify-center text-[var(--ed-ink-soft)]">
+        <Icon size={15} />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-[14px] font-normal text-[var(--ed-ink)]">
+          {label} <span className="text-[var(--ed-ink-faint)]">· Off</span>
+        </span>
+        <span className="block text-[12px] text-[var(--ed-ink-faint)] truncate">{description}</span>
+      </span>
+      <span
+        role="status"
+        aria-live="polite"
+        className={`shrink-0 text-[12px] text-[var(--ed-ink-faint)] transition-opacity duration-300 motion-reduce:transition-none ${notice ? 'opacity-100' : 'opacity-0'}`}
+      >
+        {notice ? 'Currently unavailable' : ''}
+      </span>
+      <button
+        type="button"
+        role="switch"
+        aria-checked="false"
+        aria-disabled="true"
+        aria-label={label}
+        onClick={onSwitch}
+        className="shrink-0 relative w-10 h-[22px] rounded-full border border-[var(--ed-rule)] bg-[color-mix(in_oklab,var(--ed-ink)_8%,transparent)] cursor-not-allowed"
+      >
+        <span className="absolute left-[3px] top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-[var(--ed-ink-faint)]" />
+      </button>
+    </div>
   );
 }
 

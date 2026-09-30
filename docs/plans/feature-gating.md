@@ -138,11 +138,19 @@ here.
 
 ### Board (`ActivePage`, `/active`)
 
-- **Board header, next to "Import Job":**
+- **Board header:**
   - allowed users see a quiet "Auto-update on" label;
-  - everyone else sees the locked control.
-  - No toggle: there is no per-user on/off setting behind it yet, and a
-    switch that switches nothing is worse than none.
+  - "N saves left today" with one dot per add (see the daily add limit below);
+  - "Import Job" only for users with `ImportJob` -- hidden, not locked, for
+    everyone else; `POST /api/pool/jobs/import` returns 403 for them.
+- **Locked feature rows (2026-09-30, owner's reference design).** Under the
+  header, a visitor without `AutoApply` or `AutoUpdate` sees a settings-style
+  row per feature: "Auto apply · Off" / "Auto update · Off", what it would do,
+  and a switch drawn off (`LockedFeatureRow`). This replaces the earlier
+  "no toggle" rule. The row itself does nothing; the switch is the only
+  control (`role="switch"`, `aria-checked="false"`, `aria-disabled`), and
+  pressing it only shows a quiet "Currently unavailable" for a moment. It
+  never turns on, and no dialog opens.
 - **Ready cards.** Today they have one button, "I applied →", which only
   moves the card. It becomes three:
   1. "Apply on job site ↗": opens the job URL in a new tab
@@ -151,6 +159,21 @@ here.
   2. "Mark as applied": the current button's behaviour, renamed.
   3. The locked "One-click apply" (`AutoApply`).
 - Dragging a card by hand is unchanged for everyone.
+
+### The daily add limit (not a feature flag)
+
+Everyone can add 3 jobs a day to the Active board (`ActiveBoardAllowance`).
+It counts Save from Matches and creating an application at DecidedToApply
+by hand -- not status changes, not the mailbot, not a job already on the
+board, and not Import job (by URL or by pasted description): importing is a
+feature of its own, for its allowlist. The pasted-description import goes
+through `POST /api/applications?source=import`, and the server honours that
+marker only for a user who has `ImportJob`. Claimed atomically before the
+write (`IUserQuotaRepository.TryConsumeAddAsync`, the pack claim's pattern),
+refunded when the add does not happen, refused with 429 (never 403: the
+client reads 403 as demo-blocked). The day resets at midnight UTC.
+`GET /api/applications/allowance` feeds the "saves left" pill on the board
+and on Matches.
 
 ### Prep (`/interview-prep`)
 

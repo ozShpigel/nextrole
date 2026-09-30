@@ -58,6 +58,64 @@ public sealed class UserQuotaRepository : IUserQuotaRepository
         return result.ModifiedCount == 1;
     }
 
+    /// <inheritdoc />
+    /// <remarks>The pack claim's three conditional writes, over the add counter.</remarks>
+    public async Task<bool> TryConsumeAddAsync(Guid userId, int dailyLimit, CancellationToken ct = default)
+    {
+        var today = Today();
+
+        if (await TryIncrementAddAsync(userId, today, dailyLimit, ct)) return true;
+
+        try
+        {
+            var claimed = await _quotas.UpdateOneAsync(
+                q => q.Id == userId && q.AddDate != today,
+                Builders<UserQuota>.Update
+                    .Set(q => q.AddDate, today)
+                    .Set(q => q.AddCount, 1)
+                    .SetOnInsert(q => q.Id, userId),
+                new UpdateOptions { IsUpsert = true },
+                ct);
+            if (claimed.ModifiedCount == 1 || claimed.UpsertedId is not null) return true;
+        }
+        catch (MongoWriteException ex) when (ex.WriteError?.Category == ServerErrorCategory.DuplicateKey)
+        {
+            // Lost the race to create today's counter; increment it instead.
+        }
+
+        return await TryIncrementAddAsync(userId, today, dailyLimit, ct);
+    }
+
+    private async Task<bool> TryIncrementAddAsync(Guid userId, string today, int dailyLimit, CancellationToken ct)
+    {
+        var result = await _quotas.UpdateOneAsync(
+            q => q.Id == userId && q.AddDate == today && q.AddCount < dailyLimit,
+            Builders<UserQuota>.Update.Inc(q => q.AddCount, 1),
+            cancellationToken: ct);
+        return result.ModifiedCount == 1;
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Conditional on today's counter being above zero: a refund that lands
+    /// after midnight UTC touches yesterday's claim, which no longer matters,
+    /// and must not push the new day negative.
+    /// </remarks>
+    public async Task RefundAddAsync(Guid userId, CancellationToken ct = default)
+    {
+        var today = Today();
+        await _quotas.UpdateOneAsync(
+            q => q.Id == userId && q.AddDate == today && q.AddCount > 0,
+            Builders<UserQuota>.Update.Inc(q => q.AddCount, -1),
+            cancellationToken: ct);
+    }
+
+    public async Task<int> AddsUsedTodayAsync(Guid userId, CancellationToken ct = default)
+    {
+        var doc = await _quotas.Find(q => q.Id == userId).FirstOrDefaultAsync(ct);
+        return doc is not null && doc.AddDate == Today() ? doc.AddCount : 0;
+    }
+
     public async Task<int> PacksUsedTodayAsync(Guid userId, CancellationToken ct = default)
     {
         var doc = await _quotas.Find(q => q.Id == userId).FirstOrDefaultAsync(ct);

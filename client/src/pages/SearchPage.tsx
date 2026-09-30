@@ -15,6 +15,7 @@ import { cityCountry, formatAge, formatSalaryRange, isNew, hasRealJobUrl } from 
 import AnalysisCard, { edVerdictColor } from '../components/AnalysisCard';
 import { CompanyAvatar } from '../components/CompanyAvatar';
 import { JobDescriptionText } from '../components/JobDescriptionText';
+import { SavesLeft } from '../components/SavesLeft';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
@@ -835,7 +836,11 @@ export default function SearchPage() {
         next.delete(jobId);
         return next;
       });
-      alert('Save failed: ' + (e as Error).message);
+      // A refused save changed nothing on the board, but the counter may be
+      // stale (another tab, or the day's last one): re-read it either way.
+      qc.invalidateQueries({ queryKey: ['applications', 'allowance'] });
+      const err = e as Error & { status?: number };
+      alert(err.status === 429 ? err.message : 'Save failed: ' + err.message);
     }
   }
 
@@ -919,6 +924,7 @@ export default function SearchPage() {
                 {board.length} result{board.length === 1 ? '' : 's'}
               </span>
             )}
+            <SavesLeft />
           </div>
         </header>
 

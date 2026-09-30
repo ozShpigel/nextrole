@@ -28,4 +28,10 @@ public sealed record UserQuota
     // exhaust the packs.
     public string ScoreDate { get; init; } = "";
     public int ScoreCount { get; init; }
+
+    // Jobs added to the Active board. Not a spend limit but a pacing one: a
+    // few chosen roles a day rather than a board filled in one sitting. Its
+    // own counter so scoring and packs never eat into it, nor it into them.
+    public string AddDate { get; init; } = "";
+    public int AddCount { get; init; }
 }

@@ -158,7 +158,7 @@ export function useAuthStatus() {
 // Which coming-soon features this visitor may use (docs/plans/feature-gating.md).
 // The server enforces the same answer on every gated route; this only decides
 // what to render. Changes with a config deploy, never within a session.
-export type FeatureName = 'AutoUpdate' | 'AutoApply' | 'PracticeInterview' | 'InterviewInsights';
+export type FeatureName = 'AutoUpdate' | 'AutoApply' | 'PracticeInterview' | 'InterviewInsights' | 'ImportJob';
 
 export function useFeatures() {
   return useQuery<Partial<Record<FeatureName, boolean>>>({
@@ -271,6 +271,17 @@ export function usePack(appId: string, enabled: boolean) {
     queryKey: ['applications', appId, 'pack'],
     queryFn: () => api(`/applications/${appId}/pack`),
     enabled,
+  });
+}
+
+// Today's adds to the Active board (ActiveBoardAllowance on the server). Under
+// the 'applications' key so every add path's existing invalidation refreshes it.
+export interface AddAllowance { limit: number; used: number; remaining: number }
+export function useAddAllowance() {
+  return useQuery<AddAllowance>({
+    queryKey: ['applications', 'allowance'],
+    queryFn: () => api('/applications/allowance'),
+    staleTime: 30 * 1000,
   });
 }
 

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using ApplicationTracker.Api.Features;
 using ApplicationTracker.Core.Identity;
 using ApplicationTracker.Core.Matching;
 using ApplicationTracker.Core.Models;
@@ -162,6 +163,7 @@ public static class PoolEndpoints
             IMatchSnapshotRepository snapshots,
             IStatusUpdateRepository statusRepo,
             IPoolScanService scan,
+            IUserQuotaRepository quota,
             ILogger<Program> logger,
             CancellationToken ct) =>
         {
@@ -170,6 +172,11 @@ public static class PoolEndpoints
 
             if (await state.IsSavedAsync(user.UserId, jobId, ct))
                 return Results.Ok(new { status = "already_saved" });
+
+            // After the already-saved check, so re-saving never costs an add;
+            // before scoring, so a refused save spends nothing.
+            if (!await quota.TryConsumeAddAsync(user.UserId, ActiveBoardAllowance.AddsPerDay, ct))
+                return ActiveBoardAllowance.Exhausted();
 
             // The score is this user's and does not live on the pool document.
             // Ingest stopped scoring when the pool became shared, so
@@ -206,8 +213,20 @@ public static class PoolEndpoints
                 user.UserId, job, score,
                 job.CompanyLogo is null ? await pool.FindCompanyLogoAsync(job.Company, ct) : null);
 
-            var (created, _) = await ApplicationCreation.CreateAsync(
-                user.UserId, application, apps, snapshots, statusRepo, logger, ct);
+            Application created;
+            try
+            {
+                bool isNew;
+                (created, isNew) = await ApplicationCreation.CreateAsync(
+                    user.UserId, application, apps, snapshots, statusRepo, logger, ct);
+                // Already on the board by another path: nothing was added.
+                if (!isNew) await quota.RefundAddAsync(user.UserId, CancellationToken.None);
+            }
+            catch
+            {
+                await quota.RefundAddAsync(user.UserId, CancellationToken.None);
+                throw;
+            }
 
             // Only after the application exists. Marking first and failing the
             // create would hide the job from Matches with nothing in the
@@ -282,6 +301,9 @@ public static class PoolEndpoints
             // The "Import Job" button: one or more LinkedIn URLs found outside
             // discovery. Fetched directly (no search), scored in one batch, and
             // saved at DecidedToApply so they land in the Added column.
+            //
+            // Not counted against the daily add limit (ActiveBoardAllowance):
+            // importing is a feature of its own, open only to its allowlist.
             var urls = (request.Urls ?? [])
                 .Where(u => !string.IsNullOrWhiteSpace(u))
                 .Select(u => u.Trim())
@@ -390,6 +412,8 @@ public static class PoolEndpoints
 
             return Results.Ok(new { results });
         })
+        // Coming soon for everyone but the allowlist (docs/plans/feature-gating.md).
+        .RequireFeature(FeatureNames.ImportJob)
         .WithName("ImportJobsByUrl")
         .WithSummary("Fetch one or more postings by URL, score them, and add them to the tracker")
         .RequireRateLimiting("match");

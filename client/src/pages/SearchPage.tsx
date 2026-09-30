@@ -423,13 +423,14 @@ function MatchRow({ job, index, selected, saved, dismissed, onSelect, onSave }: 
       </div>
       <CompactScoreBadge job={job} />
       {saved ? (
-        <span className="ed-confirm shrink-0 w-7 h-7 rounded-full border border-[var(--ed-rule)] flex items-center justify-center text-[var(--ed-ink-faint)]" title="Added">
+        <span className="ed-confirm shrink-0 w-7 h-7 rounded-full border border-[var(--ed-rule)] flex items-center justify-center text-[var(--ed-ink-faint)]" title="Saved" aria-label="Saved">
           <Check className="w-3.5 h-3.5" strokeWidth={2.5} />
         </span>
       ) : !dismissed && (
         <button
           type="button"
-          aria-label="Add"
+          aria-label="Save"
+          title="Save"
           className="shrink-0 w-7 h-7 rounded-full border border-[var(--ed-accent)] text-[var(--ed-accent)] flex items-center justify-center transition-all hover:bg-[var(--ed-accent)] hover:text-[var(--ed-paper)]"
           onClick={(e) => { e.stopPropagation(); onSave(job.id); }}
         >

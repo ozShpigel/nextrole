@@ -10,7 +10,8 @@ import { useId } from 'react';
 // on one page.
 // currentColor-driven so callers set the color via a text-* class:
 // text-foreground in the neutral nav, text-[var(--ed-accent)] on editorial pages.
-export function BrandMark({ size = 16, className = '' }: { size?: number; className?: string }) {
+// `flicker` gives the lens a slow neon flicker (index.css, .nr-brand-flicker).
+export function BrandMark({ size = 16, className = '', flicker = false }: { size?: number; className?: string; flicker?: boolean }) {
   const clipId = useId();
   return (
     <svg
@@ -27,7 +28,7 @@ export function BrandMark({ size = 16, className = '' }: { size?: number; classN
       </defs>
       <circle cx="24" cy="32" r="16" fill="none" stroke="currentColor" strokeOpacity="0.5" strokeWidth="2" />
       <circle cx="40" cy="32" r="16" fill="none" stroke="currentColor" strokeOpacity="0.5" strokeWidth="2" />
-      <circle cx="40" cy="32" r="16" fill="currentColor" clipPath={`url(#${clipId})`} />
+      <circle cx="40" cy="32" r="16" fill="currentColor" clipPath={`url(#${clipId})`} className={flicker ? 'nr-brand-flicker' : undefined} />
     </svg>
   );
 }

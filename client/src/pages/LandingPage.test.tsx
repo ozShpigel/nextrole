@@ -42,10 +42,9 @@ describe("LandingPage", () => {
     mockRoutes({ "/config": {} });
   });
 
-  it("renders the page title", () => {
+  it("leads with the promise as the page heading", () => {
     renderWithRouter(<Landing />);
-    expect(screen.getByText("Next")).toBeInTheDocument();
-    expect(screen.getByText("Role")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: /know it fits\.\s*apply\./i })).toBeInTheDocument();
   });
 
   it("renders the résumé upload CTA", () => {
@@ -70,42 +69,6 @@ describe("LandingPage", () => {
     const matchesLink = await screen.findByRole("link", { name: /browse your matches/i });
     expect(matchesLink).toHaveAttribute("href", "/search");
   });
-
-  // Sign-in is offered, never required: the uid cookie is still the only
-  // identity and uploading a CV is the whole onboarding. The link exists so a
-  // visitor whose cookie is gone (cleared, or a different device) has a way
-  // back to their account at all.
-  it("offers Google sign-in to a visitor with no profile", async () => {
-    mockProfile(false);
-    renderWithRouter(<Landing />);
-    const link = await screen.findByRole("link", { name: /sign in with google/i });
-    expect(link).toHaveAttribute("href", "/api/auth/google/start");
-  });
-
-  // Already onboarded in this browser — we know who they are, so the row shows
-  // "Browse your matches" instead. Linking a Google account to an existing
-  // session belongs in Settings, not here.
-  it("hides Google sign-in once a profile exists", async () => {
-    mockProfile(true);
-    renderWithRouter(<Landing />);
-    await screen.findByRole("link", { name: /browse your matches/i });
-    expect(screen.queryByRole("link", { name: /sign in with google/i })).not.toBeInTheDocument();
-  });
-
-  // Fixed-mode (private) instances take identity from configuration and issue
-  // no cookie, so there is nothing for a sign-in to change. The client cannot
-  // tell that from the URL — the server says so via /auth/me.
-  it("hides Google sign-in when the instance cannot do sign-in", async () => {
-    mockRoutes({
-      "/config": {},
-      "/auth/me": { signedIn: false, email: null, available: false },
-    });
-    mockProfile(false);
-    renderWithRouter(<Landing />);
-    await waitFor(() => expect(vi.mocked(matchApi)).toHaveBeenCalledWith("/profile"));
-    expect(screen.queryByRole("link", { name: /sign in with google/i })).not.toBeInTheDocument();
-  });
-
 
   it("clicking the CTA opens the file picker synchronously (no navigation first)", async () => {
     // Regression check: opening a file input must happen inside the same

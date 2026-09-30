@@ -48,7 +48,8 @@ public sealed class GreenhouseSource : IJobSource
 
         return listed with
         {
-            Detail = new SourcePosting(listed, job.Content, job.AbsoluteUrl, job.CompanyName, job.RequisitionId),
+            Detail = new SourcePosting(listed, job.Content, job.AbsoluteUrl, job.CompanyName, job.RequisitionId,
+                PayRanges.Annual(job.PayInputRanges)),
         };
     }
 

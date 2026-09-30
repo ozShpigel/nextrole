@@ -1,3 +1,4 @@
+using ApplicationTracker.Core.Matching;
 using ApplicationTracker.Core.Greenhouse;
 namespace ApplicationTracker.Greenhouse;
 
@@ -139,6 +140,13 @@ public interface IJobStore
     Task<long> CloseBoardsAsync(IReadOnlyCollection<string> boardKeys, DateTime now, CancellationToken ct);
 
     Task<long> StampCompanyLogoAsync(string boardKey, string? logoUrl, CancellationToken ct);
+
+    /// <summary>
+    /// Set each posting's published pay range (or null) where it differs from
+    /// what is stored. Returns the rows changed.
+    /// </summary>
+    Task<long> StampPostedSalariesAsync(
+        string boardKey, IReadOnlyCollection<(string SourceJobId, SalaryRange? Salary)> salaries, CancellationToken ct);
 
     Task<long> CloseMissingAsync(
         string boardKey, IReadOnlyCollection<string> seenIds, int emptyResponseGuardThreshold,

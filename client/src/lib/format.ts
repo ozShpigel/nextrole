@@ -152,3 +152,17 @@ export function relativeTime(iso: string | null | undefined): string {
   const days = Math.floor(hrs / 24);
   return `${days}d`;
 }
+
+// "$135k – $195k", "₪420k – ₪540k", "€70k". Whole-unit annual amounts in, a
+// compact range out; a range whose ends round to the same figure shows once.
+export function formatSalaryRange(min: number, max: number, currency: string): string {
+  const fmt = (n: number) => {
+    const parts = new Intl.NumberFormat('en', {
+      style: 'currency', currency, notation: 'compact', maximumFractionDigits: n >= 1_000_000 ? 1 : 0,
+    }).formatToParts(n);
+    return parts.map((p) => (p.type === 'compact' ? p.value.toLowerCase() : p.value)).join('');
+  };
+  const lo = fmt(min);
+  const hi = fmt(max);
+  return lo === hi ? lo : `${lo} – ${hi}`;
+}

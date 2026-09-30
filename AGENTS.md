@@ -63,18 +63,16 @@ When two instructions conflict, stop and ask — don't pick one silently.
 
 ## UI rules
 
-NextRole is a scanning tool, not a reading surface. The match score
-carries the visual weight; typography stays quiet.
+Visual design is free: weights, sizes, faces, gradients, glow, depth and
+motion are design choices, not rules (owner's decision, 2026-09-30 — the old
+flat / accent-only / two-weight / 40-16-13 limits are retired app-wide).
+These guardrails stay, because each protects something other than taste:
 
 - Dark is the only theme. Don't add a light mode or a theme toggle.
-- Flat by default, not by rule. Real bordered/panel cards get the soft elevation shadow the `.editorial` "modern-skin layer" already applies automatically (`client/src/index.css`) — don't hand-roll a heavier one. Gradients and motion are fine where they carry meaning — a loading shine (`.ed-shimmer`), the ambient `.editorial-grain`/`.home-atmosphere` layers on Landing/Home — and every animation needs a `prefers-reduced-motion` fallback. What to avoid is decoration: a gradient or glow that says nothing about state.
-- Use tokens from `client/src/index.css` only. Never hardcode hex.
-- `--ed-accent` marks the primary action, or active/selected state, wherever that state appears. Never decorative.
-- The score ramp is for any 0-100 or rated score (match score, interview score, per-dimension sub-scores) — never for accent, status or category.
-- Error and destructive states keep their color (`--ed-no`). Everything else that isn't a primary action or a score stays neutral.
-- Two font weights: 400, 500.
-- Display face (`--font-serif`, Schibsted Grotesk) is for the wordmark and empty-state copy only. Page titles and section headers use sans with weight.
-- Type scale: 40 / 16 / 13. No other sizes.
+- Use tokens from `client/src/index.css`. Never hardcode hex or Tailwind palette colors in JSX — a new color gets a token there first (brand marks such as company logos are the exception).
+- The score ramp is for any 0-100 or rated score (match score, interview score, per-dimension sub-scores) — never for accent, status or decoration, or green/amber/red stop meaning good/fair/poor fit.
+- Error and destructive states keep their color (`--ed-no`); a destructive action never looks like an ordinary one.
+- Every animation needs a `prefers-reduced-motion` fallback.
 - RTL: mixed Hebrew content (AI summaries, interview text) gets `dir="rtl"`/`dir="auto"` on those nodes — see `docs/design-system.md`. Physical `pl-`/`pr-`/`ml-`/`mr-` elsewhere, not logical properties.
 
 ## Feature docs (read when working in that area)

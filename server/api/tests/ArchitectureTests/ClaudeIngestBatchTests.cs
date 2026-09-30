@@ -169,6 +169,32 @@ public class ClaudeIngestBatchTests
     }
 
     [Fact]
+    public async Task Salary_estimates_that_fail_the_bounds_are_dropped_not_stored()
+    {
+        // The prompt says what an estimate may be; this is the check behind it,
+        // on the batch path (the live path shares NormalizeJobFacts).
+        var stub = new AnthropicStub
+        {
+            ResultsJsonl = Line("c0", """
+                { "results": [
+                  { "jobId": "1", "mustHaveTech": [], "niceToHaveTech": [], "salaryEstimate": { "min": 420000, "max": 540000, "currency": "ils" } },
+                  { "jobId": "2", "mustHaveTech": [], "niceToHaveTech": [], "salaryEstimate": { "min": 30000, "max": 38000, "currency": "ILS" } },
+                  { "jobId": "3", "mustHaveTech": [], "niceToHaveTech": [], "salaryEstimate": { "min": 100000, "max": 300000, "currency": "USD" } },
+                  { "jobId": "4", "mustHaveTech": [], "niceToHaveTech": [], "salaryEstimate": { "min": 100000, "max": 120000, "currency": "XYZ" } } ] }
+                """),
+        };
+
+        var result = await Client(stub).CollectJobFactsBatchAsync("msgbatch_test");
+        var byId = result.Results.ToDictionary(r => r.JobId);
+
+        Assert.Equal(420000, byId["1"].SalaryEstimate!.Min);
+        Assert.Equal("ILS", byId["1"].SalaryEstimate!.Currency);
+        Assert.Null(byId["2"].SalaryEstimate); // a monthly figure
+        Assert.Null(byId["3"].SalaryEstimate); // too wide to mean anything
+        Assert.Null(byId["4"].SalaryEstimate); // unknown currency
+    }
+
+    [Fact]
     public async Task Collected_parses_are_limited_to_the_postings_sent_to_verify_them()
     {
         var stub = new AnthropicStub

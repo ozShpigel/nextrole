@@ -199,6 +199,9 @@ public sealed class PoolJobRepository : IPoolJobRepository
         DiscoveredAt = d.TryGetValue("discovered_at", out var da) && da.IsValidDateTime
             ? da.ToUniversalTime()
             : null,
+        // LinkedIn carries no published range here; only the facts read's
+        // estimate, written by the same shared extraction.
+        Salary = JobSalary.From(null, SalaryDocument.Read(SalaryDocument.Extracted(d), "salary_estimate", estimate: true)),
     };
 
     public async Task<List<string>> FindIdsByJobUrlAsync(string jobUrl, CancellationToken ct = default)

@@ -383,8 +383,8 @@ html::-webkit-scrollbar-button, .ed-scroll::-webkit-scrollbar-button { display: 
 }
 
 /* ------------------------------------------------------------
-   Landing pipeline scene (components/PipelineScene.tsx). The one sanctioned
-   exception to "no decorative color or glow" — see docs/design-system.md.
+   Landing pipeline scene (components/PipelineScene.tsx) — see
+   docs/design-system.md → Landing pipeline scene.
    Colors live here because SVG presentation attributes cannot read CSS
    variables; fill and stop-color set from a class can.
    ------------------------------------------------------------ */

@@ -103,6 +103,19 @@ company: a logo is display-only, and a nack would throw away paid embeddings.
 Swapping services (e.g. logo.dev) is an edit to the template; the next run
 restamps every row.
 
+### Published pay ranges
+
+The fetch adds `pay_transparency=true`, which puts each job's
+`pay_input_ranges` (cents, no interval) on the same response; `meta.total` is
+unchanged. `PayRanges.Annual` turns them into one annual range or null: it drops
+a range whose title or blurb says "hour", merges zones in the first range's
+currency, and runs `SalaryBounds` (a known currency, min ≤ max, and between
+$15k and $2M a year at rough fixed rates). The result is `posted_salary`,
+restamped every run like the logo (`JobStore.StampPostedSalariesAsync`), so
+postings stored before the field existed get it without a re-read, and a pay
+change on unchanged text still lands. It is never hashed. Measured 2026-09-30:
+gitlab 87 of 199 jobs, airbnb 128 of 157, the Israeli boards none.
+
 ### The reads through the Message Batches API
 
 job-facts and job-parse were about three quarters of the production Anthropic
@@ -474,6 +487,28 @@ forever — the sweep bounds itself. It deliberately does **not** touch
 `contentHash` or `embedding_v1`: the vectors are valid and already paid for, and
 re-embedding to fix a missing parse would spend money for no reason. Covered by
 `IngestAiBackfillTests`.
+
+### `extracted.salary_estimate`
+
+The one inferred field in `extracted`: the facts read's estimate of the role's
+annual base pay, `{ min, max, currency }`, in the work location's currency. The
+prompt says so explicitly and gives dated reference bands per market and level
+(Israel quoted monthly, x12); `ClaudeClient.NormalizeJobFacts` runs every
+estimate through `SalaryBounds` with a spread limit (max ≤ 1.6x min) and logs
+and drops one that fails. Stored only when the API sent the field, like
+`functions`. The card shows `posted_salary` as "Base salary" when there is one,
+otherwise this as "Estimated salary", otherwise "Salary not listed".
+
+Calibrated 2026-09-30 on 27 real postings (20 Israeli, 7 US with published
+ranges, pay text removed before the read): the median estimate midpoint was
+1.10x the published one (baseline without bands: 1.31x), single postings
+±20-30%. The same posting can move a band between runs.
+
+No backfill: `FactsVersion` was deliberately not bumped, so only new and
+changed postings get an estimate (on the read they get anyway); stored ones
+show their published range or "Salary not listed" until the pool turns over.
+Backfilling later is a `FactsVersion` bump plus the sources in
+`FactsReReadSources` -- about $2 per 1,200 postings.
 
 ## Retrieval
 

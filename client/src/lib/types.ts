@@ -156,6 +156,13 @@ export interface CompanyProfileInfo {
 // A discovered_jobs doc (snake_case, as stored) — score/verdict/match_analysis
 // are populated by the batched ingest-time scoring path; null when a job is
 // still unscored (score-call failed) rather than "not yet searched".
+export interface JobSalary {
+  min: number;
+  max: number;
+  currency: string; // ISO 4217, e.g. "USD", "ILS"
+  source: 'posted' | 'estimated';
+}
+
 export interface DiscoveredJobSummary {
   id: string;
   title: string;
@@ -173,6 +180,10 @@ export interface DiscoveredJobSummary {
   is_remote?: boolean | null;
   company_logo?: string | null;
   company_profile?: CompanyProfileInfo | null;
+  // Pay for the role: the company's own published range when it gave one
+  // ("posted"), otherwise a model estimate ("estimated"), otherwise null
+  // (shown as "Salary not listed"). Annual amounts in whole currency units.
+  salary?: JobSalary | null;
   score?: number | null;
   verdict?: string | null;
   should_apply?: boolean | null;

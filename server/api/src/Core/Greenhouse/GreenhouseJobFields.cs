@@ -114,6 +114,15 @@ public static class GreenhouseJobFields
     /// <summary>The kind of work, from <c>JobFunctions.All</c>. Absent until read.</summary>
     public const string ExtractedFunctions = "extracted.functions";
 
+    /// <summary>
+    /// The facts read's estimate of the role's annual base pay,
+    /// <c>{ min, max, currency }</c>, or null when it gave none that passed
+    /// <c>SalaryBounds</c>. The one inferred field in <c>extracted</c>; shown
+    /// only when there is no <see cref="PostedSalary"/>, and always labelled
+    /// as an estimate.
+    /// </summary>
+    public const string ExtractedSalaryEstimate = "extracted.salary_estimate";
+
     public const string ExtractedAt = "extracted_at";
 
     /// <summary>
@@ -215,6 +224,19 @@ public static class GreenhouseJobFields
     /// carries the same value, restamped each run (<c>JobStore.StampCompanyLogoAsync</c>).
     /// </remarks>
     public const string CompanyLogo = "company_logo";
+
+    /// <summary>
+    /// The company's own published annual pay range, <c>{ min, max, currency }</c>,
+    /// or null when it published none (or only an hourly/monthly one).
+    /// </summary>
+    /// <remarks>
+    /// Copied from the board, never read by a model, so it lives outside
+    /// <c>extracted</c>. Restamped every run like the logo
+    /// (<c>JobStore.StampPostedSalariesAsync</c>): a pay change on a posting
+    /// whose text did not change still lands, and rows stored before this
+    /// field existed get it without a re-read.
+    /// </remarks>
+    public const string PostedSalary = "posted_salary";
 
     /// <summary>The id of an open facts batch reading this posting, or absent.</summary>
     /// <remarks>

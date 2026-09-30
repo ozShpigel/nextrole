@@ -69,6 +69,14 @@ public sealed class IngestAiClient
     /// or accepting physical parts is hardware, not qa -- and the re-read of
     /// NVIDIA postings a pre-2 batch collected after the deploy had wrongly
     /// stamped 2. Unversioned rows are 1.
+    /// <para>
+    /// Deliberately NOT bumped for <c>salaryEstimate</c> (2026-09-30): a bump
+    /// would re-read every stored posting to backfill it, and with one user
+    /// that spend buys nothing the pool's own turnover won't -- new and
+    /// changed postings get an estimate on the read they get anyway, and the
+    /// rest show their published range or "Salary not listed". To backfill
+    /// later, bump this and name the sources in <c>FactsReReadSources</c>.
+    /// </para>
     /// </remarks>
     public const int FactsVersion = 3;
 
@@ -325,10 +333,22 @@ public sealed class IngestAiClient
                 // what marks a row as owed a re-read, so it is written only when
                 // the API sent it. An empty array means "read, and unclear".
                 { "functions", Strings(r, "functions"), r.TryGetProperty("functions", out _) },
+                // Written only when the API sent the field, like functions: an
+                // API older than the estimate sends none. Null means "read, and
+                // no estimate passed the checks".
+                { "salary_estimate", SalaryDoc(r, "salaryEstimate"), r.TryGetProperty("salaryEstimate", out _) },
             };
         }
         return facts;
     }
+
+    private static BsonValue SalaryDoc(JsonElement r, string name) =>
+        r.TryGetProperty(name, out var e) && e.ValueKind == JsonValueKind.Object
+        && e.TryGetProperty("min", out var min) && min.TryGetInt64(out var lo)
+        && e.TryGetProperty("max", out var max) && max.TryGetInt64(out var hi)
+        && e.TryGetProperty("currency", out var cur) && cur.ValueKind == JsonValueKind.String
+            ? new BsonDocument { { "min", lo }, { "max", hi }, { "currency", cur.GetString() } }
+            : BsonNull.Value;
 
     // Correlating by jobId rather than by position is deliberate and
     // load-bearing: a response the caller cannot line up must contribute

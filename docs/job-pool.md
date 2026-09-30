@@ -116,6 +116,14 @@ The run reports `jobs_extracted` against `jobs_new`, plus
 `jobs_extract_retried` and `jobs_extract_abandoned`, so a silently-failing
 extractor does not look like a normal run.
 
+### The salary estimate is the one inferred fact
+
+"Extract only what is stated" has one labelled exception: `salary_estimate`, an
+estimate of the role's annual base pay, checked against `SalaryBounds` before it
+is stored and always shown as "Estimated salary". A company's own published
+range (`posted_salary`, Greenhouse only) always wins over it. Detail:
+`docs/greenhouse.md` → `extracted.salary_estimate`.
+
 ## The Analyst read, stored once
 
 A pool document also carries `parsed` — the Analyst's structured read of the

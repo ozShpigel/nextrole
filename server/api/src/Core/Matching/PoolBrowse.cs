@@ -122,6 +122,11 @@ public sealed record PoolJobListItem
     [JsonPropertyName("is_duplicate")] public bool IsDuplicate { get; init; }
     [JsonPropertyName("discovered_at")] public DateTime? DiscoveredAt { get; init; }
 
+    // Pay: the company's published range, else the facts read's estimate,
+    // else null (the card says "Salary not listed"). A property of the
+    // posting, the same for everyone -- see JobSalary.
+    [JsonPropertyName("salary")] public JobSalary? Salary { get; init; }
+
     // ── This user's, merged in from jobScores and poolJobState ──────────────
     [JsonPropertyName("score")] public int? Score { get; init; }
     [JsonPropertyName("verdict")] public string? Verdict { get; init; }

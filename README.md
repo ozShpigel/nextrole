@@ -21,7 +21,7 @@ Claude judges each match; code checks every judgement before you see it.
 
 ## The problem
 
-AI is confident even when it's wrong, and a wrong match looks exactly like a right one. The engineering is in catching it.
+Job hunting is scattered: postings live on many company sites, keyword alerts match words instead of people, and applications end up in email threads and a spreadsheet. Judging fit by hand takes longer than most postings deserve.
 
 ## What a user does
 
@@ -47,7 +47,7 @@ One API is the only service that talks to Claude. The ingest and the mail sync g
 
 ## Core principle: the model judges, code verifies
 
-Claude makes the judgement. Code checks it against the CV and the posting before anyone sees it.
+AI is confident even when it's wrong, and a wrong match looks exactly like a right one. So Claude makes the judgement, and code checks it against the CV and the posting before anyone sees it.
 
 <p align="center">
   <picture>

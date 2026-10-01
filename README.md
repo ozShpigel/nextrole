@@ -86,10 +86,15 @@ AI is confident even when it's wrong, and a wrong match looks exactly like a rig
 
 ## Running in production
 
-One Hetzner VPS runs everything in Docker Compose behind Caddy with automatic TLS. Every merge to `main` tests, builds and redeploys only the service that changed. Logs go to Grafana and Loki, and health checks alert on Telegram. Runbook: [`docs/deploying.md`](docs/deploying.md).
+- **Host:** one Hetzner VPS, Docker Compose, Caddy with automatic TLS
+- **Deploy:** merging to `main` rebuilds and redeploys only the service that changed
+- **Checks:** backend and frontend tests on every pull request
+- **Watch:** logs in Grafana and Loki, health alerts on Telegram
+
+Runbook: [`docs/deploying.md`](docs/deploying.md)
 
 ## Status
 
-Live at [nextrole.cloud](https://nextrole.cloud). Next: more job-board sources, paid tiers, and email and passkey sign-in.
+**Next:** more job-board sources, paid tiers, and email and passkey sign-in.
 
 **License:** [FSL-1.1-MIT](LICENSE). Each version becomes plain MIT two years after its release.

@@ -6,7 +6,9 @@
 
 [![License: FSL-1.1-MIT](https://img.shields.io/badge/License-FSL--1.1--MIT-blue)](LICENSE)
 
-**An AI job search, from CV to offer.** Upload a CV, get roles ranked for you, and track every application in one place.
+**An AI job search, from CV to offer.**
+
+Upload a CV, get open roles from company job boards ranked for you, and track every application in one place.
 
 Claude judges each match; code checks every judgement before you see it.
 

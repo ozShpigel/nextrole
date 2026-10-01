@@ -57,6 +57,9 @@ type DragSource = 'added' | 'ready';
 // order as the desktop grid's columns.
 type MobileTabKey = 'added' | 'ready' | 'applied' | 'interviewing';
 
+// `muted` dims the card's contents, not the card: .ed-rise's entrance ends
+// `forwards` at opacity 1, which would override an opacity on the card itself
+// for as long as it's on screen.
 function Card(
   { app, index, muted, dragFrom, children }:
   { app: Application; index: number; muted?: boolean; dragFrom?: DragSource; children: ReactNode },
@@ -76,7 +79,7 @@ function Card(
       // Elevation comes from the shared .editorial modern-skin layer (any
       // real border-[var(--ed-rule)] + bg-[var(--ed-panel)] card gets it for
       // free, see index.css) — no hand-rolled shadow here, just the hover lift.
-      className={`ed-rise group flex flex-col gap-2 border border-[var(--ed-rule)] bg-[var(--ed-panel)] p-4 transition-all cursor-pointer hover:border-[var(--ed-ink-faint)] hover:-translate-y-[1px] ${muted ? 'opacity-55 hover:opacity-90 transition-opacity' : ''}`}
+      className={`ed-rise group flex flex-col gap-2 border border-[var(--ed-rule)] bg-[var(--ed-panel)] p-4 transition-all cursor-pointer hover:border-[var(--ed-ink-faint)] hover:-translate-y-[1px] ${muted ? '[&>*]:opacity-55 [&>*]:transition-opacity hover:[&>*]:opacity-90' : ''}`}
       style={{ animationDelay: `${Math.min(index, 10) * 60}ms` }}
     >
       <div className="flex items-start gap-3">
@@ -103,9 +106,9 @@ function Card(
 }
 
 function Column(
-  { label, subtitle, count, isEmpty, emptyText, acceptsFrom, onDropApp, children }:
+  { label, subtitle, count, emptyText, acceptsFrom, onDropApp, children }:
   {
-    label: string; subtitle: string; count: number; isEmpty?: boolean; emptyText: string; children: ReactNode;
+    label: string; subtitle: string; count: number; emptyText: string; children: ReactNode;
     acceptsFrom?: DragSource; onDropApp?: (appId: string) => void;
   },
 ) {
@@ -113,6 +116,8 @@ function Column(
 
   return (
     <div
+      role="region"
+      aria-label={label}
       // The trailing "!" forces this recessed-tray inset to win over the shared
       // auto-elevation rule (index.css) that would otherwise match this same
       // border-[var(--ed-rule)] + bg-[var(--ed-panel)] combo and silently
@@ -148,7 +153,7 @@ function Column(
         </span>
       </div>
       <div className="flex flex-col gap-3">
-        {(isEmpty ?? count === 0) ? (
+        {count === 0 ? (
           <div className={`border border-dashed p-6 transition-colors ${dragOver ? 'border-[var(--ed-accent)]' : 'border-[var(--ed-rule)]'}`}>
             <p className="ed-display italic text-center text-[16px] text-[var(--ed-ink-faint)]">{emptyText}</p>
           </div>
@@ -364,7 +369,6 @@ export default function ActivePage() {
             label="Applied"
             subtitle="Roles you've applied to"
             count={appliedFresh.length}
-            isEmpty={appliedFresh.length === 0 && appliedStale.length === 0}
             emptyText="Drag a ready job here once you've applied."
             acceptsFrom="ready"
             onDropApp={(id) => markApplied(id)}
@@ -377,33 +381,6 @@ export default function ActivePage() {
                 onOpenStatus={(app) => setStatusTarget({ id: app.id, status: app.status, jobUrl: app.jobUrl })}
               />
             ))}
-            {appliedStale.length > 0 && (
-              <details className="mt-1 group rounded-lg border border-[var(--ed-rule)] bg-[var(--ed-panel)]/30 transition-colors hover:border-[var(--ed-ink-faint)]">
-                <summary className="cursor-pointer list-none flex items-center justify-between gap-3 px-4 py-3">
-                  <span className="inline-flex items-center gap-[0.6rem]">
-                    <span className="inline-flex items-center justify-center w-7 h-7 rounded-md bg-[var(--ed-panel)] border border-[var(--ed-rule)] text-[var(--ed-ink-faint)]">
-                      <Archive size={14} aria-hidden="true" />
-                    </span>
-                    <span className="text-[13px] font-medium text-[var(--ed-ink)]">Archived</span>
-                  </span>
-                  <span className="inline-flex items-center gap-2 text-[13px] text-[var(--ed-ink-faint)] tabular-nums">
-                    {appliedStale.length} archived
-                    <ChevronDown size={14} className="transition-transform group-open:rotate-180" aria-hidden="true" />
-                  </span>
-                </summary>
-                <div className="flex flex-col gap-4 border-t border-[var(--ed-rule)] px-4 pt-4 pb-4">
-                  {appliedStale.map((a, i) => (
-                    <AppliedCard
-                      key={a.id}
-                      app={a}
-                      index={i}
-                      muted
-                      onOpenStatus={(app) => setStatusTarget({ id: app.id, status: app.status, jobUrl: app.jobUrl })}
-                    />
-                  ))}
-                </div>
-              </details>
-            )}
           </Column>
         );
       case 'interviewing':
@@ -550,6 +527,38 @@ export default function ActivePage() {
               {renderColumn('applied')}
               {renderColumn('interviewing')}
             </div>
+
+            {/* Archived is its own place, not a corner of Applied: applications
+                with no movement for APPLIED_STALE_DAYS leave the board for a
+                collapsed section below it. A reply that moves one (to
+                Interviewing, say) brings it straight back onto the board. */}
+            {appliedStale.length > 0 && (
+              <details className="group mt-14">
+                <summary className="cursor-pointer list-none flex items-center gap-4 py-2 text-[var(--ed-ink-faint)] hover:text-[var(--ed-ink-soft)] transition-colors">
+                  <span className="inline-flex items-center gap-2 text-[13px] font-semibold uppercase tracking-[0.16em]">
+                    <Archive size={14} aria-hidden="true" />
+                    Archived
+                    <span className="tabular-nums font-medium">{appliedStale.length}</span>
+                  </span>
+                  <span className="flex-1 border-t border-[var(--ed-rule)]" aria-hidden="true" />
+                  <ChevronDown size={16} className="transition-transform group-open:rotate-180" aria-hidden="true" />
+                </summary>
+                <p className="mt-2 text-[13px] text-[var(--ed-ink-faint)]">
+                  Applied more than {APPLIED_STALE_DAYS} days ago with no reply since.
+                </p>
+                <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                  {appliedStale.map((a, i) => (
+                    <AppliedCard
+                      key={a.id}
+                      app={a}
+                      index={i}
+                      muted
+                      onOpenStatus={(app) => setStatusTarget({ id: app.id, status: app.status, jobUrl: app.jobUrl })}
+                    />
+                  ))}
+                </div>
+              </details>
+            )}
           </>
         )}
       </div>

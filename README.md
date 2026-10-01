@@ -10,7 +10,7 @@
 
 Claude judges each match; code checks every judgement before you see it.
 
-**Live at [nextrole.cloud](https://nextrole.cloud)** · no signup
+**Live at [nextrole.cloud](https://nextrole.cloud)**
 
 <p align="center">
   <picture>

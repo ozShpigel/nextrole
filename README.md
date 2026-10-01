@@ -6,7 +6,7 @@
 
 [![License: FSL-1.1-MIT](https://img.shields.io/badge/License-FSL--1.1--MIT-blue)](LICENSE)
 
-**NextRole finds the open roles that fit your CV — Claude judges every match, and C# verifies every judgement before you see it.**
+**NextRole finds the open roles that fit your CV — Claude judges every match, and code checks every judgement against your actual CV before you see it.**
 For engineers anywhere: upload a CV, no signup, and get roles from 36 company job boards, read daily, ranked against your profile.
 Every score passes 7 server-side checks; the scorer is measured on a 24-case hand-labelled golden set (22/24, stable over 3 runs).
 Built and run in production by one engineer — **live at [nextrole.cloud](https://nextrole.cloud)**.

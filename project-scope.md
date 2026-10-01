@@ -6,12 +6,7 @@ A job search spreads across many company career sites. Reading each posting to j
 An AI that "reads the posting for you" only moves the problem: it scores generously, claims skills the CV never mentions, and ignores rules it was given. A score you cannot trust is worse than no score.
 
 ## Solution
-One place from discovery to offer:
-
-- **Find** — company job boards are read every day into one shared pool, so every user searches the same complete, de-duplicated set.
-- **Judge** — each role is scored against *your* CV, with a verdict and the reasons. The model writes the judgement; the server checks it against the profile and the posting's extracted requirements before it is stored, and the scorer is measured against a hand-labelled golden set.
-- **Act** — a tailored résumé per application, checked so it never states a fact the CV doesn't.
-- **Track** — applications move through a board, replies in Gmail update them, and interviews get prep from the posting and your own history.
+Upload your CV. NextRole reads company job boards daily, scores every role against your CV, and tracks each application from first match to offer.
 
 ## Shape of the product
 

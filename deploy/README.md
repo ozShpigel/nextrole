@@ -118,8 +118,20 @@ cluster storage, which matters on the M0 free tier.
 Grafana, Loki, and Promtail run as containers on the VPS. Grafana is bound to
 localhost only — reach it over an SSH tunnel:
 
-    ssh -fN nextrole          # requires a Host entry in ~/.ssh/config
+    ssh -N nextrole           # foreground; Ctrl+C closes the tunnel
+    ssh -fN nextrole          # or backgrounded
     # then open http://localhost:3001
+
+`nextrole` is a Host entry in `~/.ssh/config` (WSL), and the forwards live
+there rather than on the command line:
+
+    Host nextrole
+        HostName 62.238.100.118
+        User root
+        LocalForward 3001 127.0.0.1:3001     # Grafana
+        LocalForward 15672 127.0.0.1:15672   # RabbitMQ management (optional)
+
+Log in to Grafana as `admin` with `GRAFANA_PASSWORD` from the box's `.env`.
 
 Logs are labelled `service` (api, scraper, web, caddy, pool-ingest, mailbot, ...)
 and `env`, which is now always `prod`. Filter by `service`:

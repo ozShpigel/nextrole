@@ -6,10 +6,10 @@
 
 [![License: FSL-1.1-MIT](https://img.shields.io/badge/License-FSL--1.1--MIT-blue)](LICENSE)
 
-**NextRole is a job-search platform that scores open roles against your CV with Claude, then checks the model's output in C#.**
-It is for engineers looking for work in Israel and the UK. You upload a CV with no signup, and it reads 36 company job boards every day.
-It is built and run in production by one engineer.
-**Live:** [nextrole.cloud](https://nextrole.cloud)
+**NextRole finds the open roles that fit your CV — Claude judges every match, and C# verifies every judgement before you see it.**
+For engineers anywhere: upload a CV, no signup, and get roles from 36 company job boards, read daily, ranked against your profile.
+Every score passes 7 server-side checks; the scorer is measured on a 24-case hand-labelled golden set (22/24, stable over 3 runs).
+Built and run in production by one engineer — **live at [nextrole.cloud](https://nextrole.cloud)**.
 
 <p align="center">
   <picture>

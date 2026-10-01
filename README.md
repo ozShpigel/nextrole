@@ -24,19 +24,12 @@ Matching a CV to a posting is a judgement, and an LLM makes it confidently and w
 
 ## Architecture
 
-```mermaid
-flowchart LR
-    U([Browser]) --> C[Caddy<br/>TLS] --> W[web<br/>nginx + React SPA] --> A[api<br/>ASP.NET Core]
-    T1[[systemd timer<br/>06:15 UTC]] --> P[greenhouse publish] --> Q[(RabbitMQ)] --> GC[greenhouse-consumer]
-    GC -->|fetch| B[Greenhouse / Workday<br/>boards APIs]
-    GC -->|embed| V[Voyage]
-    GC -->|facts over HTTP| A
-    T2[[systemd timer<br/>02:00 UTC]] --> MB[mailbot] -->|over HTTP| A
-    MB --> G[Gmail]
-    A -->|the only caller| CL[Anthropic API]
-    A --> M[(MongoDB Atlas<br/>documents + vector index)]
-    GC --> M
-```
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/architecture-dark.svg">
+    <img src="docs/images/architecture-light.svg" width="900" alt="NextRole architecture: users, Gmail and company job boards on the left feed services on one Hetzner VPS (Caddy and the React app, the mail sync, and a RabbitMQ ingest of publisher, queue and consumer). Everything goes through the API, the only service that calls Claude: it retrieves with vector search, judges with the Claude Evaluator, verifies with seven server-side checks and generates validated résumé packs. On the right: Anthropic, Voyage embeddings and MongoDB Atlas.">
+  </picture>
+</p>
 
 **The API is the only service that holds an Anthropic key.** The ingest ([`IngestAiClient.cs`](server/api/src/Core/Matching/IngestAiClient.cs)) and the mail worker call it over HTTP, so there is one prompt config, one key, and one set of rate limits ([`AGENTS.md`](AGENTS.md)).
 

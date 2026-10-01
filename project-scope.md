@@ -1,10 +1,17 @@
 # NextRole — AI-Powered Job Application Platform
 
 ## Problem
-Job hunting is fragmented and time-consuming — searching across multiple platforms, manually evaluating fit, and tracking applications through email threads and spreadsheets.
+A job search spreads across many company career sites. Reading each posting to judge fit takes longer than the posting deserves, and keyword alerts flood you with roles that match a word but not the person. Once you apply, progress lives in scattered email threads and a spreadsheet you stop updating.
+
+An AI that "reads the posting for you" only moves the problem: it scores generously, claims skills the CV never mentions, and ignores rules it was given. A score you cannot trust is worse than no score.
 
 ## Solution
-An end-to-end job application platform that uses AI to discover matching jobs, evaluate them against your profile, and manage the process from discovery to final status.
+One place from discovery to offer:
+
+- **Find** — company job boards are read every day into one shared pool, so every user searches the same complete, de-duplicated set.
+- **Judge** — each role is scored against *your* CV, with a verdict and the reasons. The model writes the judgement; the server checks it against the profile and the posting's extracted requirements before it is stored, and the scorer is measured against a hand-labelled golden set.
+- **Act** — a tailored résumé per application, checked so it never states a fact the CV doesn't.
+- **Track** — applications move through a board, replies in Gmail update them, and interviews get prep from the posting and your own history.
 
 ## Shape of the product
 

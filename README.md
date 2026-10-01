@@ -55,47 +55,46 @@ A model reads a posting well but doesn't reliably act on its own reasoning: it n
 
 ## How correctness is verified
 
-### 1. Server-side corrections: `JobMatchService.Correct()`
+Three layers, each catching what the one before it can't.
 
-Every score goes through [`Correct()`](server/api/src/Core/Matching/JobMatchService.cs#L256) before it is stored. Each step exists because an earlier prompt-only rule was measured failing.
+### 1. Code overrides the model
 
-| Step | Rule enforced in code | Why prompt prose wasn't enough |
-|---|---|---|
-| `EnforceReviewCaps` ([L398](server/api/src/Core/Matching/JobMatchService.cs#L398)) | The model returns `reviewAdjustment {base, delta}`. The server recomputes the score and clamps the delta. | The Evaluator ignored numeric caps stated in the prompt ([`MatchResponse.cs`](server/api/src/Core/Matching/MatchResponse.cs#L100)) |
-| `GroundClaims` + `EnforceStackedGapsCap` | Missing requirements are computed from the extracted `must_have_tech` and the profile, not from the model's own list. Unsupported claims about the candidate are flagged as `UnsupportedClaims`. | One response listed 1 gap against 12 absent requirements and still scored 20/20 ([`AGENTS.md`](AGENTS.md)) |
-| `EnforceHardBlockerScope` ([L685](server/api/src/Core/Matching/JobMatchService.cs#L685)) | Only two blocker kinds survive: the candidate's own dealbreakers, quoted from their profile, and work arrangement. | `people_management` was measured forcing STRONG_NO on five postings on one run and none on the next. It was removed, along with two filters that judged a posting's prose rather than a dealbreaker ([`HardBlockerScope.cs`](server/api/src/Core/Matching/HardBlockerScope.cs#L24)). |
-| `hardBlockers` → verdict ([L273](server/api/src/Core/Matching/JobMatchService.cs#L273)) | Any surviving blocker forces `STRONG_NO` and `shouldApply = false`. The verdict is otherwise re-derived from the score bands. | The model identified the blocker in its reasoning but did not apply it to its own verdict field |
+Every score passes through [`Correct()`](server/api/src/Core/Matching/JobMatchService.cs#L256) before it is stored. Each rule below started as an instruction in the prompt, was measured failing, and moved into code.
 
-The same rule covers generated résumés. [`ResumePackValidator.cs`](server/api/src/Core/Models/ResumePackValidator.cs) repairs skills not in the profile, flags other unsupported claims, and **blocks** the pack on any figure the profile never stated, because a pack goes to an employer. It was measured against 53 real generations before it was allowed to block. One rule that fired 4 false refusals and 0 true positives was demoted to a flag ([L60–87](server/api/src/Core/Models/ResumePackValidator.cs#L60)).
+| The model… | So code… |
+|---|---|
+| ignored score caps its prompt stated | [recomputes the score](server/api/src/Core/Matching/JobMatchService.cs#L398) and clamps it |
+| gave full marks for core stack to a candidate missing 12 required technologies | [works out the missing requirements itself](server/api/src/Core/Matching/ClaimGrounding.cs#L119), from the posting and the CV |
+| credited the candidate with skills that were only in the posting | flags every claim about the candidate the CV doesn't support |
+| named a dealbreaker and still answered YES | [forces STRONG_NO](server/api/src/Core/Matching/JobMatchService.cs#L273) on any real dealbreaker |
+| invented dealbreakers from a posting's tone | [keeps only two kinds](server/api/src/Core/Matching/HardBlockerScope.cs#L24): the candidate's own, and work arrangement |
 
-### 2. Golden-set evaluation
+Tailored résumés get the same treatment, stricter, because they go to an employer: one that states a figure the CV never stated is [blocked](server/api/src/Core/Models/ResumePackValidator.cs). The blocking rule was measured on 53 real generations before it was switched on.
 
-[`server/api/src/EvalHarness`](server/api/src/EvalHarness) is a CLI that drives the real `POST /api/match` endpoint against a frozen profile.
+### 2. A golden set measures the scorer
 
-- **Verdict eval:** [`fixtures/golden-set.json`](server/api/src/EvalHarness/fixtures/golden-set.json) has **24 hand-labelled cases**, 6 for each probe (blocker, technical, execution, sustainability).
-  - The baseline is **22/24, stable across three consecutive runs at temperature 0**.
-  - The three recurring misses are documented in each case's `why` field.
-- **Subscore eval:** [`SubscoreEval.cs`](server/api/src/EvalHarness/SubscoreEval.cs) checks each sub-score lands in its expected band and that hard blockers fire only where expected.
-- **The Evaluator was tuned on Sonnet first:** 45/45 pass-points over 3 runs. It then moved to Haiku because output tokens were ~88% of daily scoring spend ([`ScoringConfig.cs`](server/api/src/Core/Profile/ScoringConfig.cs#L57)).
-  - TODO: was the 22/24 baseline measured on Haiku? The fixture's `labeledAt` (2026-08-28) is after the switch (2026-08-11), but the repo doesn't say which model ran it.
+An [eval harness](server/api/src/EvalHarness) sends [24 hand-labelled postings](server/api/src/EvalHarness/fixtures/golden-set.json) through the real scoring API against a fixed CV and compares the verdicts with the labels.
+
+- **22/24**, stable across 3 runs at temperature 0. The recurring misses are documented case by case.
+- A second eval checks that each sub-score (technical, execution, sustainability) lands in its expected band.
 
 ```bash
 dotnet run --project server/api/src/EvalHarness -- verdict --runs 3
-dotnet run --project server/api/src/EvalHarness -- subscore
 ```
 
-TODO: Is there a stored trace of each score, keyed by rubric/prompt version and model? `jobScores` ([`JobScore.cs`](server/api/src/Core/Models/JobScore.cs)) stores no model or prompt version. [`MatchSnapshot.cs`](server/api/src/Core/Models/MatchSnapshot.cs) is content-addressed by its inputs and outputs. No `ScoreTrace` type exists in the repo.
+<!-- TODO: was the 22/24 baseline measured on Haiku? The fixture's labeledAt (2026-08-28) is after the Sonnet → Haiku switch (2026-08-11, ScoringConfig.cs:57), but the repo doesn't say which model ran it. -->
+<!-- TODO: should each score store a trace keyed by prompt version and model? jobScores (JobScore.cs) stores neither; no ScoreTrace type exists. -->
 
-### 3. Regression and architecture tests
+### 3. Tests pin the failures that make no noise
 
-| Suite | Size | What it pins down |
+| Suite | Tests | What it guards |
 |---|---|---|
-| [`ArchitectureTests`](server/api/tests/ArchitectureTests) | 242 xUnit tests | User scoping can't be bypassed, because repositories only receive `UserScopedCollection<T>`. Also covers the scoring rules (e.g. [`HardBlockerScopeTests.cs`](server/api/tests/ArchitectureTests/HardBlockerScopeTests.cs)) and refusing service clients without an identity. |
-| [`GreenhouseTests`](server/api/tests/GreenhouseTests) | 303 xUnit tests | The silent failures: vectors zipped to the wrong job, a close diff run on a failed fetch, content hashed before HTML decoding, and the shared contract between ingest and scoring (`PoolContractTests`). |
-| [`client`](client/src) | 29 Vitest files, ~197 tests | Components and pages |
-| [`e2e`](e2e/tests) | 5 Playwright specs | Tracker, manual scoring, résumé pack, application detail, interview insights |
+| [Architecture](server/api/tests/ArchitectureTests) | 242 | One user can never read another's data. Enforced by the type system ([`UserScopedCollection<T>`](docs/multi-user.md)), not by care. |
+| [Ingest](server/api/tests/GreenhouseTests) | 303 | Failures that raise no error: a failed fetch closing a company's jobs, embeddings attached to the wrong posting. |
+| [Frontend](client/src) | ~197 | Components and pages |
+| [End-to-end](e2e/tests) | 5 Playwright specs | The main user flows, run locally. They need a billed API key, so they stay out of CI. |
 
-All suites run in [`.github/workflows/tests.yml`](.github/workflows/tests.yml).
+The first three run on every pull request ([`tests.yml`](.github/workflows/tests.yml)).
 
 ## Decisions and trade-offs
 

@@ -27,8 +27,6 @@ The core of the product is a single LLM judgement: is this posting a fit for thi
 
 Most of the code exists to make those failures impossible or visible, and to keep the cost per user in cents.
 
-<p align="center"><img alt="Matches: scored roles with verdicts and the evaluator's breakdown" src="docs/demos/output/search.gif" width="600"></p>
-
 ## Architecture
 
 ```mermaid

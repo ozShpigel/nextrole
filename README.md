@@ -73,14 +73,14 @@ AI is confident even when it's wrong, and a wrong match looks exactly like a rig
 
 ## Decisions and trade-offs
 
-| Chose | Over | Because |
+| Decision | Why | Trade-off accepted |
 |---|---|---|
-| [Vector search inside MongoDB Atlas](docs/greenhouse.md) | a separate vector database | one database, no extra service; it only shortlists, it never scores |
-| [Own sessions + optional Google sign-in](docs/auth.md) | Better Auth | no account needed to start, one source of truth for identity, no extra runtime |
-| [Feature gating in config](docs/plans/feature-gating.md) | a feature-flag library | a handful of flags, enforced server-side |
-| [Queue-driven ingest workers](docs/scraper-slimming.md) | a background job inside the API | a crash replays one company, and ingest never slows down users |
-| [Reading company job boards directly](docs/greenhouse.md) | scraping LinkedIn | each board's completeness can be proven |
-| [Haiku for scoring](server/api/src/Core/Profile/ScoringConfig.cs#L57) | Sonnet | cost; the checks in code don't depend on the model |
+| [**Score on demand**](docs/scoring-and-search.md), not at ingest | a score is about one person, so only what someone looks at costs anything | a new user's first matches take a moment to score |
+| [**Company job boards**](docs/greenhouse.md), not LinkedIn scraping | each board's completeness can be proven | only companies on the list are covered |
+| [**Vector search inside MongoDB Atlas**](docs/greenhouse.md), not a separate vector database | one database to run; it shortlists, it never scores | tied to Atlas |
+| [**Haiku for scoring**](server/api/src/Core/Profile/ScoringConfig.cs#L57), not Sonnet | output tokens were ~88% of scoring spend | more likely to miss nuance, so the checks in code carry more weight |
+| [**Anonymous by default**](docs/auth.md), optional Google sign-in, not Better Auth | no account needed to start, and one source of truth for identity | clear your cookies without signing in and the account is gone |
+| [**Feature flags in config**](docs/plans/feature-gating.md), not a flag library | a handful of flags, enforced server-side | changing a flag means a redeploy |
 
 <!-- TODO: was a separate vector database (e.g. Qdrant) ever evaluated for the board source? Nothing in the repo records it; docs/job-pool.md only rules one out for the old LinkedIn pool. -->
 

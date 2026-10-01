@@ -133,3 +133,37 @@ describe('ActivePage — coming-soon features', () => {
     expect(screen.queryByText(/apply on job site/i)).not.toBeInTheDocument();
   });
 });
+
+describe('ActivePage — archived', () => {
+  const daysAgo = (d: number) => new Date(Date.now() - d * 86_400_000).toISOString();
+  const applied = (id: string, company: string, days: number) => ({
+    id, jobTitle: 'Platform Engineer', company, status: 'Applied', hasPack: true,
+    matchScore: 70, matchVerdict: 'apply', jobUrl: null,
+    createdAt: daysAgo(days), updatedAt: daysAgo(days), appliedAt: daysAgo(days),
+  });
+
+  it('keeps a stale application out of the Applied column, in its own section below the board', async () => {
+    serve({ AutoUpdate: true, AutoApply: true }, [applied('a-fresh', 'Freshco', 2), applied('a-stale', 'Staleco', 30)]);
+    renderWithRouter(<ActivePage />);
+
+    const archived = await screen.findByText('Archived');
+    const section = archived.closest('details')!;
+    expect(within(section).getByText(/Staleco/)).toBeInTheDocument();
+    expect(within(section).queryByText(/Freshco/)).not.toBeInTheDocument();
+    // The section sits below the board, not inside a column, and no Applied
+    // column (desktop grid or mobile tab) holds the stale card.
+    expect(section.closest('[role="region"]')).toBeNull();
+    for (const column of screen.getAllByRole('region', { name: 'Applied' })) {
+      expect(within(column).getByText(/Freshco/)).toBeInTheDocument();
+      expect(within(column).queryByText(/Staleco/)).not.toBeInTheDocument();
+    }
+  });
+
+  it('shows no archived section when nothing is stale', async () => {
+    serve({ AutoUpdate: true, AutoApply: true }, [applied('a-fresh', 'Freshco', 2)]);
+    renderWithRouter(<ActivePage />);
+
+    expect((await screen.findAllByText(/Freshco/)).length).toBeGreaterThan(0);
+    expect(screen.queryByText('Archived')).not.toBeInTheDocument();
+  });
+});

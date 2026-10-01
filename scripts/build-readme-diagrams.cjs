@@ -1,5 +1,5 @@
 // Builds the README diagrams as standalone SVGs, dark and light:
-// docs/images/{architecture,pipeline}-{dark,light}.svg, for the README <picture>s.
+// docs/images/{architecture,pipeline,journey}-{dark,light}.svg, for the README <picture>s.
 // Same palette as the Landing pipeline scene's exported copy
 // (scripts/export-pipeline-scene.cjs): accent, ink and panel from the site's
 // tokens, green only on the score packet. Packets move with SMIL, which plays
@@ -251,7 +251,76 @@ function buildPipeline(c) {
   return out.join('\n');
 }
 
-const BUILDS = { architecture: buildArchitecture, pipeline: buildPipeline };
+// What a user does, left to right. ai: the step calls Claude. out: the step
+// happens outside NextRole.
+const JOURNEY = [
+  { n: '1', title: 'Upload CV', subs: ['no signup,', 'read into a profile'], ai: true },
+  { n: '2', title: 'Matches', subs: ['ranked for you,', 'with the reasons'], ai: true },
+  { n: '3', title: 'Save', subs: ['to your board,', '3 a day'] },
+  { n: '4', title: 'Résumé pack', subs: ['tailored and', 'fact-checked'], ai: true },
+  { n: '5', title: 'Apply', subs: ["on the company's", 'own site'], out: true },
+  { n: '6', title: 'Track', subs: ['Gmail replies', 'move the card'], ai: true },
+  { n: '7', title: 'Prep', subs: ['interview', 'practice'], ai: true },
+];
+
+function buildJourney(c) {
+  const JW = 1000, JH = 210, CW = 124, GAP = 15, X0 = 20, CY = 64, CH = 112;
+  const cx = (i) => X0 + i * (CW + GAP);
+  const out = [];
+  const add = (s) => out.push(s);
+  const mix = (pct) => `color-mix(in oklab, ${c.accent} ${pct}%, transparent)`;
+
+  add(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${JW} ${JH}" width="${JW}" height="${JH}" role="img" aria-labelledby="t d">`);
+  add(`<title id="t">What a user does</title>`);
+  add(`<desc id="d">Find, with no account: 1 upload a CV, read into a profile by Claude; 2 Matches, ranked for you with the reasons. Apply and track: 3 save to your board, 3 a day; 4 a tailored, fact-checked résumé pack; 5 apply on the company's own site, outside NextRole; 6 track, as Gmail replies move the card; 7 interview prep.</desc>`);
+  add(`<defs><radialGradient id="floor" cx="50%" cy="60%" r="60%"><stop offset="0" stop-color="${c.accent}" stop-opacity="0.08"/><stop offset="1" stop-color="${c.accent}" stop-opacity="0"/></radialGradient></defs>`);
+  add(`<style>
+  text{font-family:${FONT}}
+  .n{font-size:10px;font-weight:600;letter-spacing:.14em;fill:${c.accent}}
+  .h{font-size:14.5px;font-weight:600;fill:${c.ink}}
+  .s{font-size:11px;fill:${c.soft}}
+  .cap{font-size:10px;font-weight:600;letter-spacing:.14em;fill:${c.faint}}
+  .who{font-size:8.5px;font-weight:700;letter-spacing:.12em}
+  .rail{fill:none;stroke:${c.faint};stroke-width:1.2;stroke-dasharray:2 5}
+  @media (prefers-reduced-motion: reduce){.pkt{display:none}}
+</style>`);
+  add(`<rect width="${JW}" height="${JH}" fill="${c.bg}"/><rect width="${JW}" height="${JH}" fill="url(#floor)"/>`);
+
+  const band = (x1, x2, label) => {
+    add(`<path d="M${x1},44 V38 H${x2} V44" fill="none" stroke="${c.rule}" stroke-width="1.2"/>`);
+    add(`<text x="${(x1 + x2) / 2}" y="28" class="cap" text-anchor="middle">${label}</text>`);
+  };
+  band(cx(0), cx(1) + CW, 'FIND · NO ACCOUNT');
+  band(cx(2), cx(6) + CW, 'APPLY AND TRACK · ONE BOARD, KEPT CURRENT BY YOUR INBOX');
+
+  const railY = CY + CH / 2;
+  add(`<path id="jrail" d="M${X0 - 12},${railY} H${cx(6) + CW + 12}" class="rail"/>`);
+  const L = 8;
+  [0, 4].forEach((begin) => {
+    const a = begin / L, b = (begin + 4) / L;
+    add(`<circle r="4" class="pkt" fill="${c.accent}" opacity="0"><animateMotion dur="${L}s" repeatCount="indefinite" keyPoints="0;0;1;1" keyTimes="0;${a.toFixed(3)};${b.toFixed(3)};1" calcMode="linear"><mpath href="#jrail"/></animateMotion><animate attributeName="opacity" dur="${L}s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;${a.toFixed(3)};${(a + 0.004).toFixed(3)};${(b - 0.004).toFixed(3)};${b.toFixed(3)};1"/></circle>`);
+  });
+
+  JOURNEY.forEach((st, i) => {
+    const x = cx(i);
+    const stroke = st.out ? c.faint : mix(45);
+    add(`<rect x="${x}" y="${CY}" width="${CW}" height="${CH}" rx="14" fill="${c.panel}" stroke="${stroke}" stroke-width="1.1"${st.out ? ' stroke-dasharray="4 4"' : ''}/>`);
+    add(`<text x="${x + 14}" y="${CY + 24}" class="n">${st.n}</text>`);
+    const tag = st.ai ? 'CLAUDE' : st.out ? 'OUTSIDE' : '';
+    if (tag) {
+      const tw = tag.length * 6.4 + 12;
+      add(`<rect x="${x + CW - 12 - tw}" y="${CY + 12}" width="${tw}" height="17" rx="8.5" fill="${st.ai ? mix(22) : 'none'}" stroke="${st.ai ? mix(70) : c.faint}"/>`);
+      add(`<text x="${x + CW - 12 - tw / 2}" y="${CY + 23.8}" class="who" text-anchor="middle" fill="${st.ai ? c.accent : c.soft}">${tag}</text>`);
+    }
+    add(`<text x="${x + 14}" y="${CY + 58}" class="h">${esc(st.title)}</text>`);
+    st.subs.forEach((s, k) => add(`<text x="${x + 14}" y="${CY + 80 + k * 15}" class="s">${esc(s)}</text>`));
+  });
+
+  add(`</svg>`);
+  return out.join('\n');
+}
+
+const BUILDS = { architecture: buildArchitecture, pipeline: buildPipeline, journey: buildJourney };
 for (const [diagram, build] of Object.entries(BUILDS)) {
   for (const [name, theme] of Object.entries(THEMES)) {
     const file = path.join(root, `docs/images/${diagram}-${name}.svg`);

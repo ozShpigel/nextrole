@@ -22,6 +22,15 @@ Every score passes 7 server-side checks, and an [eval harness](#2-golden-set-eva
 
 An LLM judges job fit confidently and wrongly, and a wrong score looks exactly like a right one. The hard part of NextRole isn't the CRUD around the model; it's making those failures impossible or visible.
 
+## What a user does
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/journey-dark.svg">
+    <img src="docs/images/journey-light.svg" width="900" alt="What a user does. Find, with no account: 1 upload a CV, read into a profile by Claude; 2 Matches, ranked for you with the reasons. Apply and track, one board kept current by your inbox: 3 save to your board, 3 a day; 4 a tailored, fact-checked résumé pack; 5 apply on the company's own site; 6 track, as Gmail replies move the card; 7 interview prep.">
+  </picture>
+</p>
+
 ## Architecture
 
 <p align="center">
@@ -72,31 +81,6 @@ Claude makes the judgement. Code checks it against the CV and the posting before
 ## Running in production
 
 One Hetzner VPS runs everything in Docker Compose behind Caddy with automatic TLS. Every merge to `main` tests, builds and redeploys only the service that changed. Logs go to Grafana and Loki, and health checks alert on Telegram. Runbook: [`docs/deploying.md`](docs/deploying.md).
-
-## Local development
-
-<details>
-<summary>Run it locally</summary>
-
-You need Docker, a MongoDB connection string, and Anthropic and Voyage API keys: `ANTHROPIC_API_KEY`, `MONGODB_CONNECTION_STRING`, `VOYAGE_API_KEY`. Every other setting is in [`docs/getting-started.md`](docs/getting-started.md).
-
-```bash
-docker compose up --build                          # everything, on http://localhost:3000
-
-dotnet test server/api/tests/ArchitectureTests -c Release
-dotnet test server/api/tests/GreenhouseTests -c Release
-cd client && bunx vitest run
-```
-
-| Path | What |
-|---|---|
-| [`client`](client) | React app |
-| [`server/api`](server/api) | API, ingest workers, eval harness, tests |
-| [`server/mailbot`](server/mailbot) | Gmail sync |
-| [`deploy`](deploy) | Compose, Caddy, systemd, monitoring |
-| [`docs`](docs) | Design docs for each area |
-
-</details>
 
 ## Status
 

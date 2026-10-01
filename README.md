@@ -8,7 +8,7 @@
 
 **NextRole finds the open roles that fit your CV — Claude judges every match, and code checks every judgement against your actual CV before you see it.**
 For engineers anywhere: upload a CV, no signup, and get open roles from company job boards, read daily, ranked against your profile.
-Every score passes 7 server-side checks; the scorer is measured on a 24-case hand-labelled golden set (22/24, stable over 3 runs).
+Every score passes 7 server-side checks, and an [eval harness](#2-golden-set-evaluation) runs the real scoring API against a 24-case hand-labelled golden set: 22/24, stable over 3 runs.
 **Live at [nextrole.cloud](https://nextrole.cloud)** — in production on one VPS, deployed on every merge to `main`.
 
 <p align="center">

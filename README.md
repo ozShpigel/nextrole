@@ -21,7 +21,10 @@ Claude judges each match; code checks every judgement before you see it.
 
 ## The problem
 
-Job hunting is scattered: postings live on many company sites, keyword alerts match words instead of people, and applications end up in email threads and a spreadsheet. Judging fit by hand takes longer than most postings deserve.
+Job hunting is scattered. Postings live on many company sites, and keyword alerts match words instead of people.
+So you still read every posting to judge whether it fits, which takes longer than most of them deserve.
+Once you apply, progress hides in email threads and a spreadsheet you stop updating.
+What's missing is one place that finds the roles that fit you and keeps track of them until the offer.
 
 ## What a user does
 

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties, type PointerEvent, type ReactNode } from 'react';
 import { scoreColor } from '../lib/format';
+import { SCENE_LOGOS } from './sceneLogos';
 
 // The Landing page's picture of the pipeline — an isometric floor with each
 // stage standing on it and a story playing across it on a loop: listings come
@@ -293,6 +294,65 @@ function StoryPacket({ route, a, b }: { route: RouteId; a: number; b: number }) 
   );
 }
 
+// The companies whose listings ride each board's route into the pool, two a
+// cycle: a brand mark where Simple Icons has one, the company's initial on a
+// plain tile where it doesn't. Real companies on that board, never decoration.
+type Rider = { logo: keyof typeof SCENE_LOGOS } | { initial: string };
+const RIDERS: Record<'src1' | 'src2' | 'src3' | 'src4', [Rider, Rider]> = {
+  src1: [{ logo: 'monzo' }, { logo: 'deliveroo' }],    // Greenhouse
+  src2: [{ logo: 'nvidia' }, { logo: 'intel' }],       // Workday
+  src3: [{ initial: 'C' }, { initial: 'A' }],          // Comeet: Coralogix, Aidoc
+  src4: [{ logo: 'cloudinary' }, { initial: 'M' }],    // Lever: Cloudinary, Mobileye
+};
+const SECOND_RIDER = 5.6; // seconds after the first, so the boards keep flowing
+
+// A small upright tile, centred on its origin: the brand's mark on its colour.
+function LogoTile({ rider }: { rider: Rider }) {
+  if ('initial' in rider) {
+    return (
+      <g>
+        <rect className="nr-chip" x={-10} y={-10} width={20} height={20} rx={5} />
+        <text className="nr-tile-initial" x={0} y={4.6}>{rider.initial}</text>
+      </g>
+    );
+  }
+  const mark = SCENE_LOGOS[rider.logo];
+  return (
+    <g>
+      <rect x={-10} y={-10} width={20} height={20} rx={5} fill={mark.color} />
+      <rect className="nr-flag-frame" x={-10} y={-10} width={20} height={20} rx={5} />
+      <path d={mark.path} fill="#ffffff" transform="translate(-6.5 -6.5) scale(0.5417)" />
+    </g>
+  );
+}
+
+// A source route's story: the route lights, and each of its companies rides
+// it into the shared pool, slipping behind the stack as it arrives.
+function SourceRiders({ route, a, b }: { route: keyof typeof RIDERS; a: number; b: number }) {
+  return (
+    <g>
+      <path className="nr-route-lit" d={routePath(ROUTES[route])} opacity={0} filter="url(#nr-glow)">
+        <Window a={a} b={b + 0.3} fade={0.3} />
+      </path>
+      {RIDERS[route].map((rider, i) => {
+        const s = a + i * SECOND_RIDER;
+        const e = b + i * SECOND_RIDER;
+        return (
+          <g key={i} opacity={0}>
+            <animate attributeName="opacity" values="0;0;1;1;0;0" keyTimes={`0;${kt(s - 0.02)};${kt(s + 0.15)};${kt(e - 0.1)};${kt(e + 0.1)};1`} {...loop} />
+            <animateMotion keyPoints="0;0;1;1" keyTimes={`0;${kt(s)};${kt(e)};1`} calcMode="linear" {...loop}>
+              <mpath href={`#nr-route-${route}`} />
+            </animateMotion>
+            <g transform="translate(0 -13)">
+              <LogoTile rider={rider} />
+            </g>
+          </g>
+        );
+      })}
+    </g>
+  );
+}
+
 // ---- The stages ----------------------------------------------------------
 
 const AI = { gx: 6, gy: 6 } as const;
@@ -563,7 +623,9 @@ export default function PipelineScene({ className = '' }: { className?: string }
               )}
             </g>
           ))}
-          {!reduced && ROUTE_IDS.map((id) => <StoryPacket key={id} route={id} a={BEAT[id][0]} b={BEAT[id][1]} />)}
+          {!reduced && ROUTE_IDS.map((id) => (id in RIDERS
+            ? <SourceRiders key={id} route={id as keyof typeof RIDERS} a={BEAT[id][0]} b={BEAT[id][1]} />
+            : <StoryPacket key={id} route={id} a={BEAT[id][0]} b={BEAT[id][1]} />))}
 
           {/* Job sources — the ATS boards, listings stacked like cards */}
           <Rise delay={0.15}>
@@ -746,7 +808,7 @@ export default function PipelineScene({ className = '' }: { className?: string }
           {/* Labels */}
           <FloorLabel gx={-0.3} gy={7.4} text="ATS BOARDS · DAILY" axis="y" />
           {SOURCES.map((s) => <FloorLabel key={s.name} gx={s.gx - 0.62} gy={s.gy + 0.68} text={s.name} small />)}
-          <FloorLabel gx={4.9} gy={3.9} text="SHARED POOL" axis="y" />
+          <FloorLabel gx={4.9} gy={3.9} text="SHARED POOL · VECTORS" axis="y" />
           <FloorLabel gx={3.5} gy={7.7} text="AI MATCHING" />
           <FloorLabel gx={0.1} gy={11.55} text="CANDIDATES" />
           <FloorLabel gx={2.2} gy={10.25} text="RÉSUMÉS" />

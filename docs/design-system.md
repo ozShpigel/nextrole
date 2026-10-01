@@ -30,7 +30,9 @@ The frontend is an English LTR SPA, but content can be mixed Hebrew RTL (AI summ
 `client/src/index.css`) is the Landing hero: accent-lit faces, glowing edges
 and packets, a floor glow, and a story loop. The story is 12s and plays
 once per round (`ROUNDS`, four today: 48s): four ATS boards (Greenhouse,
-Workday, Comeet, Lever) feed the shared pool daily, a candidate's résumé and
+Workday, Comeet, Lever) feed the shared pool daily (each board's route carries
+tiles of real companies on it — brand marks from Simple Icons, CC0, in
+`components/sceneLogos.ts`, or an initial where there is none), a candidate's résumé and
 the pool meet in AI MATCHING, and the score lands in Matches, once each for a
 résumé from Tel Aviv, London, Berlin and New York, to show one pool fitting
 each résumé differently, anywhere. Two résumés take turns and switch flag at

@@ -431,6 +431,7 @@ html::-webkit-scrollbar-button, .ed-scroll::-webkit-scrollbar-button { display: 
 /* labels and chips */
 .nr-scene .nr-label-bg { fill: color-mix(in oklab, var(--ed-accent) 8%, var(--ed-panel)); stroke: color-mix(in oklab, var(--ed-accent) 40%, transparent); stroke-width: .75; }
 .nr-scene .nr-label { fill: var(--ed-ink); font-family: var(--font-sans); font-size: 13px; font-weight: 500; letter-spacing: .08em; }
+.nr-scene .nr-tile-initial { fill: var(--ed-accent); font-family: var(--font-sans); font-size: 12px; font-weight: 700; text-anchor: middle; }
 .nr-scene .nr-label-sm { fill: var(--ed-ink-soft); font-family: var(--font-sans); font-size: 9.5px; font-weight: 500; letter-spacing: .08em; }
 .nr-scene .nr-chip { fill: var(--ed-panel); stroke: color-mix(in oklab, var(--ed-accent) 55%, transparent); stroke-width: 1; }
 .nr-scene .nr-ring-track { fill: none; stroke: var(--ed-rule-strong); stroke-width: 3; }

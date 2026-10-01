@@ -53,13 +53,6 @@ A model reads a posting well but doesn't reliably act on its own reasoning: it n
   </picture>
 </p>
 
-**In the code:**
-01 [`BoardHandler.cs`](server/api/src/Greenhouse/Work/BoardHandler.cs) ·
-02 [`Prefilter.cs`](server/api/src/Greenhouse/Work/Prefilter.cs) ([the 116-posting check](docs/greenhouse.md#L337)) ·
-03 [`ClaudeClient.cs`](server/api/src/Infrastructure/AI/ClaudeClient.cs#L721) ·
-04 [`MongoCandidateJobStore.cs`](server/api/src/Infrastructure/Greenhouse/MongoCandidateJobStore.cs#L52) ·
-05 [`JobMatchService.Correct()`](server/api/src/Core/Matching/JobMatchService.cs#L256)
-
 ## How correctness is verified
 
 ### 1. Server-side corrections: `JobMatchService.Correct()`

@@ -44,7 +44,8 @@ const CSS_SCENE = CSS.slice(start, end)
 
   const { markup, themes } = await scene.evaluate((svg) => {
     const names = ['--ed-accent', '--ed-paper', '--ed-panel', '--ed-ink', '--ed-ink-soft', '--ed-ink-faint', '--ed-rule-strong',
-      '--nr-flag-white', '--nr-flag-il-blue', '--nr-flag-uk-blue', '--nr-flag-uk-red'];
+      '--nr-flag-white', '--nr-flag-il-blue', '--nr-flag-uk-blue', '--nr-flag-uk-red',
+      '--nr-flag-de-black', '--nr-flag-de-red', '--nr-flag-de-gold', '--nr-flag-us-red', '--nr-flag-us-blue'];
     const read = () => { const cs = getComputedStyle(svg); return Object.fromEntries(names.map((n) => [n, cs.getPropertyValue(n).trim()])); };
     const html = document.documentElement;
     const dark = read();
@@ -54,7 +55,10 @@ const CSS_SCENE = CSS.slice(start, end)
     const themes = { dark, light };
     const clone = svg.cloneNode(true);
     // The score: final number, ring filled by SMIL in its round's window.
-    const C = 2 * Math.PI * 10, CYCLE = 12, LONG = 24, SCORES = [92, 88];
+    // The rounds come from the scene itself (data-cycle, data-scores), so a
+    // round added in PipelineScene.tsx needs no edit here.
+    const SCORES = svg.dataset.scores.split(',').map(Number);
+    const CYCLE = Number(svg.dataset.cycle), LONG = CYCLE * SCORES.length, C = 2 * Math.PI * 10;
     clone.querySelectorAll('.nr-score').forEach((t, i) => { t.textContent = String(SCORES[i]); });
     clone.querySelectorAll('.nr-ring').forEach((ring, i) => {
       ring.style.removeProperty('stroke-dashoffset');
@@ -68,10 +72,12 @@ const CSS_SCENE = CSS.slice(start, end)
       a.setAttribute('repeatCount', 'indefinite');
       ring.appendChild(a);
     });
-    // Both scores are >= 60, the ramp's top stop (lib/format.ts scoreColor).
+    // Every round's score is >= 60, the ramp's top stop (lib/format.ts scoreColor).
     clone.querySelectorAll('.nr-score').forEach((t) => { t.style.fill = '#059669'; });
     clone.querySelectorAll('.nr-ring').forEach((r) => { r.style.stroke = '#059669'; });
     clone.removeAttribute('data-testid');
+    clone.removeAttribute('data-cycle');
+    clone.removeAttribute('data-scores');
     clone.removeAttribute('style');
     clone.setAttribute('class', 'nr-scene');
     clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');

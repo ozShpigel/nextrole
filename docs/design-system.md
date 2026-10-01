@@ -29,12 +29,13 @@ The frontend is an English LTR SPA, but content can be mixed Hebrew RTL (AI summ
 `client/src/components/PipelineScene.tsx` (styles: the `.nr-scene` block in
 `client/src/index.css`) is the Landing hero: accent-lit faces, glowing edges
 and packets, a floor glow, and a story loop. The story is 12s and plays
-twice (24s): ATS boards and LinkedIn feed the shared pool, a candidate's
-résumé and the pool meet in AI MATCHING, and the score lands in Matches —
-once for an Israeli résumé (Tel Aviv, 92) and once for a British one
-(London, 88), to show one pool fitting each résumé differently. Dashed arcs
-from AI MATCHING to Gmail and Interviews light when the AI reads a reply or
-preps an interview. The two tiny flags use national colours, declared as
+once per round (`ROUNDS`, four today: 48s): four ATS boards (Greenhouse,
+Workday, Comeet, Lever) feed the shared pool daily, a candidate's résumé and
+the pool meet in AI MATCHING, and the score lands in Matches, once each for a
+résumé from Tel Aviv, London, Berlin and New York, to show one pool fitting
+each résumé differently, anywhere. Two résumés take turns and switch flag at
+the start of their next round. Dashed arcs from AI MATCHING to Gmail and
+Interviews light when the AI reads a reply or preps an interview. The tiny flags use national colours, declared as
 `--nr-flag-*` in the `.nr-scene` block: marks, the same exception as company
 logos. The README shows an exported copy,
 `docs/images/pipeline-scene-{dark,light}.svg`: rerun `scripts/export-pipeline-scene.cjs`

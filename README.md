@@ -21,7 +21,7 @@ Claude judges each match; code checks every judgement before you see it.
 
 ## The problem
 
-An LLM judges job fit confidently and wrongly, and a wrong score looks exactly like a right one. The hard part of NextRole isn't the CRUD around the model; it's making those failures impossible or visible.
+AI is confident even when it's wrong, and a wrong match looks exactly like a right one. The engineering is in catching it.
 
 ## What a user does
 

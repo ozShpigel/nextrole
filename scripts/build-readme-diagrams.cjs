@@ -1,5 +1,6 @@
 // Builds the README diagrams as standalone SVGs, dark and light:
-// docs/images/{architecture,pipeline,journey}-{dark,light}.svg, for the README <picture>s.
+// docs/images/{architecture,pipeline,journey}-{dark,light}.svg, for the README <picture>s,
+// and the dark copy of each to client/public/about/ for the site's About page.
 // Same palette as the Landing pipeline scene's exported copy
 // (scripts/export-pipeline-scene.cjs): accent, ink and panel from the site's
 // tokens, green only on the score packet. Packets move with SMIL, which plays
@@ -327,4 +328,9 @@ for (const [diagram, build] of Object.entries(BUILDS)) {
     fs.writeFileSync(file, build(theme));
     console.log('wrote', path.relative(root, file));
   }
+  // The site is dark only; its About page serves the dark copy.
+  const site = path.join(root, `client/public/about/${diagram}.svg`);
+  fs.mkdirSync(path.dirname(site), { recursive: true });
+  fs.writeFileSync(site, build(THEMES.dark));
+  console.log('wrote', path.relative(root, site));
 }

@@ -12,7 +12,8 @@ import { BrandMark } from './components/BrandMark';
 // itself (nowhere to redirect to), "/settings" is where profile setup
 // actually happens, "/score" works standalone without a saved profile,
 // "/processing" is the retired post-upload page, kept only as a redirect.
-const ONBOARDING_EXEMPT_PATHS = new Set(['/', '/settings', '/score', '/processing']);
+// "/about" is the public story of the product, for visitors with no CV too.
+const ONBOARDING_EXEMPT_PATHS = new Set(['/', '/settings', '/score', '/processing', '/about']);
 
 // A brand-new profile means every other page (Matches, Active, Applications,
 // Messages, Preparation) would otherwise show its own empty state with no
@@ -122,6 +123,26 @@ function useScrolled(): boolean {
   return scrolled;
 }
 
+// The way to About from anywhere in the app, without spending a nav slot on
+// it. Landing renders its own footer, so this one stays off "/". It sits
+// outside every page's .editorial wrapper, so neutral tokens only (the
+// --ed-* vars don't resolve here — docs/design-system.md, scope caveat).
+function AppFooter() {
+  const { pathname } = useLocation();
+  if (pathname === '/') return null;
+  return (
+    <footer className="py-8 flex justify-center text-[13px] text-muted-foreground">
+      <p>
+        NextRole &middot; {new Date().getFullYear()} &middot;{' '}
+        <NavLink to="/about" className="hover:text-foreground hover:underline">About</NavLink> &middot;{' '}
+        <a href="https://github.com/ozShpigel/nextrole" target="_blank" rel="noopener noreferrer" className="hover:text-foreground hover:underline">
+          GitHub
+        </a>
+      </p>
+    </footer>
+  );
+}
+
 export default function App() {
   // Every link in the nav leads somewhere a visitor without a CV cannot use —
   // OnboardingGate bounces them straight back to "/" from all five. Showing
@@ -185,6 +206,7 @@ export default function App() {
       <ScrollToTop />
       <div className={hasProfile ? MOBILE_NAV_SPACER : undefined}>
         <OnboardingGate />
+        <AppFooter />
       </div>
       <MobileNav hasProfile={hasProfile} />
     </div>

@@ -4,7 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Check, Upload } from 'lucide-react';
 import { useHasProfile } from '../lib/queries';
 import PipelineScene from '../components/PipelineScene';
-import { GoogleMark } from '../components/GoogleMark';
+import { COMPANY_MARKS, type CompanyMarkId } from '../components/companyMarks';
 
 // How long what was found stays on screen before Matches takes over. Long
 // enough to read a title and a few skills; short against a ~20s read.
@@ -88,101 +88,12 @@ function UploadCard({ upload }: { upload: CvUploadState }) {
   );
 }
 
-// Company marks for the "Matching roles from…" row, drawn as app-icon tiles:
-// every mark sits on the same rounded square, on the brand's own tile color,
-// so the row reads as one set instead of differently-shaped glyphs. Brand
-// colors are the one place hex is allowed on this page — they are the
-// companies' colors, not ours. Illustrative examples, not a claim about
-// actual data sources.
-type CompanyTile = { name: string; tile: string; glyph: React.ReactNode };
-
-const COMPANY_LOGOS: CompanyTile[] = [
-  { name: 'Google', tile: '#ffffff', glyph: <GoogleMark size="62%" /> },
-  {
-    name: 'Meta',
-    tile: '#0866FF',
-    glyph: (
-      <svg width="72%" height="72%" viewBox="0 0 48 48" aria-hidden="true">
-        <path
-          d="M6 30.5c0-7.6 4-15 9.6-15 4.3 0 7.4 3.6 11.3 10.2l2.4 4.1c2.8 4.7 4.9 6.8 7.6 6.8 3.2 0 5.1-3 5.1-7.4 0-6.1-3-11.9-7.3-11.9-3.3 0-5.8 2.8-8.9 7.9l-2.2 3.6c-3.3 5.4-6 7.8-9.8 7.8C9.1 36.6 6 34.1 6 30.5z"
-          fill="none" stroke="#fff" strokeWidth="3.6" strokeLinejoin="round"
-        />
-      </svg>
-    ),
-  },
-  {
-    name: 'Amazon',
-    tile: '#131A22',
-    glyph: (
-      <svg width="80%" height="80%" viewBox="0 0 48 48" aria-hidden="true">
-        <text x="24" y="25" textAnchor="middle" fontSize="13" fontWeight="700" fill="#fff" fontFamily="Arial, Helvetica, sans-serif">amazon</text>
-        <path d="M11 30c7.5 5 18.5 5 26 0" stroke="#FF9900" strokeWidth="2.8" strokeLinecap="round" fill="none" />
-        <path d="M33.2 28.4l4.2.9-1.6 4" stroke="#FF9900" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-      </svg>
-    ),
-  },
-  {
-    name: 'Microsoft',
-    tile: '#1b1b1b',
-    glyph: (
-      <svg width="54%" height="54%" viewBox="0 0 44 44" aria-hidden="true">
-        <rect x="1" y="1" width="19.5" height="19.5" fill="#F35325" />
-        <rect x="23.5" y="1" width="19.5" height="19.5" fill="#81BC06" />
-        <rect x="1" y="23.5" width="19.5" height="19.5" fill="#05A6F0" />
-        <rect x="23.5" y="23.5" width="19.5" height="19.5" fill="#FFBA08" />
-      </svg>
-    ),
-  },
-  {
-    name: 'Netflix',
-    tile: '#000000',
-    glyph: (
-      <svg width="40%" height="62%" viewBox="0 0 26 40" aria-hidden="true">
-        <path d="M2 0h6.4l9.6 26V0H24v40c-2-.3-4.2-.5-6.4-.6L8 13.6V39c-2 .1-4 .3-6 .6V0z" fill="#E50914" />
-      </svg>
-    ),
-  },
-  {
-    name: 'Airbnb',
-    tile: '#FF5A5F',
-    glyph: (
-      <svg width="64%" height="64%" viewBox="0 0 48 48" aria-hidden="true">
-        <path
-          d="M24 34.5c-3.6-4.4-6-8.6-6-11.8 0-3.5 2.6-5.7 6-5.7s6 2.2 6 5.7c0 3.2-2.4 7.4-6 11.8zm0 0c4.6 4.6 9.6 6.6 12.6 3.8 2.6-2.4 1.6-6.4-.6-11.2L27.6 9.4C26.6 7.3 25.4 6 24 6s-2.6 1.3-3.6 3.4L12 27.1c-2.2 4.8-3.2 8.8-.6 11.2 3 2.8 8 .8 12.6-3.8z"
-          fill="none" stroke="#fff" strokeWidth="3.2" strokeLinejoin="round"
-        />
-      </svg>
-    ),
-  },
-  {
-    name: 'Spotify',
-    tile: '#121212',
-    glyph: (
-      <svg width="66%" height="66%" viewBox="0 0 48 48" aria-hidden="true">
-        <circle cx="24" cy="24" r="22" fill="#1ED760" />
-        <path d="M12.5 18.5c7.5-2.3 16.5-1.4 23 2.6" stroke="#121212" strokeWidth="3.4" strokeLinecap="round" fill="none" />
-        <path d="M14 25.2c6.2-1.8 13.4-1 18.6 2.2" stroke="#121212" strokeWidth="3" strokeLinecap="round" fill="none" />
-        <path d="M15.4 31.4c5-1.3 10.4-.8 14.5 1.6" stroke="#121212" strokeWidth="2.6" strokeLinecap="round" fill="none" />
-      </svg>
-    ),
-  },
-  {
-    name: 'Reddit',
-    tile: '#FF4500',
-    glyph: (
-      <svg width="68%" height="68%" viewBox="0 0 48 48" aria-hidden="true">
-        <ellipse cx="24" cy="28" rx="14" ry="10.5" fill="#fff" />
-        <circle cx="10.5" cy="23" r="3.6" fill="#fff" />
-        <circle cx="37.5" cy="23" r="3.6" fill="#fff" />
-        <circle cx="18.5" cy="27" r="2.4" fill="#FF4500" />
-        <circle cx="29.5" cy="27" r="2.4" fill="#FF4500" />
-        <path d="M18.5 32.5c3 2.2 8 2.2 11 0" stroke="#FF4500" strokeWidth="1.9" strokeLinecap="round" fill="none" />
-        <path d="M24 17.5l2.2-8.2 6.2 1.6" stroke="#fff" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-        <circle cx="34.4" cy="11.4" r="2.6" fill="#fff" />
-      </svg>
-    ),
-  },
-];
+// The "Matching roles from…" row: companies whose jobs NextRole actually
+// reads, each on its brand's own tile color with its mark in white, so the
+// row reads as one set. COMPANY_MARKS says where each comes from; the hex is
+// the companies' colors, not ours (the logo exception).
+const ROW_COMPANIES: CompanyMarkId[] = ['nvidia', 'monzo', 'intel', 'deliveroo', 'cisco', 'jfrog', 'payoneer', 'similarweb', 'f5', 'motorola'];
+const COMPANY_LOGOS = ROW_COMPANIES.map((id) => COMPANY_MARKS[id]);
 
 const SLOT_COUNT = 6;
 // One shared, slower clock — each tick picks a single random slot to swap,
@@ -222,10 +133,12 @@ function LogoMarquee() {
             <div
               key={logoIndex}
               title={logo.name}
-              style={{ background: logo.tile }}
+              style={{ background: logo.color }}
               className="w-full h-full rounded-[12px] border border-[var(--ed-rule-strong)] flex items-center justify-center overflow-hidden shadow-[inset_0_1px_0_color-mix(in_oklab,var(--ed-ink)_14%,transparent)] animate-in fade-in zoom-in-90 duration-500"
             >
-              {logo.glyph}
+              <svg width="56%" height="56%" viewBox="0 0 24 24" aria-hidden="true">
+                <path d={logo.path} fill="#ffffff" />
+              </svg>
             </div>
           </div>
         );
@@ -354,8 +267,8 @@ export default function Landing() {
             )}
           </div>
 
-          {/* Company marks cycling independently per slot — illustrative
-              examples, not a claim about actual data sources. */}
+          {/* Company marks cycling one slot at a time — real companies whose
+              jobs NextRole reads (ROW_COMPANIES). */}
           <div className="mt-12 pt-7 border-t border-dashed border-[var(--ed-rule)] max-w-[26rem]">
             <p className="text-[0.62rem] tracking-[0.26em] uppercase text-[var(--ed-ink-faint)] font-semibold mb-6">
               Matching roles from…

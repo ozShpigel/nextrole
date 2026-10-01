@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties, type PointerEvent, type ReactNode } from 'react';
 import { scoreColor } from '../lib/format';
-import { SCENE_LOGOS } from './sceneLogos';
+import { COMPANY_MARKS } from './companyMarks';
 
 // The Landing page's picture of the pipeline — an isometric floor with each
 // stage standing on it and a story playing across it on a loop: listings come
@@ -297,7 +297,7 @@ function StoryPacket({ route, a, b }: { route: RouteId; a: number; b: number }) 
 // The companies whose listings ride each board's route into the pool, two a
 // cycle: a brand mark where Simple Icons has one, the company's initial on a
 // plain tile where it doesn't. Real companies on that board, never decoration.
-type Rider = { logo: keyof typeof SCENE_LOGOS } | { initial: string };
+type Rider = { logo: keyof typeof COMPANY_MARKS } | { initial: string };
 const RIDERS: Record<'src1' | 'src2' | 'src3' | 'src4', [Rider, Rider]> = {
   src1: [{ logo: 'monzo' }, { logo: 'deliveroo' }],    // Greenhouse
   src2: [{ logo: 'nvidia' }, { logo: 'intel' }],       // Workday
@@ -316,7 +316,7 @@ function LogoTile({ rider }: { rider: Rider }) {
       </g>
     );
   }
-  const mark = SCENE_LOGOS[rider.logo];
+  const mark = COMPANY_MARKS[rider.logo];
   return (
     <g>
       <rect x={-10} y={-10} width={20} height={20} rx={5} fill={mark.color} />

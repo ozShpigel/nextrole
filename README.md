@@ -42,21 +42,23 @@ Matching a CV to a posting is a judgement, and an LLM makes it confidently and w
 | Queue | RabbitMQ: one message per company board, dead-letter queue ([`docs/greenhouse.md`](docs/greenhouse.md)) |
 | Runtime | Docker Compose on one Hetzner VPS, Caddy for automatic HTTPS ([`deploy/compose.yml`](deploy/compose.yml), [`deploy/Caddyfile`](deploy/Caddyfile)) |
 
-## Core principle: let the model judge, verify in code
+## Core principle: the model judges, code verifies
 
-The model is good at reading a posting and a CV. It is unreliable at applying the consequences of its own reasoning. It names a dealbreaker and still answers YES, or it is told to cap a score and doesn't. So the model writes the judgement, and the C# layer computes every number that changes what the user sees, from data the model did not write.
+A model reads a posting well but doesn't reliably act on its own reasoning: it names a dealbreaker and still answers YES. So Claude writes the judgement, and code checks it against the CV and the posting, using data the model didn't write, before anyone sees it.
 
-The path a posting takes ([`docs/greenhouse.md`](docs/greenhouse.md), [`docs/scoring-and-search.md`](docs/scoring-and-search.md)):
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/pipeline-dark.svg">
+    <img src="docs/images/pipeline-light.svg" width="900" alt="The path a posting takes, in five stages. Shared, once per posting: 01 Fetch (code): one call per board, unchanged postings skipped by SHA-256, never deletes, a failed fetch throws. 02 Filter (code): age, location and function before any paid call; 0 of 116 checked wanted roles hidden. 03 Extract (model): Claude Haiku, batched, closed vocabularies, once per posting for everyone. Per user, on demand: 04 Retrieve (code): vector search on your CV plus filters on the facts; only unscored postings reach a paid call. 05 Score and verify (model and code): Claude judges at temperature 0, then Correct() overrides it with 7 checks; 22/24 on the golden set.">
+  </picture>
+</p>
 
-| # | Stage | Where | What it guards |
-|---|---|---|---|
-| 1 | **Fetch and dedupe.** One call per board. A SHA-256 content hash skips unchanged postings. Listings are upserted on `(boardKey, sourceJobId)` and never deleted. | [`BoardHandler.cs`](server/api/src/Greenhouse/Work/BoardHandler.cs) | A failed or partial fetch *throws*, so it can never close a company's jobs |
-| 2 | **Pre-read filter.** Skips postings no user could want, judged by age, location and function, before any paid call. | [`Prefilter.cs`](server/api/src/Greenhouse/Work/Prefilter.cs) | Switched on only after a hand-checked 116 postings: 109 right, 7 wrong, 0 that would hide a wanted role ([`docs/greenhouse.md`](docs/greenhouse.md#L337)) |
-| 3 | **Fact extraction, once per posting, for everyone.** Haiku, in chunks of 12, optionally through the Message Batches API. Seniority and job function come from closed lists, and off-list values are dropped server-side. | [`PromptSeeds.cs`](server/api/src/Infrastructure/AI/PromptSeeds.cs#L346), [`ClaudeClient.cs`](server/api/src/Infrastructure/AI/ClaudeClient.cs#L721) | The scorer reads stored facts, so extraction is never repeated per user |
-| 4 | **Retrieval per user.** Atlas `$vectorSearch` with the profile as the query, filtered on location and seniority. Mongo then filters for open postings, age, and facts present. | [`MongoCandidateJobStore.cs`](server/api/src/Infrastructure/Greenhouse/MongoCandidateJobStore.cs#L52), [`GreenhouseJobRepository.cs`](server/api/src/Infrastructure/Greenhouse/GreenhouseJobRepository.cs#L125) | Only a handful of postings reach a paid call |
-| 5 | **Scoring.** The Haiku Evaluator runs at temperature 0, only on postings this user has never had scored, and the result is stored in per-user `jobScores`. Then `Correct()` runs. Part of it is a C# set intersection of the posting's must-have groups against the profile, which overwrites the model's own list of gaps. | [`JobMatchService.cs`](server/api/src/Core/Matching/JobMatchService.cs#L256), [`ClaimGrounding.cs`](server/api/src/Core/Matching/ClaimGrounding.cs#L119) | See the next section |
-
-Nothing is scored at ingest. The pool is shared, and a score is an opinion about one candidate.
+**In the code:**
+01 [`BoardHandler.cs`](server/api/src/Greenhouse/Work/BoardHandler.cs) ·
+02 [`Prefilter.cs`](server/api/src/Greenhouse/Work/Prefilter.cs) ([the 116-posting check](docs/greenhouse.md#L337)) ·
+03 [`ClaudeClient.cs`](server/api/src/Infrastructure/AI/ClaudeClient.cs#L721) ·
+04 [`MongoCandidateJobStore.cs`](server/api/src/Infrastructure/Greenhouse/MongoCandidateJobStore.cs#L52) ·
+05 [`JobMatchService.Correct()`](server/api/src/Core/Matching/JobMatchService.cs#L256)
 
 ## How correctness is verified
 

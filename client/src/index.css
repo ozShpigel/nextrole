@@ -431,6 +431,8 @@ html::-webkit-scrollbar-button, .ed-scroll::-webkit-scrollbar-button { display: 
 /* labels and chips */
 .nr-scene .nr-label-bg { fill: color-mix(in oklab, var(--ed-accent) 8%, var(--ed-panel)); stroke: color-mix(in oklab, var(--ed-accent) 40%, transparent); stroke-width: .75; }
 .nr-scene .nr-label { fill: var(--ed-ink); font-family: var(--font-sans); font-size: 13px; font-weight: 500; letter-spacing: .08em; }
+.nr-scene .nr-tile-initial { fill: var(--ed-accent); font-family: var(--font-sans); font-size: 12px; font-weight: 700; text-anchor: middle; }
+.nr-scene .nr-label-sm { fill: var(--ed-ink-soft); font-family: var(--font-sans); font-size: 9.5px; font-weight: 500; letter-spacing: .08em; }
 .nr-scene .nr-chip { fill: var(--ed-panel); stroke: color-mix(in oklab, var(--ed-accent) 55%, transparent); stroke-width: 1; }
 .nr-scene .nr-ring-track { fill: none; stroke: var(--ed-rule-strong); stroke-width: 3; }
 .nr-scene .nr-ring { fill: none; stroke-width: 3; stroke-linecap: round; }
@@ -454,6 +456,11 @@ html::-webkit-scrollbar-button, .ed-scroll::-webkit-scrollbar-button { display: 
   --nr-flag-il-blue: #0038b8;
   --nr-flag-uk-blue: #012169;
   --nr-flag-uk-red: #c8102e;
+  --nr-flag-de-black: #000000;
+  --nr-flag-de-red: #dd0000;
+  --nr-flag-de-gold: #ffce00;
+  --nr-flag-us-red: #b22234;
+  --nr-flag-us-blue: #3c3b6e;
 }
 .nr-scene .nr-flag-white { fill: var(--nr-flag-white); }
 .nr-scene .nr-flag-il { fill: var(--nr-flag-il-blue); }
@@ -462,6 +469,11 @@ html::-webkit-scrollbar-button, .ed-scroll::-webkit-scrollbar-button { display: 
 .nr-scene .nr-flag-uk-red { fill: var(--nr-flag-uk-red); }
 .nr-scene .nr-flag-uk-diag { stroke: var(--nr-flag-white); stroke-width: 2.6; }
 .nr-scene .nr-flag-uk-diag-red { stroke: var(--nr-flag-uk-red); stroke-width: .9; }
+.nr-scene .nr-flag-de-black { fill: var(--nr-flag-de-black); }
+.nr-scene .nr-flag-de-red { fill: var(--nr-flag-de-red); }
+.nr-scene .nr-flag-de-gold { fill: var(--nr-flag-de-gold); }
+.nr-scene .nr-flag-us-red { fill: var(--nr-flag-us-red); }
+.nr-scene .nr-flag-us-blue { fill: var(--nr-flag-us-blue); }
 .nr-scene .nr-flag-frame { fill: none; stroke: color-mix(in oklab, var(--ed-ink) 35%, transparent); stroke-width: .6; }
 
 /* entrance: each stage rises onto the floor */

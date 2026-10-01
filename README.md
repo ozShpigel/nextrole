@@ -18,8 +18,6 @@ Every score passes 7 server-side checks; the scorer is measured on a 24-case han
   </picture>
 </p>
 
-<p align="center"><img alt="Matches: scored roles with verdicts and the evaluator's breakdown" src="docs/demos/output/search.gif" width="600"></p>
-
 ## The problem
 
 The core of the product is a single LLM judgement: is this posting a fit for this person? An unchecked judgement fails in ways nobody sees:
@@ -28,6 +26,8 @@ The core of the product is a single LLM judgement: is this posting a fit for thi
 - a failed board fetch that reads as "this company closed every job".
 
 Most of the code exists to make those failures impossible or visible, and to keep the cost per user in cents.
+
+<p align="center"><img alt="Matches: scored roles with verdicts and the evaluator's breakdown" src="docs/demos/output/search.gif" width="600"></p>
 
 ## Architecture
 

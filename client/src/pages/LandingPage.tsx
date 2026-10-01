@@ -341,6 +341,17 @@ export default function Landing() {
                 <span aria-hidden="true">&rarr;</span>
               </Link>
             )}
+            {/* For the visitor who came to see how it is built rather than to
+                upload: the story lives on /about, one quiet step away. */}
+            {!reading && !found && !hasProfile && (
+              <Link
+                to="/about"
+                className="inline-flex items-center gap-2 text-[0.74rem] font-semibold uppercase tracking-[0.1em] text-[var(--ed-ink-soft)] transition-colors hover:text-[var(--ed-ink)]"
+              >
+                How it&rsquo;s built
+                <span aria-hidden="true">&rarr;</span>
+              </Link>
+            )}
           </div>
 
           {/* Company marks cycling independently per slot — illustrative
@@ -364,6 +375,13 @@ export default function Landing() {
       >
         <p className="text-[13px] text-[var(--ed-ink-faint)]">
           NextRole &middot; {new Date().getFullYear()} &middot;{' '}
+          <Link
+            to="/about"
+            className="text-[var(--ed-ink-faint)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--ed-paper)] focus-visible:ring-[var(--ed-ink)] rounded-sm"
+          >
+            About
+          </Link>{' '}
+          &middot;{' '}
           <a
             href="https://github.com/ozShpigel/nextrole"
             target="_blank"

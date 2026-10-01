@@ -20,6 +20,7 @@ import MockInterviewPage from './pages/MockInterviewPage';
 import { FeatureRoute } from './components/ComingSoon';
 import InterviewInsightsPage from './pages/InterviewInsightsPage';
 import NotFoundPage from './pages/NotFoundPage';
+import AboutPage from './pages/AboutPage';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
@@ -47,6 +48,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
             />
             <Route path="/interview-insights" element={<InterviewInsightsPage />} />
             <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/about" element={<AboutPage />} />
             <Route path="/processing" element={<Navigate to="/search" replace />} />
             <Route path="*" element={<NotFoundPage />} />
           </Route>

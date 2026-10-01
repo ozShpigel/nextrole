@@ -20,12 +20,7 @@ Every score passes 7 server-side checks, and an [eval harness](#2-golden-set-eva
 
 ## The problem
 
-The core of the product is a single LLM judgement: is this posting a fit for this person? An unchecked judgement fails in ways nobody sees:
-- full marks (20/20) for core stack on a posting with 12 requirements the candidate lacks;
-- a "Kubernetes — strong match" on a CV that never mentions Kubernetes;
-- a failed board fetch that reads as "this company closed every job".
-
-Most of the code exists to make those failures impossible or visible, and to keep the cost per user in cents.
+Matching a CV to a posting is a judgement, and an LLM makes it confidently and wrongly: it gave full marks for core stack to a candidate missing 12 required technologies, read the posting's requirements back as the candidate's own skills, and ignored score caps its prompt stated. A wrong score looks exactly like a right one, so nobody notices. The hard part of NextRole is not the CRUD around the model but making those failures impossible or visible.
 
 ## Architecture
 

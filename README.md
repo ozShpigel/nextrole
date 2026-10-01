@@ -7,7 +7,7 @@
 [![License: FSL-1.1-MIT](https://img.shields.io/badge/License-FSL--1.1--MIT-blue)](LICENSE)
 
 **NextRole finds the open roles that fit your CV — Claude judges every match, and code checks every judgement against your actual CV before you see it.**
-For engineers anywhere: upload a CV, no signup, and get roles from 36 company job boards, read daily, ranked against your profile.
+For engineers anywhere: upload a CV, no signup, and get open roles from company job boards, read daily, ranked against your profile.
 Every score passes 7 server-side checks; the scorer is measured on a 24-case hand-labelled golden set (22/24, stable over 3 runs).
 **Live at [nextrole.cloud](https://nextrole.cloud)** — in production on one VPS, deployed on every merge to `main`.
 
@@ -178,7 +178,7 @@ Locally, the ingest defaults to a single small board (`config/boards.dev.json`) 
 
 ## Status, roadmap, license
 
-- **Status:** live at [nextrole.cloud](https://nextrole.cloud). Ingest reads 26 Greenhouse boards and 10 Workday boards ([`boards.json`](server/api/src/Greenhouse/config/boards.json)). Google sign-in, server-side sessions and anonymous-account merge are deployed ([`docs/auth.md`](docs/auth.md)).
+- **Status:** live at [nextrole.cloud](https://nextrole.cloud). Ingest reads Greenhouse and Workday company boards, configured in [`boards.json`](server/api/src/Greenhouse/config/boards.json). Google sign-in, server-side sessions and anonymous-account merge are deployed ([`docs/auth.md`](docs/auth.md)).
 - **Roadmap:**
   - More ATS sources behind one adapter contract ([`docs/plans/multi-source-ingest.md`](docs/plans/multi-source-ingest.md), phases 6–7).
   - Paid tiers behind the existing gating ([`docs/plans/feature-gating.md`](docs/plans/feature-gating.md)).

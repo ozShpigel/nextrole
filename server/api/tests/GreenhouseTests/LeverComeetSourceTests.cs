@@ -69,6 +69,16 @@ public class LeverSourceTests
     }
 
     [Fact]
+    public async Task A_board_on_the_eu_instance_is_read_from_the_eu_host()
+    {
+        var stub = new StubHandler().EnqueueJson(HttpStatusCode.OK, Lever.TwoPostings);
+
+        await Lever.Source(stub).ListAsync(Lever.Board with { Region = "eu" }, default);
+
+        Assert.Equal(["https://api.eu.lever.co/v0/postings/acme?mode=json"], stub.RequestUris);
+    }
+
+    [Fact]
     public async Task Maps_locations_departments_url_and_the_board_name()
     {
         var listing = await Lever.Over(HttpStatusCode.OK, Lever.TwoPostings).ListAsync(Lever.Board, default);
@@ -221,6 +231,16 @@ public class ComeetSourceTests
 public class LeverComeetBoardsConfigTests
 {
     [Fact]
+    public void An_eu_lever_board_loads()
+    {
+        var config = BoardsConfig.Parse("""
+            { "boards": [ { "source": "lever", "token": "acme", "name": "Acme", "region": " eu " } ] }
+            """);
+
+        Assert.Equal("eu", config.All[0].Region);
+    }
+
+    [Fact]
     public void Lever_and_comeet_boards_load()
     {
         var config = BoardsConfig.Parse("""
@@ -232,6 +252,7 @@ public class LeverComeetBoardsConfigTests
             """);
 
         Assert.Equal(["lever:acme", "comeet:beta"], config.All.Select(b => b.Key));
+        Assert.Null(config.All[0].Region);
         Assert.Equal("43.001", config.All[1].CompanyUid);
     }
 
@@ -246,6 +267,9 @@ public class LeverComeetBoardsConfigTests
     // Another source's fields: a board filed under the wrong source.
     [InlineData("""{ "boards": [ { "source": "greenhouse", "token": "acme", "company_uid": "43.001" } ] }""")]
     [InlineData("""{ "boards": [ { "source": "lever", "token": "acme", "name": "Acme", "host": "acme.wd1" } ] }""")]
+    // Lever's only other instance is the EU one; region belongs to Lever alone.
+    [InlineData("""{ "boards": [ { "source": "lever", "token": "acme", "name": "Acme", "region": "us" } ] }""")]
+    [InlineData("""{ "boards": [ { "source": "greenhouse", "token": "acme", "region": "eu" } ] }""")]
     public void A_malformed_lever_or_comeet_board_is_fatal(string json) =>
         Assert.Throws<InvalidOperationException>(() => BoardsConfig.Parse(json));
 }

@@ -54,6 +54,13 @@ public sealed record BoardConfig
     /// </summary>
     [JsonPropertyName("api_token")] public string? ApiToken { get; init; }
 
+    /// <summary>
+    /// Lever: <c>eu</c> for a board on Lever's EU instance (<c>jobs.eu.lever.co</c>),
+    /// left out for the global one. The same API on another host; the company's
+    /// data lives on only one of them, and the other answers 404.
+    /// </summary>
+    [JsonPropertyName("region")] public string? Region { get; init; }
+
     [JsonIgnore] public string Key => GreenhouseJob.KeyFor(Source, Token);
 }
 
@@ -275,6 +282,7 @@ public sealed record BoardsConfig
                 Site = raw.Site?.Trim(),
                 CompanyUid = raw.CompanyUid?.Trim(),
                 ApiToken = raw.ApiToken?.Trim(),
+                Region = raw.Region?.Trim(),
             };
 
             if (!KnownSources.Contains(board.Source))
@@ -356,6 +364,8 @@ public sealed record BoardsConfig
         if (board.Source != ComeetSource.SourceName && comeetFields)
             throw new InvalidOperationException(
                 $"{what}: {board.Key} has company_uid/api_token, which only a comeet board takes.");
+        if (board.Source != LeverSource.SourceName && board.Region is not null)
+            throw new InvalidOperationException($"{what}: {board.Key} has region, which only a lever board takes.");
 
         string Required(string? value, string field) => string.IsNullOrWhiteSpace(value)
             ? throw new InvalidOperationException($"{what}: {board.Key} is a {board.Source} board and needs {field}.")
@@ -365,6 +375,10 @@ public sealed record BoardsConfig
         {
             case LeverSource.SourceName:
                 Required(board.Name, "name");   // a Lever posting carries no company name
+                if (board.Region is not null && board.Region != LeverSource.EuRegion)
+                    throw new InvalidOperationException(
+                        $"{what}: {board.Key} has region '{board.Region}'. The only one is '{LeverSource.EuRegion}' "
+                        + "(jobs.eu.lever.co); leave it out for the global instance.");
                 return;
             case ComeetSource.SourceName:
                 CheckComeetFields(board, what, Required);

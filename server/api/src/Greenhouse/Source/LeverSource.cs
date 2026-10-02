@@ -23,14 +23,23 @@ namespace ApplicationTracker.Greenhouse;
 /// </para>
 /// <para>
 /// Not read: <c>salaryRange</c> (absent on all 400 postings measured -- mapping
-/// a shape never seen is a guess), and Lever's EU instance (<c>api.eu.lever.co</c>):
-/// a board hosted there answers 404 here and fails loudly rather than emptily.
+/// a shape never seen is a guess).
+/// </para>
+/// <para>
+/// <b>Two instances.</b> A company's postings live on Lever's global instance
+/// or its EU one (<c>api.eu.lever.co</c>), never both; the other answers 404.
+/// A board on the EU one says <c>"region": "eu"</c> (measured 2026-10-02 on
+/// mobileye: same API, same fields). A board filed under the wrong one fails
+/// loudly with that 404 rather than reading as empty.
 /// </para>
 /// </remarks>
 public sealed class LeverSource : IJobSource
 {
     /// <summary>The source name in <c>boards.json</c> and in every stored board key.</summary>
     public const string SourceName = "lever";
+
+    /// <summary>The <see cref="BoardConfig.Region"/> of a board on Lever's EU instance.</summary>
+    public const string EuRegion = "eu";
 
     private readonly HttpClient _http;
     private readonly ILogger<LeverSource> _log;
@@ -45,7 +54,8 @@ public sealed class LeverSource : IJobSource
 
     public async Task<Listing> ListAsync(BoardConfig board, CancellationToken ct)
     {
-        var url = $"https://api.lever.co/v0/postings/{Uri.EscapeDataString(board.Token)}?mode=json";
+        var host = board.Region == EuRegion ? "api.eu.lever.co" : "api.lever.co";
+        var url = $"https://{host}/v0/postings/{Uri.EscapeDataString(board.Token)}?mode=json";
         var postings = await PublicBoardApi.GetAsync<List<LeverPosting>>(_http, url, board, ct);
 
         // The id is the upsert's key: a posting without one cannot be followed

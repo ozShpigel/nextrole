@@ -55,8 +55,8 @@ calls it, never the reverse, and the tests drive it by calling the method.
 1. Fetch the whole board, through the source's `IJobSource` -- `GreenhouseSource`,
    or `WorkdaySource` for a company's own Workday careers site
    (docs/plans/workday-adapter.md: pages of 20, detail per posting, one request a
-   second), `LeverSource` (api.lever.co, one request returns the whole board
-   with bodies) or `ComeetSource` (Comeet's Careers API, one request with
+   second), `LeverSource` (api.lever.co, or api.eu.lever.co for a board with
+   `"region": "eu"`; one request returns the whole board with bodies) or `ComeetSource` (Comeet's Careers API, one request with
    `details=true`; a board needs the company's `company_uid` and `api_token`,
    both public on its careers page). Lever and Comeet give no count, so a
    parsed response is the whole board, as for a Greenhouse board without

@@ -11,7 +11,7 @@ Upload your CV. NextRole reads company job boards daily, scores every role again
 ## Shape of the product
 
 **Multi-user, one shared job pool.** A daily ingest reads company job boards
-(Greenhouse and Workday, `server/api/src/Greenhouse/config/boards.json`) into a
+(Greenhouse, Workday, Lever and Comeet, `server/api/src/Greenhouse/config/boards.json`) into a
 pool common to every user; scoring is per user and on demand. There is no
 per-user scraping. LinkedIn scraping fed the pool until 2026-09-26 and is
 retired.

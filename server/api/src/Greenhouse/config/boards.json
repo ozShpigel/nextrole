@@ -52,8 +52,17 @@
      "facets": {"locations": ["1e4a4eb3adf1013563ba9174bf817fcd", "1e4a4eb3adf101cb242c9e74bf8189cd", "1e4a4eb3adf101aaeda8a474bf818ecd", "fabab36f05f51000cba5731014dd0000"]}},
     {"source": "comeet", "token": "coralogix", "domain": "coralogix.com", "company_uid": "06.004", "api_token": "604241801E141E1460430200604604"},
     {"source": "comeet", "token": "vastdata", "domain": "vastdata.com", "company_uid": "43.001", "api_token": "34110453411D4968234168209C31D49"},
+    {"source": "comeet", "token": "comm-it", "domain": "comm-it.com", "company_uid": "76.008", "api_token": "67826D067833C0CF002D48020581368"},
+    {"source": "comeet", "token": "majesticlabs", "domain": "majestic-labs.ai", "company_uid": "AA.004", "api_token": "AA44A7C35345FC44A7C5FC4055205FC42A90"},
+    {"source": "comeet", "token": "kelatechnologies", "domain": "kela.io", "company_uid": "2A.007", "api_token": "A2747111E755B5F0513847114711A274711"},
+    {"source": "comeet", "token": "quantummachines", "domain": "quantum-machines.co", "company_uid": "D6.000", "api_token": "6D028E0DA022106D01470221036803D502210"},
+    {"source": "comeet", "token": "fetcherr", "domain": "fetcherr.io", "company_uid": "68.006", "api_token": "866326432643ACA866219829FE10CC193229FE"},
+    {"source": "comeet", "token": "upwind", "domain": "upwind.io", "company_uid": "49.004", "api_token": "94440DC0944094401BCC12882510"},
+    {"source": "comeet", "token": "noma_security", "domain": "noma.security", "company_uid": "3A.005", "api_token": "A35477328D4001E9F146A5BDD146A28D4"},
     {"source": "lever", "token": "cloudinary", "name": "Cloudinary", "domain": "cloudinary.com"},
-    {"source": "lever", "token": "palantir", "name": "Palantir", "domain": "palantir.com"}
+    {"source": "lever", "token": "palantir", "name": "Palantir", "domain": "palantir.com"},
+    {"source": "lever", "token": "spotify", "name": "Spotify", "domain": "spotify.com"},
+    {"source": "lever", "token": "zopa", "name": "Zopa", "domain": "zopa.com"}
   ],
 
   "_domains_comment": "Each board's domain is its company's own web domain, for its logo -- the boards API returns none -- and for the one-domain-one-board rule. The token is a Greenhouse slug, not a domain, so it is written down rather than derived. Optional: a board with no domain gets its initial on the card. The ingest resolves logo_url_template per domain and stamps the URL on every row of that board, so the API never reads this file. Swapping the service -- e.g. to logo.dev, https://img.logo.dev/{domain}?token=pk_... -- is an edit to the template; the next run restamps every row.",

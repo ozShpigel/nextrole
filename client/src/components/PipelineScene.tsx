@@ -301,8 +301,8 @@ type Rider = { logo: keyof typeof COMPANY_MARKS } | { initial: string };
 const RIDERS: Record<'src1' | 'src2' | 'src3' | 'src4', [Rider, Rider]> = {
   src1: [{ logo: 'monzo' }, { logo: 'deliveroo' }],    // Greenhouse
   src2: [{ logo: 'nvidia' }, { logo: 'intel' }],       // Workday
-  src3: [{ initial: 'C' }, { initial: 'A' }],          // Comeet: Coralogix, Aidoc
-  src4: [{ logo: 'cloudinary' }, { initial: 'M' }],    // Lever: Cloudinary, Mobileye
+  src3: [{ initial: 'C' }, { initial: 'V' }],          // Comeet: Coralogix, VAST Data
+  src4: [{ logo: 'cloudinary' }, { logo: 'palantir' }], // Lever: Cloudinary, Palantir
 };
 const SECOND_RIDER = 5.6; // seconds after the first, so the boards keep flowing
 

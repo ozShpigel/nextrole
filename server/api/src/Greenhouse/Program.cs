@@ -274,10 +274,16 @@ try
     var workdayHttp = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
     workdayHttp.DefaultRequestHeaders.UserAgent.ParseAdd("NextRole-ingest/1.0 (+https://nextrole.cloud)");
 
+    // Lever and Comeet: public careers APIs, one request per board, like Greenhouse.
+    var publicApiHttp = new HttpClient { Timeout = TimeSpan.FromMinutes(2) };
+    publicApiHttp.DefaultRequestHeaders.UserAgent.ParseAdd("NextRole-ingest/1.0 (+https://nextrole.cloud)");
+
     IJobSource[] sources =
     [
         new GreenhouseSource(new BoardClient(boardHttp, loggerFactory.CreateLogger<BoardClient>())),
         new WorkdaySource(workdayHttp, loggerFactory.CreateLogger<WorkdaySource>()),
+        new LeverSource(publicApiHttp, loggerFactory.CreateLogger<LeverSource>()),
+        new ComeetSource(publicApiHttp, loggerFactory.CreateLogger<ComeetSource>()),
     ];
 
     // Dates of new postings the detail showed too old, so tomorrow's run skips

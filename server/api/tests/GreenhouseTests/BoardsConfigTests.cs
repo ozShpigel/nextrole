@@ -369,9 +369,9 @@ public class BoardsConfigTests
     public void A_board_on_an_unknown_source_is_fatal()
     {
         var e = Assert.Throws<InvalidOperationException>(() => BoardsConfig.Parse("""
-            { "boards": [ { "source": "lever", "token": "acme" } ] }
+            { "boards": [ { "source": "ashby", "token": "acme" } ] }
             """));
-        Assert.Contains("'lever'", e.Message);
+        Assert.Contains("'ashby'", e.Message);
         Assert.Contains("greenhouse", e.Message);   // and says which sources ARE known
     }
 

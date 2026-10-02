@@ -55,7 +55,12 @@ calls it, never the reverse, and the tests drive it by calling the method.
 1. Fetch the whole board, through the source's `IJobSource` -- `GreenhouseSource`,
    or `WorkdaySource` for a company's own Workday careers site
    (docs/plans/workday-adapter.md: pages of 20, detail per posting, one request a
-   second). Everything below is shared by every source; only the fetch and the
+   second), `LeverSource` (api.lever.co, one request returns the whole board
+   with bodies) or `ComeetSource` (Comeet's Careers API, one request with
+   `details=true`; a board needs the company's `company_uid` and `api_token`,
+   both public on its careers page). Lever and Comeet give no count, so a
+   parsed response is the whole board, as for a Greenhouse board without
+   `meta.total`; a truncated body does not parse and throws. Everything below is shared by every source; only the fetch and the
    proof that the listing is whole are the adapter's. A listing the source
    cannot prove complete is stored but closes nothing, and a posting whose
    detail could not be read is skipped and left open. Every adapter passes

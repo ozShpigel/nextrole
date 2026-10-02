@@ -14,7 +14,10 @@ public sealed record BoardConfig
 {
     [JsonPropertyName("source")] public string Source { get; init; } = "";
 
-    /// <summary>The board's id on its source: the Greenhouse slug in boards.greenhouse.io/&lt;token&gt;.</summary>
+    /// <summary>
+    /// The board's id on its source: the slug in boards.greenhouse.io/&lt;token&gt;,
+    /// jobs.lever.co/&lt;token&gt; or comeet.com/jobs/&lt;token&gt;/.
+    /// </summary>
     [JsonPropertyName("token")] public string Token { get; init; } = "";
 
     /// <summary>The company's own web domain, for its logo and the one-domain-one-board rule. Optional.</summary>
@@ -41,6 +44,15 @@ public sealed record BoardConfig
     /// whole-company site listable at all: its total is capped at 2000.
     /// </summary>
     [JsonPropertyName("facets")] public Dictionary<string, List<string>>? Facets { get; init; }
+
+    /// <summary>Comeet: the company's uid in the API path, e.g. <c>43.001</c>.</summary>
+    [JsonPropertyName("company_uid")] public string? CompanyUid { get; init; }
+
+    /// <summary>
+    /// Comeet: the careers token. Public -- the company's own careers page
+    /// embeds it to call the same API -- so it is config, not a secret.
+    /// </summary>
+    [JsonPropertyName("api_token")] public string? ApiToken { get; init; }
 
     [JsonIgnore] public string Key => GreenhouseJob.KeyFor(Source, Token);
 }
@@ -139,7 +151,10 @@ public sealed record BoardsConfig
 
     /// <summary>The sources this build can read. A board on any other is a config error.</summary>
     public static readonly IReadOnlySet<string> KnownSources =
-        new HashSet<string>(StringComparer.Ordinal) { GreenhouseSource.SourceName, WorkdaySource.SourceName };
+        new HashSet<string>(StringComparer.Ordinal)
+        {
+            GreenhouseSource.SourceName, WorkdaySource.SourceName, LeverSource.SourceName, ComeetSource.SourceName,
+        };
 
     private static readonly JsonSerializerOptions Json = new()
     {
@@ -258,6 +273,8 @@ public sealed record BoardsConfig
                 Host = raw.Host?.Trim(),
                 Tenant = raw.Tenant?.Trim(),
                 Site = raw.Site?.Trim(),
+                CompanyUid = raw.CompanyUid?.Trim(),
+                ApiToken = raw.ApiToken?.Trim(),
             };
 
             if (!KnownSources.Contains(board.Source))
@@ -331,18 +348,32 @@ public sealed record BoardsConfig
     {
         var workdayFields = board.Host is not null || board.Tenant is not null
                             || board.Site is not null || board.Facets is not null;
+        var comeetFields = board.CompanyUid is not null || board.ApiToken is not null;
 
-        if (board.Source != WorkdaySource.SourceName)
-        {
-            if (workdayFields)
-                throw new InvalidOperationException(
-                    $"{what}: {board.Key} has host/tenant/site/facets, which only a workday board takes.");
-            return;
-        }
+        if (board.Source != WorkdaySource.SourceName && workdayFields)
+            throw new InvalidOperationException(
+                $"{what}: {board.Key} has host/tenant/site/facets, which only a workday board takes.");
+        if (board.Source != ComeetSource.SourceName && comeetFields)
+            throw new InvalidOperationException(
+                $"{what}: {board.Key} has company_uid/api_token, which only a comeet board takes.");
 
         string Required(string? value, string field) => string.IsNullOrWhiteSpace(value)
-            ? throw new InvalidOperationException($"{what}: {board.Key} is a workday board and needs {field}.")
+            ? throw new InvalidOperationException($"{what}: {board.Key} is a {board.Source} board and needs {field}.")
             : value;
+
+        switch (board.Source)
+        {
+            case LeverSource.SourceName:
+                Required(board.Name, "name");   // a Lever posting carries no company name
+                return;
+            case ComeetSource.SourceName:
+                CheckComeetFields(board, what, Required);
+                return;
+            case WorkdaySource.SourceName:
+                break;
+            default:
+                return;
+        }
 
         Required(board.Name, "name");   // the posting's own is a legal entity, not a display name
 
@@ -363,6 +394,19 @@ public sealed record BoardsConfig
                 throw new InvalidOperationException(
                     $"{what}: {board.Key} has a malformed facet '{facet}'. Expected a facet parameter name "
                     + "mapped to a non-empty list of facet value ids, as the site's own listing reports them.");
+    }
+
+    // Both go into the request URL, so each must be exactly its shape: a typo
+    // becomes a 400 blamed on the file, never a request to another path.
+    private static void CheckComeetFields(BoardConfig board, string what, Func<string?, string, string> required)
+    {
+        if (!System.Text.RegularExpressions.Regex.IsMatch(required(board.CompanyUid, "company_uid"), @"^[0-9A-Fa-f]{2}\.[0-9A-Fa-f]{3}$"))
+            throw new InvalidOperationException(
+                $"{what}: {board.Key} has company_uid '{board.CompanyUid}'. Expected the uid in the careers URL, "
+                + "as in 43.001 for comeet.com/jobs/vastdata/43.001.");
+
+        if (!required(board.ApiToken, "api_token").All(char.IsAsciiLetterOrDigit))
+            throw new InvalidOperationException($"{what}: {board.Key} has api_token '{board.ApiToken}': letters and digits only.");
     }
 
     // A bare hostname: no scheme, no path. It is substituted into a URL, so

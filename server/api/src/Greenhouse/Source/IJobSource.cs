@@ -3,7 +3,7 @@ using ApplicationTracker.Core.Matching;
 namespace ApplicationTracker.Greenhouse;
 
 /// <summary>
-/// One kind of job board -- Greenhouse today, Workday and others next. The only
+/// One kind of job board -- Greenhouse, Workday, Lever, Comeet. The only
 /// code that knows how a board is fetched.
 /// </summary>
 /// <remarks>

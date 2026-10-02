@@ -50,7 +50,10 @@
      "facets": {"Country": ["084562884af243748dad7c84c304d89a", "29247e57dbaf46fb855b224e03170bc7"]}},
     {"source": "workday", "token": "intel", "name": "Intel", "domain": "intel.com", "host": "intel.wd1", "tenant": "intel", "site": "External",
      "facets": {"locations": ["1e4a4eb3adf1013563ba9174bf817fcd", "1e4a4eb3adf101cb242c9e74bf8189cd", "1e4a4eb3adf101aaeda8a474bf818ecd", "fabab36f05f51000cba5731014dd0000"]}},
-    {"source": "comeet", "token": "coralogix", "domain": "coralogix.com", "company_uid": "06.004", "api_token": "604241801E141E1460430200604604"}
+    {"source": "comeet", "token": "coralogix", "domain": "coralogix.com", "company_uid": "06.004", "api_token": "604241801E141E1460430200604604"},
+    {"source": "comeet", "token": "vastdata", "domain": "vastdata.com", "company_uid": "43.001", "api_token": "34110453411D4968234168209C31D49"},
+    {"source": "lever", "token": "cloudinary", "name": "Cloudinary", "domain": "cloudinary.com"},
+    {"source": "lever", "token": "palantir", "name": "Palantir", "domain": "palantir.com"}
   ],
 
   "_domains_comment": "Each board's domain is its company's own web domain, for its logo -- the boards API returns none -- and for the one-domain-one-board rule. The token is a Greenhouse slug, not a domain, so it is written down rather than derived. Optional: a board with no domain gets its initial on the card. The ingest resolves logo_url_template per domain and stamps the URL on every row of that board, so the API never reads this file. Swapping the service -- e.g. to logo.dev, https://img.logo.dev/{domain}?token=pk_... -- is an edit to the template; the next run restamps every row.",

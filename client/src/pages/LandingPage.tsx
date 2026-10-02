@@ -92,7 +92,10 @@ function UploadCard({ upload }: { upload: CvUploadState }) {
 // reads, each on its brand's own tile color with its mark in white, so the
 // row reads as one set. COMPANY_MARKS says where each comes from; the hex is
 // the companies' colors, not ours (the logo exception).
-const ROW_COMPANIES: CompanyMarkId[] = ['nvidia', 'monzo', 'intel', 'deliveroo', 'cisco', 'jfrog', 'payoneer', 'similarweb', 'f5', 'motorola'];
+const ROW_COMPANIES: CompanyMarkId[] = [
+  'nvidia', 'monzo', 'intel', 'deliveroo', 'cisco', 'jfrog', 'payoneer', 'similarweb', 'f5', 'motorola',
+  'spotify', 'mastercard', 'palantir', 'fiverr', 'cloudinary',
+];
 const COMPANY_LOGOS = ROW_COMPANIES.map((id) => COMPANY_MARKS[id]);
 
 const SLOT_COUNT = 6;

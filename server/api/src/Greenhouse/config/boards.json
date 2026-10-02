@@ -8,7 +8,6 @@
     {"source": "greenhouse", "token": "monzo", "domain": "monzo.com"},
     {"source": "greenhouse", "token": "deliveroo", "domain": "deliveroo.co.uk"},
     {"source": "greenhouse", "token": "nebius", "domain": "nebius.com"},
-    {"source": "greenhouse", "token": "wayve", "domain": "wayve.ai"},
     {"source": "greenhouse", "token": "catonetworks", "domain": "catonetworks.com"},
     {"source": "greenhouse", "token": "nice", "domain": "nice.com"},
     {"source": "greenhouse", "token": "via", "domain": "ridewithvia.com"},

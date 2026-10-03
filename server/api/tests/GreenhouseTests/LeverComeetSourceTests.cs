@@ -216,6 +216,63 @@ public class ComeetSourceTests
         Assert.Empty(listing.Postings);
     }
 
+    // Shaped as Fetcherr's System Architect, 2026-10-03: one position published
+    // to two offices came back as two uids with the same title, body and link.
+    private const string OnePositionTwoOffices = """
+        [
+          { "uid": "73.276", "name": "System Architect", "url_active_page": "https://acme.example/careers/73276",
+            "location": { "name": "Netanya", "country": "IL" },
+            "details": [ { "name": "Description", "value": "<p>Design the platform.</p>", "order": 1 } ] },
+          { "uid": "73.276-9D.50A", "name": "System Architect", "url_active_page": "https://acme.example/careers/73276",
+            "location": { "name": "Tel Aviv", "country": "IL" },
+            "details": [ { "name": "Description", "value": "<p>Design the platform.</p>", "order": 1 } ] },
+          { "uid": "73.277", "name": "Data Engineer",
+            "location": { "name": "Tel Aviv", "country": "IL" },
+            "details": [ { "name": "Description", "value": "<p>Pipelines.</p>", "order": 1 } ] }
+        ]
+        """;
+
+    [Fact]
+    public async Task A_position_published_to_several_offices_is_one_posting()
+    {
+        var listing = await Comeet.Over(HttpStatusCode.OK, OnePositionTwoOffices).ListAsync(Comeet.Board, default);
+
+        Assert.Equal(["73.276", "73.277"], listing.Postings.Select(p => p.SourceJobId));
+    }
+
+    [Fact]
+    public async Task The_merged_posting_names_every_office_so_location_filters_still_match()
+    {
+        var listing = await Comeet.Over(HttpStatusCode.OK, OnePositionTwoOffices).ListAsync(Comeet.Board, default);
+
+        var merged = listing.Postings.Single(p => p.SourceJobId == "73.276");
+        Assert.Equal("Netanya; Tel Aviv", merged.Location);
+        Assert.Equal("https://acme.example/careers/73276", merged.Detail!.Url);
+    }
+
+    [Fact]
+    public async Task Copies_without_their_base_uid_still_make_one_posting()
+    {
+        // Never measured, but the posting must not be lost if it happens.
+        const string json = """
+            [ { "uid": "73.276-9D.50A", "name": "System Architect", "location": { "name": "Tel Aviv" } },
+              { "uid": "73.276-9D.50B", "name": "System Architect", "location": { "name": "Haifa" } } ]
+            """;
+
+        var listing = await Comeet.Over(HttpStatusCode.OK, json).ListAsync(Comeet.Board, default);
+
+        var only = Assert.Single(listing.Postings);
+        Assert.Equal("73.276-9D.50A", only.SourceJobId);
+        Assert.Equal("Tel Aviv; Haifa", only.Location);
+    }
+
+    [Theory]
+    [InlineData("73.276", "73.276")]
+    [InlineData("73.276-9D.50A", "73.276")]
+    [InlineData("6D.76F", "6D.76F")]
+    public void The_base_uid_is_everything_before_the_location_suffix(string uid, string expected) =>
+        Assert.Equal(expected, ComeetSource.BaseUid(uid));
+
     [Fact]
     public async Task A_rejected_uid_or_token_throws_rather_than_reading_as_empty()
     {

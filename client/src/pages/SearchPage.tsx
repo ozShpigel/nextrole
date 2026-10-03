@@ -975,7 +975,7 @@ export default function SearchPage() {
           {filtersOpen && (
             <aside className="w-[220px] shrink-0 sticky top-4 max-h-[calc(100vh-2rem)] overflow-y-auto max-[900px]:static max-[900px]:max-h-none max-[900px]:w-full border border-[var(--ed-rule)] rounded-2xl p-5">
               <div className="flex flex-col gap-[0.4rem] mb-5">
-                <span className={groupLabel}>Discovered</span>
+                <span className={groupLabel}>Posted</span>
                 <div className="flex flex-wrap gap-1">
                   {DAYS_PRESETS.map(({ days, label }) => (
                     <button key={days} type="button" className={pill(daysBack === days)} onClick={() => setDaysBack(days)} aria-pressed={daysBack === days}>

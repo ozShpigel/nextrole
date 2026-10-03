@@ -56,16 +56,18 @@ const MATCHES = [
   { company: 'Stratus Cloud', role: 'Backend Engineer', score: 82, tilt: 'rotateY(-12deg) translateZ(-20px)' },
 ];
 
+// On a phone the three cards are narrower and the side ones tuck behind the
+// centre one, so the fan fits a 360px screen instead of being cut at its edges.
 function MatchFan() {
   return (
-    <div className="flex items-center justify-center gap-2.5 [perspective:1100px] py-6">
+    <div className="flex items-center justify-center sm:gap-2.5 [perspective:1100px] py-6">
       {MATCHES.map((m, i) => (
         <div
           key={m.company}
           style={{ transform: m.tilt }}
-          className={`${i === 1 ? 'w-[10.5rem]' : 'w-[8.25rem]'} shrink-0 motion-safe:transition-transform motion-safe:duration-500`}
+          className={`${i === 1 ? 'relative z-10 w-[9.5rem] sm:w-[10.5rem]' : 'w-[6.75rem] sm:w-[8.25rem]'} ${i === 0 ? '-mr-3 sm:mr-0' : ''} ${i === 2 ? '-ml-3 sm:ml-0' : ''} shrink-0 motion-safe:transition-transform motion-safe:duration-500`}
         >
-          <Frame className={`p-4 ${i === 1 ? 'border-[var(--ed-accent)]' : ''}`}>
+          <Frame className={`${i === 1 ? 'p-3.5 sm:p-4 border-[var(--ed-accent)]' : 'p-3 sm:p-4'}`}>
             <div className="flex items-start justify-between">
               <CompanyAvatar name={m.company} size={i === 1 ? 34 : 28} shape="tile" />
               <ScoreRing score={m.score} size={i === 1 ? 40 : 32} />
@@ -138,7 +140,7 @@ function BoardMock() {
           <div className="mt-3 grid grid-cols-4 gap-2">
             {BOARD.map((b) => (
               <div key={b.col} className="min-w-0">
-                <p className="text-[8.5px] font-bold tracking-[0.12em] uppercase text-[var(--ed-ink-faint)] truncate">{b.col}</p>
+                <p className="text-[8px] sm:text-[8.5px] font-bold tracking-[0.04em] sm:tracking-[0.12em] uppercase text-[var(--ed-ink-faint)] truncate">{b.col}</p>
                 <div className="mt-1.5 h-[2px] rounded bg-[var(--ed-accent)]/50" />
                 <div className="mt-2 rounded-lg border border-[var(--ed-rule)] bg-[var(--ed-paper)] p-2">
                   <CompanyAvatar name={b.company} size={20} shape="tile" />
@@ -173,11 +175,17 @@ function Feature({ title, body, visual, flip = false }: { title: string; body: R
 }
 
 // A diagram wider than a phone scrolls sideways inside its own box instead of
-// shrinking to unreadable or pushing the page wide.
+// shrinking to unreadable or pushing the page wide. Below md the box only
+// shows its first third, so a caption says there is more.
 function Diagram({ src, alt }: { src: string; alt: string }) {
   return (
-    <div className="ed-scroll mt-8 overflow-x-auto rounded-2xl border border-[var(--ed-rule)]">
-      <img src={src} alt={alt} className="block w-full min-w-[46rem]" />
+    <div className="mt-8">
+      <div className="ed-scroll overflow-x-auto rounded-2xl border border-[var(--ed-rule)]">
+        <img src={src} alt={alt} className="block w-full min-w-[46rem]" />
+      </div>
+      <p className="md:hidden mt-2 text-[0.78rem] text-[var(--ed-ink-faint)]" aria-hidden="true">
+        Swipe to see the whole diagram &rarr;
+      </p>
     </div>
   );
 }
@@ -227,7 +235,8 @@ export default function AboutPage() {
 
         {/* Section bar */}
         <nav aria-label="On this page" className="sticky top-14 z-20 border-y border-[var(--ed-rule)] bg-[var(--ed-paper)]/80 backdrop-blur-[16px]">
-          <div className="ed-scroll mx-auto max-w-[72rem] px-4 sm:px-8 flex gap-6 overflow-x-auto">
+          {/* Below md the links overflow and scroll; the fade at the right edge says so. */}
+          <div className="ed-scroll mx-auto max-w-[72rem] px-4 sm:px-8 flex gap-6 overflow-x-auto [mask-image:linear-gradient(to_right,black_82%,transparent)] md:[mask-image:none]">
             {SECTIONS.map((s) => (
               <a
                 key={s.id}

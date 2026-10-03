@@ -66,8 +66,6 @@ export interface ApplicationDoc {
   AnalystSnapshotOutput: string | null;
   EvaluatorSnapshotInput: string | null;
   EvaluatorSnapshotOutput: string | null;
-  CompanyNews: string | null;
-  GlassdoorData: string | null;
   CompanySummary: string | null;
   Salary: string | null;
   CreatedAt: Date;
@@ -90,8 +88,6 @@ export async function insertApplication(overrides: Partial<ApplicationDoc> = {})
     AnalystSnapshotOutput: null,
     EvaluatorSnapshotInput: null,
     EvaluatorSnapshotOutput: null,
-    CompanyNews: null,
-    GlassdoorData: null,
     CompanySummary: null,
     Salary: null,
     CreatedAt: new Date(),

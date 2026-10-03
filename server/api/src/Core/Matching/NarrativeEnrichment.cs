@@ -10,8 +10,6 @@ public sealed record NarrativeEnrichRequest
     public required string JobDescription { get; init; }
     public string? Title { get; init; }
     public string? Company { get; init; }
-    public List<CompanyNewsItem>? CompanyNews { get; init; }
-    public GlassdoorData? GlassdoorData { get; init; }
     public CompanyProfile? CompanyProfile { get; init; }
 
     // Immutable context from the original ingest-time scoring — never
@@ -28,8 +26,6 @@ public sealed record NarrativeEnrichResponse
 {
     public string HonestAssessment { get; init; } = "";
     public NarrativeRecommendation? Recommendation { get; init; }
-    public CompanyNewsAnalysis? CompanyNewsAnalysis { get; init; }
-    public EmployeeReviewsAnalysis? EmployeeReviewsAnalysis { get; init; }
 }
 
 // Deliberately narrower than the full Recommendation record (no

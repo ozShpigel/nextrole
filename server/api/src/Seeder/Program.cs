@@ -143,9 +143,7 @@ var now = DateTime.UtcNow;
 var stratusMatchAnalysisJson = Analysis(
     "Backend Engineer", "Stratus Cloud", 82, "YES", true, (16, 11), (13, 12), (11, 11, 8),
     new[] { "Strong .NET + cloud background", "Clear ownership of services" }, Array.Empty<string>(),
-    "Strong overall fit; stack and seniority line up well with the role.",
-    new[] { "Recently raised a growth round" }, Array.Empty<string>(),
-    "Company is growing and hiring across engineering.").ToJson();
+    "Strong overall fit; stack and seniority line up well with the role.").ToJson();
 
 var seeds = new List<(Application App, Interview[] Interviews, string? MatchAnalysisJson)>
 {
@@ -616,22 +614,17 @@ var stratusJob = Job(runId, criteriaId, "Backend Engineer", "Stratus Cloud", "Te
     "Build and operate backend services for a cloud platform team.", 82, "YES", true, true, runAt,
     Analysis("Backend Engineer", "Stratus Cloud", 82, "YES", true, (16, 11), (13, 12), (11, 11, 8),
         new[] { "Strong .NET + cloud background", "Clear ownership of services" }, Array.Empty<string>(),
-        "Strong overall fit; stack and seniority line up well with the role.",
-        new[] { "Recently raised a growth round" }, Array.Empty<string>(),
-        "Company is growing and hiring across engineering."));
+        "Strong overall fit; stack and seniority line up well with the role."));
 var northwindJob = Job(runId, criteriaId, "Platform Engineer", "Northwind Labs", "Remote",
     "Developer platform and CI/CD tooling for product teams.", 74, "YES", true, false, runAt,
     Analysis("Platform Engineer", "Northwind Labs", 74, "YES", true, (14, 11), (12, 10), (10, 9, 8),
         new[] { "Platform / DevX experience", "Comfortable with CI/CD" }, new[] { "Domain is newer to the candidate" },
-        "Good fit with a mild ramp on the platform domain.",
-        Array.Empty<string>(), Array.Empty<string>(), "No notable recent news."));
+        "Good fit with a mild ramp on the platform domain."));
 var cobaltJob = Job(runId, criteriaId, "Data Engineer", "Cobalt Systems", "Tel Aviv",
     "Own batch and streaming data pipelines for analytics.", 56, "MAYBE", false, false, runAt,
     Analysis("Data Engineer", "Cobalt Systems", 56, "MAYBE", false, (11, 9), (9, 7), (7, 7, 6),
         new[] { "Transferable backend skills" }, new[] { "Limited data-engineering depth", "On-call load hinted" },
-        "Partial fit; the role leans more data-engineering than the candidate's core.",
-        Array.Empty<string>(), new[] { "Some Glassdoor reviews mention long hours" },
-        "Mixed signals on work-life balance."));
+        "Partial fit; the role leans more data-engineering than the candidate's core."));
 
 // Hand-authored, résumé-grounded reasoning for the two highest-scoring jobs
 // (also tracked on the Active board) — a reviewer who opens the score
@@ -643,18 +636,14 @@ var meridianJob = Job(runId, criteriaId, "Senior Backend Engineer", "Meridian Ro
         new[] { "Led the checkout platform's move off a monolith into independently deployable services",
                 "Direct experience owning distributed backend systems at scale (millions of orders/month)" },
         Array.Empty<string>(),
-        "Excellent fit — the control-plane/distributed-systems work here is a close match for the checkout platform ownership on the résumé, and seniority lines up.",
-        new[] { "Recently expanded its Tel Aviv engineering team" }, Array.Empty<string>(),
-        "Growing headcount locally, consistent with an active hiring push."));
+        "Excellent fit — the control-plane/distributed-systems work here is a close match for the checkout platform ownership on the résumé, and seniority lines up."));
 var solaceJob = Job(runId, criteriaId, "Staff Software Engineer", "Solace Fintech", "Remote",
     "Own payments infrastructure reliability and scale.", 88, "STRONG_YES", true, true, runAt,
     Analysis("Staff Software Engineer", "Solace Fintech", 88, "STRONG_YES", true, (17, 14), (15, 13), (11, 10, 8),
         new[] { "Directly reduced payment-failure retries by 40% on a high-volume checkout platform",
                 "Strong reliability/observability track record (structured logging, dashboards, on-call runbooks)" },
         new[] { "Staff-level scope is a step up from the résumé's current title" },
-        "Very strong fit — payments reliability is close to exactly what the résumé already shows hands-on impact in; the step to Staff is a stretch but a reasonable one.",
-        Array.Empty<string>(), Array.Empty<string>(),
-        "No notable recent news."));
+        "Very strong fit — payments reliability is close to exactly what the résumé already shows hands-on impact in; the step to Staff is a stretch but a reasonable one."));
 
 // Broader pool — score/verdict/company/title varied for a realistic-looking
 // spread; breakdown text is tier-derived (TieredAnalysis) rather than hand-authored
@@ -735,7 +724,7 @@ static BsonDocument Comp(string name, int score, int max, string reason) =>
 static BsonDocument Analysis(
     string title, string company, int overall, string verdict, bool shouldApply,
     (int core, int sys) tech, (int a, int b) exec, (int wl, int comm, int growth) sust,
-    string[] green, string[] red, string honest, string[] newsGreen, string[] newsRed, string newsSummary) =>
+    string[] green, string[] red, string honest) =>
     new()
     {
         ["jobTitle"] = title, ["company"] = company, ["overallScore"] = overall, ["verdict"] = verdict,
@@ -785,12 +774,6 @@ static BsonDocument Analysis(
             ["greenFlags"] = new BsonArray(green),
         },
         ["honestAssessment"] = honest,
-        ["companyNewsAnalysis"] = new BsonDocument
-        {
-            ["greenSignals"] = new BsonArray(newsGreen),
-            ["redSignals"] = new BsonArray(newsRed),
-            ["summary"] = newsSummary,
-        },
     };
 
 static BsonDocument Job(
@@ -807,7 +790,6 @@ static BsonDocument Job(
         ["match_analysis"] = analysis,
         ["analyst_snapshot_input"] = BsonNull.Value, ["analyst_snapshot_output"] = BsonNull.Value,
         ["evaluator_snapshot_input"] = BsonNull.Value, ["evaluator_snapshot_output"] = BsonNull.Value,
-        ["company_news"] = BsonNull.Value, ["glassdoor_data"] = BsonNull.Value,
         ["is_duplicate"] = false, ["saved_to_tracker"] = saved, ["dismissed"] = false,
         ["discovered_at"] = at,
         // Pool membership: the Matches read path only shows pool jobs, and the
@@ -849,5 +831,5 @@ static BsonDocument TieredAnalysis(string title, string company, int score, stri
 
     return Analysis(title, company, score, verdict, shouldApply,
         (techCore, techTotal - techCore), (execA, execTotal - execA), (sustWl, sustComm, sustTotal - sustWl - sustComm),
-        green, red, honest, Array.Empty<string>(), Array.Empty<string>(), "No notable recent news.");
+        green, red, honest);
 }

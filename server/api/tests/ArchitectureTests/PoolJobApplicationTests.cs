@@ -116,24 +116,4 @@ public class PoolJobApplicationTests
 
         Assert.Null(PoolJobApplication.ToApplication(User, Job(), Score(), null).CompanyLogo);
     }
-
-    [Fact]
-    public void Enrichment_is_serialized_only_when_present()
-    {
-        // Nothing produces these any more (the scrapers were deleted), but
-        // documents from the criteria era still carry them and still forward.
-        var bare = PoolJobApplication.ToApplication(User, Job(), Score(), null);
-        Assert.Null(bare.CompanyNews);
-        Assert.Null(bare.GlassdoorData);
-
-        var enriched = Job() with
-        {
-            CompanyNews = [new CompanyNewsItem { Title = "Acme raises a round" }],
-            GlassdoorData = new GlassdoorData { ReviewCount = 15 },
-        };
-        var app = PoolJobApplication.ToApplication(User, enriched, Score(), null);
-
-        Assert.Contains("Acme raises a round", app.CompanyNews);
-        Assert.Contains("15", app.GlassdoorData);
-    }
 }

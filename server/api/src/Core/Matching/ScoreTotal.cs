@@ -6,21 +6,18 @@ namespace ApplicationTracker.Core.Matching;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Its own class, like <see cref="PaceEvidence"/>, for the same reason: it is
-/// the arithmetic behind a consequence, and a consequence needs a test. The
-/// logic used to live inside <c>JobMatchService.EnforceEvidenceCaps</c>, which
-/// is private, so nothing pinned it — <c>PaceEvidenceTests</c> covers the
-/// predicate that decides <i>whether</i> to drop a dimension and never covered
-/// what dropping one does to the total.
+/// Its own class because it is the arithmetic behind a consequence, and a
+/// consequence needs a test. The logic used to live inside
+/// <c>JobMatchService.EnforceEvidenceCaps</c>, which is private, so nothing
+/// pinned what dropping a dimension does to the total.
 /// </para>
 /// <para>
 /// <b>The maxima are server-side constants and must stay that way.</b> Each
 /// dimension in the response carries its own <c>maxScore</c>, written by the
 /// model. A total divided by a model-authored denominator is a consequence
 /// whose input the model controls: understating a maximum inflates the score,
-/// and nothing would flag it. Same rule as <c>stackedGaps</c> and
-/// <c>reviewAdjustment</c> — compute the consequence from data the model does
-/// not author.
+/// and nothing would flag it. Same rule as <c>stackedGaps</c> — compute the
+/// consequence from data the model does not author.
 /// </para>
 /// </remarks>
 public static class ScoreTotal

@@ -127,8 +127,6 @@ export interface MatchResponse {
   // before this field existed.
   quickHighlights?: string[];
   honestAssessment?: string;
-  companyNewsAnalysis?: { greenSignals?: string[]; redSignals?: string[]; summary?: string } | null;
-  employeeReviewsAnalysis?: { greenSignals?: string[]; redSignals?: string[]; summary?: string } | null;
   analystSnapshotInput?: string | null;
   analystSnapshotOutput?: string | null;
   evaluatorSnapshotInput?: string | null;

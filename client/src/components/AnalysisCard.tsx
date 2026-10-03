@@ -72,8 +72,6 @@ const HE_LABELS: Record<string, string> = {
   'Key Reasons': 'סיבות עיקריות',
   'Questions to Ask': 'שאלות לשאול',
   'Green & Red Flags': 'דגלים ירוקים ואדומים',
-  'Company News Signals': 'אותות מחדשות החברה',
-  'Employee Review Signals': 'אותות מביקורות עובדים',
   'Honest Assessment': 'הערכה כנה',
   'Worth Applying': 'כדאי להגיש מועמדות',
   'Not Recommended': 'לא מומלץ',
@@ -112,19 +110,11 @@ interface Recommendation {
   redFlags?: string[];
 }
 
-interface SignalAnalysis {
-  greenSignals?: string[];
-  redSignals?: string[];
-  summary?: string;
-}
-
 interface MatchAnalysis {
   overallScore: number;
   verdict: string;
   breakdown?: Record<string, DimensionData>;
   recommendation?: Recommendation;
-  companyNewsAnalysis?: SignalAnalysis;
-  employeeReviewsAnalysis?: SignalAnalysis;
   honestAssessment?: string;
   hardBlockers?: { filter: string; reason: string }[];
   mustClarify?: string[];
@@ -162,9 +152,8 @@ const SUBLABEL = 'block text-[13px] text-[var(--ed-ink-faint)] tracking-[0.02em]
 // score for attention.
 // dir="auto" (not a hardcoded "rtl"): this renders both recommendation.
 // greenFlags/redFlags (English pre-Add, Hebrew after Add generates the full
-// rewrite) and companyNewsAnalysis/employeeReviewsAnalysis (always Hebrew,
-// only ever present after Add) — the per-item language isn't fixed, so let
-// the browser detect each line's actual direction instead of assuming RTL.
+// rewrite) — the per-item language isn't fixed, so let the browser detect
+// each line's actual direction instead of assuming RTL.
 //
 // dir="auto" lives on each ROW div, not the inner text span: an ancestor's
 // auto-direction scan skips over any descendant that already carries its own
@@ -355,28 +344,6 @@ export default function AnalysisCard({ matchAnalysisJson, headerAction, lang = '
                   <SignalRows green={rec.greenFlags} red={rec.redFlags} />
                 </div>
               ) : null}
-            </div>
-          )}
-
-          {/* Company news analysis */}
-          {a.companyNewsAnalysis && !!(a.companyNewsAnalysis.greenSignals?.length || a.companyNewsAnalysis.redSignals?.length) && (
-            <div className="mt-6 pt-4 border-t border-[var(--ed-rule)]">
-              <h4 className="font-medium text-[16px] text-[var(--ed-ink)] mb-3">{t('Company News Signals', lang)}</h4>
-              <SignalRows green={a.companyNewsAnalysis.greenSignals} red={a.companyNewsAnalysis.redSignals} />
-              {a.companyNewsAnalysis.summary && (
-                <p dir="auto" className="text-[16px] text-[var(--ed-ink-soft)] leading-[1.6] mt-2"><BidiText text={a.companyNewsAnalysis.summary} /></p>
-              )}
-            </div>
-          )}
-
-          {/* Employee reviews analysis */}
-          {a.employeeReviewsAnalysis && !!(a.employeeReviewsAnalysis.greenSignals?.length || a.employeeReviewsAnalysis.redSignals?.length) && (
-            <div className="mt-6 pt-4 border-t border-[var(--ed-rule)]">
-              <h4 className="font-medium text-[16px] text-[var(--ed-ink)] mb-3">{t('Employee Review Signals', lang)}</h4>
-              <SignalRows green={a.employeeReviewsAnalysis.greenSignals} red={a.employeeReviewsAnalysis.redSignals} />
-              {a.employeeReviewsAnalysis.summary && (
-                <p dir="auto" className="text-[16px] text-[var(--ed-ink-soft)] leading-[1.6] mt-2"><BidiText text={a.employeeReviewsAnalysis.summary} /></p>
-              )}
             </div>
           )}
 

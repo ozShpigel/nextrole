@@ -511,17 +511,6 @@ public sealed class GreenhouseJobRepository : IPoolJobRepository
         Parsed = d.TryGetValue(GreenhouseJobFields.Parsed, out var p) && p.IsBsonDocument
             ? ParsedJobFrom(p.AsBsonDocument)
             : null,
-        // Greenhouse carries no company enrichment: the boards API returns no
-        // news and no reviews. Null rather than empty, because the field should
-        // say what is known and nothing is.
-        //
-        // The consequence is that PaceEvidence.In is false for every posting
-        // from this source, so Sustainability & Pace is dropped from the total
-        // and the score renormalised over the rest (ScoreTotal). That is not a
-        // Greenhouse quirk any more: the pool's Glassdoor scraper is gone too,
-        // so no live source supplies pace evidence.
-        CompanyNews = null,
-        GlassdoorData = null,
     };
 
     private static PoolJobListItem ToListItem(BsonDocument d) => new()

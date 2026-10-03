@@ -998,7 +998,6 @@ This system is used for decision-making, so consistency, clarity, and conservati
 - `honestAssessment` MUST be in {{OUTPUT_LANGUAGE}}, 2-3 concise sentences — not a full paragraph
 - PERSPECTIVE: honestAssessment + the entire recommendation block MUST be written in SECOND PERSON, addressing the reader directly, using natural second-person phrasing for {{OUTPUT_LANGUAGE}}. This report is read by the candidate about himself. NEVER refer to him in third person.
 - The entire `recommendation` block — `keyReasons`, `questionsToAsk`, `redFlags`, `greenFlags` — MUST be in {{OUTPUT_LANGUAGE}}
-- The `companyNewsAnalysis` and `employeeReviewsAnalysis` blocks (when present) — `greenSignals`, `redSignals`, `summary` — MUST be in {{OUTPUT_LANGUAGE}}, second person
 - All breakdown content free-text — every component `reason`, and the `strengths` / `gaps` / `concerns` / `positiveSignals` arrays — MUST be in {{OUTPUT_LANGUAGE}}, second person. Dimension and component `name` values stay in English.
 - `quickHighlights` MUST be in English (see QUICK HIGHLIGHTS section) — it is a fast-scan list shown before anything else and must never require RTL/LTR mixing
 - JSON keys and enum values MUST be in English
@@ -1014,15 +1013,12 @@ This system is used for decision-making, so consistency, clarity, and conservati
 ## Parsed Job Description (JSON)
 Provided in the user message inside <parsed_job> tags.
 
-## Optional Enrichment Blocks
-The user message may also contain any of these four optional blocks. When one of THESE FOUR is absent from the request, evaluate exactly as if it never existed — the absence of an enrichment block must NEVER lower any score.
+## Optional Company Profile
+The user message may also contain a `<company_profile>` block. When it is absent, evaluate exactly as if it never existed — its absence must NEVER lower any score.
 
-This rule governs ONLY these four blocks being missing from the request. It does NOT extend to the job description itself: a `<parsed_job>` that is present but says nothing about a given topic is a different situation, not covered by this rule — see the silence rule in SCORING MODEL below.
+This rule governs ONLY that block being missing from the request. It does NOT extend to the job description itself: a `<parsed_job>` that is present but says nothing about a given topic is a different situation, not covered by this rule — see the silence rule in SCORING MODEL below.
 
-- `<company_news>` — recent news headlines about the company. Use ONLY for the `companyNewsAnalysis` output field and narrative context; news must NEVER change any numeric score.
-- `<glassdoor_rating>` — the company's overall Glassdoor rating. Context for the cultural-fit narrative only; does not change numeric scores.
-- `<employee_reviews>` — aggregated employee-review evidence (category sub-ratings, recommend-to-friend %, review count, verbatim snippets). This block DOES influence numeric sub-scores — see EMPLOYEE REVIEW EVIDENCE below. Also summarize it in the `employeeReviewsAnalysis` output field.
-- `<company_profile>` — factual company background (industry, size, revenue, description, url) captured at scrape time from the job listing itself. Context only, like `<glassdoor_rating>` — use it to inform narrative reasoning (e.g. company stage/scale) but it must NEVER change any numeric score.
+- `<company_profile>` — factual company background (industry, size, revenue, description, url) captured at scrape time from the job listing itself. Context only — use it to inform narrative reasoning (e.g. company stage/scale) but it must NEVER change any numeric score.
 
 ---
 
@@ -1158,56 +1154,6 @@ Distill the single most decision-relevant points into 4–6 lines for an at-a-gl
 
 ---
 
-# EMPLOYEE REVIEW EVIDENCE
-
-Applies ONLY when the user message contains an `<employee_reviews>` block. When it is absent, score exactly as defined above — never penalize missing review data.
-
-## Mapping (which evidence may move which sub-component)
-
-- `subRatings.workLifeBalance` → **Pace & Workload (0–20)**
-- `subRatings.cultureAndValues` → **Pace & Workload (0–20)** and **Engineering Maturity & Stability (0–15)**
-- `subRatings.seniorManagement` → **Engineering Maturity & Stability (0–15)**
-- `subRatings.careerOpportunities` and `recommendToFriendPercent` → **Long-term Risk (0–15)**
-- `subRatings.compensationAndBenefits` → context only; never changes a score
-
-Review evidence must NEVER touch **Technical Fit** (either component) or **Role Clarity & Ownership** — that component is about this specific role's definition in the job description, not employer culture.
-
-## Direction
-
-- Sub-rating ≥ 4.0 → positive evidence; ≤ 3.0 → negative evidence; between → neutral, context only
-- `recommendToFriendPercent` ≥ 75 → positive; ≤ 50 → negative; between → neutral
-
-## Mandatory two-step procedure (hard caps per affected sub-component)
-
-Review evidence is a bounded ADJUSTMENT, never the basis of a score. In your thinking, follow these two steps in order:
-
-1. **Base score first**: score every sub-component using ONLY the candidate profile and the parsed job — exactly as if the `<employee_reviews>` block did not exist. Write down these base scores.
-2. **Bounded adjustment**: adjust ONLY the three eligible sub-components (Pace & Workload, Engineering Maturity & Stability, Long-term Risk) away from their base score, by AT MOST the cap below. Every other sub-component keeps its base score untouched.
-
-Caps scale with evidence volume (`reviewCount`):
-- `reviewCount` missing or < 50 → at most ±1 point
-- 50–199 → at most ±2 points
-- ≥ 200 → at most ±3 points
-
-The cap is absolute: even catastrophic review scores (e.g. work-life balance 2.0, recommend 30%) may move an eligible component by no more than the cap. A final score outside `base ± cap` for an eligible component — or any change at all to a non-eligible component — is a broken output, equivalent to violating the sum invariants.
-
-When review evidence moved a sub-component's score, that component MUST carry a `reviewAdjustment` object in the output:
-
-```
-"reviewAdjustment": { "base": <step-1 score>, "delta": <signed adjustment within the cap> }
-```
-
-The server independently recomputes `score` = `base` + `delta` (with `delta` clamped to the cap) — a dishonest `base` or an oversized `delta` is discarded, so report the true review-free base and keep the delta within the cap. Components without review influence omit `reviewAdjustment` entirely.
-
-Rules:
-- Explicit statements in the job description ALWAYS outweigh review aggregates. If the JD explicitly states a signal (e.g. a clearly relaxed, sustainable pace), reviews may temper the component within the caps but must not override the explicit statement's direction.
-- Adjustments stay within each sub-component's defined range.
-- When review evidence moved a sub-component's score, its `reason` sentence MUST mention the review evidence.
-- The invariants still hold after adjustments: each dimension `score` = sum of its components; `overallScore` = sum of the three dimensions.
-- Severe review signals belong in `employeeReviewsAnalysis.redSignals` and `recommendation.redFlags` (in full force — no cap on the narrative), not in score swings beyond the cap.
-
----
-
 # OUTPUT STRUCTURE (STRICT JSON)
 
 Return exactly this JSON schema, nothing else (no markdown fences, no commentary).
@@ -1229,7 +1175,7 @@ Every `score` below — component, dimension, and `overallScore` — is bounded 
       "score": number, "maxScore": 30,
       "components": [
         { "name": "Role Clarity & Ownership", "score": number, "maxScore": 15, "reason": "one concise sentence, minimal words" },
-        { "name": "Engineering Maturity & Stability", "score": number, "maxScore": 15, "reason": "one concise sentence, minimal words", "reviewAdjustment": { "base": number, "delta": number } }
+        { "name": "Engineering Maturity & Stability", "score": number, "maxScore": 15, "reason": "one concise sentence, minimal words" }
       ],
       "strengths": ["string"],
       "concerns": ["string"]
@@ -1237,8 +1183,8 @@ Every `score` below — component, dimension, and `overallScore` — is bounded 
     "sustainabilityPaceFit": {
       "score": number, "maxScore": 35,
       "components": [
-        { "name": "Pace & Workload", "score": number, "maxScore": 20, "reason": "one concise sentence, minimal words", "reviewAdjustment": { "base": number, "delta": number } },
-        { "name": "Long-term Risk", "score": number, "maxScore": 15, "reason": "one concise sentence, minimal words", "reviewAdjustment": { "base": number, "delta": number } }
+        { "name": "Pace & Workload", "score": number, "maxScore": 20, "reason": "one concise sentence, minimal words" },
+        { "name": "Long-term Risk", "score": number, "maxScore": 15, "reason": "one concise sentence, minimal words" }
       ],
       "positiveSignals": ["string"],
       "concerns": ["string"]
@@ -1257,22 +1203,8 @@ Every `score` below — component, dimension, and `overallScore` — is bounded 
   "mustClarify": ["string ({{OUTPUT_LANGUAGE}}) — HARD FILTER items that returned UNKNOWN; empty array if none"],
   "stackedGaps": ["string ({{OUTPUT_LANGUAGE}}) — see Stacked gaps rule under Core Stack; empty array if none"],
   "quickHighlights": ["string (English, \"<term> — <short explanation>\" format) — see QUICK HIGHLIGHTS section; 4-6 items"],
-  "companyNewsAnalysis": {
-    "greenSignals": ["string ({{OUTPUT_LANGUAGE}})"],
-    "redSignals": ["string ({{OUTPUT_LANGUAGE}})"],
-    "summary": "string ({{OUTPUT_LANGUAGE}}, 1-2 sentences)"
-  },
-  "employeeReviewsAnalysis": {
-    "greenSignals": ["string ({{OUTPUT_LANGUAGE}})"],
-    "redSignals": ["string ({{OUTPUT_LANGUAGE}})"],
-    "summary": "string ({{OUTPUT_LANGUAGE}}, 1-2 sentences)"
-  },
   "honestAssessment": "2-3 concise sentences in {{OUTPUT_LANGUAGE}}"
 }
-
-Include `companyNewsAnalysis` ONLY when the user message contained a `<company_news>` block, and `employeeReviewsAnalysis` ONLY when it contained an `<employee_reviews>` block — omit each field entirely otherwise. Both blocks' free text MUST be in {{OUTPUT_LANGUAGE}}, second person, per the language rules above.
-
-The `reviewAdjustment` field is shown on the three review-eligible components above; include it ONLY on a component whose score was actually moved by `<employee_reviews>` evidence (omit it everywhere else, and always when the block is absent).
 
 ---
 
@@ -1280,7 +1212,6 @@ The `reviewAdjustment` field is shown on the three review-eligible components ab
 
 Full narrative detail is for STRONG_YES and YES — the candidate will actually weigh applying to those. For MAYBE, NO, and STRONG_NO the job is rarely revisited, so keep these fields terse instead of full-length:
 - `recommendation.questionsToAsk`: at most 1 item (empty array if nothing stands out), anchored to one requirement of this posting that the posting leaves genuinely ambiguous. Frame it the way a sharp candidate would ask an interviewer — about the business/team consequence of that ambiguity (impact, risk, ownership, how success is judged), not a self-interested checkbox question. Example, same underlying concern about an ambiguous "mentoring" requirement — self-interested (AVOID, asks what it means for the candidate): "Is mentoring 2-3 engineers informal guidance, or formal people-management?"; business-framed (USE, asks about accountability/how the role is judged): "Is growing engineers into senior contributors something this role is actually evaluated on, or more of a nice-to-have alongside the IC work?" Don't hedge by combining the scope-clarifying phrasing ("is this X or Y?") with the accountability phrasing ("how is that judged?") into one question joined by "and"/"versus" — commit to the business-framed version alone and drop the scope-clarifying half entirely. It MUST be crystal clear and simple: one plain-language question a candidate could actually say out loud to a recruiter, a single idea — never a compound/multi-part question or jargon strung together. This applies to ANY topic, not just mentoring. Before finalizing, check your own draft: if it contains "and" or "or" joining two different question-verbs (e.g. "how is X distributed, AND what does Y look like"), that is two questions — pick only the single sharpest one and delete the rest, don't stitch multiple asks together with a conjunction or a comma-separated list. A single clean example: "How is on-call distributed across the team?"
-- `companyNewsAnalysis` / `employeeReviewsAnalysis`: `summary` only, one short sentence; `greenSignals`/`redSignals` as empty arrays
 - `honestAssessment`: one sentence, not a paragraph
 
 Never shorten `hardBlockers`, `mustClarify`, `stackedGaps`, `quickHighlights`, or any breakdown `reason`/`strengths`/`gaps`/`concerns`/`positiveSignals` — those are the scoring rationale itself, not narrative extras, and stay full length regardless of verdict.
@@ -1341,9 +1272,6 @@ Provided in the user message inside <scoring_context> tags: overallScore, verdic
 ## Job Description
 Provided in the user message inside <job_description> tags — the posting this scoring was based on.
 
-## Optional Enrichment Blocks
-The user message may also contain `<company_news>` and/or `<employee_reviews>` — same meaning as in the original scoring call. Include the corresponding output field ONLY when its block is present; omit it entirely otherwise.
-
 ---
 
 # OUTPUT LANGUAGE RULES
@@ -1352,7 +1280,6 @@ Same as the original scoring call:
 - `honestAssessment` MUST be in {{OUTPUT_LANGUAGE}}, 2-3 concise sentences — not a full paragraph.
 - PERSPECTIVE: all free-text MUST be written in SECOND PERSON, addressing the candidate directly, using natural second-person phrasing for {{OUTPUT_LANGUAGE}}. Never third person.
 - `recommendation` (`keyReasons`, `questionsToAsk`, `redFlags`, `greenFlags`) MUST be in {{OUTPUT_LANGUAGE}}.
-- `companyNewsAnalysis` / `employeeReviewsAnalysis` (`greenSignals`, `redSignals`, `summary`) MUST be in {{OUTPUT_LANGUAGE}}, second person.
 - JSON keys and enum values MUST be in English. Technology names stay in Latin script.
 
 ---
@@ -1363,8 +1290,6 @@ Write the FULL-detail version of exactly these fields — the same depth the ori
 - `honestAssessment`: 2-3 concise sentences (not one sentence).
 - `recommendation.keyReasons`, `recommendation.redFlags`, `recommendation.greenFlags`: full detail, grounded in the given breakdown/hardBlockers/stackedGaps — do not invent reasons the scoring doesn't support.
 - `recommendation.questionsToAsk`: at most 3, each anchored to a requirement of this posting — pick whichever the posting leaves genuinely ambiguous. Frame each the way a sharp candidate would ask an interviewer — about the business/team consequence of that ambiguity (impact, risk, ownership, how success is judged), not a self-interested checkbox question. Example, same underlying concern about an ambiguous "mentoring" requirement — self-interested (AVOID, asks what it means for the candidate): "Is mentoring 2-3 engineers informal guidance, or formal people-management?"; business-framed (USE, asks about accountability/how the role is judged): "Is growing engineers into senior contributors something this role is actually evaluated on, or more of a nice-to-have alongside the IC work?" Don't hedge by combining the scope-clarifying phrasing ("is this X or Y?") with the accountability phrasing ("how is that judged?") into one question joined by "and"/"versus" — commit to the business-framed version alone and drop the scope-clarifying half entirely. Not generic technical curiosity about the team's stack or incidents either. Each MUST be crystal clear and simple: one plain-language question a candidate could actually say out loud to a recruiter, a single idea per question — never a compound/multi-part question, never internal jargon (frameworks, incident names, tool names) strung together into a run-on ask. This applies to ANY topic, not just mentoring. Before finalizing each question, check your own draft: if it contains "and" or "or" joining two different question-verbs (e.g. "how is X distributed, AND what does Y look like"), that is two questions — pick only the single sharpest one and delete the rest, don't stitch multiple asks together with a conjunction or a comma-separated list. A single clean example: "How is on-call distributed across the team?"
-- `companyNewsAnalysis` (only if `<company_news>` present): full `greenSignals`/`redSignals`, not empty arrays.
-- `employeeReviewsAnalysis` (only if `<employee_reviews>` present): full `greenSignals`/`redSignals`, not empty arrays.
 
 Do NOT output `overallScore`, `verdict`, `breakdown`, `hardBlockers`, `mustClarify`, `stackedGaps`, `quickHighlights`, or `recommendation.shouldApply` — none of that is yours to produce here; the caller already has it and ignores anything else.
 
@@ -1381,12 +1306,8 @@ Return exactly this JSON schema, nothing else (no markdown fences, no commentary
     "questionsToAsk": ["string ({{OUTPUT_LANGUAGE}})"],
     "redFlags": ["string ({{OUTPUT_LANGUAGE}})"],
     "greenFlags": ["string ({{OUTPUT_LANGUAGE}})"]
-  },
-  "companyNewsAnalysis": { "greenSignals": ["string ({{OUTPUT_LANGUAGE}})"], "redSignals": ["string ({{OUTPUT_LANGUAGE}})"], "summary": "string ({{OUTPUT_LANGUAGE}}, 1-2 sentences)" },
-  "employeeReviewsAnalysis": { "greenSignals": ["string ({{OUTPUT_LANGUAGE}})"], "redSignals": ["string ({{OUTPUT_LANGUAGE}})"], "summary": "string ({{OUTPUT_LANGUAGE}}, 1-2 sentences)" }
+  }
 }
-
-Include `companyNewsAnalysis` ONLY when the user message contained a `<company_news>` block, and `employeeReviewsAnalysis` ONLY when it contained an `<employee_reviews>` block — omit each field entirely otherwise.
 """;
 
     // On-demand Hebrew translation of an already-scored, already-stored

@@ -74,12 +74,6 @@ public static class ApplicationEndpoints
                         JobDescription = app.JobDescription,
                         Title = app.JobTitle,
                         Company = app.Company,
-                        CompanyNews = string.IsNullOrWhiteSpace(app.CompanyNews)
-                            ? null
-                            : JsonSerializer.Deserialize<List<CompanyNewsItem>>(app.CompanyNews, CaseInsensitive),
-                        GlassdoorData = string.IsNullOrWhiteSpace(app.GlassdoorData)
-                            ? null
-                            : JsonSerializer.Deserialize<GlassdoorData>(app.GlassdoorData, CaseInsensitive),
                         OverallScore = overallScore.Value,
                         Verdict = verdict,
                         Breakdown = existingNode["breakdown"]?.Deserialize<Breakdown>(CaseInsensitive) ?? new Breakdown(),
@@ -109,10 +103,6 @@ public static class ApplicationEndpoints
                             ["greenFlags"] = JsonSerializer.SerializeToNode(enriched.Recommendation.GreenFlags, CamelCase),
                         };
                     }
-                    if (enriched.CompanyNewsAnalysis is not null)
-                        existingNode["companyNewsAnalysis"] = JsonSerializer.SerializeToNode(enriched.CompanyNewsAnalysis, CamelCase);
-                    if (enriched.EmployeeReviewsAnalysis is not null)
-                        existingNode["employeeReviewsAnalysis"] = JsonSerializer.SerializeToNode(enriched.EmployeeReviewsAnalysis, CamelCase);
 
                     app = app with { MatchAnalysis = existingNode.ToJsonString(), MatchAnalysisHebrew = null, UpdatedAt = DateTime.UtcNow };
                     await repo.UpdateAsync(userId, app, CancellationToken.None);

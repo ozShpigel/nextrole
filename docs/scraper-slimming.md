@@ -475,6 +475,8 @@ makes scoring more conservative. An earlier reading of this had it backwards —
 the mechanism is a permission bought by evidence, not a protection lost without
 it.
 
+**Update 2026-10-03:** the rest went too — `ReviewCap`, `EnforceReviewCaps`, `PaceEvidence`, the review prompt section and the news/review fields, since no live source had supplied a value since. See `docs/scoring-and-search.md` → Company Enrichment. The paragraph below is the decision as it stood.
+
 What stays: `ReviewCap` and `EnforceReviewCaps`, which are correct with null
 input and are the enforcement half of PR #1's lesson (a structured field plus a
 server-side clamp, because the model will not respect a prompt-stated cap).

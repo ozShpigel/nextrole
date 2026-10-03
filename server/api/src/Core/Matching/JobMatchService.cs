@@ -89,13 +89,12 @@ public sealed class JobMatchService : IJobMatchService
         }
 
         var (parsedJob, analystSnap) = await ParseAsync(request, cancellationToken);
-        var (matchResponse, evalSnap) = await _claudeClient.EvaluateMatchAsync(profile, parsedJob, request.CompanyNews, request.GlassdoorData, request.CompanyProfile, cancellationToken);
+        var (matchResponse, evalSnap) = await _claudeClient.EvaluateMatchAsync(profile, parsedJob, request.CompanyProfile, cancellationToken);
 
         // No ingest facts on this path — the job was pasted, not scraped — so
         // the Analyst's own reading of the posting is the requirement list.
         var corrected = Correct(
-            matchResponse, _scoring, ReviewCap(request.GlassdoorData?.ReviewCount), parsedJob,
-            request.GlassdoorData, structured,
+            matchResponse, _scoring, parsedJob, structured,
             RequiredGroupsFrom(null, parsedJob), OptionalTechFrom(null, parsedJob)) with
         {
             JobTitle = parsedJob.JobTitle,
@@ -167,8 +166,6 @@ public sealed class JobMatchService : IJobMatchService
         {
             Id = p.Item.Id,
             ParsedJob = p.ParsedJob,
-            CompanyNews = p.Item.CompanyNews,
-            GlassdoorData = p.Item.GlassdoorData,
             CompanyProfile = p.Item.CompanyProfile,
         }).ToList();
 
@@ -179,8 +176,7 @@ public sealed class JobMatchService : IJobMatchService
         {
             var raw = responseById[p.Item.Id];
             var corrected = Correct(
-                raw, _scoring, ReviewCap(p.Item.GlassdoorData?.ReviewCount), p.ParsedJob,
-                p.Item.GlassdoorData, structured,
+                raw, _scoring, p.ParsedJob, structured,
                 RequiredGroupsFrom(p.Item, p.ParsedJob), OptionalTechFrom(p.Item, p.ParsedJob)) with
             {
                 JobTitle = p.ParsedJob.JobTitle,
@@ -252,15 +248,13 @@ public sealed class JobMatchService : IJobMatchService
     // the candidate's own profile here, on the server, instead of being taken
     // from the model's account of itself.
     private MatchResponse Correct(
-        MatchResponse r, ScoringConfig cfg, int reviewCap, ParsedJob parsedJob,
-        GlassdoorData? glassdoorData,
+        MatchResponse r, ScoringConfig cfg, ParsedJob parsedJob,
         StructuredProfile profile, string[][] requiredGroups, string[] optionalTech)
     {
-        r = EnforceReviewCaps(r, reviewCap);
         r = GroundClaims(r, profile, requiredGroups, optionalTech);
         r = EnforceStackedGapsCap(r, requiredGroups);
         r = EnforceScoreBounds(r);
-        r = EnforceEvidenceCaps(r, parsedJob, glassdoorData);
+        r = EnforceEvidenceCaps(r, parsedJob);
         r = EnforceQuickHighlightsLength(r);
         r = EnforceHardBlockerScope(r);
         var verdict = VerdictFromScore(r.OverallScore, cfg.VerdictBands) ?? r.Verdict;
@@ -373,83 +367,13 @@ public sealed class JobMatchService : IJobMatchService
         return r with { Breakdown = breakdown, OverallScore = overall };
     }
 
-    // Evidence-volume cap from the EMPLOYEE REVIEW EVIDENCE prompt section.
-    private static int ReviewCap(int? reviewCount) => reviewCount switch
-    {
-        null or < 50 => 1,
-        < 200 => 2,
-        _ => 3
-    };
-
-    // Only these sub-components may be moved by employee-review evidence
-    // (mirrors the prompt's mapping; Role Clarity & Technical Fit are excluded).
-    private static readonly HashSet<string> ReviewEligibleComponents = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "Engineering Maturity & Stability",
-        "Pace & Workload",
-        "Long-term Risk",
-    };
-
-    // The model won't reliably respect the ±cap in the prompt when review
-    // evidence is extreme (verified empirically) — recompute each adjusted
-    // component as base + clamped delta and rebuild the dependent sums.
-    private MatchResponse EnforceReviewCaps(MatchResponse r, int cap)
-    {
-        var changed = false;
-
-        ScoreComponent[] Enforce(ScoreComponent[] components)
-        {
-            return components.Select(c =>
-            {
-                if (c.ReviewAdjustment is not { Base: int baseScore } adj || c.Score is null)
-                    return c;
-                var max = c.MaxScore ?? int.MaxValue;
-                baseScore = Math.Clamp(baseScore, 0, max);
-                var delta = ReviewEligibleComponents.Contains(c.Name)
-                    ? Math.Clamp(adj.Delta ?? 0, -cap, cap)
-                    : 0; // review evidence may not touch this component at all
-                var score = Math.Clamp(baseScore + delta, 0, max);
-                if (score == c.Score) return c;
-                changed = true;
-                _logger.LogInformation(
-                    "Review-cap enforcement: '{Component}' {Old} -> {New} (base {Base}, delta {Delta}, cap ±{Cap})",
-                    c.Name, c.Score, score, baseScore, delta, cap);
-                return c with { Score = score, ReviewAdjustment = adj with { Delta = delta } };
-            }).ToArray();
-        }
-
-        static int? Sum(ScoreComponent[] components)
-            => components.Length > 0 && components.All(c => c.Score is not null)
-                ? components.Sum(c => c.Score!.Value)
-                : null;
-
-        var tech = Enforce(r.Breakdown.TechnicalFit.Components);
-        var exec = Enforce(r.Breakdown.EngineeringExecutionFit.Components);
-        var sust = Enforce(r.Breakdown.SustainabilityPaceFit.Components);
-        if (!changed) return r;
-
-        var breakdown = r.Breakdown with
-        {
-            TechnicalFit = r.Breakdown.TechnicalFit with { Components = tech, Score = Sum(tech) ?? r.Breakdown.TechnicalFit.Score },
-            EngineeringExecutionFit = r.Breakdown.EngineeringExecutionFit with { Components = exec, Score = Sum(exec) ?? r.Breakdown.EngineeringExecutionFit.Score },
-            SustainabilityPaceFit = r.Breakdown.SustainabilityPaceFit with { Components = sust, Score = Sum(sust) ?? r.Breakdown.SustainabilityPaceFit.Score },
-        };
-        var overall = breakdown.TechnicalFit.Score is int t
-                   && breakdown.EngineeringExecutionFit.Score is int e
-                   && breakdown.SustainabilityPaceFit.Score is int s
-            ? t + e + s
-            : r.OverallScore;
-        return r with { Breakdown = breakdown, OverallScore = overall };
-    }
-
     // The prompt states two invariants — every score >= 0 (the Sustainability
     // Fit section's implicit floor, now explicit — see PromptSeeds.cs) and
     // overallScore = sum of the three dimension scores (the INVARIANTS block)
-    // — but nothing verified either one in code before this. EnforceReviewCaps
-    // above only clamps components carrying a model-reported ReviewAdjustment;
-    // a component/dimension score outside [0, maxScore] with no review evidence
-    // passed straight through untouched. Runs after EnforceReviewCaps and
-    // EnforceStackedGapsCap so it clamps their output too, unconditionally —
+    // — but nothing verified either one in code before this: a
+    // component/dimension score outside [0, maxScore] passed straight through
+    // untouched. Runs after EnforceStackedGapsCap so it clamps its output too,
+    // unconditionally —
     // logged at Information so schema violations are visible in Loki instead
     // of being silently fixed.
     private MatchResponse EnforceScoreBounds(MatchResponse r)
@@ -517,7 +441,7 @@ public sealed class JobMatchService : IJobMatchService
     // Proven on the technical signal; process and pace follow the exact same
     // shape — one more `if` block each calling CapNamedComponents against the
     // dimension it affects, no restructuring needed.
-    private MatchResponse EnforceEvidenceCaps(MatchResponse r, ParsedJob parsedJob, GlassdoorData? glassdoorData)
+    private MatchResponse EnforceEvidenceCaps(MatchResponse r, ParsedJob parsedJob)
     {
         var breakdown = r.Breakdown;
         var changed = false;
@@ -569,8 +493,7 @@ public sealed class JobMatchService : IJobMatchService
         // Maturity & Stability are capped in the "mid" range (see the
         // technical cap above for why not the "unclear" ceiling). 9+8=17/30
         // = 56.7% of max, inside eval-subscore's mid band. Unconditional —
-        // there's no external source for process evidence (unlike pace,
-        // below), only the JD itself.
+        // the JD is the only source of process evidence.
         if (parsedJob.ProcessSignals.Length == 0)
         {
             var (components, capped) = CapNamedComponents(
@@ -587,44 +510,19 @@ public sealed class JobMatchService : IJobMatchService
             }
         }
 
-        // Signal: no pace signals -> Pace & Workload / Long-term Risk are
-        // capped in the "mid" range (see the technical cap above for why not
-        // the "unclear" ceiling, and for the same 35-point-max rounding
-        // reason: 12+7=19/35=54.3%, not 12+8=20/35=57.14%, which rounds into
-        // high). Conditional on there being no PACE evidence elsewhere — the
-        // Analyst only reads the job description, so a JD silent on pace can
-        // still be paired with real review evidence reaching the Evaluator
-        // separately; capping here would discard that evidence rather than a
-        // genuine absence of it.
+        // Signal: the JD says nothing about pace -> the dimension is dropped
+        // from the total rather than capped, and the score is renormalised over
+        // what could actually be assessed.
         //
-        // The test was `glassdoorData is null`, which is not the same question:
-        // a payload carrying only a career-opportunities rating would lift a
-        // PACE ceiling, i.e. the hatch firing on evidence that says nothing
-        // about what it is excusing. PaceEvidence.In asks whether the payload
-        // speaks to hours or load at all. Measured before the change: every
-        // live payload with any evidence also has a work-life-balance
-        // sub-rating, so this narrows the rule without moving today's scores.
-        // Signal: no pace evidence ANYWHERE -> the dimension is dropped from
-        // the total rather than capped, and the score is renormalised over what
-        // could actually be assessed.
-        //
-        // It used to cap Pace & Workload / Long-term Risk to 12+7=19 of 35.
-        // That was calibrated for a world where the cap was the exception: a JD
-        // silent on pace could still be paired with review evidence reaching
-        // the Evaluator separately, so capping discarded a guess and kept the
-        // dimension. There is no such pairing any more. The Glassdoor scraper
-        // was deleted with the criteria path (49 of 875 companies, 5.6%, over
-        // its whole life) and Greenhouse never had one -- the boards API
-        // returns no reviews at all. So PaceEvidence.In is false for every job
-        // from every live source, the condition collapses to "the JD did not
-        // mention pace", and a fixed 19/35 became a permanent tax rather than a
-        // correction.
-        //
-        // A permanent tax is not neutral: it compresses every score toward the
-        // middle, and it is the reason a posting matching a candidate's stack
-        // exactly could not reach YES. Renormalising over the assessable
-        // dimensions says the honest thing instead -- this was scored out of
-        // 65, not out of 100 with 19 handed over.
+        // It used to cap Pace & Workload / Long-term Risk to 12+7=19 of 35,
+        // lifted when Glassdoor reviews supplied pace evidence instead. No live
+        // source carries reviews (the Glassdoor scraper went with the LinkedIn
+        // pool; the boards never had any, and the review machinery was removed
+        // 2026-10-03), so the JD is the only evidence left, and a fixed 19/35
+        // would be a permanent tax: it compresses every score toward the
+        // middle, and is why a posting matching a candidate's stack exactly
+        // could not reach YES. Renormalising says the honest thing instead --
+        // this was scored out of 65, not out of 100 with 19 handed over.
         //
         // The dimension's Score becomes null, which is already how this model
         // spells "not assessed" (every Score here is int?) and which the UI
@@ -632,7 +530,7 @@ public sealed class JobMatchService : IJobMatchService
         // the Evaluator wrote them: nothing renders them, but they are
         // ClaimGrounding's largest scan surface, and the narrative in
         // PositiveSignals/Concerns stays readable.
-        if (parsedJob.PaceSignals.Length == 0 && !PaceEvidence.In(glassdoorData))
+        if (parsedJob.PaceSignals.Length == 0)
         {
             if (breakdown.SustainabilityPaceFit.Score is not null)
             {

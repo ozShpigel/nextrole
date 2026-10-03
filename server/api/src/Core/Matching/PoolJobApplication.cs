@@ -50,13 +50,6 @@ public static class PoolJobApplication
             // JobScore has no field for them — passing them through only made
             // four always-null arguments look like real ones.
 
-            CompanyNews = job.CompanyNews is { Count: > 0 }
-                ? JsonSerializer.Serialize(job.CompanyNews)
-                : null,
-            GlassdoorData = job.GlassdoorData is not null
-                ? JsonSerializer.Serialize(job.GlassdoorData)
-                : null,
-
             // A company's logo does not change between postings, so a job whose
             // own scrape missed one borrows from another rather than saving a
             // permanently blank row.

@@ -27,7 +27,6 @@ const MOCK_MATCH = {
     greenFlags: ['Great stack match'],
   },
   honestAssessment: 'A solid match overall.',
-  companyNewsAnalysis: null,
   analystSnapshotInput: 'analyst-in',
   analystSnapshotOutput: 'analyst-out',
   evaluatorSnapshotInput: 'eval-in',

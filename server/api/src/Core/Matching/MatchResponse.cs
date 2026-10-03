@@ -9,8 +9,6 @@ public sealed record MatchResponse
     public Breakdown Breakdown { get; init; } = new();
     public Recommendation Recommendation { get; init; } = new();
     public string HonestAssessment { get; init; } = "";
-    public CompanyNewsAnalysis? CompanyNewsAnalysis { get; init; }
-    public EmployeeReviewsAnalysis? EmployeeReviewsAnalysis { get; init; }
     public string? AnalystSnapshotInput { get; init; }
     public string? AnalystSnapshotOutput { get; init; }
     public string? EvaluatorSnapshotInput { get; init; }
@@ -93,19 +91,6 @@ public sealed record ScoreComponent
     // back clean and licenses the change. See AGENTS.md, "Check which path your
     // instrument exercises".
     public string Reason { get; init; } = "";
-
-    // Present only when employee-review evidence moved this component's score.
-    // The server recomputes Score = Base + Delta with Delta clamped to the
-    // evidence-volume cap — the model's own arithmetic is advisory.
-    public ReviewAdjustment? ReviewAdjustment { get; init; }
-}
-
-public sealed record ReviewAdjustment
-{
-    // Component score as if the <employee_reviews> block did not exist
-    public int? Base { get; init; }
-    // Signed adjustment attributed to review evidence
-    public int? Delta { get; init; }
 }
 
 public sealed record TechnicalFitScore
@@ -133,20 +118,6 @@ public sealed record SustainabilityPaceFitScore
     public ScoreComponent[] Components { get; init; } = [];
     public string[] PositiveSignals { get; init; } = [];
     public string[] Concerns { get; init; } = [];
-}
-
-public sealed record CompanyNewsAnalysis
-{
-    public string[] GreenSignals { get; init; } = [];
-    public string[] RedSignals { get; init; } = [];
-    public string Summary { get; init; } = "";
-}
-
-public sealed record EmployeeReviewsAnalysis
-{
-    public string[] GreenSignals { get; init; } = [];
-    public string[] RedSignals { get; init; } = [];
-    public string Summary { get; init; } = "";
 }
 
 public sealed record Recommendation

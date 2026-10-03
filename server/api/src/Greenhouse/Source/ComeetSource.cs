@@ -26,6 +26,18 @@ namespace ApplicationTracker.Greenhouse;
 /// no total to check against, and a truncated array does not parse.
 /// </para>
 /// <para>
+/// <b>One position, one posting.</b> A position published to several offices
+/// comes back once per office: the base uid (<c>73.276</c>, Netanya) and one
+/// <c>base-location</c> uid per extra office (<c>73.276-9D.50A</c>, Tel Aviv),
+/// with the same title, body and careers-page link. Mapped one-to-one, each
+/// became its own job: a duplicate card that opened the same page, and a second
+/// score paid for. Measured 2026-10-03 over the 14 Comeet boards: 233 of 1,056
+/// positions were such copies, in 135 groups of 2-10; every group had its base
+/// uid and identical title and details. So a group collapses to the base
+/// posting, carrying every office in <see cref="ListedPosting.Location"/>
+/// ("Netanya; Tel Aviv") so the location filters still see each one.
+/// </para>
+/// <para>
 /// <b>No posting date.</b> Comeet gives only <c>time_updated</c>, so
 /// <see cref="ListedPosting.PostedAt"/> stays null and the prefilter's own
 /// fallback to the update date is what ages a posting.
@@ -60,7 +72,34 @@ public sealed class ComeetSource : IJobSource
             _log.LogInformation("Board {Board}: left out {Count} internal or unidentified position(s)",
                 board.Key, positions.Count - usable.Count);
 
-        return new Listing([.. usable.Select(Map)], Complete: true, Total: null);
+        var groups = usable.GroupBy(p => BaseUid(p.Uid!)).ToList();
+        if (groups.Count != usable.Count)
+            _log.LogInformation("Board {Board}: merged {Count} per-location copies into {Groups} position(s)",
+                board.Key, usable.Count - groups.Count, groups.Count(g => g.Count() > 1));
+
+        return new Listing([.. groups.Select(g => Map(Merge(g.Key, [.. g])))], Complete: true, Total: null);
+    }
+
+    /// <summary>The position's own uid: <c>73.276-9D.50A</c> is <c>73.276</c> published to one more office.</summary>
+    public static string BaseUid(string uid) => uid.Split('-', 2)[0];
+
+    /// <summary>The base posting, with every office in the group as its location, the base's first.</summary>
+    private static ComeetPosition Merge(string baseUid, List<ComeetPosition> group)
+    {
+        // The base uid has been in every measured group; without it, the first
+        // copy stands in, so the posting is still kept rather than dropped.
+        var primary = group.FirstOrDefault(p => p.Uid == baseUid) ?? group[0];
+        if (group.Count == 1) return primary;
+
+        var offices = new[] { primary }.Concat(group.Where(p => p != primary))
+            .Select(p => Blank(p.Location?.Name))
+            .OfType<string>()
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        return primary with
+        {
+            Location = offices.Count == 0 ? primary.Location : new ComeetLocation { Name = string.Join("; ", offices) },
+        };
     }
 
     public Task<SourcePosting?> DetailAsync(BoardConfig board, ListedPosting posting, CancellationToken ct) =>

@@ -87,7 +87,6 @@ public sealed class JobMatchService : IJobMatchService
             profile = profileDoc.Content;
             structured = profileDoc.Structured;
         }
-        var redFlags = structured.RedFlags;
 
         var (parsedJob, analystSnap) = await ParseAsync(request, cancellationToken);
         var (matchResponse, evalSnap) = await _claudeClient.EvaluateMatchAsync(profile, parsedJob, request.CompanyNews, request.GlassdoorData, request.CompanyProfile, cancellationToken);
@@ -96,7 +95,7 @@ public sealed class JobMatchService : IJobMatchService
         // the Analyst's own reading of the posting is the requirement list.
         var corrected = Correct(
             matchResponse, _scoring, ReviewCap(request.GlassdoorData?.ReviewCount), parsedJob,
-            request.GlassdoorData, redFlags, structured,
+            request.GlassdoorData, structured,
             RequiredGroupsFrom(null, parsedJob), OptionalTechFrom(null, parsedJob)) with
         {
             JobTitle = parsedJob.JobTitle,
@@ -118,7 +117,6 @@ public sealed class JobMatchService : IJobMatchService
         var profileDoc = await _profileProvider.GetProfileDocumentAsync(userId, cancellationToken);
         var profile = profileDoc.Content;
         var structured = profileDoc.Structured;
-        var redFlags = structured.RedFlags;
 
         // Analyst pass, for whatever still needs one. A caller that supplies
         // MatchBatchItem.Parsed has a stored parse from the ingest, and the
@@ -182,7 +180,7 @@ public sealed class JobMatchService : IJobMatchService
             var raw = responseById[p.Item.Id];
             var corrected = Correct(
                 raw, _scoring, ReviewCap(p.Item.GlassdoorData?.ReviewCount), p.ParsedJob,
-                p.Item.GlassdoorData, redFlags, structured,
+                p.Item.GlassdoorData, structured,
                 RequiredGroupsFrom(p.Item, p.ParsedJob), OptionalTechFrom(p.Item, p.ParsedJob)) with
             {
                 JobTitle = p.ParsedJob.JobTitle,
@@ -255,7 +253,7 @@ public sealed class JobMatchService : IJobMatchService
     // from the model's account of itself.
     private MatchResponse Correct(
         MatchResponse r, ScoringConfig cfg, int reviewCap, ParsedJob parsedJob,
-        GlassdoorData? glassdoorData, string[] redFlags,
+        GlassdoorData? glassdoorData,
         StructuredProfile profile, string[][] requiredGroups, string[] optionalTech)
     {
         r = EnforceReviewCaps(r, reviewCap);
@@ -264,7 +262,7 @@ public sealed class JobMatchService : IJobMatchService
         r = EnforceScoreBounds(r);
         r = EnforceEvidenceCaps(r, parsedJob, glassdoorData);
         r = EnforceQuickHighlightsLength(r);
-        r = EnforceHardBlockerScope(r, redFlags);
+        r = EnforceHardBlockerScope(r);
         var verdict = VerdictFromScore(r.OverallScore, cfg.VerdictBands) ?? r.Verdict;
         // The model reliably identifies a disqualifying condition in its
         // reasoning but doesn't reliably apply the consequence to its own
@@ -680,15 +678,15 @@ public sealed class JobMatchService : IJobMatchService
         return changed ? r with { QuickHighlights = corrected } : r;
     }
 
-    // The allow-list, its rationale and the measurements behind removing three
+    // The allow-list, its rationale and the measurements behind removing four
     // filters live in HardBlockerScope -- extracted so the decision has a test.
-    private MatchResponse EnforceHardBlockerScope(MatchResponse r, string[] redFlags)
+    private MatchResponse EnforceHardBlockerScope(MatchResponse r)
     {
         if (r.HardBlockers.Length == 0) return r;
 
         var kept = r.HardBlockers.Where(b =>
         {
-            if (HardBlockerScope.IsSupported(b, redFlags)) return true;
+            if (HardBlockerScope.IsSupported(b)) return true;
             _logger.LogWarning(
                 "Unsupported hard blocker dropped: filter={Filter} reason={Reason}",
                 b.Filter, b.Reason);

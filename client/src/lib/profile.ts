@@ -4,7 +4,7 @@ export const EMPTY_PROFILE: StructuredProfile = {
   fullName: '', email: '', phone: '', location: '', linkedIn: '',
   summary: '', seniority: '', domains: [], experience: [], skills: [],
   education: [], militaryService: [], sideProjects: [], spokenLanguages: [],
-  redFlags: [], rawExperienceText: '',
+  rawExperienceText: '',
 };
 
 // Normalize a profile loaded from the API into a fully-populated shape so
@@ -20,7 +20,6 @@ export function hydrateProfile(p?: StructuredProfile | null): StructuredProfile 
     militaryService: p?.militaryService ?? [],
     sideProjects: p?.sideProjects ?? [],
     spokenLanguages: p?.spokenLanguages ?? [],
-    redFlags: p?.redFlags ?? [],
   };
 }
 

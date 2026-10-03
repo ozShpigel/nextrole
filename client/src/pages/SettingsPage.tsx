@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { User, FileText, Upload, Download, RefreshCw, Award, ChevronLeft, ChevronRight } from 'lucide-react';
+import { User, FileText, Upload, Download, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useProfile, useResumeFile } from '../lib/queries';
 import { useSaveProfile, useNormalizeProfileFile } from '../lib/mutations';
 import { apiUrl } from '../lib/api';
@@ -14,7 +14,7 @@ import { PersonaAvatar } from '../components/PersonaAvatar';
 // (non-photorealistic) avatar illustration on the demo instance only.
 const DEMO_PERSONA_NAME = 'Alex Morgan';
 
-type Tab = 'about' | 'values' | 'resume';
+type Tab = 'about' | 'resume';
 
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -25,19 +25,6 @@ function initials(name: string): string {
 
 const FIELD_INPUT = 'w-full py-[0.5rem] px-[0.75rem] bg-transparent border border-[var(--ed-rule)] text-[var(--ed-ink)] text-[0.85rem] font-code text-left transition-colors hover:border-[var(--ed-ink-faint)] focus:border-[var(--ed-accent)] focus:outline-none';
 const FIELD_LABEL = 'text-[0.62rem] text-[var(--ed-ink-faint)] tracking-[0.16em] uppercase font-semibold';
-
-// Manual, never auto-extracted, and the only self-declared field left.
-//
-// Strengths and Core values used to sit above this. They were removed: never
-// extracted from a CV so usually empty, and a self-asserted strength is the
-// weakest evidence in a profile. Dealbreakers survive because they are the one
-// self-declaration the scoring acts on mechanically -- checked by the
-// Candidate-Stated Dealbreakers hard filter, which forces STRONG_NO on a clear
-// match and must quote the user's own wording.
-const RED_FLAG_SUGGESTIONS = [
-  'Early-stage startup', 'No remote option', 'Heavy on-call rotation', 'People-management required',
-  'Frequent reorgs', '5-day return to office', 'Agency / consulting model', 'Unpaid overtime culture',
-];
 
 export default function SettingsPage() {
   const [profile, setProfile] = useState<StructuredProfile>(EMPTY_PROFILE);
@@ -84,10 +71,6 @@ export default function SettingsPage() {
   }
 
   function saveContact(field: 'fullName' | 'email' | 'phone' | 'location' | 'linkedIn', value: string): void {
-    persist({ ...profile, [field]: value });
-  }
-
-  function saveChips(field: 'redFlags', value: string[]): void {
     persist({ ...profile, [field]: value });
   }
 
@@ -179,7 +162,6 @@ export default function SettingsPage() {
 
           <nav className="flex flex-col gap-[0.35rem] max-sm:flex-row max-sm:flex-wrap">
             <SidebarTab active={activeTab === 'about'} onClick={() => setActiveTab('about')} icon={<User size={15} />} label="About You" />
-            <SidebarTab active={activeTab === 'values'} onClick={() => setActiveTab('values')} icon={<Award size={15} />} label="Dealbreakers" />
             <SidebarTab active={activeTab === 'resume'} onClick={() => setActiveTab('resume')} icon={<FileText size={15} />} label="Resume" />
           </nav>
         </aside>
@@ -222,23 +204,6 @@ export default function SettingsPage() {
                   </div>
                 </FieldGroup>
               )}
-            </section>
-          )}
-
-          {activeTab === 'values' && (
-            <section className="animate-in fade-in slide-in-from-bottom-2 duration-300" id="settings-work-values">
-              <TabHeader icon={<Award size={18} />} name="Dealbreakers" />
-
-              <FieldGroup title="Red flags" desc="Dealbreakers — a clear match rejects the job outright, not just a lower score." first>
-                <ChipInput
-                  value={profile.redFlags}
-                  onChange={(v) => saveChips('redFlags', v)}
-                  placeholder="e.g. Early-stage startup"
-                  ariaLabel="Add a red flag"
-                  suggestions={RED_FLAG_SUGGESTIONS}
-                  max={5}
-                />
-              </FieldGroup>
             </section>
           )}
 

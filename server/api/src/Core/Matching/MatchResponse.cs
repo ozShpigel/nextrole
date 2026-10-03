@@ -43,12 +43,12 @@ public sealed record MatchResponse
     public string[] QuickHighlights { get; init; } = [];
 }
 
-// One HARD FILTERS failure. Filter is work_arrangement or
-// candidate_dealbreaker, and Correct() DROPS anything else -- an allow-list,
-// because a hard blocker forces STRONG_NO over every score in the response.
+// One HARD FILTERS failure. Filter is work_arrangement, and Correct() DROPS
+// anything else -- an allow-list, because a hard blocker forces STRONG_NO over
+// every score in the response.
 //
-// Both survivors state something the candidate declared about themselves.
-// scope_discipline, sustainability_signals and people_management were removed:
+// candidate_dealbreaker was removed: a model judgement on thin evidence
+// carrying an absolute consequence (see HardBlockerScope). scope_discipline, sustainability_signals and people_management were removed:
 // the first two disqualified a posting for its own prose ("wear many hats",
 // "fast-paced"), which is taste and belongs in a dimension's concerns, and the
 // third was a fit judgement that fired on mentoring and interview panels and

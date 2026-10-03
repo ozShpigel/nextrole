@@ -25,7 +25,6 @@ const mockProfileResponse = {
       { category: 'Databases', items: ['PostgreSQL'] },
     ],
     education: [],
-    redFlags: ['Early-stage startup'],
     rawExperienceText: 'Senior engineer, 9 years…',
   },
   updated_at: '2026-05-01T00:00:00Z',
@@ -53,11 +52,6 @@ function mockRoutes(routes: Record<string, unknown>) {
 async function gotoResumeTab(user: ReturnType<typeof userEvent.setup>): Promise<void> {
   await user.click(screen.getByRole('button', { name: /resume/i }));
   await waitFor(() => expect(screen.getByRole('heading', { name: 'Resume' })).toBeInTheDocument());
-}
-
-async function gotoValuesTab(user: ReturnType<typeof userEvent.setup>): Promise<void> {
-  await user.click(screen.getByRole('button', { name: /dealbreakers/i }));
-  await waitFor(() => expect(screen.getByRole('heading', { name: 'Dealbreakers' })).toBeInTheDocument());
 }
 
 beforeEach(() => {
@@ -88,7 +82,6 @@ describe('SettingsPage', () => {
 
     await waitFor(() => expect(screen.getByRole('heading', { name: 'About You' })).toBeInTheDocument());
     expect(screen.getByRole('button', { name: /resume/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /dealbreakers/i })).toBeInTheDocument();
 
     // The old structured-field editor is gone.
     expect(screen.queryByText('Experience & skills')).not.toBeInTheDocument();
@@ -146,52 +139,23 @@ describe('SettingsPage', () => {
     expect(await screen.findAllByText('Jamie Dev')).toHaveLength(2);
   });
 
-  it('the Dealbreakers tab shows red flags, and nothing self-asserted', async () => {
+  it('has no self-declared fields: no Dealbreakers, Strengths or Core values', async () => {
     mockRoutes({
       'GET /profile': mockProfileResponse,
       'GET /profile/resume-file': NO_RESUME_FILE_ERROR,
     });
-    const user = userEvent.setup();
 
     renderWithRouter(<SettingsPage />);
     await waitFor(() => expect(screen.getByRole('heading', { name: 'About You' })).toBeInTheDocument());
-    await gotoValuesTab(user);
 
-    expect(screen.getByText('Red flags')).toBeInTheDocument();
-
-    // Strengths and Core values were removed outright, not moved: a
-    // self-asserted strength is the weakest evidence in a profile, and these
-    // were never extracted from a CV either. Red flags stay because the
-    // scoring acts on them mechanically.
+    // All removed outright, not moved. Strengths and Core values: a
+    // self-asserted strength is the weakest evidence in a profile. Dealbreakers
+    // (2026-10-03): they forced STRONG_NO on the model's reading of a job
+    // description, e.g. an 81-point match buried as an "early-stage startup".
+    expect(screen.queryByRole('button', { name: /dealbreakers/i })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Add a red flag')).not.toBeInTheDocument();
     expect(screen.queryByText('Strengths')).not.toBeInTheDocument();
     expect(screen.queryByText('Core values')).not.toBeInTheDocument();
-    expect(screen.queryByLabelText('Add a strength')).not.toBeInTheDocument();
-    expect(screen.queryByLabelText('Add a core value')).not.toBeInTheDocument();
-  });
-
-  it('adding a red-flag chip auto-saves', async () => {
-    const user = userEvent.setup();
-    mockRoutes({
-      'GET /profile': mockProfileResponse,
-      'GET /profile/resume-file': NO_RESUME_FILE_ERROR,
-      'PUT /profile': mockProfileResponse,
-    });
-
-    renderWithRouter(<SettingsPage />);
-    await waitFor(() => expect(screen.getByRole('heading', { name: 'About You' })).toBeInTheDocument());
-    await gotoValuesTab(user);
-
-    await user.type(screen.getByLabelText('Add a red flag'), 'Unpaid overtime culture{Enter}');
-
-    await waitFor(() =>
-      expect(vi.mocked(matchApi)).toHaveBeenCalledWith(
-        '/profile',
-        expect.objectContaining({
-          method: 'PUT',
-          body: expect.stringContaining('Unpaid overtime culture'),
-        }),
-      ),
-    );
   });
 
   it('uploading a résumé parses it, auto-saves, and hands off to the processing page', async () => {

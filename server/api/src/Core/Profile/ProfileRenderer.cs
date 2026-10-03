@@ -33,8 +33,6 @@ public static class ProfileRenderer
             sb.AppendLine("</profile_meta>");
         }
 
-        AppendList(sb, "red_flags", p.RedFlags);
-
         var skills = RenderSkills(p.Skills);
         if (skills.Count > 0)
         {

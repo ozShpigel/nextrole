@@ -153,9 +153,21 @@ export function relativeTime(iso: string | null | undefined): string {
   return `${days}d`;
 }
 
-// "$135k – $195k", "₪420k – ₪540k", "€70k". Whole-unit annual amounts in, a
+// Pay quoted per month where that is how the market talks about it. Israel
+// negotiates and advertises gross monthly salary, so an annual ₪552k reads as
+// wrong there; ₪46k / mo is the figure an Israeli candidate recognises.
+const MONTHLY_CURRENCIES = new Set(['ILS']);
+
+// "$135k – $195k", "₪46k – ₪60k / mo", "€70k". Whole-unit annual amounts in, a
 // compact range out; a range whose ends round to the same figure shows once.
 export function formatSalaryRange(min: number, max: number, currency: string): string {
+  if (MONTHLY_CURRENCIES.has(currency)) {
+    return `${compactRange(min / 12, max / 12, currency)} / mo`;
+  }
+  return compactRange(min, max, currency);
+}
+
+function compactRange(min: number, max: number, currency: string): string {
   const fmt = (n: number) => {
     const parts = new Intl.NumberFormat('en', {
       style: 'currency', currency, notation: 'compact', maximumFractionDigits: n >= 1_000_000 ? 1 : 0,

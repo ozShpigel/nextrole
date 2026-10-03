@@ -1,4 +1,4 @@
-import { cityCountry, toDateTimeLocalValue, formatAge } from './format';
+import { cityCountry, toDateTimeLocalValue, formatAge, formatSalaryRange } from './format';
 
 describe('toDateTimeLocalValue', () => {
   it('produces a datetime-local string that parses back to the same instant', () => {
@@ -68,5 +68,17 @@ describe('formatAge', () => {
 
   it('says nothing when neither date is known', () => {
     expect(formatAge(null, null)).toBeNull();
+  });
+});
+
+describe('formatSalaryRange', () => {
+  it('shows shekels per month, the way Israeli salaries are quoted', () => {
+    // Fetcherr's System Architect: an annual ₪552k–₪720k estimate.
+    expect(formatSalaryRange(552_000, 720_000, 'ILS')).toBe('₪46k – ₪60k / mo');
+  });
+
+  it('keeps other currencies annual', () => {
+    expect(formatSalaryRange(135_000, 195_000, 'USD')).toBe('$135k – $195k');
+    expect(formatSalaryRange(70_000, 70_000, 'EUR')).toBe('€70k');
   });
 });

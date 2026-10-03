@@ -281,7 +281,7 @@ export default function AboutPage() {
             <Diagram src="/about/pipeline.svg" alt="The path a posting takes: fetch, filter, extract, retrieve, then score and verify. Each stage is done by code or by the model; the last is both: Claude judges, then seven checks in code override it." />
             <ul className="mt-10 grid gap-4 md:grid-cols-2">
               {[
-                ['Code overrides the model.', 'Every rule the model was caught breaking — ignoring score caps, claiming skills a CV lacks, answering yes past a dealbreaker — moved out of the prompt and into code.'],
+                ['Code overrides the model.', 'Every rule the model was caught breaking — ignoring score caps, claiming skills a CV lacks, answering yes past a stated work arrangement — moved out of the prompt and into code.'],
                 ['Measured, not assumed.', 'An eval harness runs 24 hand-labelled postings through the real scoring path: 22/24, stable across runs.'],
               ].map(([h, b]) => (
                 <li key={h} className="rounded-2xl border border-[var(--ed-rule)] bg-[var(--ed-panel)] p-6">

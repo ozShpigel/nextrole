@@ -772,8 +772,15 @@ public sealed class MongoProfileProvider : IProfileProvider
 
     private static ProfileDocument ToProfileDocument(BsonDocument doc)
     {
-        var content = doc.Contains("content") && doc["content"].IsString ? doc["content"].AsString : "";
         var structured = doc.Contains(StructuredKey) ? FromBson(doc[StructuredKey]) : new StructuredProfile();
+        // Rendered on read, not taken from the stored copy: `content` is only
+        // rewritten on save, so a renderer change (red_flags leaving the
+        // prompt) would otherwise reach a profile only when its owner next
+        // edits it. The stored copy is the fallback for a document with no
+        // structured profile.
+        var content = doc.Contains(StructuredKey)
+            ? ProfileRenderer.Render(structured)
+            : doc.Contains("content") && doc["content"].IsString ? doc["content"].AsString : "";
 
         DateTime? updatedAt = null;
         if (doc.Contains("updated_at") && doc["updated_at"].IsValidDateTime)

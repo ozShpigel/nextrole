@@ -24,28 +24,7 @@ public class HardBlockerScopeTests
     private static HardBlocker Blocker(string filter, string reason = "because") =>
         new() { Filter = filter, Reason = reason };
 
-    private static readonly string[] NoRedFlags = [];
-
-    // ── The two that survive ────────────────────────────────────────────────
-
-    [Fact]
-    public void A_dealbreaker_quoting_the_candidates_own_words_stands()
-    {
-        var b = Blocker("candidate_dealbreaker", "The posting is an early-stage startup, which you listed as a dealbreaker.");
-
-        Assert.True(HardBlockerScope.IsSupported(b, ["Early-stage startup"]));
-    }
-
-    [Fact]
-    public void A_dealbreaker_the_candidate_never_stated_is_dropped()
-    {
-        // The whole point of the check: the model may not disqualify a job over
-        // a concern it invented and then attribute to the candidate.
-        var b = Blocker("candidate_dealbreaker", "The posting mentions heavy on-call, which is a dealbreaker.");
-
-        Assert.False(HardBlockerScope.IsSupported(b, ["Early-stage startup"]));
-        Assert.False(HardBlockerScope.IsSupported(b, NoRedFlags));
-    }
+    // ── The one that survives ───────────────────────────────────────────────
 
     [Fact]
     public void Work_arrangement_stands_on_the_candidates_stated_constraint()
@@ -53,12 +32,13 @@ public class HardBlockerScopeTests
         // Deliberately unchecked: the constraint is free text in the profile,
         // and a weak proxy would be worse than an honest gap.
         Assert.True(HardBlockerScope.IsSupported(
-            Blocker("work_arrangement", "Five days on-site; you stated remote-only."), NoRedFlags));
+            Blocker("work_arrangement", "Five days on-site; you stated remote-only.")));
     }
 
-    // ── The three that were removed ─────────────────────────────────────────
+    // ── The four that were removed ──────────────────────────────────────────
 
     [Theory]
+    [InlineData("candidate_dealbreaker")]
     [InlineData("people_management")]
     [InlineData("scope_discipline")]
     [InlineData("sustainability_signals")]
@@ -69,7 +49,7 @@ public class HardBlockerScopeTests
         // a model running against a cached or edited prompt still might, and
         // the consequence of trusting one is a deleted job.
         Assert.False(HardBlockerScope.IsSupported(
-            Blocker(filter, "Mentoring and hiring listed as required skills."), NoRedFlags));
+            Blocker(filter, "Mentoring and hiring listed as required skills.")));
     }
 
     [Fact]
@@ -82,7 +62,19 @@ public class HardBlockerScopeTests
             "people_management",
             "Mentoring and hiring listed as required skills; no formal management experience demonstrated.");
 
-        Assert.False(HardBlockerScope.IsSupported(b, ["Early-stage startup"]));
+        Assert.False(HardBlockerScope.IsSupported(b));
+    }
+
+    [Fact]
+    public void The_measured_dealbreaker_misfire_would_now_be_dropped()
+    {
+        // The Unframe card, 2026-10-03: an 81-point match forced to STRONG_NO
+        // because the job description read as an early-stage startup. The
+        // company is Series B with ~170 people; the Evaluator saw no company
+        // data, only the posting's wording.
+        var b = Blocker("candidate_dealbreaker", "Early-stage startup (candidate red flag)");
+
+        Assert.False(HardBlockerScope.IsSupported(b));
     }
 
     // ── Anything else ───────────────────────────────────────────────────────
@@ -92,33 +84,21 @@ public class HardBlockerScopeTests
     [InlineData("   ")]
     [InlineData("salary")]
     [InlineData("seniority_mismatch")]
-    [InlineData("candidate_dealbreakers")]   // a plausible typo/rename
+    [InlineData("work_arrangements")]   // a plausible typo/rename
     public void An_unrecognised_filter_is_dropped(string filter)
     {
-        Assert.False(HardBlockerScope.IsSupported(Blocker(filter), ["Early-stage startup"]));
+        Assert.False(HardBlockerScope.IsSupported(Blocker(filter)));
     }
 
     [Fact]
     public void Filter_matching_ignores_case()
     {
-        Assert.True(HardBlockerScope.IsSupported(Blocker("WORK_ARRANGEMENT"), NoRedFlags));
-        Assert.True(HardBlockerScope.IsSupported(
-            Blocker("Candidate_Dealbreaker", "EARLY-STAGE STARTUP stated as a dealbreaker"),
-            ["early-stage startup"]));
-    }
-
-    [Fact]
-    public void A_blank_red_flag_never_supports_anything()
-    {
-        // An empty entry would otherwise be "contained" by every reason string
-        // and turn the check into a rubber stamp.
-        Assert.False(HardBlockerScope.IsSupported(
-            Blocker("candidate_dealbreaker", "Anything at all."), ["", "   "]));
+        Assert.True(HardBlockerScope.IsSupported(Blocker("WORK_ARRANGEMENT")));
     }
 
     [Fact]
     public void A_null_blocker_is_dropped_rather_than_thrown_on()
     {
-        Assert.False(HardBlockerScope.IsSupported(null!, NoRedFlags));
+        Assert.False(HardBlockerScope.IsSupported(null!));
     }
 }

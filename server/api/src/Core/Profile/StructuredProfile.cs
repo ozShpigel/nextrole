@@ -6,15 +6,15 @@ namespace ApplicationTracker.Core.Profile;
 //
 // - Experience, skills & education are produced by the LLM normalization layer
 //   (NormalizedProfile) from pasted free text, then editable by the user.
-// - RedFlags are explicit manual input (not extractable, so never
-//   auto-generated) -- the one self-declared field left, because it is the one
-//   the scoring acts on mechanically rather than narrates.
 // - RawExperienceText preserves the original paste so the user can re-normalize.
 //
 // Strengths and CoreValues used to live here as manual inputs too. They were
 // removed: never extracted from a CV, so usually empty, and a self-asserted
 // strength is the weakest evidence in the profile -- which is the whole reason
 // ClaimGrounding exists. Scoring rests on demonstrated experience instead.
+// RedFlags (manual dealbreakers) went the same way on 2026-10-03: they forced
+// STRONG_NO on the model's reading of a job description (HardBlockerScope).
+// Stored profiles may still carry `redFlags`; the JSON read ignores it.
 //
 // Persisted on the profile doc and rendered to a canonical string (`content`)
 // that the scoring/interview prompts consume via {{USER_PROFILE}}.
@@ -49,11 +49,6 @@ public sealed record StructuredProfile
     public SideProjectItem[] SideProjects { get; init; } = [];
     // Spoken/human languages (not programming languages — those belong in Skills), e.g. "Hebrew (native)".
     public string[] SpokenLanguages { get; init; } = [];
-    // Explicit manual dealbreakers (e.g. "Early-stage startup") — checked by the
-    // Candidate-Stated Dealbreakers hard filter and mechanically enforced via
-    // hardBlockers, where the reason must quote the dealbreaker in the user's
-    // own words. One of the two filters that survive; never auto-generated.
-    public string[] RedFlags { get; init; } = [];
     public string RawExperienceText { get; init; } = "";
 }
 
@@ -89,7 +84,7 @@ public sealed record SkillGroup
 }
 
 // Output of the normalization agent: the machine-extractable subset of a
-// StructuredProfile (no manual RedFlags / RawExperienceText).
+// StructuredProfile (no RawExperienceText).
 public sealed record NormalizedProfile
 {
     // Extracted only when actually present in the source text/résumé — never

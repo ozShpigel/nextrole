@@ -1,7 +1,6 @@
 // The professional profile is the user-editable INPUT; prompts and scoring
 // config are read-only server configuration (appsettings / env), not data.
-// Experience & skills are LLM-normalized from pasted free text; redFlags is the
-// one explicit manual input left. `content` is the server-rendered projection
+// Experience & skills are LLM-normalized from pasted free text. `content` is the server-rendered projection
 // the scoring prompts consume (read-only on the client).
 export interface ExperienceItem {
   title: string;
@@ -61,16 +60,11 @@ export interface StructuredProfile {
   sideProjects: SideProjectItem[];
   // Spoken/human languages (not programming languages — those belong in skills), e.g. "Hebrew (native)".
   spokenLanguages: string[];
-  // Explicit manual dealbreakers (e.g. "Early-stage startup") — checked by the
-  // Evaluator's Candidate-Stated Dealbreakers hard filter, same enforcement as
-  // the other hard filters (forces STRONG_NO on a match). Never auto-generated.
-  redFlags: string[];
   rawExperienceText: string;
 }
 
 // Output of POST /api/match/profile/normalize (experience/skills/education/
-// militaryService/sideProjects/spokenLanguages; redFlags is never
-// auto-generated).
+// militaryService/sideProjects/spokenLanguages).
 export interface NormalizedProfile {
   fullName?: string | null;
   email?: string | null;

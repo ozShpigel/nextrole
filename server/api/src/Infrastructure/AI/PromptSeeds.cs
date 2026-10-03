@@ -1030,34 +1030,24 @@ This rule governs ONLY these four blocks being missing from the request. It does
 
 Each filter must be evaluated strictly as:
 
-There are exactly TWO, and both are things the CANDIDATE stated about themselves. Nothing about the posting's own language or culture can disqualify it.
+There is exactly ONE, and it is something the CANDIDATE stated about themselves. Nothing about the posting's own language or culture can disqualify it.
 
-- FAIL → immediate `STRONG_NO`, add an entry to `hardBlockers` tagged with the exact filter that fired (the two `filter` values in OUTPUT STRUCTURE below)
+- FAIL → immediate `STRONG_NO`, add an entry to `hardBlockers` tagged with the filter that fired (the one `filter` value in OUTPUT STRUCTURE below)
 - UNKNOWN → add to `mustClarify`, continue evaluation
 - PASS → continue evaluation
 
-If any filter is FAIL → final verdict MUST be `STRONG_NO`.
+If the filter is FAIL → final verdict MUST be `STRONG_NO`.
 
-`hardBlockers` may ONLY be populated by these two filters, and the server DROPS any entry tagged with anything else. Any other concern — a technical gap, an experience mismatch, a workload worry, a "wear many hats" or "fast-paced" posting, a role wanting more management than the candidate has done — belongs in the relevant dimension's `concerns`, not here, however disqualifying it feels.
+`hardBlockers` may ONLY be populated by this filter, and the server DROPS any entry tagged with anything else. Any other concern — a technical gap, an experience mismatch, a workload worry, a "wear many hats" or "fast-paced" posting, a role wanting more management than the candidate has done — belongs in the relevant dimension's `concerns`, not here, however disqualifying it feels.
 
 ---
 
-## 1. Work Arrangement (`filter: work_arrangement`)
+## Work Arrangement (`filter: work_arrangement`)
 
 Evaluate only against a work-arrangement constraint the candidate has EXPLICITLY stated in the profile.
 - Job's arrangement explicitly conflicts with the candidate's explicitly stated constraint → FAIL
 - Job's arrangement explicitly satisfies the candidate's stated constraint → PASS
 - Candidate states no arrangement constraint, OR the job does not state its arrangement → UNKNOWN (add to `mustClarify`; do not FAIL)
-
----
-
-## 2. Candidate-Stated Dealbreakers (`filter: candidate_dealbreaker`)
-
-Evaluate only against dealbreakers the candidate has EXPLICITLY listed in their profile's `<red_flags>` (skip this filter entirely when the profile lists none — never invent a dealbreaker the candidate didn't state).
-
-- The posting clearly exhibits a listed dealbreaker (an explicit statement in the posting, not an inference from silence) → FAIL, name the specific dealbreaker (in the candidate's own words) in `hardBlockers`
-- The posting doesn't say enough to tell whether a listed dealbreaker applies → UNKNOWN (add to `mustClarify`; do not FAIL)
-- None of the listed dealbreakers apply → PASS
 
 ---
 
@@ -1263,7 +1253,7 @@ Every `score` below — component, dimension, and `overallScore` — is bounded 
     "redFlags": ["string ({{OUTPUT_LANGUAGE}})"],
     "greenFlags": ["string ({{OUTPUT_LANGUAGE}})"]
   },
-  "hardBlockers": [{ "filter": "work_arrangement | candidate_dealbreaker", "reason": "string ({{OUTPUT_LANGUAGE}})" }],
+  "hardBlockers": [{ "filter": "work_arrangement", "reason": "string ({{OUTPUT_LANGUAGE}})" }],
   "mustClarify": ["string ({{OUTPUT_LANGUAGE}}) — HARD FILTER items that returned UNKNOWN; empty array if none"],
   "stackedGaps": ["string ({{OUTPUT_LANGUAGE}}) — see Stacked gaps rule under Core Stack; empty array if none"],
   "quickHighlights": ["string (English, \"<term> — <short explanation>\" format) — see QUICK HIGHLIGHTS section; 4-6 items"],
@@ -1289,7 +1279,7 @@ The `reviewAdjustment` field is shown on the three review-eligible components ab
 # OUTPUT LENGTH BY VERDICT
 
 Full narrative detail is for STRONG_YES and YES — the candidate will actually weigh applying to those. For MAYBE, NO, and STRONG_NO the job is rarely revisited, so keep these fields terse instead of full-length:
-- `recommendation.questionsToAsk`: at most 1 item (empty array if nothing stands out), anchored to one specific item from the candidate's `<red_flags>`, or to a requirement of this posting, that the posting leaves genuinely ambiguous. Frame it the way a sharp candidate would ask an interviewer — about the business/team consequence of that ambiguity (impact, risk, ownership, how success is judged), not a self-interested checkbox question. Example, same underlying concern about a "mentoring" red flag — self-interested (AVOID, asks what it means for the candidate): "Is mentoring 2-3 engineers informal guidance, or formal people-management?"; business-framed (USE, asks about accountability/how the role is judged): "Is growing engineers into senior contributors something this role is actually evaluated on, or more of a nice-to-have alongside the IC work?" Don't hedge by combining the scope-clarifying phrasing ("is this X or Y?") with the accountability phrasing ("how is that judged?") into one question joined by "and"/"versus" — commit to the business-framed version alone and drop the scope-clarifying half entirely. It MUST be crystal clear and simple: one plain-language question a candidate could actually say out loud to a recruiter, a single idea — never a compound/multi-part question or jargon strung together. This applies to ANY topic, not just mentoring. Before finalizing, check your own draft: if it contains "and" or "or" joining two different question-verbs (e.g. "how is X distributed, AND what does Y look like"), that is two questions — pick only the single sharpest one and delete the rest, don't stitch multiple asks together with a conjunction or a comma-separated list. A single clean example: "How is on-call distributed across the team?"
+- `recommendation.questionsToAsk`: at most 1 item (empty array if nothing stands out), anchored to one requirement of this posting that the posting leaves genuinely ambiguous. Frame it the way a sharp candidate would ask an interviewer — about the business/team consequence of that ambiguity (impact, risk, ownership, how success is judged), not a self-interested checkbox question. Example, same underlying concern about an ambiguous "mentoring" requirement — self-interested (AVOID, asks what it means for the candidate): "Is mentoring 2-3 engineers informal guidance, or formal people-management?"; business-framed (USE, asks about accountability/how the role is judged): "Is growing engineers into senior contributors something this role is actually evaluated on, or more of a nice-to-have alongside the IC work?" Don't hedge by combining the scope-clarifying phrasing ("is this X or Y?") with the accountability phrasing ("how is that judged?") into one question joined by "and"/"versus" — commit to the business-framed version alone and drop the scope-clarifying half entirely. It MUST be crystal clear and simple: one plain-language question a candidate could actually say out loud to a recruiter, a single idea — never a compound/multi-part question or jargon strung together. This applies to ANY topic, not just mentoring. Before finalizing, check your own draft: if it contains "and" or "or" joining two different question-verbs (e.g. "how is X distributed, AND what does Y look like"), that is two questions — pick only the single sharpest one and delete the rest, don't stitch multiple asks together with a conjunction or a comma-separated list. A single clean example: "How is on-call distributed across the team?"
 - `companyNewsAnalysis` / `employeeReviewsAnalysis`: `summary` only, one short sentence; `greenSignals`/`redSignals` as empty arrays
 - `honestAssessment`: one sentence, not a paragraph
 
@@ -1372,7 +1362,7 @@ Same as the original scoring call:
 Write the FULL-detail version of exactly these fields — the same depth the original rubric specifies for a STRONG_YES/YES verdict, regardless of this job's actual verdict:
 - `honestAssessment`: 2-3 concise sentences (not one sentence).
 - `recommendation.keyReasons`, `recommendation.redFlags`, `recommendation.greenFlags`: full detail, grounded in the given breakdown/hardBlockers/stackedGaps — do not invent reasons the scoring doesn't support.
-- `recommendation.questionsToAsk`: at most 3, each anchored to one specific item from the candidate's `<red_flags>` (in the profile), or to a requirement of this posting — pick whichever the posting leaves genuinely ambiguous. Frame each the way a sharp candidate would ask an interviewer — about the business/team consequence of that ambiguity (impact, risk, ownership, how success is judged), not a self-interested checkbox question. Example, same underlying concern about a "mentoring" red flag — self-interested (AVOID, asks what it means for the candidate): "Is mentoring 2-3 engineers informal guidance, or formal people-management?"; business-framed (USE, asks about accountability/how the role is judged): "Is growing engineers into senior contributors something this role is actually evaluated on, or more of a nice-to-have alongside the IC work?" Don't hedge by combining the scope-clarifying phrasing ("is this X or Y?") with the accountability phrasing ("how is that judged?") into one question joined by "and"/"versus" — commit to the business-framed version alone and drop the scope-clarifying half entirely. Not generic technical curiosity about the team's stack or incidents either. Each MUST be crystal clear and simple: one plain-language question a candidate could actually say out loud to a recruiter, a single idea per question — never a compound/multi-part question, never internal jargon (frameworks, incident names, tool names) strung together into a run-on ask. This applies to ANY topic, not just mentoring. Before finalizing each question, check your own draft: if it contains "and" or "or" joining two different question-verbs (e.g. "how is X distributed, AND what does Y look like"), that is two questions — pick only the single sharpest one and delete the rest, don't stitch multiple asks together with a conjunction or a comma-separated list. A single clean example: "How is on-call distributed across the team?"
+- `recommendation.questionsToAsk`: at most 3, each anchored to a requirement of this posting — pick whichever the posting leaves genuinely ambiguous. Frame each the way a sharp candidate would ask an interviewer — about the business/team consequence of that ambiguity (impact, risk, ownership, how success is judged), not a self-interested checkbox question. Example, same underlying concern about an ambiguous "mentoring" requirement — self-interested (AVOID, asks what it means for the candidate): "Is mentoring 2-3 engineers informal guidance, or formal people-management?"; business-framed (USE, asks about accountability/how the role is judged): "Is growing engineers into senior contributors something this role is actually evaluated on, or more of a nice-to-have alongside the IC work?" Don't hedge by combining the scope-clarifying phrasing ("is this X or Y?") with the accountability phrasing ("how is that judged?") into one question joined by "and"/"versus" — commit to the business-framed version alone and drop the scope-clarifying half entirely. Not generic technical curiosity about the team's stack or incidents either. Each MUST be crystal clear and simple: one plain-language question a candidate could actually say out loud to a recruiter, a single idea per question — never a compound/multi-part question, never internal jargon (frameworks, incident names, tool names) strung together into a run-on ask. This applies to ANY topic, not just mentoring. Before finalizing each question, check your own draft: if it contains "and" or "or" joining two different question-verbs (e.g. "how is X distributed, AND what does Y look like"), that is two questions — pick only the single sharpest one and delete the rest, don't stitch multiple asks together with a conjunction or a comma-separated list. A single clean example: "How is on-call distributed across the team?"
 - `companyNewsAnalysis` (only if `<company_news>` present): full `greenSignals`/`redSignals`, not empty arrays.
 - `employeeReviewsAnalysis` (only if `<employee_reviews>` present): full `greenSignals`/`redSignals`, not empty arrays.
 

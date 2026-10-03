@@ -63,7 +63,7 @@ AI is confident even when it's wrong, and a wrong match looks exactly like a rig
 
 ## How correctness is verified
 
-- **Code overrides the model.** Every rule the model was caught breaking (ignoring score caps, claiming skills the CV lacks, answering YES past a dealbreaker) moved out of the prompt and into [`Correct()`](server/api/src/Core/Matching/JobMatchService.cs#L256).
+- **Code overrides the model.** Every rule the model was caught breaking (ignoring score caps, claiming skills the CV lacks, answering YES past a stated work arrangement) moved out of the prompt and into [`Correct()`](server/api/src/Core/Matching/JobMatchService.cs#L254).
 - **Generated résumés are checked the same way.** One that states a figure the CV never stated is [blocked](server/api/src/Core/Models/ResumePackValidator.cs) before it reaches an employer.
 - **A golden set measures the scorer.** An [eval harness](server/api/src/EvalHarness) runs 24 hand-labelled postings through the real API: **22/24**, stable over 3 runs.
 - **Tests pin the silent failures.** 545 backend tests, including [one user can never read another's data](server/api/tests/ArchitectureTests), enforced by the type system rather than by care.

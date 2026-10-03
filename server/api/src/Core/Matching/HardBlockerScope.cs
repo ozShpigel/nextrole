@@ -11,16 +11,20 @@ namespace ApplicationTracker.Core.Matching;
 /// <b>allow-list</b> — an unrecognised filter is dropped, not trusted.
 /// </para>
 /// <para>
-/// Only a filter stating something the <b>candidate declared about
-/// themselves</b> may disqualify a posting:
+/// Only <c>work_arrangement</c> may disqualify a posting: a constraint the
+/// candidate stated, which postings usually state outright too. Not
+/// structurally checked: the constraint is free text, and an honest gap beats
+/// a check that only appears to verify something.
 /// </para>
-/// <list type="bullet">
-/// <item><c>candidate_dealbreaker</c> — must quote a dealbreaker the user
-/// wrote, in their own words. The one filter with a real structural check.</item>
-/// <item><c>work_arrangement</c> — a constraint they stated. Not structurally
-/// checked: the constraint is free text, and an honest gap beats a check that
-/// only appears to verify something.</item>
-/// </list>
+/// <para>
+/// <b><c>candidate_dealbreaker</c> was removed (2026-10-03).</b> It had a
+/// structural check — the reason had to quote the user's own words — but the
+/// check verified the attribution, not the judgement. The Evaluator sees no
+/// company data on the board path, so "is this an early-stage startup?" was
+/// answered from a job description's wording, and that guess carried the
+/// strongest consequence in the system: an 81 shown as STRONG_NO (Unframe,
+/// Series B, ~170 people). A fuzzy input may not carry an absolute output.
+/// </para>
 /// <para>
 /// <b>Three filters were removed rather than checked</b>, because a check would
 /// have been dressing up the wrong idea. <c>scope_discipline</c> and
@@ -43,14 +47,8 @@ namespace ApplicationTracker.Core.Matching;
 /// </remarks>
 public static class HardBlockerScope
 {
-    /// <summary>Must quote one of the candidate's own stated dealbreakers.</summary>
-    public const string CandidateDealbreaker = "candidate_dealbreaker";
-
     /// <summary>A work-arrangement constraint the candidate stated.</summary>
     public const string WorkArrangement = "work_arrangement";
-
-    private static readonly HashSet<string> RedFlagFilters =
-        new(StringComparer.OrdinalIgnoreCase) { CandidateDealbreaker };
 
     private static readonly HashSet<string> CandidateStatedFilters =
         new(StringComparer.OrdinalIgnoreCase) { WorkArrangement };
@@ -59,25 +57,6 @@ public static class HardBlockerScope
     /// Whether this blocker may stand. False means drop it — the posting is
     /// scored on its merits instead of being disqualified.
     /// </summary>
-    public static bool IsSupported(HardBlocker blocker, string[] redFlags)
-    {
-        if (blocker is null) return false;
-
-        var filter = blocker.Filter ?? "";
-
-        if (RedFlagFilters.Contains(filter))
-        {
-            // The reason has to name the dealbreaker the user actually wrote.
-            // Without this the model can disqualify a job over a concern it
-            // invented and attribute it to the candidate.
-            var reason = VerbatimCulturalSignals.NormalizeWhitespace(blocker.Reason ?? "");
-            return redFlags.Any(flag =>
-                !string.IsNullOrWhiteSpace(flag)
-                && reason.Contains(
-                    VerbatimCulturalSignals.NormalizeWhitespace(flag),
-                    StringComparison.OrdinalIgnoreCase));
-        }
-
-        return CandidateStatedFilters.Contains(filter);
-    }
+    public static bool IsSupported(HardBlocker blocker) =>
+        blocker is not null && CandidateStatedFilters.Contains(blocker.Filter ?? "");
 }

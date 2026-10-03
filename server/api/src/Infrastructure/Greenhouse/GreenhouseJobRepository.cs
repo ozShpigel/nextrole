@@ -408,8 +408,16 @@ public sealed class GreenhouseJobRepository : IPoolJobRepository
             clauses.Add(remote ? isRemote : b.Not(isRemote));
         }
 
-        if (query.Levels.Count > 0)
-            clauses.Add(b.In(GreenhouseJobFields.ExtractedSeniority, query.Levels.Select(l => (BsonValue)l)));
+        // Seniority from the title, not extracted.seniority, whose LinkedIn
+        // bands cannot tell Senior from Staff (TitleLevel). Unknown values are
+        // ignored rather than matching nothing, so a stale saved filter in a
+        // browser cannot empty the board.
+        var levels = query.Levels.Where(TitleLevel.All.Contains).ToList();
+        if (levels.Count > 0)
+            clauses.Add(b.Or(levels.Select(TitleLevelClause)));
+
+        if (query.AiRoles)
+            clauses.Add(b.Regex(GreenhouseJobFields.Title, new BsonRegularExpression(TitleLevel.AiPattern, "i")));
 
         // The same rule and the same switch as the candidate search, so a board
         // cannot show what the scan now refuses to score. Unread (absent) and
@@ -554,6 +562,23 @@ public sealed class GreenhouseJobRepository : IPoolJobRepository
     /// neither passes -- an unknown age must not hide a job. Never firstSeenAt:
     /// every posting of a newly added company would count as posted today.
     /// </remarks>
+    /// <summary>
+    /// A title whose ONE level (<see cref="TitleLevel.Of"/>) is this one: it
+    /// has the level's words and none of an earlier level's. Mid has none at all.
+    /// </summary>
+    public static FilterDefinition<BsonDocument> TitleLevelClause(string level)
+    {
+        var b = Builders<BsonDocument>.Filter;
+        FilterDefinition<BsonDocument> Has(string pattern) =>
+            b.Regex(GreenhouseJobFields.Title, new BsonRegularExpression(pattern, "i"));
+
+        var index = TitleLevel.Ordered.ToList().FindIndex(o => string.Equals(o.Level, level, StringComparison.OrdinalIgnoreCase));
+        var earlier = index < 0 ? TitleLevel.Ordered : TitleLevel.Ordered.Take(index);
+        var clauses = earlier.Select(o => b.Not(Has(o.Pattern))).ToList();
+        if (index >= 0) clauses.Add(Has(TitleLevel.Ordered[index].Pattern));
+        return b.And(clauses);
+    }
+
     internal static FilterDefinition<BsonDocument> PostedWithin(int days)
     {
         var b = Builders<BsonDocument>.Filter;

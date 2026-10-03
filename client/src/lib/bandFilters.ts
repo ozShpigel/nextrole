@@ -1,4 +1,5 @@
 import type { DiscoveredJobSummary } from './types';
+import { isAiRole, titleLevel } from './titleLevel';
 
 // The Matches filters, applied to the unscored band in the browser.
 //
@@ -20,6 +21,7 @@ export const MAX_AGE_DAYS = 90;
 export interface BandFilters {
   daysBack?: number;
   levels: ReadonlySet<string>;
+  aiRoles?: boolean;
   isRemote?: boolean;
   location?: string;
   text?: string;
@@ -49,9 +51,9 @@ function withinDays(job: DiscoveredJobSummary, days: number): boolean {
 export function matchesBandFilters(job: DiscoveredJobSummary, f: BandFilters): boolean {
   const window = f.daysBack && f.daysBack > 0 ? Math.min(f.daysBack, MAX_AGE_DAYS) : MAX_AGE_DAYS;
   if (!withinDays(job, window)) return false;
-  // Matches the server exactly: with any chip selected, a posting whose band
-  // was not extracted does not match, as `$in` does not match a null.
-  if (f.levels.size > 0 && !(job.actual_job_level && f.levels.has(job.actual_job_level))) return false;
+  // Seniority from the title, as the server reads it (titleLevel.ts).
+  if (f.levels.size > 0 && !f.levels.has(titleLevel(job.title))) return false;
+  if (f.aiRoles && !isAiRole(job.title)) return false;
   if (f.isRemote !== undefined && isRemoteJob(job) !== f.isRemote) return false;
   const location = f.location?.trim();
   if (location && !contains(job.location, location)) return false;

@@ -4,6 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { createPortal } from 'react-dom';
 import { X, SlidersHorizontal, Plus, Check, Search, ExternalLink } from 'lucide-react';
 import { useScoredJobs, usePoolScan, usePoolBand, useScoreJobs, useCollecting } from '../lib/queries';
+import { TITLE_LEVELS } from '../lib/titleLevel';
 import { matchesBandFilters } from '../lib/bandFilters';
 import { stableOrder } from '../lib/boardOrder';
 import { useDwell } from '../lib/useDwell';
@@ -38,7 +39,6 @@ const ED_GHOST = `${ED_BTN} border-[var(--ed-rule)] text-[var(--ed-ink-soft)] ho
 // Source-agnostic (Evaluator-classified) seniority band — replaces the old
 // LinkedIn-only jobspy job_level filter, same five-value vocabulary so this
 // chip set needed no changes, just a different underlying field.
-const JOB_LEVELS = ['entry level', 'associate', 'mid-senior level', 'director', 'executive'];
 
 // Score floors, not verdicts: the number is what the card shows, and a
 // verdict filter asked the reader to map five labels onto it themselves.
@@ -200,6 +200,38 @@ function ScoreRing({ job, pulse = true }: { job: DiscoveredJobSummary; pulse?: b
         )}
       </div>
       {open && hasHighlights && <RationaleTooltip anchorRef={anchorRef} highlights={highlights!} />}
+    </div>
+  );
+}
+
+// One rounded bar holding every choice of a single-choice filter (Posted,
+// Match quality), the chosen one lit inside it. Buttons with aria-pressed,
+// like the multi-choice pills, so both read the same to a screen reader.
+function Segmented<T extends string | number>({ options, value, onChange }: {
+  options: { value: T; label: string }[];
+  value: T;
+  onChange: (value: T) => void;
+}) {
+  return (
+    <div className="flex rounded-full border border-[var(--ed-rule)] bg-[var(--ed-panel)]/40 p-[3px]">
+      {options.map((o) => {
+        const active = o.value === value;
+        return (
+          <button
+            key={String(o.value)}
+            type="button"
+            aria-pressed={active}
+            onClick={() => onChange(o.value)}
+            className={`flex-1 whitespace-nowrap rounded-full px-1 py-[5px] text-[12px] font-medium transition-colors motion-reduce:transition-none ${
+              active
+                ? 'bg-[var(--ed-accent)]/15 text-[var(--ed-accent)] ring-1 ring-[var(--ed-accent)]/50'
+                : 'text-[var(--ed-ink-faint)] hover:text-[var(--ed-ink)]'
+            }`}
+          >
+            {o.label}
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -588,6 +620,7 @@ interface PersistedFilters {
   location: string;
   isRemote?: boolean;
   levels: string[];
+  aiRoles?: boolean;
   minScore: string;
 }
 
@@ -612,7 +645,11 @@ export default function SearchPage() {
   const [location, setLocation] = useState(persisted?.location ?? '');
   const [locationDebounced, setLocationDebounced] = useState(location);
   const [isRemote, setIsRemote] = useState<boolean | undefined>(persisted?.isRemote);
-  const [levels, setLevels] = useState<Set<string>>(() => new Set(persisted?.levels ?? []));
+  // Only levels that are still chips: a browser that saved the old LinkedIn
+  // bands ("mid-senior level") would otherwise filter by a value nothing shows.
+  const [levels, setLevels] = useState<Set<string>>(() =>
+    new Set((persisted?.levels ?? []).filter((l) => TITLE_LEVELS.some((t) => t.value === l))));
+  const [aiRoles, setAiRoles] = useState(persisted?.aiRoles ?? false);
   // A remembered floor that is no longer a choice (the old free-typed box)
   // falls back to All, as daysBack does, rather than filtering by a value
   // nothing on screen shows.
@@ -635,14 +672,14 @@ export default function SearchPage() {
 
   useEffect(() => {
     const snapshot: PersistedFilters = {
-      daysBack, location, isRemote, levels: [...levels], minScore,
+      daysBack, location, isRemote, levels: [...levels], aiRoles, minScore,
     };
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
     } catch {
       // Storage full/unavailable (e.g. private browsing) — not critical.
     }
-  }, [daysBack, location, isRemote, levels, minScore]);
+  }, [daysBack, location, isRemote, levels, aiRoles, minScore]);
 
   const query = useMemo(() => ({
     days_back: daysBack,
@@ -650,9 +687,10 @@ export default function SearchPage() {
     location: locationDebounced.trim() || undefined,
     is_remote: isRemote,
     actual_job_level: levels.size > 0 ? [...levels].join(',') : undefined,
+    ai_roles: aiRoles || undefined,
     min_score: minScore.trim() ? Number(minScore) : undefined,
     limit: 100,
-  }), [daysBack, searchDebounced, locationDebounced, isRemote, levels, minScore]);
+  }), [daysBack, searchDebounced, locationDebounced, isRemote, levels, aiRoles, minScore]);
 
   const qc = useQueryClient();
   const jobsQuery = useScoredJobs(query);
@@ -730,9 +768,9 @@ export default function SearchPage() {
     ).filter((j) => !scoredIds.has(j.id))
       // The panel's filters, which the band otherwise arrives without.
       .filter((j) => matchesBandFilters(j, {
-        daysBack, levels, isRemote, location: locationDebounced, text: searchDebounced,
+        daysBack, levels, aiRoles, isRemote, location: locationDebounced, text: searchDebounced,
       })),
-    [bandQuery.data, scoredIds, daysBack, levels, isRemote, locationDebounced, searchDebounced],
+    [bandQuery.data, scoredIds, daysBack, levels, aiRoles, isRemote, locationDebounced, searchDebounced],
   );
 
   // One board, scored and unscored together, each card staying where it was
@@ -871,18 +909,26 @@ export default function SearchPage() {
     setLocation('');
     setIsRemote(undefined);
     setLevels(new Set());
+    setAiRoles(false);
     setMinScore('');
   }
 
   const hasActiveFilters =
     daysBack !== DEFAULT_DAYS_BACK || location.trim() !== '' || isRemote !== undefined ||
-    levels.size > 0 || minScore.trim() !== '';
+    levels.size > 0 || aiRoles || minScore.trim() !== '';
 
   const filtering = hasActiveFilters || searchDebounced.trim() !== '';
 
   const activeFilterCount =
     (daysBack !== DEFAULT_DAYS_BACK ? 1 : 0) + (location.trim() !== '' ? 1 : 0) + (isRemote !== undefined ? 1 : 0) +
-    levels.size + (minScore.trim() !== '' ? 1 : 0);
+    levels.size + (aiRoles ? 1 : 0) + (minScore.trim() !== '' ? 1 : 0);
+
+  // With the panel open on a wide screen, exactly four cards a row: auto-fill
+  // would fit five beside it and the row would reflow every time the panel
+  // toggles. Narrower than that, four would squeeze each card below its 16rem.
+  const cardColumns = filtersOpen
+    ? 'grid-cols-[repeat(auto-fill,minmax(16rem,1fr))] min-[1400px]:grid-cols-4'
+    : 'grid-cols-[repeat(auto-fill,minmax(16rem,1fr))]';
 
   const groupLabel ='text-[11px] font-medium uppercase tracking-[0.08em] text-[var(--ed-ink-faint)]';
   const pill = (active: boolean) =>
@@ -973,16 +1019,14 @@ export default function SearchPage() {
               When open it's a normal flex item that pushes the results over,
               not an overlay: the list stays interactive behind it. */}
           {filtersOpen && (
-            <aside className="w-[220px] shrink-0 sticky top-4 max-h-[calc(100vh-2rem)] overflow-y-auto max-[900px]:static max-[900px]:max-h-none max-[900px]:w-full border border-[var(--ed-rule)] rounded-2xl p-5">
+            <aside className="w-[260px] shrink-0 sticky top-4 max-h-[calc(100vh-2rem)] overflow-y-auto max-[900px]:static max-[900px]:max-h-none max-[900px]:w-full border border-[var(--ed-rule)] rounded-2xl p-5">
               <div className="flex flex-col gap-[0.4rem] mb-5">
                 <span className={groupLabel}>Posted</span>
-                <div className="flex flex-wrap gap-1">
-                  {DAYS_PRESETS.map(({ days, label }) => (
-                    <button key={days} type="button" className={pill(daysBack === days)} onClick={() => setDaysBack(days)} aria-pressed={daysBack === days}>
-                      {label}
-                    </button>
-                  ))}
-                </div>
+                <Segmented
+                  options={DAYS_PRESETS.map(({ days, label }) => ({ value: days, label }))}
+                  value={daysBack}
+                  onChange={setDaysBack}
+                />
               </div>
 
               <div className="flex flex-col gap-[0.4rem] mb-5">
@@ -998,13 +1042,7 @@ export default function SearchPage() {
 
               <div className="flex flex-col gap-[0.4rem] mb-5">
                 <span className={groupLabel}>Match quality</span>
-                <div className="flex flex-wrap gap-1">
-                  {MATCH_QUALITY.map(({ value, label }) => (
-                    <button key={label} type="button" className={pill(minScore === value)} onClick={() => setMinScore(value)} aria-pressed={minScore === value}>
-                      {label}
-                    </button>
-                  ))}
-                </div>
+                <Segmented options={MATCH_QUALITY} value={minScore} onChange={setMinScore} />
               </div>
 
               <div className="flex flex-col gap-[0.4rem] mb-5">
@@ -1021,11 +1059,16 @@ export default function SearchPage() {
               <div className="flex flex-col gap-[0.4rem] mb-5">
                 <span className={groupLabel}>Seniority</span>
                 <div className="flex flex-wrap gap-1">
-                  {JOB_LEVELS.map((level) => (
-                    <button key={level} type="button" className={pill(levels.has(level))} onClick={() => toggleLevel(level)} aria-pressed={levels.has(level)}>
-                      {level}
+                  {TITLE_LEVELS.map(({ value, label }) => (
+                    <button key={value} type="button" className={pill(levels.has(value))} onClick={() => toggleLevel(value)} aria-pressed={levels.has(value)}>
+                      {label}
                     </button>
                   ))}
+                </div>
+                <div className="flex flex-wrap gap-1 mt-2">
+                  <button type="button" className={pill(aiRoles)} onClick={() => setAiRoles((v) => !v)} aria-pressed={aiRoles}>
+                    AI roles
+                  </button>
                 </div>
               </div>
 
@@ -1061,7 +1104,7 @@ export default function SearchPage() {
                   {upload?.phase === 'reading' ? 'Reading your résumé…' : 'Finding your matches…'}
                 </p>
               )}
-              <div className={`grid grid-cols-[repeat(auto-fill,minmax(16rem,1fr))] gap-4`}>
+              <div className={`grid ${cardColumns} gap-4`}>
                 {Array.from({ length: SKELETON_CARDS }, (_, i) => <MatchCardSkeleton key={i} index={i} />)}
               </div>
             </div>
@@ -1138,7 +1181,7 @@ export default function SearchPage() {
             </>
           ) : (
             /* Default browse view — full card grid. */
-            <div className={`flex-1 min-w-0 grid grid-cols-[repeat(auto-fill,minmax(16rem,1fr))] gap-4`}>
+            <div className={`flex-1 min-w-0 grid ${cardColumns} gap-4`}>
               {/* Scored and unscored in one grid, identical but for the score
                   slot. The unscored ones are the rest of the band — retrieved,
                   relevant, not yet judged — shown because retrieval is nearly

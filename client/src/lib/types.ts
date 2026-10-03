@@ -240,7 +240,8 @@ export interface ScoredJobsQuery {
   location?: string; // free-text substring, case-insensitive
   q?: string; // free-text search across title/company/description
   is_remote?: boolean;
-  actual_job_level?: string; // comma-separated
+  actual_job_level?: string; // comma-separated TitleLevel values
+  ai_roles?: boolean;
   include_dismissed?: boolean;
   include_saved?: boolean;
   limit?: number;

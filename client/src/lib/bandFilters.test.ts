@@ -8,7 +8,6 @@ const job = (over: Partial<DiscoveredJobSummary> = {}): DiscoveredJobSummary => 
   company: 'Deliveroo',
   location: 'London, United Kingdom (hybrid)',
   description: 'Go, Ruby, or Python',
-  actual_job_level: 'mid-senior level',
   ...over,
 });
 
@@ -19,14 +18,17 @@ describe('matchesBandFilters', () => {
     expect(matchesBandFilters(job(), none)).toBe(true);
   });
 
-  it('keeps only the selected seniority bands', () => {
-    const levels = new Set(['mid-senior level']);
-    expect(matchesBandFilters(job(), { levels })).toBe(true);
-    expect(matchesBandFilters(job({ title: 'Software Engineer, New Grad', actual_job_level: 'entry level' }), { levels })).toBe(false);
+  it('keeps only the selected seniority levels, read from the title', () => {
+    const senior = new Set(['senior']);
+    expect(matchesBandFilters(job(), { levels: senior })).toBe(true);
+    expect(matchesBandFilters(job({ title: 'Software Engineer, New Grad' }), { levels: senior })).toBe(false);
+    expect(matchesBandFilters(job({ title: 'Senior Staff Engineer' }), { levels: new Set(['staff']) })).toBe(true);
+    expect(matchesBandFilters(job({ title: 'Software Engineer' }), { levels: new Set(['mid']) })).toBe(true);
   });
 
-  it('treats an unextracted band the way the server does', () => {
-    expect(matchesBandFilters(job({ actual_job_level: null }), { levels: new Set(['mid-senior level']) })).toBe(false);
+  it('keeps only AI roles when that chip is on', () => {
+    expect(matchesBandFilters(job(), { ...none, aiRoles: true })).toBe(false);
+    expect(matchesBandFilters(job({ title: 'LLM Inference Engineer' }), { ...none, aiRoles: true })).toBe(true);
   });
 
   it('reads remote from the location when the source has no flag', () => {

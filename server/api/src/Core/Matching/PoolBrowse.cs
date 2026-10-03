@@ -52,7 +52,10 @@ public sealed record PoolBrowseQuery
     /// <summary>Free text across title, company and description.</summary>
     public string? Text { get; init; }
     public bool? IsRemote { get; init; }
+    /// <summary>Seniority, as <see cref="TitleLevel"/> reads it from the title. Empty = any.</summary>
     public IReadOnlyList<string> Levels { get; init; } = [];
+    /// <summary>Only titles that name AI work (<see cref="TitleLevel.AiPattern"/>).</summary>
+    public bool AiRoles { get; init; }
     /// <summary>
     /// Job functions this user accepts (<see cref="JobFunctions.AcceptedFor"/>).
     /// Empty = no constraint.

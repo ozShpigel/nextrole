@@ -10,7 +10,6 @@ import { useDwell } from '../lib/useDwell';
 import { isCvUploadInProgress, isScoringHeld, useCvUpload } from '../lib/cvUpload';
 import { useSaveJob, useDismissJob, useMarkViewed } from '../lib/mutations';
 import type { DiscoveredJobSummary } from '../lib/types';
-import { VERDICT_LABELS } from '../lib/scoring';
 import { cityCountry, formatAge, formatSalaryRange, isNew, hasRealJobUrl } from '../lib/format';
 import AnalysisCard, { edVerdictColor } from '../components/AnalysisCard';
 import { CompanyAvatar } from '../components/CompanyAvatar';
@@ -41,7 +40,13 @@ const ED_GHOST = `${ED_BTN} border-[var(--ed-rule)] text-[var(--ed-ink-soft)] ho
 // chip set needed no changes, just a different underlying field.
 const JOB_LEVELS = ['entry level', 'associate', 'mid-senior level', 'director', 'executive'];
 
-const VERDICT_ORDER = ['STRONG_YES', 'YES', 'MAYBE', 'NO', 'STRONG_NO'];
+// Score floors, not verdicts: the number is what the card shows, and a
+// verdict filter asked the reader to map five labels onto it themselves.
+const MATCH_QUALITY = [
+  { value: '', label: 'All' },
+  { value: '70', label: '70%+' },
+  { value: '85', label: '85%+' },
+];
 
 // Freshness window over discovered_at (when the job entered the pool, not its
 // posting date). 60 = the pool's TTL, i.e. everything ("Any").
@@ -583,7 +588,6 @@ interface PersistedFilters {
   location: string;
   isRemote?: boolean;
   levels: string[];
-  verdicts: string[];
   minScore: string;
 }
 
@@ -609,9 +613,11 @@ export default function SearchPage() {
   const [locationDebounced, setLocationDebounced] = useState(location);
   const [isRemote, setIsRemote] = useState<boolean | undefined>(persisted?.isRemote);
   const [levels, setLevels] = useState<Set<string>>(() => new Set(persisted?.levels ?? []));
-  const [verdicts, setVerdicts] = useState<Set<string>>(() => new Set(persisted?.verdicts ?? []));
-  const [minScore, setMinScore] = useState(persisted?.minScore ?? '');
-  const [showMoreFilters, setShowMoreFilters] = useState(false);
+  // A remembered floor that is no longer a choice (the old free-typed box)
+  // falls back to All, as daysBack does, rather than filtering by a value
+  // nothing on screen shows.
+  const [minScore, setMinScore] = useState(() =>
+    MATCH_QUALITY.some((q) => q.value === persisted?.minScore) ? persisted!.minScore : '');
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
@@ -629,14 +635,14 @@ export default function SearchPage() {
 
   useEffect(() => {
     const snapshot: PersistedFilters = {
-      daysBack, location, isRemote, levels: [...levels], verdicts: [...verdicts], minScore,
+      daysBack, location, isRemote, levels: [...levels], minScore,
     };
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
     } catch {
       // Storage full/unavailable (e.g. private browsing) — not critical.
     }
-  }, [daysBack, location, isRemote, levels, verdicts, minScore]);
+  }, [daysBack, location, isRemote, levels, minScore]);
 
   const query = useMemo(() => ({
     days_back: daysBack,
@@ -644,10 +650,9 @@ export default function SearchPage() {
     location: locationDebounced.trim() || undefined,
     is_remote: isRemote,
     actual_job_level: levels.size > 0 ? [...levels].join(',') : undefined,
-    verdict: verdicts.size > 0 ? [...verdicts].join(',') : undefined,
     min_score: minScore.trim() ? Number(minScore) : undefined,
     limit: 100,
-  }), [daysBack, searchDebounced, locationDebounced, isRemote, levels, verdicts, minScore]);
+  }), [daysBack, searchDebounced, locationDebounced, isRemote, levels, minScore]);
 
   const qc = useQueryClient();
   const jobsQuery = useScoredJobs(query);
@@ -814,15 +819,6 @@ export default function SearchPage() {
     });
   }
 
-  function toggleVerdict(v: string): void {
-    setVerdicts((prev) => {
-      const next = new Set(prev);
-      if (next.has(v)) next.delete(v);
-      else next.add(v);
-      return next;
-    });
-  }
-
   // Shown as added at once. A card without a score is scored by the save
   // before it lands in Active (ScoreBeforeSave on the server), which takes
   // seconds — waiting on it here would make Add the one place the scoring
@@ -875,19 +871,18 @@ export default function SearchPage() {
     setLocation('');
     setIsRemote(undefined);
     setLevels(new Set());
-    setVerdicts(new Set());
     setMinScore('');
   }
 
   const hasActiveFilters =
     daysBack !== DEFAULT_DAYS_BACK || location.trim() !== '' || isRemote !== undefined ||
-    levels.size > 0 || verdicts.size > 0 || minScore.trim() !== '';
+    levels.size > 0 || minScore.trim() !== '';
 
   const filtering = hasActiveFilters || searchDebounced.trim() !== '';
 
   const activeFilterCount =
     (daysBack !== DEFAULT_DAYS_BACK ? 1 : 0) + (location.trim() !== '' ? 1 : 0) + (isRemote !== undefined ? 1 : 0) +
-    levels.size + verdicts.size + (minScore.trim() !== '' ? 1 : 0);
+    levels.size + (minScore.trim() !== '' ? 1 : 0);
 
   const groupLabel ='text-[11px] font-medium uppercase tracking-[0.08em] text-[var(--ed-ink-faint)]';
   const pill = (active: boolean) =>
@@ -978,7 +973,7 @@ export default function SearchPage() {
               When open it's a normal flex item that pushes the results over,
               not an overlay: the list stays interactive behind it. */}
           {filtersOpen && (
-            <aside className="w-[220px] shrink-0 max-[900px]:w-full border border-[var(--ed-rule)] rounded-2xl p-5">
+            <aside className="w-[220px] shrink-0 sticky top-4 max-h-[calc(100vh-2rem)] overflow-y-auto max-[900px]:static max-[900px]:max-h-none max-[900px]:w-full border border-[var(--ed-rule)] rounded-2xl p-5">
               <div className="flex flex-col gap-[0.4rem] mb-5">
                 <span className={groupLabel}>Discovered</span>
                 <div className="flex flex-wrap gap-1">
@@ -1002,11 +997,11 @@ export default function SearchPage() {
               </div>
 
               <div className="flex flex-col gap-[0.4rem] mb-5">
-                <span className={groupLabel}>Verdict</span>
+                <span className={groupLabel}>Match quality</span>
                 <div className="flex flex-wrap gap-1">
-                  {VERDICT_ORDER.map((v) => (
-                    <button key={v} type="button" className={pill(verdicts.has(v))} onClick={() => toggleVerdict(v)} aria-pressed={verdicts.has(v)}>
-                      {VERDICT_LABELS[v] ?? v}
+                  {MATCH_QUALITY.map(({ value, label }) => (
+                    <button key={label} type="button" className={pill(minScore === value)} onClick={() => setMinScore(value)} aria-pressed={minScore === value}>
+                      {label}
                     </button>
                   ))}
                 </div>
@@ -1023,43 +1018,16 @@ export default function SearchPage() {
                 />
               </div>
 
-              <button
-                type="button"
-                className="text-[13px] font-medium text-[var(--ed-ink-faint)] hover:text-[var(--ed-ink)] mb-5 text-left transition-colors"
-                onClick={() => setShowMoreFilters((v) => !v)}
-                aria-expanded={showMoreFilters}
-              >
-                {showMoreFilters ? 'Less' : 'More filters'}
-              </button>
-
-              {showMoreFilters && (
-                <>
-                  <div className="flex flex-col gap-[0.4rem] mb-5">
-                    <Label htmlFor="min-score" className={groupLabel}>Min score</Label>
-                    <Input
-                      id="min-score"
-                      type="number"
-                      min={0}
-                      max={100}
-                      placeholder="e.g. 70"
-                      value={minScore}
-                      onChange={(e) => setMinScore(e.target.value)}
-                      className="rounded-lg border-[var(--ed-rule)] bg-transparent text-[var(--ed-ink)]"
-                    />
-                  </div>
-
-                  <div className="flex flex-col gap-[0.4rem] mb-5">
-                    <span className={groupLabel}>Seniority</span>
-                    <div className="flex flex-wrap gap-1">
-                      {JOB_LEVELS.map((level) => (
-                        <button key={level} type="button" className={pill(levels.has(level))} onClick={() => toggleLevel(level)} aria-pressed={levels.has(level)}>
-                          {level}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </>
-              )}
+              <div className="flex flex-col gap-[0.4rem] mb-5">
+                <span className={groupLabel}>Seniority</span>
+                <div className="flex flex-wrap gap-1">
+                  {JOB_LEVELS.map((level) => (
+                    <button key={level} type="button" className={pill(levels.has(level))} onClick={() => toggleLevel(level)} aria-pressed={levels.has(level)}>
+                      {level}
+                    </button>
+                  ))}
+                </div>
+              </div>
 
               {hasActiveFilters && (
                 <div className="flex flex-col items-stretch gap-2">

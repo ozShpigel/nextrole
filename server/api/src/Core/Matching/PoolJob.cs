@@ -40,27 +40,6 @@ public sealed record PoolJob
     // each flat entry as a group of one.
     public string[][] MustHaveGroups { get; init; } = [];
 
-    // Company enrichment the ingest already scraped and stored on the pool
-    // document. It is user-independent — a company's news and its employee
-    // reviews are the same for everyone — so it belongs here beside the
-    // extracted facts rather than being re-fetched per user.
-    //
-    // These were collected, stored and then never read: the scan built its
-    // MatchBatchItem without them, so the Evaluator's <company_news> and
-    // <employee_reviews> blocks never appeared on a single pool-scored job.
-    public List<CompanyNewsItem>? CompanyNews { get; init; }
-    // Null unless it carries actual evidence — see PoolJobRepository.
-    //
-    // What reads it is PaceEvidence.In, which asks whether the payload speaks
-    // to hours or load at all, not whether it exists — so an evidence-free
-    // object is merely useless here rather than harmful, which was not true of
-    // the earlier `glassdoorData is null` test. Kept null anyway: the field
-    // should say what is known, and nothing is.
-    //
-    // The consequence it decides is no longer a cap. When no pace evidence
-    // exists anywhere, Sustainability & Pace is dropped from the total and the
-    // score renormalised over what could be assessed (ScoreTotal).
-    public GlassdoorData? GlassdoorData { get; init; }
     // The ingest's stored Analyst read, and the stamp it was produced under.
     // Null Parsed means the scan must parse inline — see PoolScanService.
     // A ParseVersion that differs from the current one is STALE, not wrong:

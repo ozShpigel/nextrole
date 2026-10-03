@@ -28,9 +28,9 @@ public sealed record ParsedJob
     // stability or churn — never a mood word alone ("fast-paced" by itself
     // doesn't count; a stated arrangement like "on-call one week in six"
     // does). Empty when the posting states none. Used by
-    // JobMatchService.EnforceEvidenceCaps to cap Pace & Workload / Long-term
-    // Risk when the JD says nothing about pace (and no Glassdoor data fills
-    // the gap — the Analyst only reads the job description).
+    // JobMatchService.EnforceEvidenceCaps to drop Sustainability & Pace from
+    // the total when the JD says nothing about pace -- the JD is the only
+    // source of pace evidence.
     public string[] PaceSignals { get; init; } = [];
     public string? DomainContext { get; init; }
     public string[] Responsibilities { get; init; } = [];

@@ -238,14 +238,14 @@ public sealed class ClaudeClient : IClaudeClient
         public ParsedJob? Parsed { get; init; }
     }
 
-    public Task<(MatchResponse Response, ClaudeCallSnapshot Snapshot)> EvaluateMatchAsync(string profile, ParsedJob parsedJob, List<CompanyNewsItem>? companyNews = null, GlassdoorData? glassdoorData = null, CompanyProfile? companyProfile = null, CancellationToken cancellationToken = default)
-        => EvaluateMatchAsync(profile, parsedJob, EvaluatorPrompt, _scoring.Evaluator, companyNews, glassdoorData, companyProfile, cancellationToken);
+    public Task<(MatchResponse Response, ClaudeCallSnapshot Snapshot)> EvaluateMatchAsync(string profile, ParsedJob parsedJob, CompanyProfile? companyProfile = null, CancellationToken cancellationToken = default)
+        => EvaluateMatchAsync(profile, parsedJob, EvaluatorPrompt, _scoring.Evaluator, companyProfile, cancellationToken);
 
-    public async Task<(MatchResponse Response, ClaudeCallSnapshot Snapshot)> EvaluateMatchAsync(string profile, ParsedJob parsedJob, string evaluatorPrompt, RoleScoringConfig evaluatorConfig, List<CompanyNewsItem>? companyNews = null, GlassdoorData? glassdoorData = null, CompanyProfile? companyProfile = null, CancellationToken cancellationToken = default)
+    public async Task<(MatchResponse Response, ClaudeCallSnapshot Snapshot)> EvaluateMatchAsync(string profile, ParsedJob parsedJob, string evaluatorPrompt, RoleScoringConfig evaluatorConfig, CompanyProfile? companyProfile = null, CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Evaluating job match: {Title} at {Company}", parsedJob.JobTitle, parsedJob.Company);
 
-        var (systemPrompt, userMessage) = _promptBuilder.BuildEvaluationPrompt(profile, parsedJob, evaluatorPrompt, companyNews, glassdoorData, companyProfile);
+        var (systemPrompt, userMessage) = _promptBuilder.BuildEvaluationPrompt(profile, parsedJob, evaluatorPrompt, companyProfile);
 
         var (result, snapshot) = await CallClaudeAsync<MatchResponse>(systemPrompt, userMessage, evaluatorConfig, "evaluate", cancellationToken);
         _logger.LogInformation("Match evaluation completed. Verdict: {Verdict}, Score: {Score}",
@@ -477,10 +477,6 @@ public sealed class ClaudeClient : IClaudeClient
             userBuilder.Append("<job_description>").Append(app.JobDescription).Append("</job_description>\n");
         if (!string.IsNullOrWhiteSpace(app.CompanySummary))
             userBuilder.Append("<company_summary>").Append(app.CompanySummary).Append("</company_summary>\n");
-        if (!string.IsNullOrWhiteSpace(app.CompanyNews))
-            userBuilder.Append("<company_news>").Append(app.CompanyNews).Append("</company_news>\n");
-        if (!string.IsNullOrWhiteSpace(app.GlassdoorData))
-            userBuilder.Append("<glassdoor>").Append(app.GlassdoorData).Append("</glassdoor>\n");
 
         var parameters = new MessageParameters
         {
@@ -1417,10 +1413,6 @@ public sealed class ClaudeClient : IClaudeClient
                 sb.Append("<job_description>").Append(app.JobDescription).Append("</job_description>\n");
             if (!string.IsNullOrWhiteSpace(app.CompanySummary))
                 sb.Append("<company_summary>").Append(app.CompanySummary).Append("</company_summary>\n");
-            if (!string.IsNullOrWhiteSpace(app.CompanyNews))
-                sb.Append("<company_news>").Append(app.CompanyNews).Append("</company_news>\n");
-            if (!string.IsNullOrWhiteSpace(app.GlassdoorData))
-                sb.Append("<glassdoor>").Append(app.GlassdoorData).Append("</glassdoor>\n");
             sb.Append("</job_context>\n\n");
         }
 

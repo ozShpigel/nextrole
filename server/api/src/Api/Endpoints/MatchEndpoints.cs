@@ -541,8 +541,8 @@ public static class MatchEndpoints
         .WithSummary("Collect a job-parse batch: in_progress, or the verified parses");
 
         // Narrative enrichment: on-demand upgrade of a scored job's narrative
-        // fields (honestAssessment/recommendation/companyNewsAnalysis/
-        // employeeReviewsAnalysis) from ingest-time terse to full detail —
+        // fields (honestAssessment/recommendation) from ingest-time terse to
+        // full detail —
         // called once by the scraper's /save handler when the user clicks
         // Add. Same "match" bucket as the single-job scoring endpoint: this
         // fires interactively, per user click, not per bulk-ingest batch.

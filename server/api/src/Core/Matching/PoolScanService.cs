@@ -374,31 +374,10 @@ public sealed class PoolScanService : IPoolScanService
                 MustHaveTech = j.MustHaveTech,
                 NiceToHaveTech = j.NiceToHaveTech,
                 MustHaveGroups = j.MustHaveGroups,
-                // Review evidence, on the documents that still have any. NOTHING
-                // PRODUCES IT ANY MORE: the DDG-based Glassdoor scraper was
-                // deleted with the criteria path, having succeeded for 49 of 875
-                // companies (5.6%) across its whole life. What is left is the
-                // ~24 pool-visible documents ingested before that, and they age
-                // out.
-                //
-                // Still forwarded, because null is the SAFE input here and the
-                // remaining rows are real data. ReviewCap(null) is 1 — the
-                // tightest clamp — so the absence of review evidence restricts
-                // what the Evaluator may move rather than permitting more. The
-                // cap and reviewAdjustment stay; only their source is gone.
-                GlassdoorData = j.GlassdoorData,
                 // Context only — the prompt states company_profile must never
                 // change a numeric score. Cheap (industry + url) and already
                 // loaded for display.
                 CompanyProfile = PoolEnrichment.CompanyProfileFrom(j.CompanyProfile),
-                // CompanyNews is deliberately NOT passed. The batch prompt's
-                // "Ingest-time: omit narrative-only fields entirely" rule drops
-                // companyNewsAnalysis for every job regardless of whether a
-                // <company_news> block was supplied, and news may never change a
-                // numeric score — so forwarding it is measured at +856 input
-                // tokens/job (+9% of per-job scoring cost) for an effect the
-                // prompt forbids. PoolJob still carries it for a caller that
-                // does render the narrative.
                 // The ingest's parse when there is one. Null falls through to
                 // an inline Analyst call for that job only — today's behaviour,
                 // so a cache miss is never worse than no cache.

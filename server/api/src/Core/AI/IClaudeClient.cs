@@ -8,13 +8,13 @@ namespace ApplicationTracker.Core.AI;
 public interface IClaudeClient
 {
     Task<(ParsedJob Parsed, ClaudeCallSnapshot Snapshot)> ParseJobDescriptionAsync(string jobDescription, CancellationToken cancellationToken = default);
-    Task<(MatchResponse Response, ClaudeCallSnapshot Snapshot)> EvaluateMatchAsync(string profile, ParsedJob parsedJob, List<CompanyNewsItem>? companyNews = null, GlassdoorData? glassdoorData = null, CompanyProfile? companyProfile = null, CancellationToken cancellationToken = default);
+    Task<(MatchResponse Response, ClaudeCallSnapshot Snapshot)> EvaluateMatchAsync(string profile, ParsedJob parsedJob, CompanyProfile? companyProfile = null, CancellationToken cancellationToken = default);
 
     // Explicit-override variants: the prompt and per-role config are supplied
     // directly instead of being read from configuration. The parameterless
     // variants above delegate to these with the configured prompt/config.
     Task<(ParsedJob Parsed, ClaudeCallSnapshot Snapshot)> ParseJobDescriptionAsync(string jobDescription, string analystPrompt, RoleScoringConfig analystConfig, CancellationToken cancellationToken = default);
-    Task<(MatchResponse Response, ClaudeCallSnapshot Snapshot)> EvaluateMatchAsync(string profile, ParsedJob parsedJob, string evaluatorPrompt, RoleScoringConfig evaluatorConfig, List<CompanyNewsItem>? companyNews = null, GlassdoorData? glassdoorData = null, CompanyProfile? companyProfile = null, CancellationToken cancellationToken = default);
+    Task<(MatchResponse Response, ClaudeCallSnapshot Snapshot)> EvaluateMatchAsync(string profile, ParsedJob parsedJob, string evaluatorPrompt, RoleScoringConfig evaluatorConfig, CompanyProfile? companyProfile = null, CancellationToken cancellationToken = default);
 
     // Batched ingest-time scoring: ONE Evaluator call scores every job in the
     // batch independently against the same fixed rubric — never a comparative
@@ -36,9 +36,8 @@ public interface IClaudeClient
 
     // On-demand narrative upgrade: fired once when the user clicks Add on a
     // job scored terse at ingest time. Scores/verdict/breakdown travel as
-    // immutable context and are never recomputed here — only honestAssessment,
-    // recommendation detail, companyNewsAnalysis, and employeeReviewsAnalysis
-    // come back at full detail.
+    // immutable context and are never recomputed here — only honestAssessment
+    // and recommendation detail come back at full detail.
     Task<NarrativeEnrichResponse> EnrichNarrativeAsync(Guid userId, NarrativeEnrichRequest request, CancellationToken cancellationToken = default);
 
     // One cheap Haiku call per discovery run: flags scraped titles that are

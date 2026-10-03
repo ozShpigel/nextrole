@@ -32,8 +32,6 @@ public sealed record MatchBatchItem
     public string? Location { get; init; }
     public string? DatePosted { get; init; }
     public string? Site { get; init; }
-    public List<CompanyNewsItem>? CompanyNews { get; init; }
-    public GlassdoorData? GlassdoorData { get; init; }
     public CompanyProfile? CompanyProfile { get; init; }
     // The posting's stated requirements as the pool extracted them once at
     // ingest (PoolJob.MustHaveTech / NiceToHaveTech). Supplied by the per-user
@@ -85,8 +83,6 @@ public sealed record EvaluationBatchItem
 {
     public required string Id { get; init; }
     public required ParsedJob ParsedJob { get; init; }
-    public List<CompanyNewsItem>? CompanyNews { get; init; }
-    public GlassdoorData? GlassdoorData { get; init; }
     public CompanyProfile? CompanyProfile { get; init; }
 }
 

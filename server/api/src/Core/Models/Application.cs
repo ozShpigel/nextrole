@@ -4,6 +4,11 @@ using MongoDB.Bson.Serialization.Attributes;
 
 namespace ApplicationTracker.Core.Models;
 
+// IgnoreExtraElements: applications saved while jobs came from LinkedIn still
+// carry `CompanyNews` and `GlassdoorData` (removed 2026-10-03 -- no live source
+// supplies either) -- without this, the driver throws on any unmapped element
+// and those applications would stop loading.
+[BsonIgnoreExtraElements]
 public sealed record Application : IUserOwned
 {
     [BsonId]
@@ -48,8 +53,6 @@ public sealed record Application : IUserOwned
     public string? EvaluatorSnapshotInput { get; init; }
     [BsonIgnore]
     public string? EvaluatorSnapshotOutput { get; init; }
-    public string? CompanyNews { get; init; }
-    public string? GlassdoorData { get; init; }
     public string? CompanySummary { get; init; }
     // On-demand Hebrew translation of CompanySummary/WhyWorkHere — same
     // pattern as MatchAnalysisHebrew: both fields generate in English only

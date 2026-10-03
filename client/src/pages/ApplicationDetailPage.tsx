@@ -66,8 +66,6 @@ interface Application {
   companySummaryHebrew: string | null;
   whyWorkHere: string | null;
   whyWorkHereHebrew: string | null;
-  companyNews: string | null;
-  glassdoorData: string | null;
   analystSnapshotInput: string | null;
   analystSnapshotOutput: string | null;
   evaluatorSnapshotInput: string | null;
@@ -92,10 +90,8 @@ export default function ApplicationDetail() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [modal, setModal] = useState<ModalState>(null);
-  // Shared with CompanyEnrichment below — its underlying data (news
-  // headlines, Glassdoor numbers) is never machine-translated, but its own
-  // static labels ("Company Info", "Recent News", …) should still switch
-  // with the rest of the page instead of silently staying English forever.
+  // The page's own static labels ("Company Summary", "Why Work Here?", …)
+  // switch with the rest of the page instead of silently staying English.
   const [lang, setLang] = useState<'en' | 'he'>('en');
 
   const detailQuery = useApplicationDetail(id!);
@@ -213,7 +209,6 @@ export default function ApplicationDetail() {
                 <AnalysisSection appId={app.id} matchAnalysis={app.matchAnalysis} initialHebrew={app.matchAnalysisHebrew} lang={lang} setLang={setLang} />
                 <WhyWorkHereBlock appId={app.id} initialAnswer={app.whyWorkHere} initialHebrew={app.whyWorkHereHebrew} lang={lang} />
                 <CompanySummaryBlock appId={app.id} initialSummary={app.companySummary} initialHebrew={app.companySummaryHebrew} lang={lang} />
-                <CompanyEnrichment companyNewsJson={app.companyNews} glassdoorDataJson={app.glassdoorData} lang={lang} />
               </>
             ) : (
               <div className="border border-dashed border-[var(--ed-rule)] p-6">
@@ -412,51 +407,12 @@ function WhyWorkHereBlock(
   );
 }
 
-interface GlassdoorSubRatings {
-  workLifeBalance?: number;
-  cultureAndValues?: number;
-  careerOpportunities?: number;
-  seniorManagement?: number;
-  compensationAndBenefits?: number;
-}
-
-interface GlassdoorData {
-  rating?: number | null;
-  reviewCount?: number;
-  url?: string;
-  subRatings?: GlassdoorSubRatings;
-  recommendPercent?: number;
-  snippets?: string[];
-}
-
-const SUB_RATING_LABELS: [keyof GlassdoorSubRatings, string][] = [
-  ['workLifeBalance', 'Work-life'],
-  ['cultureAndValues', 'Culture'],
-  ['careerOpportunities', 'Career'],
-  ['seniorManagement', 'Management'],
-  ['compensationAndBenefits', 'Compensation'],
-];
-
-// Static chrome for CompanyEnrichment / CompanySummaryBlock / WhyWorkHereBlock
-// — the underlying AI content already follows the server-side
-// Prompts__HebrewOutput__* flags, and CompanyEnrichment's own data (scraped
-// news headlines, Glassdoor's numeric ratings) is never machine-translated (a
-// headline is a literal external article title; translating it would
-// misrepresent the source) — but these three sections' own labels/buttons/
-// empty-state copy should still follow the page's language toggle instead of
-// staying English regardless. Same pattern as AnalysisCard's own
+// Static chrome for CompanySummaryBlock / WhyWorkHereBlock — the underlying
+// AI content already follows the server-side Prompts__HebrewOutput__* flags,
+// but these sections' own labels/buttons/empty-state copy should still follow
+// the page's language toggle instead of staying English regardless. Same pattern as AnalysisCard's own
 // HE_LABELS/t(), just scoped to this page's remaining hardcoded strings.
 const PAGE_HE_LABELS: Record<string, string> = {
-  'Company Info': 'מידע על החברה',
-  'Recent News': 'חדשות אחרונות',
-  'reviews': 'ביקורות',
-  'recommend': 'ממליצים',
-  'View': 'צפייה',
-  'Work-life': 'איזון חיים-עבודה',
-  'Culture': 'תרבות',
-  'Career': 'קריירה',
-  'Management': 'ניהול',
-  'Compensation': 'תגמול',
   'Company Summary': 'תקציר החברה',
   'Regenerate': 'צור מחדש',
   'Generating...': 'יוצר...',
@@ -469,64 +425,6 @@ const PAGE_HE_LABELS: Record<string, string> = {
 
 function tPage(en: string, lang: 'en' | 'he'): string {
   return lang === 'he' ? (PAGE_HE_LABELS[en] ?? en) : en;
-}
-
-interface NewsItem {
-  title: string;
-  source?: string;
-}
-
-function CompanyEnrichment({ companyNewsJson, glassdoorDataJson, lang }: { companyNewsJson: string | null; glassdoorDataJson: string | null; lang: 'en' | 'he' }) {
-  let news: NewsItem[] | null = null;
-  let glassdoor: GlassdoorData | null = null;
-  try { if (companyNewsJson) news = JSON.parse(companyNewsJson); } catch { /* malformed */ }
-  try { if (glassdoorDataJson) glassdoor = JSON.parse(glassdoorDataJson); } catch { /* malformed */ }
-
-  if (!news?.length && !glassdoor) return null;
-
-  return (
-    <section className="mb-9">
-      <SectionHead title={tPage('Company Info', lang)} />
-
-      {glassdoor && (
-        <div className="mb-3">
-          <div className="flex items-center gap-[0.45rem]">
-            {glassdoor.rating != null && (
-              <span className="text-[16px] font-medium text-[var(--ed-ink)] tabular-nums">
-                Glassdoor {glassdoor.rating.toFixed(1)} / 5
-              </span>
-            )}
-            {glassdoor.reviewCount && <span className="text-[13px] text-[var(--ed-ink-faint)] tabular-nums">({glassdoor.reviewCount.toLocaleString()} {tPage('reviews', lang)})</span>}
-            {glassdoor.recommendPercent != null && <span className="text-[13px] text-[var(--ed-ink-soft)] tabular-nums">· {glassdoor.recommendPercent}% {tPage('recommend', lang)}</span>}
-            {glassdoor.url && <a href={glassdoor.url} target="_blank" rel="noopener noreferrer" className="text-[13px] text-[var(--ed-accent)] hover:opacity-75">{tPage('View', lang)}</a>}
-          </div>
-          {glassdoor.subRatings && (
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-[var(--ed-ink-faint)] mt-1">
-              {SUB_RATING_LABELS.map(([key, label]) => {
-                const v = glassdoor?.subRatings?.[key];
-                return v != null ? (
-                  <span key={key}>{tPage(label, lang)} <span className="font-medium tabular-nums text-[var(--ed-ink-soft)]">{v.toFixed(1)}</span></span>
-                ) : null;
-              })}
-            </div>
-          )}
-        </div>
-      )}
-
-      {news && news.length > 0 && (
-        <div>
-          <h4 className="text-[13px] font-medium uppercase tracking-[0.1em] text-[var(--ed-ink-faint)] mb-2 tabular-nums">{tPage('Recent News', lang)} ({news.length})</h4>
-          <ul className="pl-4 list-disc marker:text-[var(--ed-rule)]">
-            {news.slice(0, 3).map((n, i) => (
-              <li key={i} className="text-[16px] text-[var(--ed-ink-soft)] leading-[1.65] mb-[0.2rem]">
-                {n.title}{n.source && <span className="text-[var(--ed-ink-faint)]"> — {n.source}</span>}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-    </section>
-  );
 }
 
 function ApplicationDetailLoadingSkeleton() {

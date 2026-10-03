@@ -44,8 +44,6 @@ const mockApplication = {
   updatedAt: new Date().toISOString(),
   salary: null,
   companySummary: null,
-  companyNews: null,
-  glassdoorData: null,
   analystSnapshotInput: null,
   analystSnapshotOutput: null,
   evaluatorSnapshotInput: null,
@@ -166,13 +164,16 @@ describe('ApplicationDetailPage', () => {
     });
   });
 
-  it('shows glassdoor rating from data', async () => {
+  it('shows no company-info section for an old application carrying Glassdoor and news data', async () => {
+    // Applications saved while jobs came from LinkedIn still carry these
+    // fields; no live source supplies either any more (removed 2026-10-03).
     vi.mocked(api).mockResolvedValue({
       ...mockDetailData,
       application: {
         ...mockApplication,
         status: 'PhoneScreen',
         glassdoorData: JSON.stringify({ rating: 4.2, reviewCount: 1500, url: null }),
+        companyNews: JSON.stringify([{ title: 'Company raises $50M Series B', source: 'TechCrunch' }]),
       },
     });
     vi.mocked(matchApi).mockResolvedValue({});
@@ -180,85 +181,11 @@ describe('ApplicationDetailPage', () => {
     renderWithRouter(<ApplicationDetail />);
 
     await waitFor(() => {
-      expect(screen.getByText('Glassdoor 4.2 / 5')).toBeInTheDocument();
+      expect(screen.getByText('Senior React Developer')).toBeInTheDocument();
     });
-    expect(screen.getByText('(1,500 reviews)')).toBeInTheDocument();
-  });
-
-  it('shows sub-ratings and recommend percent from deep glassdoor payload', async () => {
-    vi.mocked(api).mockResolvedValue({
-      ...mockDetailData,
-      application: {
-        ...mockApplication,
-        status: 'PhoneScreen',
-        glassdoorData: JSON.stringify({
-          rating: 4.2,
-          reviewCount: 1500,
-          url: null,
-          subRatings: { workLifeBalance: 4.2, cultureAndValues: 4.0, careerOpportunities: 3.7 },
-          recommendPercent: 82,
-        }),
-      },
-    });
-    vi.mocked(matchApi).mockResolvedValue({});
-
-    renderWithRouter(<ApplicationDetail />);
-
-    await waitFor(() => {
-      expect(screen.getByText('Glassdoor 4.2 / 5')).toBeInTheDocument();
-    });
-    expect(screen.getByText('· 82% recommend')).toBeInTheDocument();
-    expect(screen.getByText('Work-life')).toBeInTheDocument();
-    expect(screen.getByText('Culture')).toBeInTheDocument();
-    expect(screen.getByText('Career')).toBeInTheDocument();
-    expect(screen.getByText('3.7')).toBeInTheDocument();
-    // absent categories are not rendered
-    expect(screen.queryByText('Management')).not.toBeInTheDocument();
-    expect(screen.queryByText('Compensation')).not.toBeInTheDocument();
-  });
-
-  it('renders deep glassdoor payload without an overall rating without crashing', async () => {
-    vi.mocked(api).mockResolvedValue({
-      ...mockDetailData,
-      application: {
-        ...mockApplication,
-        status: 'PhoneScreen',
-        glassdoorData: JSON.stringify({
-          subRatings: { workLifeBalance: 2.8 },
-          recommendPercent: 45,
-        }),
-      },
-    });
-    vi.mocked(matchApi).mockResolvedValue({});
-
-    renderWithRouter(<ApplicationDetail />);
-
-    await waitFor(() => {
-      expect(screen.getByText('· 45% recommend')).toBeInTheDocument();
-    });
-    expect(screen.queryByText(/Glassdoor .* \/ 5/)).not.toBeInTheDocument();
-    expect(screen.getByText('Work-life')).toBeInTheDocument();
-    expect(screen.getByText('2.8')).toBeInTheDocument();
-  });
-
-  it('shows company news from data', async () => {
-    vi.mocked(api).mockResolvedValue({
-      ...mockDetailData,
-      application: {
-        ...mockApplication,
-        status: 'PhoneScreen',
-        companyNews: JSON.stringify([
-          { title: 'Company raises $50M Series B', source: 'TechCrunch' },
-        ]),
-      },
-    });
-    vi.mocked(matchApi).mockResolvedValue({});
-
-    renderWithRouter(<ApplicationDetail />);
-
-    await waitFor(() => {
-      expect(screen.getByText('Company raises $50M Series B')).toBeInTheDocument();
-    });
+    expect(screen.queryByText('Company Info')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Glassdoor/)).not.toBeInTheDocument();
+    expect(screen.queryByText('Company raises $50M Series B')).not.toBeInTheDocument();
   });
 
   describe('Hebrew translation', () => {

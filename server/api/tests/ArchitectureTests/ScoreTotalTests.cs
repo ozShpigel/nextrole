@@ -8,18 +8,16 @@ namespace ArchitectureTests;
 /// <remarks>
 /// <para>
 /// This arithmetic had no test at all before, because it lived inside
-/// <c>JobMatchService.EnforceEvidenceCaps</c>, which is private.
-/// <c>PaceEvidenceTests</c> pins the predicate that decides <i>whether</i> a
-/// dimension can be assessed and never touched what happens to the total —
-/// so the whole suite passed while the scoring rule changed underneath it.
+/// <c>JobMatchService.EnforceEvidenceCaps</c>, which is private, so the whole
+/// suite passed while the scoring rule changed underneath it.
 /// </para>
 /// <para>
 /// The behaviour replaced a fixed cap of 12+7=19 of 35 on Pace &amp; Workload
 /// and Long-term Risk. That cap was calibrated when a JD silent on pace could
-/// still be paired with Glassdoor review evidence. Nothing supplies that any
-/// more — the scraper was deleted and Greenhouse's boards API returns no
-/// reviews — so the cap fired on essentially every job and became a permanent
-/// tax that compressed every score toward the middle.
+/// still be paired with Glassdoor review evidence. No source supplies that any
+/// more (the review machinery was removed 2026-10-03), so the cap fired on
+/// essentially every job and became a permanent tax that compressed every
+/// score toward the middle.
 /// </para>
 /// </remarks>
 public class ScoreTotalTests

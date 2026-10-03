@@ -40,7 +40,7 @@ namespace ApplicationTracker.Core.Matching;
 /// was lost by removing it: the level gap still caps System Design on its own.
 /// </para>
 /// <para>
-/// Its own class, like <see cref="PaceEvidence"/> and <see cref="ScoreTotal"/>,
+/// Its own class, like <see cref="ScoreTotal"/>,
 /// so the decision is testable. Inside <c>EnforceHardBlockerScope</c> it was
 /// private, and the old default — <c>_ =&gt; true</c> — had no test at all.
 /// </para>

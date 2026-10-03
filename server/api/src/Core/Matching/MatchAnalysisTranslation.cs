@@ -23,7 +23,7 @@ public static class MatchAnalysisTranslation
     //     component names verbatim ("Core Stack", "System Design", "Role
     //     Clarity & Ownership", "Engineering Maturity & Stability", "Pace &
     //     Workload", "Long-term Risk") and instructs the model to keep them in
-    //     English; JobMatchService.EnforceStackedGapsCap/EnforceReviewCaps
+    //     English; JobMatchService.EnforceStackedGapsCap/EnforceEvidenceCaps
     //     both match against these exact English strings. A translated Name
     //     would silently break nothing in THIS request (Correct() already ran
     //     on the English original before this translation ever happens), but

@@ -50,7 +50,7 @@ Nav links appear only once a profile exists — `OnboardingGate` bounces every o
 
 **Data access** — [`src/lib/api.ts`](src/lib/api.ts) wraps `fetch` with `credentials: 'include'` (so the `uid` cookie rides along even in a cross-origin deploy), a `/api` or `/api/match` base, and a 403 → "This action is disabled in the read-only demo." translation. `apiUrl()` builds a real href for cases that need one (a PDF `<a download>`). Read hooks live in [`src/lib/queries.ts`](src/lib/queries.ts), writes in [`src/lib/mutations.ts`](src/lib/mutations.ts).
 
-**Reverse proxy** — [`nginx.conf`](nginx.conf). It is an **allowlist**: `/api/discovery/**` → scraper, named API paths → API, everything else → the SPA. A new browser-facing endpoint must be added here or it breaks in production while working fine in dev. The public config allowlists `/api/match` sub-paths individually rather than proxying the prefix — a prefix would also expose `title-triage`, `seniority-classify` and `discovery-score-batch`, scraper-internal AI routes with looser input caps, reachable with no auth on a real billed key.
+**Reverse proxy** — [`nginx.conf`](nginx.conf). It is an **allowlist**: `/api/discovery/**` → scraper, named API paths → API, everything else → the SPA. A new browser-facing endpoint must be added here or it breaks in production while working fine in dev. The public config allowlists `/api/match` sub-paths individually rather than proxying the prefix — a prefix would also expose `job-facts` and `job-parse`, ingest-internal AI routes with looser input caps, reachable with no auth on a real billed key.
 
 **Events / CLI / jobs:** None beyond the package scripts.
 

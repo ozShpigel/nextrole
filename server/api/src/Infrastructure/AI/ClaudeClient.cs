@@ -655,65 +655,6 @@ public sealed class ClaudeClient : IClaudeClient
         Stream = false
     };
 
-    public async Task<TitleTriageResponse> TriageTitlesAsync(TitleTriageRequest request, CancellationToken cancellationToken = default)
-    {
-        _logger.LogInformation("Triaging {Count} scraped titles against intent '{Intent}'",
-            request.Titles.Count, request.SearchIntent);
-
-        var intent = request.SearchIntent.Trim();
-        var camelCase = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-
-        var results = await ClassifyInChunksAsync<TitleTriageItem, TitleTriageResponse, TitleTriageResult>(
-            request.Titles,
-            // Hardcoded false, not a config lookup — TitleTriage isn't one of
-            // the two agents PromptOptions.HebrewOutput can vary.
-            ResolveOutputLanguage(PromptSeeds.TitleTriage, false),
-            "title-triage",
-            chunk =>
-            {
-                var titlesJson = JsonSerializer.Serialize(
-                    chunk.Select(t => new { t.JobId, t.Title, t.Company }), camelCase);
-                // Titles come from external job boards — untrusted, XML-wrapped as data.
-                return $"<search_intent>\n{intent}\n</search_intent>\n\n"
-                     + $"<scraped_titles>\n{titlesJson}\n</scraped_titles>";
-            },
-            r => r.Results,
-            cancellationToken);
-
-        // Counted three ways on purpose: "dropped" and "no verdict" both leave
-        // jobs_triaged_out low, and only this line separates them.
-        _logger.LogInformation(
-            "Title triage: {Total} titles, {Verdicts} verdicts, {Dropped} off-target, {Missing} without a verdict (kept by default)",
-            request.Titles.Count, results.Count, results.Count(r => !r.Relevant), request.Titles.Count - results.Count);
-        return new TitleTriageResponse { Results = results };
-    }
-
-    public async Task<SeniorityClassifyResponse> ClassifySeniorityAsync(SeniorityClassifyRequest request, CancellationToken cancellationToken = default)
-    {
-        _logger.LogInformation("Classifying seniority for {Count} scraped jobs", request.Jobs.Count);
-
-        var camelCase = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-
-        var results = await ClassifyInChunksAsync<SeniorityClassifyItem, SeniorityClassifyResponse, SeniorityClassifyResult>(
-            request.Jobs,
-            PromptSeeds.SeniorityClassification,
-            "seniority-classify",
-            chunk =>
-            {
-                var jobsJson = JsonSerializer.Serialize(
-                    chunk.Select(j => new { j.JobId, j.Title, j.Description }), camelCase);
-                // Scraped postings — untrusted, XML-wrapped as data.
-                return $"<scraped_jobs>\n{jobsJson}\n</scraped_jobs>";
-            },
-            r => r.Results,
-            cancellationToken);
-
-        _logger.LogInformation(
-            "Seniority classification: {Total} jobs, {Verdicts} verdicts, {Labeled} labeled, {Missing} without a verdict",
-            request.Jobs.Count, results.Count, results.Count(r => r.Level is not null), request.Jobs.Count - results.Count);
-        return new SeniorityClassifyResponse { Results = results };
-    }
-
     public async Task<JobFactsResponse> ExtractJobFactsAsync(JobFactsRequest request, CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Extracting job facts for {Count} pool jobs", request.Jobs.Count);
@@ -1042,59 +983,6 @@ public sealed class ClaudeClient : IClaudeClient
             _logger.LogError(ex, "Claude {Label} batch request {CustomId} returned unparseable JSON", label, line.CustomId);
             return null;
         }
-    }
-
-    public async Task<RoleClassificationResponse> ClassifyRoleAsync(
-        RoleClassificationRequest request, CancellationToken cancellationToken = default)
-    {
-        _logger.LogInformation(
-            "Classifying pool role from {Titles} title(s) against {Existing} existing role(s)",
-            request.Titles.Count, request.ExistingRoles.Count);
-
-        var camelCase = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-        var candidate = JsonSerializer.Serialize(
-            new { request.Titles, request.Summary, request.Skills }, camelCase);
-
-        // The candidate's own profile text is data, not instruction — same
-        // XML-wrapped treatment as every other untrusted input.
-        var userMessage =
-            $"<existing_roles>\n{JsonSerializer.Serialize(request.ExistingRoles, camelCase)}\n</existing_roles>\n\n"
-            + $"<candidate>\n{candidate}\n</candidate>";
-
-        var parameters = new MessageParameters
-        {
-            System = new List<SystemMessage> { new(PromptSeeds.RoleClassification) },
-            Messages = new List<Message> { new(RoleType.User, userMessage) },
-            MaxTokens = 256,
-            Model = "claude-haiku-4-5-20251001",
-            Temperature = 0m,
-            Stream = false,
-        };
-
-        var response = await ResolveClient().Messages.GetClaudeMessageAsync(parameters, cancellationToken);
-        var content = response.Message?.ToString()?.Trim()
-            ?? throw new InvalidOperationException("Empty response from Claude API");
-
-        var json = ExtractJson(content, "role-classification");
-        var result = JsonSerializer.Deserialize<RoleClassificationResponse>(json, CaseInsensitive)
-            ?? throw new InvalidOperationException("Failed to deserialize RoleClassificationResponse");
-
-        // `existing` is the model's claim; this is the check. A role reported as
-        // existing that is not on the list would otherwise consume a cap slot
-        // while looking free.
-        var matched = request.ExistingRoles.FirstOrDefault(
-            r => string.Equals(r, result.Role, StringComparison.OrdinalIgnoreCase));
-        var corrected = result with
-        {
-            Role = matched ?? result.Role,
-            Existing = matched is not null,
-        };
-        if (corrected.Existing != result.Existing)
-            _logger.LogInformation(
-                "Role classification claimed existing={Claimed} for {Role}; corrected to {Actual}",
-                result.Existing, result.Role, corrected.Existing);
-
-        return corrected;
     }
 
     public async Task<NormalizedProfile> NormalizeProfileAsync(string text, CancellationToken cancellationToken = default, bool essentialsOnly = false)

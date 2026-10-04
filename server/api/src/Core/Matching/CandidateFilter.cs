@@ -6,11 +6,11 @@ namespace ApplicationTracker.Core.Matching;
 // worth spending a Claude call on for one user.
 //
 // Deliberately NOT a judgement of fit — it is a Mongo query, run against the
-// facts extracted once per job (docs/job-pool.md). It answers "could this
+// facts extracted once per job (docs/greenhouse.md). It answers "could this
 // plausibly be for them", and the Evaluator answers "is it any good".
 //
-// Every clause leans permissive: a job whose facts do not state a location, a
-// seniority, or any required tech passes. Missing data must never hide a job,
+// Every clause leans permissive: a job whose facts do not state a location or
+// a seniority passes. Missing data must never hide a job,
 // because the extraction is best-effort and a job with no facts at all (three
 // failed attempts) would otherwise become invisible to everyone.
 public sealed record CandidateFilter
@@ -20,8 +20,6 @@ public sealed record CandidateFilter
     public string? LocationTerm { get; init; }
     // Seniority bands acceptable for this candidate. Empty = no constraint.
     public IReadOnlyList<string> SeniorityBands { get; init; } = [];
-    // The candidate's own technologies, lowercased. Empty = no constraint.
-    public IReadOnlyList<string> Tech { get; init; } = [];
     // Job functions this candidate accepts: their own, widened by neighbours
     // (JobFunctions.AcceptedFor). Empty = no constraint.
     public IReadOnlyList<string> Functions { get; init; } = [];
@@ -43,14 +41,9 @@ public sealed record CandidateFilter
     /// rather than by field match.
     /// </summary>
     /// <remarks>
-    /// The Mongo-backed pool ignores this: its clauses are field comparisons.
-    /// The vector-backed source needs it, because a query vector has to
-    /// describe the candidate in the same terms the stored job vectors
-    /// describe postings -- a seniority band and a tech list embed nowhere near
-    /// a 4,000-character posting.
-    ///
-    /// Carried here rather than passed alongside so that IPoolJobRepository
-    /// keeps one shape across both sources.
+    /// A query vector has to describe the candidate in the same terms the
+    /// stored job vectors describe postings -- a seniority band and a tech list
+    /// embed nowhere near a 4,000-character posting.
     /// </remarks>
     public string ProfileText { get; init; } = "";
 
@@ -74,13 +67,6 @@ public sealed record CandidateFilter
     /// in-memory matcher ask the question the other way round: does the
     /// candidate's stated location contain the posting's?
     /// </para>
-    /// <para>
-    /// Like <see cref="ProfileText"/>, the Mongo-backed pool ignores this --
-    /// its clauses are field comparisons against a fixed regex, and "does this
-    /// document's value appear in that string" is not one. The pool therefore
-    /// still misses a bare city; fixing it there needs a term list in the
-    /// query, not this field.
-    /// </para>
     /// </remarks>
     public string? LocationText { get; init; }
 
@@ -90,7 +76,6 @@ public sealed record CandidateFilter
         LocationTerm = LocationTermOf(profile.Location),
         LocationText = profile.Location,
         SeniorityBands = BandsFor(profile.Seniority),
-        Tech = TechOf(profile),
         Functions = JobFunctions.AcceptedFor(profile.Functions),
     };
 
@@ -136,12 +121,4 @@ public sealed record CandidateFilter
         if (s.Contains("junior") || s.Contains("graduate") || s.Contains("entry")) return 0;
         return -1;
     }
-
-    private static IReadOnlyList<string> TechOf(StructuredProfile profile) =>
-        profile.Skills
-            .SelectMany(g => g.Items)
-            .Where(i => !string.IsNullOrWhiteSpace(i))
-            .Select(i => i.Trim().ToLowerInvariant())
-            .Distinct()
-            .ToList();
 }

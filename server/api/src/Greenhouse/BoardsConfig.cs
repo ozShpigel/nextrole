@@ -69,8 +69,7 @@ public sealed record BoardConfig
 /// </summary>
 /// <remarks>
 /// <para>
-/// Modelled on <c>PoolIngest.RolesConfig</c>, including the part that matters
-/// most: <see cref="Load"/> <b>throws</b> on a missing file, an empty list or
+/// The part that matters most: <see cref="Load"/> <b>throws</b> on a missing file, an empty list or
 /// any malformed entry rather than falling back to a default. A daily run
 /// against a silently-defaulted list would ingest the wrong boards for as long
 /// as nobody noticed, and the failure mode is invisible -- jobs appear, they

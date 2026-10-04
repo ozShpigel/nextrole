@@ -25,8 +25,9 @@ services:
       - Scraper__BaseUrl=http://scraper:8080
 
   # The jobspy adapter. Parameters in, listings out -- no database, no identity,
-  # no decisions (docs/scraper-slimming.md, Phase 3d). PoolIngest and the API
-  # call it; the browser does not.
+  # no decisions (docs/scraper-slimming.md, Phase 3d). The API calls it (Import
+  # Job, POST /scrape/url); the browser does not. POST /scrape is what a
+  # LinkedIn source in the board ingest would call.
   #
   # It deliberately holds no credential. .env.scraper is down to CORS_ORIGINS,
   # and MONGODB_CONNECTION_STRING should be deleted from it on the box -- a
@@ -47,44 +48,6 @@ services:
     image: ghcr.io/ozshpigel/frontend:latest
     restart: unless-stopped
     env_file: [.env.web]
-
-  # The shared job pool's daily ingest. Reads its role list from
-  # config/roles.json in the image — not from anyone's saved search — and is
-  # what every user matches against. Without it a visitor can upload a CV and
-  # still see an empty Matches tab, because the candidate filter has no
-  # extracted requirements to filter on (docs/job-pool.md).
-  #
-  # This is now the ONLY ingest. The criteria-driven `run-all` service ran
-  # alongside it until the teardown, 30 minutes earlier, scraping into the same
-  # pool: three of its four job titles were already in roles.json and its
-  # locations sat inside "Israel", so pool_key deduped the rows while the
-  # scrape itself was paid twice. "AI Engineer" was the only coverage it added
-  # and now lives in roles.json. search_criteria rows are untouched in the
-  # database, so restoring it means restoring a cron, not recreating data.
-  #
-  # .NET since Phase 2 of docs/scraper-slimming.md. The scraper still does the
-  # scraping -- this calls its POST /scrape -- but everything the run DECIDES
-  # (what is new, what to keep, what to extract, what to age out) is here, with
-  # the pool's models and Mongo layer in process.
-  #
-  # Its image is built by api.yml alongside the API, from the same commit,
-  # because both compile Core.
-  pool-ingest:
-    image: ghcr.io/ozshpigel/pool-ingest:latest
-    profiles: ["cron"]
-    env_file: [.env.pool-ingest]
-    environment:
-      # Docker DNS, container to container. No nginx in this path, so the only
-      # timeout that applies is the one PoolIngest sets on its HttpClient.
-      - Api__BaseUrl=http://api:8080
-      # 8080, not 8000. The container's Dockerfile runs uvicorn on 8080; the
-      # 8000 in AGENTS.md's run instructions is the LOCAL dev port. Same
-      # service, two ports depending on how it was started, and the wrong one
-      # fails as "Connection refused" rather than as anything that names a port.
-      - Scraper__BaseUrl=http://scraper:8080
-      # Roles__ConfigPath is left at its default, /app/config/roles.json, which
-      # ships in the image. Point it at a mounted file to override the role
-      # list without a rebuild.
 
   mailbot:
     image: ghcr.io/ozshpigel/mailbot:latest
@@ -144,7 +107,7 @@ services:
       retries: 12
       start_period: 30s
 
-  # The Greenhouse source's fan-out. A cron container like pool-ingest: it
+  # The Greenhouse source's fan-out. A cron container like mailbot: it
   # writes one pending ledger row and publishes one message per board in
   # config/boards.json, then exits.
   #

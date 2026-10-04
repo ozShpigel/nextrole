@@ -217,7 +217,7 @@ public class CandidateRetrievalIntegrationTests
 
         // Every stored row has extracted: null, because this ingest runs no
         // extraction yet. A seniority filter must therefore still return them:
-        // "matches OR is unstated" is PoolJobRepository's rule, and if the
+        // the rule is "matches OR is unstated", and if the
         // vector filter did not share it, every Greenhouse job would vanish the
         // moment a caller passed a band -- silently, as an empty list.
         var ids = await store.FindCandidateJobIds(

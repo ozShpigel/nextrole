@@ -78,21 +78,6 @@ describe('ResumePackPage', () => {
     expect(screen.queryByRole('link', { name: /view job/i })).not.toBeInTheDocument();
   });
 
-  it('hides the View Job link for a seeded placeholder job URL', async () => {
-    mockRoutes({
-      'GET /applications/app-1': { application: { ...mockApplication.application, jobUrl: 'https://example.com/jobs/acme' } },
-      'GET /applications/app-1/pack': {
-        tailoredSummary: 'A grounded, tailored summary.', experience: [], highlightedSkills: [],
-        generatedAt: '2026-01-15T00:00:00Z',
-      },
-    });
-
-    renderWithRouter(<ResumePackPage />);
-
-    expect(await screen.findByText(/generated/i)).toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: /view job/i })).not.toBeInTheDocument();
-  });
-
   it('offers to generate a pack when none exists yet', async () => {
     mockRoutes({
       'GET /applications/app-1': mockApplication,

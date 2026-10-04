@@ -106,8 +106,6 @@ public static class ServiceExtensions
         services.AddScoped<IPoolBrowseService, PoolBrowseService>();
         services.AddScoped<IUserQuotaRepository>(sp =>
             new UserQuotaRepository(sp.GetRequiredService<IMongoCollection<UserQuota>>()));
-        services.AddScoped<IPoolRoleRepository>(sp =>
-            new PoolRoleRepository(sp.GetRequiredService<IMongoCollection<PoolRole>>()));
         // Shared-pool state: the functions and locations users want, which the
         // Greenhouse ingest reads to decide what is worth paying to read. Two
         // collections of one shape, so built from the database rather than
@@ -116,8 +114,6 @@ public static class ServiceExtensions
             PoolDemandRepository.For(sp.GetRequiredService<IMongoDatabase>()));
         services.AddScoped<IDemandTriggerRepository>(sp =>
             DemandTriggerRepository.For(sp.GetRequiredService<IMongoDatabase>()));
-        services.AddScoped<IPoolJobRepository>(sp =>
-            new PoolJobRepository(sp.GetRequiredService<IMongoCollection<MongoDB.Bson.BsonDocument>>()));
         services.AddSingleton<IResumePdfRenderer, QuestPdfResumeRenderer>();
 
         // ResumeFile lives in the "jobmatch" DB alongside the profile (same
@@ -173,7 +169,6 @@ public static class ServiceExtensions
 
         services.AddScoped<IJobMatchService, JobMatchService>();
         services.AddScoped<IPoolScanService, PoolScanService>();
-        services.AddScoped<IPoolRoleService, PoolRoleService>();
 
         return services;
     }

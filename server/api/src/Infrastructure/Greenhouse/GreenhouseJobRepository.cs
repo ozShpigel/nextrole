@@ -14,10 +14,9 @@ namespace ApplicationTracker.Infrastructure.Greenhouse;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Implements the pool's own interface deliberately. Swapping the source is
-/// then a single DI registration: <c>PoolScanService</c>, <c>PoolBrowseService</c>
-/// and every endpoint above them are untouched, and switching back is the same
-/// one-line change. Nothing here reads <c>discovered_jobs</c>.
+/// The only implementation of the pool interface since the LinkedIn pool's
+/// was removed (2026-10-04). <c>PoolScanService</c>, <c>PoolBrowseService</c>
+/// and the endpoints above them depend on the interface, not on this class.
 /// </para>
 /// <para>
 /// Not user-scoped, for the same reason the pool is not: this collection is
@@ -215,8 +214,7 @@ public sealed class GreenhouseJobRepository : IPoolJobRepository
     /// Whether a posting's extracted seniority is one the candidate would want.
     /// </summary>
     /// <remarks>
-    /// The same rule the LinkedIn pool applies in its Mongo query
-    /// (<c>PoolJobRepository</c>): the band must be one of
+    /// The band must be one of
     /// <see cref="CandidateFilter.SeniorityBands"/> -- the candidate's own and
     /// one either side -- and a posting with no stated band passes. It was
     /// missing here, so a senior engineer's board carried "New Grad" roles, and
@@ -382,8 +380,7 @@ public sealed class GreenhouseJobRepository : IPoolJobRepository
 
         // The Matches filters, which this source used to ignore silently: the
         // client sent them, the text search was the only one applied, and the
-        // chips appeared to work while filtering nothing. Same meanings as
-        // PoolJobRepository.BrowseAsync, over this collection's fields.
+        // chips appeared to work while filtering nothing.
         //
         // DaysBack is "posted within N days" by the company's own posting date
         // (PostedWithin). 0 is "Any", which still stops at three months

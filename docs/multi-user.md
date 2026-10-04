@@ -47,8 +47,8 @@ by hand, and no way to write a lookup that forgets to scope itself.
 `mockInterviewSessions` — carry a `UserId` field (`IUserOwned`) and an index on
 it.
 
-`discovered_jobs` and `discovery_runs` are **shared** by design: the job pool is
-common to everyone. `poolJobState` is user-scoped (`UserId`), in the scraper.
+`greenhouse_jobs` and `greenhouse_runs` are **shared** by design: the job pool
+is common to everyone. `poolJobState` is user-scoped (`UserId`).
 
 ## Why a missed filter cannot happen
 

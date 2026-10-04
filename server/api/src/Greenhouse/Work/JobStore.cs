@@ -16,9 +16,6 @@ namespace ApplicationTracker.Greenhouse;
 /// nothing goes through <c>UserScopedCollection</c>, because there is no user to
 /// scope to. Apply AGENTS.md's test — would two users ever disagree about this
 /// field? Every field written here is a fact about the posting, so no.
-///
-/// This collection is entirely separate from <c>discovered_jobs</c>. Nothing in
-/// this file reads or writes the pool, and nothing merges the two sources.
 /// </remarks>
 public sealed class JobStore : IJobStore
 {

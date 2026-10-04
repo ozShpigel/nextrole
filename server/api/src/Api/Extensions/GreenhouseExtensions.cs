@@ -24,11 +24,13 @@ namespace ApplicationTracker.Api.Extensions;
 /// the prefilter would quietly stop finding good jobs.
 /// </para>
 /// <para>
-/// Registration is <b>conditional on a key being configured</b>. Without one
-/// the services are simply absent, the API starts normally, and any caller
-/// resolving <see cref="ICandidateJobStore"/> optionally gets null. Embedding
-/// is a billed call: a half-configured deployment must not start up and then
-/// fail per request.
+/// <b>The board repository is always the job source</b> -- the retired LinkedIn
+/// pool that used to be the default was removed on 2026-10-04, and with it the
+/// <c>Greenhouse:UseAsJobSource</c> switch. What depends on a key is only the
+/// candidate search: with no embedding key it is
+/// <see cref="UnconfiguredCandidateJobStore"/>, which refuses a scan by name,
+/// so the API still starts and Matches still lists stored postings. Embedding
+/// is a billed call: a half-configured deployment must not look as if it works.
 /// </para>
 /// </remarks>
 public static class GreenhouseExtensions
@@ -37,11 +39,10 @@ public static class GreenhouseExtensions
     /// A distinct DI key for the Greenhouse collection.
     /// </summary>
     /// <remarks>
-    /// <c>IMongoCollection&lt;BsonDocument&gt;</c> is already registered
-    /// unkeyed, and it is <c>discovered_jobs</c>. Registering this one unkeyed
-    /// would silently hand the LinkedIn pool to whichever of the two resolved
-    /// second -- so the vector search would run against a collection with no
-    /// vectors, and return nothing, with no error.
+    /// Keyed rather than registered as the unkeyed
+    /// <c>IMongoCollection&lt;BsonDocument&gt;</c>: an untyped collection handle is
+    /// the easiest thing to resolve by accident, and a vector search pointed at
+    /// the wrong collection returns nothing, with no error.
     /// </remarks>
     public const string CollectionKey = "greenhouse_jobs";
 
@@ -51,64 +52,50 @@ public static class GreenhouseExtensions
         var options = configuration.GetSection(GreenhouseEmbeddingOptions.SectionName)
             .Get<GreenhouseEmbeddingOptions>() ?? new GreenhouseEmbeddingOptions();
 
-        if (string.IsNullOrWhiteSpace(options.ApiKey))
-            return services;
-
-        options.Validate();
-        services.AddSingleton(options);
-
         services.AddKeyedSingleton<IMongoCollection<BsonDocument>>(CollectionKey, (sp, _) =>
             sp.GetRequiredService<IMongoDatabase>()
                 .GetCollection<BsonDocument>(GreenhouseJobFields.Collection));
 
-        services.AddHttpClient<IEmbeddingClient, VoyageEmbeddingClient>(client =>
+        if (string.IsNullOrWhiteSpace(options.ApiKey))
         {
-            client.BaseAddress = new Uri(options.BaseUrl);
-            client.Timeout = TimeSpan.FromMinutes(2);
-            client.DefaultRequestHeaders.Authorization =
-                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", options.ApiKey);
-        });
-
-        services.AddSingleton<ICandidateJobStore>(sp => new MongoCandidateJobStore(
-            sp.GetRequiredKeyedService<IMongoCollection<BsonDocument>>(CollectionKey),
-            sp.GetRequiredService<IEmbeddingClient>(),
-            sp.GetRequiredService<ILogger<MongoCandidateJobStore>>()));
-
-        // THE SOURCE SWITCH.
-        //
-        // Greenhouse:UseAsJobSource=true makes greenhouse_jobs the collection
-        // every matching path reads: the scan's candidate search, the Matches
-        // page's browse, and the "n of m considered" count. discovered_jobs is
-        // then read by nothing.
-        //
-        // Registered LAST so it replaces the PoolJobRepository that
-        // AddApplicationServices registered -- the last registration of a
-        // service type is the one resolved. Flipping the flag back restores the
-        // LinkedIn pool with no code change, which is why the pool's cron keeps
-        // running and its data is left intact.
-        if (configuration.GetValue("Greenhouse:UseAsJobSource", false))
-        {
-            // The scan cap travels with the source (see
-            // GreenhouseJobRepository.DefaultMaxCandidatesPerScan). Configurable
-            // only so the ranked source's depth can be tuned on the box while it
-            // beds in; it cannot reach the LinkedIn pool's cap, which is the
-            // point of it being a constructor argument here rather than a
-            // setting the scan reads.
-            var maxCandidates = configuration.GetValue(
-                "Greenhouse:MaxCandidatesPerScan",
-                GreenhouseJobRepository.DefaultMaxCandidatesPerScan);
-
-            // Off until the function labels on stored postings have been read
-            // by eye; until then the repository only logs what it would drop.
-            var filterByFunction = configuration.GetValue("Greenhouse:FilterByFunction", false);
-
-            services.AddScoped<IPoolJobRepository>(sp => new GreenhouseJobRepository(
-                sp.GetRequiredKeyedService<IMongoCollection<BsonDocument>>(CollectionKey),
-                sp.GetRequiredService<ICandidateJobStore>(),
-                sp.GetRequiredService<ILogger<GreenhouseJobRepository>>(),
-                maxCandidates,
-                filterByFunction));
+            services.AddSingleton<ICandidateJobStore, UnconfiguredCandidateJobStore>();
         }
+        else
+        {
+            options.Validate();
+            services.AddSingleton(options);
+
+            services.AddHttpClient<IEmbeddingClient, VoyageEmbeddingClient>(client =>
+            {
+                client.BaseAddress = new Uri(options.BaseUrl);
+                client.Timeout = TimeSpan.FromMinutes(2);
+                client.DefaultRequestHeaders.Authorization =
+                    new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", options.ApiKey);
+            });
+
+            services.AddSingleton<ICandidateJobStore>(sp => new MongoCandidateJobStore(
+                sp.GetRequiredKeyedService<IMongoCollection<BsonDocument>>(CollectionKey),
+                sp.GetRequiredService<IEmbeddingClient>(),
+                sp.GetRequiredService<ILogger<MongoCandidateJobStore>>()));
+        }
+
+        // The scan cap travels with the source (see
+        // GreenhouseJobRepository.DefaultMaxCandidatesPerScan). Configurable so
+        // the ranked source's depth can be tuned on the box.
+        var maxCandidates = configuration.GetValue(
+            "Greenhouse:MaxCandidatesPerScan",
+            GreenhouseJobRepository.DefaultMaxCandidatesPerScan);
+
+        // Off until the function labels on stored postings have been read
+        // by eye; until then the repository only logs what it would drop.
+        var filterByFunction = configuration.GetValue("Greenhouse:FilterByFunction", false);
+
+        services.AddScoped<IPoolJobRepository>(sp => new GreenhouseJobRepository(
+            sp.GetRequiredKeyedService<IMongoCollection<BsonDocument>>(CollectionKey),
+            sp.GetRequiredService<ICandidateJobStore>(),
+            sp.GetRequiredService<ILogger<GreenhouseJobRepository>>(),
+            maxCandidates,
+            filterByFunction));
 
         return services;
     }

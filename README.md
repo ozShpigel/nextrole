@@ -82,7 +82,7 @@ AI is confident even when it's wrong, and a wrong match looks exactly like a rig
 | [**Anonymous by default**](docs/auth.md), optional Google sign-in, not Better Auth | no account needed to start, and one source of truth for identity | clear your cookies without signing in and the account is gone |
 | [**Feature flags in config**](docs/plans/feature-gating.md), not a flag library | a handful of flags, enforced server-side | changing a flag means a redeploy |
 
-<!-- TODO: was a separate vector database (e.g. Qdrant) ever evaluated for the board source? Nothing in the repo records it; docs/job-pool.md only rules one out for the old LinkedIn pool. -->
+<!-- TODO: was a separate vector database (e.g. Qdrant) ever evaluated for the board source? Nothing in the repo records it; the removed docs/job-pool.md only ruled one out for the old LinkedIn pool. -->
 
 ## Running in production
 

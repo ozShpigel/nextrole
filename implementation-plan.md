@@ -5,7 +5,9 @@
 Turning a single-tenant tool into a multi-user one, in seven steps. All seven
 are complete on branch `multi-user`; the open items below are follow-ons, not
 unfinished steps. Rules that outlive this work live in `AGENTS.md`; detail in
-`docs/multi-user.md`, `docs/job-pool.md`, `docs/scoring-and-search.md`.
+`docs/multi-user.md`, `docs/scoring-and-search.md`. (The LinkedIn pool this
+plan built, and `docs/job-pool.md`, were removed on 2026-10-04; the job source
+is the board ingest, `docs/greenhouse.md`.)
 
 | # | Step | Status |
 |---|---|---|
@@ -64,7 +66,7 @@ One real run: **167 unique jobs** over the five baseline roles, ~$0.33 cold and
 ~$0.002/job for extraction. **No vector DB.** Two caveats recorded with the
 number: every search hit `results_wanted` exactly (so 167 is parameter-bound,
 not supply), and it is one 72-hour window against 60-day retention (steady state
-nearer 600–2,500). See `docs/job-pool.md`.
+nearer 600–2,500).
 
 ### Open follow-ons
 - [ ] Re-measure with `results_wanted=200` (Mon 2026-09-14) — whether the cap hid a materially larger pool, before the daily run goes unattended

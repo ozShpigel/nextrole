@@ -21,11 +21,11 @@ The product's organizing idea is a line between what is true of a *posting* and 
 
 ## Capabilities
 
-- **Shared job pool & daily ingest** — `server/scraper`
-  A cron-driven run scrapes LinkedIn for a role list held in [`server/scraper/config/roles.json`](server/scraper/config/roles.json) — configuration, never anyone's saved search — deduplicates on a stable `pool_key` (the job URL, else `sha256(company + title + date)`), classifies seniority, and has Claude read each *new* posting's stated requirements exactly once: required years, must-have and nice-to-have tech, seniority band, domain, location. A listing absent from N consecutive runs is marked inactive and never deleted. The pool document holds only what is true for every user. The role list is the config baseline plus roles grown from users' CVs (`pool_roles`), capped by `max_roles`. ([`server/scraper/IMPLEMENTATION.md`](server/scraper/IMPLEMENTATION.md) · [`docs/job-pool.md`](docs/job-pool.md))
+- **Shared job pool & daily ingest** — `server/api/src/Greenhouse`
+  A daily board ingest reads company career boards (Greenhouse, Workday, Comeet, Lever) listed in [`server/api/src/Greenhouse/config/boards.json`](server/api/src/Greenhouse/config/boards.json) — configuration, never anyone's saved search — into `greenhouse_jobs`, embeds each posting, and has Claude read each *new* posting's stated requirements once: must-have and nice-to-have tech, seniority band, location, job functions. A posting gone from its board is closed, never deleted. The pool document holds only what is true for every user. The LinkedIn pool that came before it was removed on 2026-10-04. ([`docs/greenhouse.md`](docs/greenhouse.md))
 
 - **Per-user scoring, on demand** — `server/api`
-  Nothing is scored at ingest. Opening Matches calls `POST /api/match/pool-scan`, which narrows the shared pool with a cheap Mongo filter over the extracted facts (location, seniority, tech overlap), caps the result at 50, and runs the Analyst→Evaluator pair only over jobs this user has never had scored. The output is a full breakdown (technical / execution / sustainability fit) and a verdict from `STRONG_YES` to `STRONG_NO` — a judgement, not a similarity ranking. Results land in `jobScores` keyed by user, so a second visit pays only for what is new. Every technology the Evaluator names as the candidate's is checked server-side against the profile (`ClaimGrounding`), and the missing-requirement count that caps the technical score is computed from the posting's facts rather than from the model's own account of itself. ([`server/api/IMPLEMENTATION.md`](server/api/IMPLEMENTATION.md) · [`docs/scoring-and-search.md`](docs/scoring-and-search.md))
+  Nothing is scored at ingest. Opening Matches calls `POST /api/match/pool-scan`, which narrows the shared pool with a vector search filtered by the extracted facts (location, seniority), caps the result at 10, and runs the Analyst→Evaluator pair only over jobs this user has never had scored. The output is a full breakdown (technical / execution / sustainability fit) and a verdict from `STRONG_YES` to `STRONG_NO` — a judgement, not a similarity ranking. Results land in `jobScores` keyed by user, so a second visit pays only for what is new. Every technology the Evaluator names as the candidate's is checked server-side against the profile (`ClaimGrounding`), and the missing-requirement count that caps the technical score is computed from the posting's facts rather than from the model's own account of itself. ([`server/api/IMPLEMENTATION.md`](server/api/IMPLEMENTATION.md) · [`docs/scoring-and-search.md`](docs/scoring-and-search.md))
 
 - **Application tracker** — `server/api` + `client`
   The Active board moves a role through Added → Ready → Applied → Interviewing, with closed applications and the full detail view (notes, interviews, salary, timeline, AI analysis) on `/tracker`. Applications are unique per user on `(UserId, Company, JobTitle)` case-insensitively, enforced by a unique index rather than a check-then-act read. The board is also the mailbot's input: it knows which companies to watch in Gmail because they are on it. ([`docs/tracker.md`](docs/tracker.md))
@@ -63,9 +63,8 @@ Each component carries an `IMPLEMENTATION.md` at its own root path.
 |---|---|---|
 | Web client (SPA) | `client/**` | [`client/IMPLEMENTATION.md`](client/IMPLEMENTATION.md) |
 | API (Api + Core + Infrastructure) | `server/api/src/Api/**`, `server/api/src/Core/**`, `server/api/src/Infrastructure/**`, `server/api/tests/**` | [`server/api/IMPLEMENTATION.md`](server/api/IMPLEMENTATION.md) |
-| Scraper / ingest | `server/scraper/**` | [`server/scraper/IMPLEMENTATION.md`](server/scraper/IMPLEMENTATION.md) |
+| Scraper (jobspy adapter) | `server/scraper/**` | [`server/scraper/IMPLEMENTATION.md`](server/scraper/IMPLEMENTATION.md) |
 | Mailbot (Gmail cron) | `server/mailbot/**` | [`server/mailbot/IMPLEMENTATION.md`](server/mailbot/IMPLEMENTATION.md) |
-| Demo seeder (CLI) | `server/api/src/Seeder/**` | [`server/api/src/Seeder/IMPLEMENTATION.md`](server/api/src/Seeder/IMPLEMENTATION.md) |
 | DbCopy (CLI) | `server/api/src/DbCopy/**` | [`server/api/src/DbCopy/IMPLEMENTATION.md`](server/api/src/DbCopy/IMPLEMENTATION.md) |
 | End-to-end tests | `e2e/**` | [`e2e/IMPLEMENTATION.md`](e2e/IMPLEMENTATION.md) |
 | Deployment & ops | `deploy/**`, `docker-compose.yml`, `.github/workflows/**` | [`deploy/README.md`](deploy/README.md) |
@@ -76,7 +75,7 @@ Each component carries an `IMPLEMENTATION.md` at its own root path.
 
 - The scraper never scores and never reads a profile. It delegates AI to the API over HTTP.
 - Every user-scoped repository takes a `UserScopedCollection<T>`, which has no overload that omits the userId — guarded by `server/api/tests/ArchitectureTests`.
-- Every scraper→API call passes `user_id` explicitly (or an explicit `None`) — guarded by an AST walk in `server/scraper/tests/test_identity_forwarding.py`.
+- The scraper holds no credential and calls nothing: the API calls it (Import Job), never the reverse.
 
 ## Interfaces
 
@@ -84,8 +83,8 @@ Each component carries an `IMPLEMENTATION.md` at its own root path.
 - **HTTP (Scraper):** FastAPI's generated `GET /openapi.json`; routes in [`server/scraper/app/main.py`](server/scraper/app/main.py), all under `/api/discovery/**`.
 - **GraphQL / gRPC / AsyncAPI:** None.
 - **Events / topics:** None — there is no message bus. Cross-service effects are synchronous HTTP calls.
-- **Scheduled jobs:** [`deploy/systemd/nextrole-pool-ingest.timer`](deploy/systemd/nextrole-pool-ingest.timer) (05:30 UTC daily → `docker compose --profile cron run --rm pool-ingest`) and [`nextrole-mailbot.timer`](deploy/systemd/nextrole-mailbot.timer) (02:00 UTC daily). Container-internal fallback: [`server/mailbot/crontab`](server/mailbot/crontab).
-- **CLI:** `dotnet run --project server/api/src/EvalHarness -- <verdict|subscore>`; `dotnet run --project server/api/src/Seeder`; `dotnet run --project server/api/src/DbCopy -- <src>=<dst>`.
+- **Scheduled jobs:** [`deploy/systemd/nextrole-greenhouse.timer`](deploy/systemd/nextrole-greenhouse.timer) (06:15 UTC daily → `docker compose --profile cron run --rm greenhouse publish`; the long-running `greenhouse-consumer` does the work) and [`nextrole-mailbot.timer`](deploy/systemd/nextrole-mailbot.timer) (02:00 UTC daily). Container-internal fallback: [`server/mailbot/crontab`](server/mailbot/crontab).
+- **CLI:** `dotnet run --project server/api/src/EvalHarness -- <verdict|subscore>`; `dotnet run --project server/api/src/DbCopy -- <src>=<dst>`.
 - **Reverse-proxy route map:** [`client/nginx.conf`](client/nginx.conf) — an explicit path allowlist splitting `/api/**` to the API and `/api/discovery/**` to the scraper.
 
 ## Architecture
@@ -99,12 +98,13 @@ graph TB
 
   subgraph Backend
     API["server/api/ — ASP.NET Core, the only Claude caller"]
-    Scraper["server/scraper/ — FastAPI + ingest CLI"]
+    Scraper["server/scraper/ — FastAPI jobspy adapter"]
+    Ingest["server/api/src/Greenhouse — board ingest"]
     Mailbot["server/mailbot/ — one-shot cron"]
   end
 
   subgraph Data
-    Tracker[("mongo job-tracker — applications, discovered_jobs, jobScores, poolJobState")]
+    Tracker[("mongo job-tracker — applications, greenhouse_jobs, jobScores, poolJobState")]
     Profile[("mongo jobmatch — profile, resumeFile, interviewPrep")]
   end
 
@@ -119,8 +119,9 @@ graph TB
   API --> Tracker
   API --> Profile
   Scraper --> LinkedIn
-  Scraper -->|"triage, seniority, job-facts over HTTP"| API
-  Scraper --> Tracker
+  API -->|"Import Job: /scrape/url"| Scraper
+  Ingest -->|"job-facts / job-parse over HTTP"| API
+  Ingest --> Tracker
   Mailbot --> Gmail
   Mailbot -->|"parse email, apply updates over HTTP"| API
 ```
@@ -130,10 +131,10 @@ graph TB
 Database `job-tracker` unless noted.
 
 - **`applications`** — one tracked role per user. Unique on `(UserId, Company, JobTitle)` with a case-insensitive collation. Carries status, salary, the cached match analysis, and its translation.
-- **`discovered_jobs`** — the **shared** job pool. Identified by `pool_key` (unique), holding scraped fields plus once-extracted job facts and a seniority band. No per-user field ever lives here. The 60-day retention TTL applies to criteria-driven rows only (`ttl_managed: true`); pool rows are exempt and are marked inactive instead of deleted.
+- **`greenhouse_jobs`** — the **shared** job pool, written by the board ingest: posting fields, an embedding, and once-extracted facts. No per-user field ever lives here; a posting gone from its board gets `closedAt` and is kept.
 - **`jobScores`** — one user's score for one pool job. The *absence* of a row is what "not yet scored" means.
 - **`poolJobState`** — one user's `dismissed` / `saved_to_tracker` flags for one pool job, `_id = "<userId>:<jobId>"`. Kept separate from `jobScores` because the scoring path upserts whole documents and would overwrite it.
-- **`pool_roles`** — the shared role list grown from users' CVs, on top of the `roles.json` baseline.
+- **`pool_functions`, `pool_locations`** — what users want (functions, locations), which the board ingest's pre-read filter reads to decide what is worth paying to read.
 - **`interviews`, `notes`, `statusUpdates`, `resumePacks`** — per-user children of an application, indexed `(UserId, ApplicationId)`.
 - **`messages`** — Gmail messages the mailbot tracked. Unique on `(UserId, GmailMessageId)`.
 - **`matchSnapshots`** — content-addressed Claude call snapshots, 90-day TTL.
@@ -188,15 +189,15 @@ dotnet build nextrole.sln
 There is no `docs/ADR/` directory; the decisions below are recorded in prose in [`docs/`](docs) and in [`AGENTS.md`](AGENTS.md).
 
 - **Nothing is scored at ingest** — the pool is shared and a score is an opinion about one candidate, so scoring is per user and on demand. ([`docs/scoring-and-search.md`](docs/scoring-and-search.md))
-- **A shared pool document holds only what is true for everyone** — if two users could disagree about a field, it belongs in a per-user row. ([`docs/job-pool.md`](docs/job-pool.md))
-- **No vector database** — a cheap Mongo filter over extracted facts beats a vector index at this pool size; extraction measured at about $0.002 a job. ([`docs/job-pool.md`](docs/job-pool.md))
-- **The role list is configuration, not a saved search** — `roles.json` plus CV-grown roles, never anyone's profile. ([`docs/job-pool.md`](docs/job-pool.md))
+- **A shared pool document holds only what is true for everyone** — if two users could disagree about a field, it belongs in a per-user row. ([`AGENTS.md`](AGENTS.md))
+- **No separate vector database** — Atlas Vector Search in the database the app already runs on, used as a recall prefilter, never as a score. ([`docs/greenhouse.md`](docs/greenhouse.md))
+- **The board list is configuration, not a saved search** — `config/boards.json`, never anyone's profile. ([`docs/greenhouse.md`](docs/greenhouse.md))
 - **userId scoping is structural** — repositories get `UserScopedCollection<T>`, never a raw collection; `ArchitectureTests` is the guarantee. ([`docs/multi-user.md`](docs/multi-user.md))
 - **Identity resolution is the only code that knows which deployment it is** — private and public differ by configuration only, never by a code branch. ([`docs/multi-user.md`](docs/multi-user.md))
 - **Multi-user with no authentication, on purpose** — a `uid` cookie and nothing else, a deliberate trade for a personal-scale tool. ([`docs/multi-user.md`](docs/multi-user.md))
 - **All Claude calls live in the API** — the scraper and mailbot delegate over HTTP, keeping the key and the prompt logic in one place. ([`AGENTS.md`](AGENTS.md))
 - **A prompt rule with no code check behind it is not a rule** — claims are grounded against the profile; scores annotate, packs block. ([`docs/resume-pack.md`](docs/resume-pack.md) · [`docs/scoring-and-search.md`](docs/scoring-and-search.md))
-- **Expired listings are marked inactive, never deleted** — enforced by a partial TTL index on `ttl_managed: true`, not by a comment. ([`docs/job-pool.md`](docs/job-pool.md))
+- **A failed fetch is not an empty board** — `BoardClient` throws, so closing a company's postings on a bad fetch is unreachable; closed postings are kept, never deleted. ([`docs/greenhouse.md`](docs/greenhouse.md))
 
 ## Context selection hints (for AI)
 
@@ -204,5 +205,5 @@ There is no `docs/ADR/` directory; the decisions below are recorded in prose in 
 - Prefer the component's `IMPLEMENTATION.md` and the matching `docs/*.md` over opening `ClaudeClient.cs` (1.4K lines) or `PromptSeeds.cs` (1.4K lines) whole.
 - For an endpoint change: the route in `server/api/src/Api/Endpoints/**` → the service in `Core/**` → the repository in `Infrastructure/Repositories/**` → the matching test. Add the route to `client/nginx.conf` if the browser calls it.
 - For anything touching user data, read [`docs/multi-user.md`](docs/multi-user.md) before writing the query — a missed `userId` is meant to be a compile error, and new code should keep it that way.
-- Avoid `client/dist/**`, `**/bin/**`, `**/obj/**`, `**/node_modules/**`, `**/.venv/**`, `e2e/playwright-report/**`, `e2e/test-results/**`, and `docs/demos/output/*.gif`.
+- Avoid `client/dist/**`, `**/bin/**`, `**/obj/**`, `**/node_modules/**`, `**/.venv/**`, `e2e/playwright-report/**`, and `e2e/test-results/**`.
 - Always include the nearest tests when editing: `client/src/**/*.test.tsx`, `server/api/tests/ArchitectureTests/**`, `server/scraper/tests/**`, `e2e/tests/**`.

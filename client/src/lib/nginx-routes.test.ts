@@ -7,9 +7,8 @@ import { join, resolve } from 'node:path';
  *
  * The public config allowlists sub-paths explicitly rather than proxying the
  * /api/match prefix, and deliberately so: a prefix would also expose
- * title-triage, seniority-classify and discovery-score-batch — scraper-internal
- * AI-calling routes with much looser input caps, reachable with no auth on a
- * real billed key. Its comment says a new client-facing route "needs adding
+ * job-facts and job-parse — ingest-internal AI-calling routes with much looser
+ * input caps, reachable with no auth on a real billed key. Its comment says a new client-facing route "needs adding
  * here too, on purpose, not for free."
  *
  * That comment was a rule with nothing behind it, and pool-scan shipped without
@@ -114,9 +113,9 @@ describe('nginx.conf proxies what the client calls', () => {
     expect(block![1]).not.toContain('$upstream_scraper');
   });
 
-  it('does not allow the scraper-internal AI routes', () => {
+  it('does not allow the ingest-internal AI routes', () => {
     const allowed = allowedPaths();
-    for (const internal of ['/title-triage', '/seniority-classify', '/discovery-score-batch', '/job-facts']) {
+    for (const internal of ['/job-facts', '/job-parse']) {
       expect(allowed, `${internal} must not be reachable from a browser`).not.toContain(internal);
     }
   });

@@ -27,7 +27,7 @@ public sealed class JobMatchService : IJobMatchService
     // extraction over the Analyst's reading of the same text.
     //
     // `mustHaveTech` is read once per posting at ingest, user-independently
-    // (docs/job-pool.md), and it separates "required" from "nice to have" —
+    // (docs/greenhouse.md), and it separates "required" from "nice to have" —
     // which the gap count depends on, because the prompt's rule is that a
     // nice-to-have is never a gap. The Analyst's NamedTechnologies is the
     // fallback for the manual page and for pool rows that entered before

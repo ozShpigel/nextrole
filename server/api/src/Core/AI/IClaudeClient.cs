@@ -40,17 +40,6 @@ public interface IClaudeClient
     // and recommendation detail come back at full detail.
     Task<NarrativeEnrichResponse> EnrichNarrativeAsync(Guid userId, NarrativeEnrichRequest request, CancellationToken cancellationToken = default);
 
-    // One cheap Haiku call per discovery run: flags scraped titles that are
-    // clearly off-target for the search intent, so the scraper skips
-    // enrichment + scoring for them (lean-permissive — uncertain titles pass).
-    Task<TitleTriageResponse> TriageTitlesAsync(TitleTriageRequest request, CancellationToken cancellationToken = default);
-
-    // One cheap Haiku call per discovery run: classifies each relevant scraped
-    // job's actual seniority band from title+description, source-agnostic
-    // (replaces reliance on jobspy's LinkedIn-only job_level tag). Labels
-    // only — same batched-per-run, fail-open contract as TriageTitlesAsync.
-    Task<SeniorityClassifyResponse> ClassifySeniorityAsync(SeniorityClassifyRequest request, CancellationToken cancellationToken = default);
-
     // Per-job extraction for the shared job pool: run once when a posting first
     // enters the pool, never per user. Stated requirements only -- no profile is
     // read and nothing is scored, which is what makes one stored result valid
@@ -73,10 +62,6 @@ public interface IClaudeClient
     Task<JobFactsBatchResponse> CollectJobFactsBatchAsync(string batchId, CancellationToken cancellationToken = default);
     Task<JobParseBatchResponse> CollectJobParseBatchAsync(string batchId, JobParseRequest request, CancellationToken cancellationToken = default);
 
-    // Role canonicalisation for the shared pool daily search: which single
-    // search term covers this candidate work. Prefers a role already being
-    // searched; invents one only when none fits. See PoolRoleService.
-    Task<RoleClassificationResponse> ClassifyRoleAsync(RoleClassificationRequest request, CancellationToken cancellationToken = default);
 
     Task<EmailParseResult?> ParseEmailAsync(string subject, string from, string body, List<string> knownCompanies, DateTime? referenceDate = null, CancellationToken cancellationToken = default);
     Task<string> SummarizeCompanyAsync(string companyName, CancellationToken cancellationToken = default);

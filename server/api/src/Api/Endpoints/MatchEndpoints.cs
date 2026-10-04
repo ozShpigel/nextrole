@@ -15,27 +15,6 @@ public static class MatchEndpoints
     // Cap on the manual matching-signal lists (strengths / core values);
     // mirrored by the ChipInput max in the Settings UI.
 
-    // Resolves its own scope: the request that triggered this has already
-    // returned, so anything scoped to it is disposed by the time this runs.
-    private static async Task SyncPoolRoleAsync(
-        Guid userId, StructuredProfile profile, IServiceScopeFactory scopeFactory)
-    {
-        using var scope = scopeFactory.CreateScope();
-        var roles = scope.ServiceProvider.GetRequiredService<IPoolRoleService>();
-        var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
-        try
-        {
-            await roles.SyncForProfileAsync(userId, profile, CancellationToken.None);
-        }
-        catch (Exception ex)
-        {
-            // The role list is eventually-consistent with profiles by design:
-            // the next save re-derives it from scratch, so a failure here costs
-            // a delay, not correctness.
-            logger.LogError(ex, "Pool role sync failed for {UserId}", userId);
-        }
-    }
-
     // What this profile wants -- its functions and location terms -- recorded
     // for the Greenhouse pre-read filter, and a run requested when any of it is
     // new. Awaited inside the save, not fired and forgotten like the role
@@ -112,138 +91,10 @@ public static class MatchEndpoints
         .WithName("AnalyzeJobMatch")
         .WithSummary("Analyze job match");
 
-        // Batched ingest-time scoring: the scraper's primary matching path
-        // (replaces the retired RAG search). N jobs (cap 5) share ONE Evaluator
-        // call — each still scored independently, never ranked against its
-        // batch-mates (see PromptSeeds.Evaluator's batch-mode addendum). Own
-        // rate-limit bucket ("discovery") so a big discovery run never starves
-        // the interactive "match" bucket the manual Score-a-Job page uses.
-        app.MapPost("/api/match/discovery-score-batch", async (
-            [FromBody] MatchBatchRequest request,
-            IUserContext user,
-            IJobMatchService jobMatchService,
-            ILogger<Program> logger,
-            CancellationToken ct) =>
-        {
-            if (request?.Jobs is not { Count: > 0 })
-                return Results.BadRequest(new { error = "at least one job is required" });
-            if (request.Jobs.Count > 5)
-                return Results.BadRequest(new { error = "too many jobs (max 5)" });
-            if (request.Jobs.Any(j => string.IsNullOrWhiteSpace(j.Id)))
-                return Results.BadRequest(new { error = "every job needs an id" });
-            if (request.Jobs.Any(j => string.IsNullOrWhiteSpace(j.JobDescription)))
-                return Results.BadRequest(new { error = "every job needs a jobDescription" });
-            if (request.Jobs.Any(j => j.JobDescription.Length > 50_000))
-                return Results.BadRequest(new { error = "a job description exceeds maximum length of 50,000 characters" });
-            var duplicateIds = request.Jobs.GroupBy(j => j.Id).Where(g => g.Count() > 1).Select(g => g.Key).ToList();
-            if (duplicateIds.Count > 0)
-                return Results.BadRequest(new { error = $"duplicate job id(s): {string.Join(", ", duplicateIds)}" });
-
-            try
-            {
-                var response = await jobMatchService.AnalyzeMatchBatchAsync(user.UserId, request, ct);
-                return Results.Ok(response);
-            }
-            catch (InvalidOperationException ex) when (ex.Message.Contains("ApiKey"))
-            {
-                logger.LogError(ex, "Anthropic API key not configured");
-                return Results.Problem(
-                    detail: "Anthropic API key is not configured. Please set Anthropic:ApiKey in configuration.",
-                    statusCode: 500);
-            }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, "Error processing batch match request");
-                return Results.Problem(detail: "An error occurred while processing the batch request", statusCode: 500);
-            }
-        })
-        .RequireRateLimiting("discovery")
-        .WithName("AnalyzeJobMatchBatch")
-        .WithSummary("Score a batch of jobs (up to 5) independently against the rubric in one Evaluator call");
-
-
-        // Title triage: one Haiku call per discovery run, before any embedding.
-        // Intended to be called once per run by the scraper, but it's reachable
-        // (and allowlisted in demo) without auth, so it shares the "discovery"
-        // rate-limit bucket like every other batched ingest-time AI call — a
-        // real once-per-run call never gets close to that bucket's headroom.
-        // Flags clearly off-target titles (job-board padding); the scraper
-        // fails open (keeps everything) when this call errors.
-        app.MapPost("/api/match/title-triage", async (
-            [FromBody] TitleTriageRequest request,
-            ApplicationTracker.Core.AI.IClaudeClient claude,
-            ILogger<Program> logger,
-            CancellationToken ct) =>
-        {
-            if (string.IsNullOrWhiteSpace(request?.SearchIntent))
-                return Results.BadRequest(new { error = "SearchIntent is required" });
-            if (request.SearchIntent.Length > 500)
-                return Results.BadRequest(new { error = "SearchIntent exceeds maximum length of 500 characters" });
-            if (request.Titles is null || request.Titles.Count == 0)
-                return Results.BadRequest(new { error = "at least one title is required" });
-            if (request.Titles.Count > 200)
-                return Results.BadRequest(new { error = "too many titles (max 200)" });
-            if (request.Titles.Any(t => t.Title.Length > 500))
-                return Results.BadRequest(new { error = "a title exceeds maximum length of 500 characters" });
-            if (request.Titles.Any(t => string.IsNullOrWhiteSpace(t.JobId)))
-                return Results.BadRequest(new { error = "jobId is required for every title (scraper/API version mismatch)" });
-            try
-            {
-                var result = await claude.TriageTitlesAsync(request, ct);
-                return Results.Ok(result);
-            }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, "Error triaging titles");
-                return Results.Problem(detail: "An error occurred while triaging titles", statusCode: 500);
-            }
-        })
-        .RequireRateLimiting("discovery")
-        .WithName("TriageTitles")
-        .WithSummary("Filter scraped job titles by search-intent relevance (one Haiku call per run)");
-
-        // Seniority classification: one Haiku call per discovery run, batched
-        // like title-triage above. Classifies each relevant scraped job's
-        // ACTUAL seniority band from title+description — source-agnostic,
-        // replacing reliance on jobspy's LinkedIn-only job_level tag as the
-        // client-side filter. Same reachability caveat as title-triage above —
-        // shares the "discovery" bucket and caps per-description length so an
-        // unauthenticated caller can't drive unbounded Anthropic spend; fails
-        // open (every job gets actualSeniority=null, which never excludes)
-        // when this call errors.
-        app.MapPost("/api/match/seniority-classify", async (
-            [FromBody] SeniorityClassifyRequest request,
-            ApplicationTracker.Core.AI.IClaudeClient claude,
-            ILogger<Program> logger,
-            CancellationToken ct) =>
-        {
-            if (request?.Jobs is not { Count: > 0 })
-                return Results.BadRequest(new { error = "at least one job is required" });
-            if (request.Jobs.Count > 200)
-                return Results.BadRequest(new { error = "too many jobs (max 200)" });
-            if (request.Jobs.Any(j => (j.Description?.Length ?? 0) > 50_000))
-                return Results.BadRequest(new { error = "a job description exceeds maximum length of 50,000 characters" });
-            if (request.Jobs.Any(j => string.IsNullOrWhiteSpace(j.JobId)))
-                return Results.BadRequest(new { error = "jobId is required for every job (scraper/API version mismatch)" });
-            try
-            {
-                var result = await claude.ClassifySeniorityAsync(request, ct);
-                return Results.Ok(result);
-            }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, "Error classifying job seniority");
-                return Results.Problem(detail: "An error occurred while classifying job seniority", statusCode: 500);
-            }
-        })
-        .RequireRateLimiting("discovery")
-        .WithName("ClassifySeniority")
-        .WithSummary("Classify scraped jobs' actual seniority band from title+description (one Haiku call per run)");
-
         // Match tab open: narrow the shared pool with the cheap filter, score
         // only what this user has never had scored, keep the results. This is
         // the ONLY thing that spends an Evaluator call on a pool job — ingest
-        // does not score (docs/job-pool.md, docs/scoring-and-search.md).
+        // does not score (docs/scoring-and-search.md).
         // Shares the "discovery" bucket: a scan is a burst of batch calls, not
         // an interactive one, so it must not starve the manual Score-a-Job page.
         app.MapPost("/api/match/pool-scan", async (
@@ -360,11 +211,11 @@ public static class MatchEndpoints
         .WithName("PoolScores")
         .WithSummary("This user's stored scores for a set of pool jobs");
 
-        // Per-job extraction for the shared job pool — one batched Haiku call
-        // per ingest run, same shape and "discovery" bucket as title-triage and
-        // seniority-classify above. Deliberately takes no user identity: it
-        // reads no profile and scores nothing, so one stored result is valid
-        // for every user and is never recomputed per user (docs/job-pool.md).
+        // Per-job extraction for the shared job pool — batched Haiku calls the
+        // board ingest makes (IngestAiClient), "discovery" bucket. Deliberately
+        // takes no user identity: it reads no profile and scores nothing, so
+        // one stored result is valid for every user and is never recomputed
+        // per user (docs/greenhouse.md).
         app.MapPost("/api/match/job-facts", async (
             [FromBody] JobFactsRequest request,
             ApplicationTracker.Core.AI.IClaudeClient claude,
@@ -376,7 +227,7 @@ public static class MatchEndpoints
             if (request.Jobs.Count > 200)
                 return Results.BadRequest(new { error = "too many jobs (max 200)" });
             if (request.Jobs.Any(j => string.IsNullOrWhiteSpace(j.JobId)))
-                return Results.BadRequest(new { error = "jobId is required for every job (scraper/API version mismatch)" });
+                return Results.BadRequest(new { error = "jobId is required for every job (ingest/API version mismatch)" });
             if (request.Jobs.Any(j => j.Title.Length > 500))
                 return Results.BadRequest(new { error = "a title exceeds maximum length of 500 characters" });
             // Same 50K cap every other description-carrying endpoint uses, so an
@@ -402,7 +253,7 @@ public static class MatchEndpoints
         // Ingest-time Analyst pass for the shared pool — sibling of job-facts
         // above, and deliberately the same shape: no user identity, "discovery"
         // bucket, batched, and the result is stored on the pool document by the
-        // scraper rather than per user.
+        // board ingest rather than per user.
         //
         // This is the whole point of the move. The Analyst reads only the
         // posting (BuildAnalysisBatchPrompt takes no profile), so parsing it
@@ -422,7 +273,7 @@ public static class MatchEndpoints
             if (request.Jobs.Count > 25)
                 return Results.BadRequest(new { error = "too many jobs (max 25)" });
             if (request.Jobs.Any(j => string.IsNullOrWhiteSpace(j.JobId)))
-                return Results.BadRequest(new { error = "jobId is required for every job (scraper/API version mismatch)" });
+                return Results.BadRequest(new { error = "jobId is required for every job (ingest/API version mismatch)" });
             if (request.Jobs.Any(j => (j.Description?.Length ?? 0) > 50_000))
                 return Results.BadRequest(new { error = "a description exceeds maximum length of 50,000 characters" });
 
@@ -540,46 +391,6 @@ public static class MatchEndpoints
         .WithName("CollectJobParseBatch")
         .WithSummary("Collect a job-parse batch: in_progress, or the verified parses");
 
-        // Narrative enrichment: on-demand upgrade of a scored job's narrative
-        // fields (honestAssessment/recommendation) from ingest-time terse to
-        // full detail —
-        // called once by the scraper's /save handler when the user clicks
-        // Add. Same "match" bucket as the single-job scoring endpoint: this
-        // fires interactively, per user click, not per bulk-ingest batch.
-        app.MapPost("/api/match/enrich-narrative", async (
-            [FromBody] NarrativeEnrichRequest request,
-            IUserContext user,
-            ApplicationTracker.Core.AI.IClaudeClient claude,
-            ILogger<Program> logger,
-            CancellationToken ct) =>
-        {
-            if (request is null || string.IsNullOrWhiteSpace(request.JobDescription))
-                return Results.BadRequest(new { error = "jobDescription is required" });
-            if (request.JobDescription.Length > 50_000)
-                return Results.BadRequest(new { error = "jobDescription exceeds maximum length of 50,000 characters" });
-
-            try
-            {
-                var result = await claude.EnrichNarrativeAsync(user.UserId, request, ct);
-                return Results.Ok(result);
-            }
-            catch (InvalidOperationException ex) when (ex.Message.Contains("ApiKey"))
-            {
-                logger.LogError(ex, "Anthropic API key not configured");
-                return Results.Problem(
-                    detail: "Anthropic API key is not configured. Please set Anthropic:ApiKey in configuration.",
-                    statusCode: 500);
-            }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, "Error enriching narrative");
-                return Results.Problem(detail: "An error occurred while enriching the narrative", statusCode: 500);
-            }
-        })
-        .RequireRateLimiting("match")
-        .WithName("EnrichNarrative")
-        .WithSummary("Upgrade a scored job's narrative fields from ingest-time terse to full detail, on Add");
-
         static object ToProfileResponse(ProfileDocument doc) => new
         {
             content = doc.Content,
@@ -624,7 +435,6 @@ public static class MatchEndpoints
             IProfileProvider provider,
             IPoolDemandRepository demand,
             IDemandTriggerRepository triggers,
-            IServiceScopeFactory scopeFactory,
             ILogger<Program> logger,
             CancellationToken ct) =>
         {
@@ -637,13 +447,6 @@ public static class MatchEndpoints
                 var updated = await provider.GetProfileDocumentAsync(user.UserId, ct);
 
                 await SyncPoolDemandAsync(user.UserId, request, demand, triggers, logger, ct);
-
-                // The shared pool searches the roles its users are actually
-                // under, so a saved profile can add one (or release the last
-                // claim on another). Fire-and-forget: it costs a Haiku call,
-                // and a role list that lags a save by a second is a far better
-                // outcome than a save that fails because of one.
-                _ = SyncPoolRoleAsync(user.UserId, request, scopeFactory);
 
                 return Results.Ok(ToProfileResponse(updated));
             }

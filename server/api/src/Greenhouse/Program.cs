@@ -15,9 +15,8 @@ using RabbitMQ.Client;
 //             Fans one message out per board token and exits.
 //   consume   long-running. Takes one company at a time, acks after the write.
 //
-// This is a SECOND, INDEPENDENT source. It does not read or write
-// discovered_jobs, it has no age-out, it scores nothing and it does no per-user
-// work. The pool and its daily ingest are untouched by everything here.
+// It scores nothing and does no per-user work: scoring happens per user, on
+// demand, in the API (docs/scoring-and-search.md).
 
 var mode = args.FirstOrDefault()?.ToLowerInvariant();
 

@@ -131,7 +131,7 @@ public sealed record GreenhouseJob
     /// <para>
     /// Regular MQL would have hidden this, since `$eq: null` matches a missing
     /// field there and `$exists` is available as a fallback -- which is exactly
-    /// what `PoolJobRepository` uses. A vector-search filter has neither.
+    /// what an MQL query would use. A vector-search filter has neither.
     /// </para>
     /// <para>
     /// The shape stays compatible with the pool's permissive clauses: a null

@@ -40,9 +40,6 @@ public class RawCollectionAccessTests
         "server/api/src/Api/Extensions/MongoExtensions.cs",
         "server/api/src/Infrastructure/Repositories/ApplicationIndexInitializer.cs",
         "server/api/src/Infrastructure/Repositories/UserScopedCollection.cs",
-        // One-shot CLI, not a request path: it resolves a single seed user up
-        // front and stamps every document with it. Nothing here serves a reader.
-        "server/api/src/Seeder/Program.cs",
     };
 
     [Fact]

@@ -61,18 +61,14 @@ public static class GreenhouseJobFields
     /// </summary>
     /// <remarks>
     /// <para>
-    /// <b>Deliberately the SAME contract the shared pool already stores</b>
-    /// (<c>JobFacts</c>, and the <c>extracted.*</c> paths
-    /// <c>PoolJobRepository</c> queries). Greenhouse is the first ATS source in
-    /// a migration away from LinkedIn scraping, not a permanent second feed --
-    /// so when this collection becomes the primary pool, <c>CandidateFilter</c>
-    /// and the Evaluator must work against it with no change. They can only do
-    /// that if the field names, the nesting and the five seniority bands are
-    /// identical, so they are.
+    /// <b>The extracted-fact contract scoring reads</b> (<c>JobFacts</c>, and the
+    /// <c>extracted.*</c> paths <c>CandidateFilter</c> and the Evaluator use). It
+    /// was kept identical to the retired LinkedIn pool's so scoring worked
+    /// unchanged when this collection became the job source.
     /// </para>
     /// <para>
-    /// <b>Null today, and that is safe rather than broken.</b> Every clause in
-    /// <c>PoolJobRepository</c> is "matches OR is unstated", because the
+    /// <b>Null until read, and that is safe rather than broken.</b> Every pool
+    /// clause is "matches OR is unstated", because the
     /// extraction is best-effort and a job with no facts must never become
     /// invisible to everyone. A Greenhouse row with <c>extracted: null</c>
     /// therefore passes the candidate filter rather than being hidden by it.
@@ -256,8 +252,7 @@ public static class GreenhouseJobFields
 
     /// <summary>The collection these fields live in.</summary>
     /// <remarks>
-    /// Entirely separate from <c>discovered_jobs</c>. Nothing merges the two
-    /// sources and nothing in the Greenhouse path reads or writes the pool.
+    /// The job pool: every board source writes here, and the API reads only this.
     /// </remarks>
     public const string Collection = "greenhouse_jobs";
 

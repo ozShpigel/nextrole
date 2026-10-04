@@ -1,17 +1,13 @@
 # The Greenhouse source
 
-A second job source, independent of the LinkedIn pool: it reads company career
-boards directly from the Greenhouse boards API, cleans the posting text, embeds
-it, and stores it in its own collection with a vector index.
+The job source: it reads company career boards directly (Greenhouse, Workday,
+Comeet, Lever), cleans the posting text, embeds it, and stores it in
+`greenhouse_jobs` with a vector index. It stores the extracted-fact contract
+the Evaluator and `CandidateFilter` consume.
 
-**It is the first ATS source in an intended migration away from LinkedIn
-scraping, not a permanent second feed.** Everything here is shaped by that: it
-depends on nothing in `discovered_jobs` or its mechanics, and it stores the
-*same* extracted-fact contract the Evaluator and `CandidateFilter` already
-consume — so scoring works unchanged when the source flips.
-
-Nothing here scores anything, does per-user work, or touches the pool. See
-`docs/job-pool.md` for the LinkedIn side, which this leaves entirely alone.
+It began as a second source beside the LinkedIn pool and replaced it; the pool
+(`discovered_jobs`, `PoolIngest`, `PoolJobRepository`) and its rollback switch
+were removed on 2026-10-04. Nothing here scores anything or does per-user work.
 
 ## What it is for
 
@@ -149,8 +145,7 @@ minutes to hours.
   strands open batches (and their hidden postings).
 - API: `POST /api/match/job-facts/batches`, `GET .../job-facts/batches/{id}`,
   `POST /api/match/job-parse/batches`, `POST .../job-parse/batches/{id}/collect`.
-  Same limits as the live endpoints; 200 postings per submission. The LinkedIn
-  pool ingest still uses the live endpoints.
+  Same limits as the live endpoints; 200 postings per submission.
 - Cost stays visible: every result logs `Claude job-facts-batch usage` /
   `job-parse-batch usage`, the same shape as the live lines.
 
@@ -435,18 +430,14 @@ the two, and nothing anywhere records that it was meant to run.
 
 ## The extracted-fact contract
 
-`greenhouse_jobs` stores `extracted` with the **same shape and the same field
-paths** the pool uses — `extracted.location`, `extracted.seniority`,
-`extracted.must_have_tech` — because `CandidateFilter` and the Evaluator must
-work against this collection unchanged when it becomes the primary source.
+`greenhouse_jobs` stores `extracted` with the field paths `CandidateFilter`
+and the Evaluator read — `extracted.location`, `extracted.seniority`,
+`extracted.must_have_tech`. They were kept identical to the retired LinkedIn
+pool's, so scoring worked unchanged when this became the source.
+`PoolContractTests` pins the parent name and the seniority bands.
 
-`PoolContractTests` enforces that: it scans `PoolJobRepository` for the
-`extracted.*` paths it actually queries and fails if `GreenhouseJobFields` does
-not declare every one. Without a check, "keeps the same contract" is a comment
-that goes stale the first time someone renames a field on one side.
-
-**The facts are unstated today, and that is safe rather than broken.** Every
-clause in `PoolJobRepository` is "matches OR is unstated", because the
+**Unstated facts are safe rather than broken.** Every candidate clause is
+"matches OR is unstated", because the
 extraction is best-effort and a job with no facts must never become invisible to
 everyone. A Greenhouse row therefore *passes* the candidate filter.
 
@@ -681,8 +672,7 @@ answer before and after and still diff clean.
 `extracted: null` made every `extracted.*` filter return **zero** rows, while
 `closedAt: {$eq: null}` worked — because that one is an explicit null *leaf*.
 Regular MQL hides this: `$eq: null` matches a missing field there, and
-`$exists` is available as a fallback, which is exactly what `PoolJobRepository`
-relies on. A vector-search filter has neither. `extracted` is therefore stored
+`$exists` is available as a fallback. A vector-search filter has neither. `extracted` is therefore stored
 as a **sub-document with explicit null leaves**, which still satisfies the
 pool's permissive clauses (`Eq(field, null)` for scalars, `Size(field, 0)` for
 arrays).
@@ -712,7 +702,7 @@ unknown value is fatal: guessing `on` would skip postings unmeasured.
 
 `server/api/src/Greenhouse/config/boards.json` — the boards, each
 `{ source, token, domain }`, and batch limits (the shape: docs/plans/board-config.md;
-the file was `boards.json`, a list of Greenhouse tokens, whose shape still loads). Loaded like `roles.json` and **fatal** on a missing
+the file was `boards.json`, a list of Greenhouse tokens, whose shape still loads). **Fatal** on a missing
 file or an empty list: a run against a silently-defaulted list still ingests
 jobs, they are simply the wrong company's.
 
@@ -793,16 +783,12 @@ docker compose --profile cron run --rm greenhouse publish   # must exit 0
 docker compose logs --tail=20 greenhouse-consumer
 ```
 
-Then in Mongo, the two questions that matter:
+Then in Mongo, the question that matters:
 
 ```js
 // Is the day finished? Zero pending rows is the ONLY honest answer --
 // an empty queue is not (docs above).
 db.greenhouse_runs.find({ day: "<today>", status: "pending" })
-
-// Did the pool stay out of it? These must not have moved.
-db.discovered_jobs.countDocuments({})
-db.discovered_jobs.countDocuments({ missed_runs: { $gt: 0 } })
 ```
 
 **The second run is the real test.** Run `publish` twice and read the consumer

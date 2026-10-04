@@ -131,5 +131,4 @@ None automated. It is exercised by use: copy into a scratch name, run the migrat
 - [`deploy/README.md`](../../../../deploy/README.md) — the deployment runbook, including the `Identity:FixedUserId` one-way setting
 - [`docs/multi-user.md`](../../../../docs/multi-user.md) — the migration this rehearses
 - [`server/api/IMPLEMENTATION.md`](../../IMPLEMENTATION.md) — startup ordering and index guarantees
-- [`server/api/src/Seeder/IMPLEMENTATION.md`](../Seeder/IMPLEMENTATION.md) — the sibling CLI
 - [`OVERVIEW.md`](../../../../OVERVIEW.md)

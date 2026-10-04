@@ -4,8 +4,7 @@ using MongoDB.Driver;
 
 namespace ApplicationTracker.Infrastructure.Repositories;
 
-// Plain IMongoCollection, not UserScopedCollection, on purpose -- same reason as
-// PoolRoleRepository: shared-pool state, and the user ids on it are data (who
+// Plain IMongoCollection, not UserScopedCollection, on purpose: shared-pool state, and the user ids on it are data (who
 // still wants this value), not a scope.
 public sealed class PoolDemandRepository : IPoolDemandRepository
 {

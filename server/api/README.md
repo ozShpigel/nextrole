@@ -12,7 +12,6 @@ project predates the NextRole rename) — not a vendored dependency.
 | `src/Api` | Minimal-API endpoints, the request pipeline (CORS, rate limiting, the demo-mode allowlist gate), startup wiring |
 | `src/Core` | Domain models, matching/scoring logic, repository interfaces — no framework or infra dependencies |
 | `src/Infrastructure` | MongoDB repositories, the Claude client, PDF rendering — implements `Core`'s interfaces |
-| `src/Seeder` | Offline CLI that populates a demo database with fictional data |
 
 ## Where to start
 

@@ -80,11 +80,8 @@ public class PoolScanCapTests
     }
 
     [Fact]
-    public void The_two_sources_disagree_on_purpose()
-    {
-        Assert.Equal(50, new PoolJobRepository(jobs: null!).MaxCandidatesPerScan);
+    public void The_board_source_scores_ten_candidates_per_scan_by_default() =>
         Assert.Equal(10, GreenhouseJobRepository.DefaultMaxCandidatesPerScan);
-    }
 
     [Fact]
     public void A_configured_cap_of_zero_or_less_falls_back_to_the_default()

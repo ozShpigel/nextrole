@@ -3,6 +3,12 @@
 **Complete.** `server/scraper` went from 4,907 lines to 503, and from holding
 `readWrite` on two production databases to holding no credential at all.
 
+**Update 2026-10-04:** `PoolIngest`, the LinkedIn pool it fed (`discovered_jobs`,
+`PoolJobRepository`, `pool_roles`) and the `Seeder` were removed; the board ingest
+(`docs/greenhouse.md`) is the only job source. The scraper's `POST /scrape/url`
+still serves Import Job, and `POST /scrape` is kept for a LinkedIn source in the
+board ingest. References to them below are the record as it stood.
+
 The Python service began as a wrapper around one library. It became the
 orchestrator: it owned the pipeline, held the database credentials, resolved
 sessions, and called the API on users' behalf. Only one of its modules ever

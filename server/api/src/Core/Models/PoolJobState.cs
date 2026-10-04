@@ -35,7 +35,7 @@ public sealed record PoolJobState : IUserOwned
     [BsonRepresentation(MongoDB.Bson.BsonType.String)]
     public Guid UserId { get; init; }
 
-    /// <summary>discovered_jobs.id — the shared pool's own job id, not a Mongo _id.</summary>
+    /// <summary>The pool job's id (greenhouse_jobs), not a Mongo _id.</summary>
     public string JobId { get; init; } = "";
 
     [BsonIgnoreIfNull]

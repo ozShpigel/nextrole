@@ -1,4 +1,3 @@
-using System.Text.RegularExpressions;
 using ApplicationTracker.Greenhouse;
 using ApplicationTracker.Core.Greenhouse;
 using ApplicationTracker.Core.Matching;
@@ -8,87 +7,23 @@ using Xunit;
 namespace GreenhouseTests;
 
 /// <summary>
-/// Greenhouse stores the same extracted-fact contract the shared pool does.
+/// The board ingest stores the extracted-fact contract scoring reads.
 /// </summary>
 /// <remarks>
 /// <para>
-/// Greenhouse is the first ATS source in a migration away from LinkedIn
-/// scraping, not a permanent second feed. When this collection becomes the
-/// primary pool, <c>CandidateFilter</c> and the Evaluator have to work against
-/// it <b>unchanged</b> -- which is only true if the field paths and the
-/// seniority bands are identical.
+/// <c>CandidateFilter</c> and the Evaluator read <c>extracted.*</c> by dotted
+/// path, and every pool clause is "matches OR unstated" -- so a renamed field
+/// or band fails open and silently, as jobs quietly failing to match anyone.
+/// These pin the parent name and the seniority bands.
 /// </para>
 /// <para>
-/// That claim needs a check behind it, or it is a comment that goes stale the
-/// first time someone renames a field on one side. Renaming
-/// <c>extracted.must_have_tech</c> in the pool would not break a single test
-/// otherwise, and the divergence would surface as Greenhouse jobs quietly
-/// failing to match anyone.
+/// This file also used to check the board fields against the paths the LinkedIn
+/// pool's repository queried, while the two were alternative sources. That
+/// repository was removed on 2026-10-04, and with it that half of the contract.
 /// </para>
 /// </remarks>
 public class PoolContractTests
 {
-    private static string RepoRoot()
-    {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null)
-        {
-            if (File.Exists(Path.Combine(dir.FullName, "AGENTS.md"))) return dir.FullName;
-            dir = dir.Parent;
-        }
-        throw new InvalidOperationException("Could not find the repository root.");
-    }
-
-    /// <summary>
-    /// The <c>extracted.*</c> paths the pool's repository actually queries.
-    /// </summary>
-    /// <remarks>
-    /// Read from source because they are <c>private const</c> in
-    /// <c>PoolJobRepository</c> -- correctly so; making them public to satisfy
-    /// a test would widen the API to prove something about it. Failing loudly
-    /// when the scan finds nothing matters: a check that silently matches zero
-    /// paths passes forever while verifying nothing.
-    /// </remarks>
-    private static IReadOnlyList<string> PoolExtractedPaths()
-    {
-        var path = Path.Combine(
-            RepoRoot(), "server", "api", "src", "Infrastructure", "Repositories", "PoolJobRepository.cs");
-
-        Assert.True(File.Exists(path), $"Expected the pool repository at {path}");
-
-        var paths = Regex.Matches(File.ReadAllText(path), @"""(extracted\.[a-z_]+)""")
-            .Select(m => m.Groups[1].Value)
-            .Distinct()
-            .OrderBy(p => p, StringComparer.Ordinal)
-            .ToList();
-
-        Assert.True(paths.Count > 0,
-            "Found no extracted.* paths in PoolJobRepository. Either the pool stopped using them "
-            + "-- in which case this contract no longer exists and this test should go -- or the "
-            + "scan broke and is now verifying nothing.");
-
-        return paths;
-    }
-
-    [Fact]
-    public void Greenhouse_declares_every_extracted_path_the_pool_queries()
-    {
-        var greenhouse = new[]
-        {
-            GreenhouseJobFields.ExtractedLocation,
-            GreenhouseJobFields.ExtractedSeniority,
-            GreenhouseJobFields.ExtractedMustHaveTech,
-        };
-
-        foreach (var poolPath in PoolExtractedPaths())
-            Assert.True(
-                greenhouse.Contains(poolPath),
-                $"PoolJobRepository queries '{poolPath}', which GreenhouseJobFields does not declare. "
-                + "When Greenhouse becomes the primary pool, CandidateFilter would read a field "
-                + "nothing writes -- and because every pool clause is 'matches OR unstated', that "
-                + "fails open and silently rather than erroring.");
-    }
-
     [Fact]
     public void The_extracted_paths_are_nested_under_the_same_parent()
     {

@@ -4,7 +4,7 @@ namespace ApplicationTracker.Core.Repositories;
 
 // The shared job pool, read-only from the API's side. Deliberately NOT
 // user-scoped and deliberately not an IUserOwned collection: the pool is
-// common to everyone (docs/job-pool.md), and per-user opinion about a pool job
+// common to everyone (docs/greenhouse.md), and per-user opinion about a pool job
 // lives in jobScores instead.
 public interface IPoolJobRepository
 {
@@ -25,17 +25,10 @@ public interface IPoolJobRepository
     /// </summary>
     /// <remarks>
     /// On the source rather than on the scan because the right number follows
-    /// from how <see cref="FindCandidatesAsync"/> chooses what it returns, and
-    /// the two implementations choose differently: a Mongo field filter hands
-    /// back everything that survived it, unranked, so the cap is only a spend
-    /// ceiling and wants to be generous; a vector search hands back a ranked
-    /// list, where the useful answer is the top few and the tail is noise the
-    /// scan would pay Claude to reject.
-    ///
-    /// Keeping it here means the source switch moves the cap with it. A single
-    /// value shared by both would be right for at most one of them, and wrong
-    /// silently -- an over-generous cap on the ranked source shows up as a
-    /// scoring bill, not as an error.
+    /// from how <see cref="FindCandidatesAsync"/> chooses what it returns. A
+    /// vector search hands back a ranked list, where the useful answer is the
+    /// top few and the tail is noise the scan would pay Claude to reject -- an
+    /// over-generous cap shows up as a scoring bill, not as an error.
     /// </remarks>
     int MaxCandidatesPerScan { get; }
 
@@ -83,8 +76,7 @@ public interface IPoolJobRepository
     /// </summary>
     /// <remarks>
     /// A no-op by default: only a source whose ingest leaves the parse to the
-    /// first scorer needs it (Greenhouse, with ParseAtIngest off). The LinkedIn
-    /// pool parses at ingest and keeps this default.
+    /// first scorer needs it (Greenhouse, with ParseAtIngest off).
     /// </remarks>
     Task<int> SaveParsesAsync(
         IReadOnlyDictionary<string, ParsedJob> parses, string? parseVersion, CancellationToken ct = default) =>

@@ -245,7 +245,7 @@ sent.
 is not load-bearing for anything here.
 
 - TTL index on `ExpiresAt` (`expireAfterSeconds: 0`) — the precedent is
-  `matchSnapshots` (90d) and the scraper's `discovered_jobs` (60d).
+  `matchSnapshots` (90d).
 - **The TTL is cleanup, not correctness.** Mongo's TTL monitor runs roughly
   every 60 seconds, so an expired session lingers. `ExpiresAt > now` belongs in
   the *query*, or an expired session stays usable for up to a minute.

@@ -17,7 +17,7 @@ interfaces:
   events_in: []
   cli: []
   jobs: []
-data_owned: ["applications", "interviews", "notes", "statusUpdates", "messages", "resumePacks", "mockInterviewSessions", "matchSnapshots", "jobScores", "userQuotas", "interviewInsights", "pool_roles", "jobmatch.profile", "jobmatch.resumeFile", "jobmatch.interviewPrep"]
+data_owned: ["applications", "interviews", "notes", "statusUpdates", "messages", "resumePacks", "mockInterviewSessions", "matchSnapshots", "jobScores", "userQuotas", "interviewInsights", "jobmatch.profile", "jobmatch.resumeFile", "jobmatch.interviewPrep"]
 deps_internal: ["server/scraper (caller)", "server/mailbot (caller)", "client (caller)"]
 deps_external: ["Anthropic Claude", "MongoDB Atlas"]
 tests_hint: ["server/api/tests/ArchitectureTests/**", "e2e/tests/**"]
@@ -41,9 +41,6 @@ OpenAPI is generated at runtime rather than checked in: `MapOpenApi()` + a Scala
 - `POST /api/match/pool-scan` — the Matches page: filter the shared pool, score what this user has never had scored *(discovery)*
 - `POST /api/match/pool-scores` — read back stored scores for pool jobs *(discovery)*
 - `POST /api/match/job-facts` — extract a posting's stated requirements; user-independent, called by the scraper *(discovery)*
-- `POST /api/match/title-triage`, `POST /api/match/seniority-classify` — ingest-time AI gates, user-independent *(discovery)*
-- `POST /api/match/discovery-score-batch` — legacy criteria-driven batch scoring *(discovery)*
-- `POST /api/match/enrich-narrative` — live web enrichment (Glassdoor/news) for the manual path *(discovery)*
 - `GET|PUT /api/match/profile`, `POST /api/match/profile/normalize`, `POST /api/match/profile/normalize-file` — the profile as user-editable input; the file route sends the PDF to Claude natively *(match)*
 - `GET /api/match/profile/resume-file[/download]`, `GET|POST /api/match/profile/history/{field}[/restore]`
 - `GET|PUT /api/match/interview-prep`, `.../history/{field}[/restore]`, `POST /api/match/interview-prep/cues` *(match)*
@@ -70,16 +67,16 @@ OpenAPI is generated at runtime rather than checked in: `MapOpenApi()` + a Scala
 
 **Unauthenticated / always open:** `GET /health`, `GET /api/config` (reveals only `demoMode`).
 
-**Events produced/consumed:** None. **CLI/jobs:** None — see the sibling [Seeder](src/Seeder/IMPLEMENTATION.md) and [DbCopy](src/DbCopy/IMPLEMENTATION.md) CLIs.
+**Events produced/consumed:** None. **CLI/jobs:** None — see the sibling [DbCopy](src/DbCopy/IMPLEMENTATION.md) CLI.
 
 ## Invariants & rules
 
 - **Every user-scoped query carries an explicit `userId`.** Repositories never receive an `IMongoCollection<T>`; they receive `UserScopedCollection<T>`, which has no overload that omits the userId, ANDs the filter internally, and exposes no way back to the raw handle. `ArchitectureTests` fails the build if any member hands one back. One-per-user documents use `_id = userId` instead, so there is no unscoped query shape to guard.
 - **Uniqueness is per user.** `applications` is unique on `(UserId, Company, JobTitle)` with collation `en`/strength 2 (case-insensitive, accent-sensitive) — matching `ApplicationRepository.ExistsAsync`, so the index and the lookup agree. `messages` is unique on `(UserId, GmailMessageId)`; its upsert is a find-then-replace, i.e. a real check-then-act race without the index.
-- **The shared pool is never user-scoped.** `discovered_jobs` and `pool_roles` are read unscoped by design; anything two users could disagree about lives in `jobScores` or `poolJobState`.
+- **The shared pool is never user-scoped.** `greenhouse_jobs` and `pool_functions` / `pool_locations` are read unscoped by design; anything two users could disagree about lives in `jobScores` or `poolJobState`.
 - **A claim about the candidate must trace to the profile.** `ClaimGrounding` recomputes, from the posting's extracted `must_have_tech` and the profile, both the unsupported-claim annotations on a score and the gap count that caps the technical dimension — never from the model's own self-report. `ResumePackValidator` applies the same idea to packs and **blocks** rather than annotates, because a pack goes to an employer.
 - **Consequences never take model-authored input.** A check whose input the model writes is not a check.
-- **Scan cost is bounded, not unlimited.** The cap is `IPoolJobRepository.MaxCandidatesPerScan` — on the source, because a filtered source's cap is a spend ceiling (50) and a vector-ranked one's is where the ranking stops being worth scoring (5); the source switch then moves it. Batches of 5, at most 5 concurrent (one batch is an Analyst + Evaluator pair, ~80s measured — sequential batches outlive nginx's 60s `proxy_read_timeout`). "Only what is new" is the absence of a `jobScores` row, not a last-visited timestamp, so two concurrent tabs cannot double-charge.
+- **Scan cost is bounded, not unlimited.** The cap is `IPoolJobRepository.MaxCandidatesPerScan` — on the source, because a vector-ranked list's cap is where the ranking stops being worth scoring (10 by default). Batches of 5, at most 5 concurrent (one batch is an Analyst + Evaluator pair, ~80s measured — sequential batches outlive nginx's 60s `proxy_read_timeout`). "Only what is new" is the absence of a `jobScores` row, not a last-visited timestamp, so two concurrent tabs cannot double-charge.
 - **Quotas are claimed, never counted afterwards.** `UserQuotaRepository` claims the pack allowance (3/user/day) atomically *before* the Claude call.
 - **Startup ordering is load-bearing.** `UserScopeMigrationInitializer.MigrateOrThrowAsync` runs first and is **fatal** — per-user unique indexes cannot build while pre-multi-user documents lack a `UserId`, and an API that could not migrate would serve a view that does not match the database. Index creation follows and is best-effort but logs at error level.
 - **Claude request shape for `claude-*-5` models.** `AnthropicThinkingHandler` stamps `thinking: adaptive` + `output_config: effort` on those requests and drops the explicit `temperature`. Without it they burn the whole `max_tokens` budget on thinking and return no text block at all.
@@ -110,7 +107,7 @@ sequenceDiagram
   participant Web as client Matches page
   participant API as MatchEndpoints
   participant Scan as PoolScanService
-  participant Pool as discovered_jobs [shared]
+  participant Pool as greenhouse_jobs [shared]
   participant Prof as jobmatch.profile
   participant Claude as Anthropic
   participant Scores as jobScores [per user]
@@ -118,8 +115,8 @@ sequenceDiagram
   Web->>API: POST /api/match/pool-scan (uid cookie)
   API->>Scan: ScanAsync(userId)
   Scan->>Prof: load profile + ProfileFacts
-  Scan->>Pool: CandidateFilter over extracted facts
-  Pool-->>Scan: candidates, capped at 50
+  Scan->>Pool: vector search, filtered by extracted facts
+  Pool-->>Scan: candidates, capped at 10
   Scan->>Scores: exclude jobs already scored for this user
   loop batches of 5, max 5 concurrent
     Scan->>Claude: Analyst (parse) then Evaluator (judge)
@@ -133,7 +130,7 @@ sequenceDiagram
 
 ## Data & state
 
-- **`job-tracker` DB:** `applications`, `interviews`, `notes`, `statusUpdates`, `messages`, `resumePacks`, `mockInterviewSessions`, `matchSnapshots`, `jobScores`, `userQuotas`, `interviewInsights`, `pool_roles`, plus the scraper-owned `discovered_jobs` (read as `BsonDocument`, since the scraper owns its schema).
+- **`job-tracker` DB:** `applications`, `interviews`, `notes`, `statusUpdates`, `messages`, `resumePacks`, `mockInterviewSessions`, `matchSnapshots`, `jobScores`, `userQuotas`, `interviewInsights`, `pool_functions`, `pool_locations`, plus the board ingest's `greenhouse_jobs` (read as `BsonDocument`).
 - **`jobmatch` DB:** `profile`, `resumeFile`, `interviewPrep` — one document per user, `_id = userId`.
 - **Indexes** ([`ApplicationIndexInitializer.cs`](src/Infrastructure/Repositories/ApplicationIndexInitializer.cs)): `uniq_user_company_jobtitle_ci` (unique, collated), `uniq_user_gmailmessageid` (unique), `idx_userid_applicationid` on interviews/notes/statusUpdates/resumePacks, `idx_userid` on applications/mockInterviewSessions/matchSnapshots, and `ttl_createdat_90d` on `matchSnapshots`. Legacy pre-multi-user indexes are dropped and duplicates cleared first, since a unique build fails otherwise.
 - **Caching:** an in-process `IMemoryCache` fronts the profile provider. No Redis.
@@ -213,7 +210,7 @@ sequenceDiagram
 
 - **Architecture (xUnit):** `dotnet test server/api/tests/ArchitectureTests -c Release` — user-scoping (`UserScopingTests`, `RawCollectionAccessTests`), claim grounding (`ClaimGroundingTests`), role canonicalization. Use `-c Release` if a dev server holds the Debug output lock. This suite *is* the multi-user guarantee.
 - **E2E (Playwright):** [`e2e/tests`](../../e2e/tests) covers the API through the UI. Stop dev servers first — see [`e2e/IMPLEMENTATION.md`](../../e2e/IMPLEMENTATION.md).
-- **Fixtures/seeds:** `Data/sample-profile.json` and the [Seeder](src/Seeder/IMPLEMENTATION.md).
+- **Fixtures/seeds:** `Data/sample-profile.json`.
 - **No unit-test project** for `Core` beyond the architecture suite.
 
 ## Security

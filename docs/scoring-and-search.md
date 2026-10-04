@@ -2,7 +2,7 @@
 
 > **Superseded in part (Step 5): ingest no longer scores.** Discovery used to
 > score every relevant job at ingest time against the one user's profile. It
-> cannot any more: the job pool is shared by every user (`docs/job-pool.md`),
+> cannot any more: the job pool is shared by every user (`docs/greenhouse.md`),
 > and a score is an opinion about one candidate. Scoring is **per user and on
 > demand** — when a user opens the match tab, `PoolScanService` narrows the
 > pool with a cheap Mongo filter over the facts extracted once per job, scores
@@ -115,16 +115,14 @@ roughly half as much to score per user.
 
 Discovery scores every relevant job as part of ingestion — no separate on-demand search step. The Matches page is a filtered/sorted **browse** over already-scored jobs, not a query-time compute.
 
-- **Ingest** - *removed*. The criteria-driven run (`orchestrator.run_discovery`: scrape -> title triage -> enrichment prefetch -> seniority -> batched scoring at ingest) was deleted in Phase 0 of `docs/scraper-slimming.md`. The daily ingest is now `python -m app.cli run-pool`, which scores **nothing** - it folds listings into the shared pool and extracts each posting's facts once. Scoring is per user and on demand (`POST /api/match/pool-scan`). See `docs/job-pool.md`.
+- **Ingest** - *removed*. The criteria-driven run (`orchestrator.run_discovery`: scrape -> title triage -> enrichment prefetch -> seniority -> batched scoring at ingest) was deleted in Phase 0 of `docs/scraper-slimming.md`, and the LinkedIn pool ingest that followed it was removed on 2026-10-04. The job source is the board ingest (`docs/greenhouse.md`), which scores **nothing** - it writes postings into `greenhouse_jobs` and extracts each posting's facts once. Scoring is per user and on demand (`POST /api/match/pool-scan`).
 - **Batched scoring, not per-job calls — the primary cost lever**: a naive one-Sonnet-call-per-job design would cost on the order of the old pre-RAG per-job architecture (~$2.5-3/run — see Cost profile below), which is too expensive to run unconditionally on every discovery cycle. Batching shares one system-prompt/profile input cost across up to 5 jobs per call instead of paying it N times — the same mechanism that made the RAG-era Advisor's batched call cheap, applied here **without** reintroducing comparative ranking: each job in a batch is still scored strictly against the fixed rubric, never against its batch-mates. The Evaluator prompt's batch-mode addendum (`PromptBuilder.BuildEvaluationBatchPrompt`) explicitly instructs independence; this was validated against the golden set in batched form before being trusted (see Regression testing below) because batch composition **can** measurably distort individual verdicts if not guarded — this codebase's own Advisor investigation proved that pattern during the RAG era.
-- **Concurrency guardrails**: `POST /api/match/discovery-score-batch` has its own rate-limit bucket (`"discovery"`, 20/min) separate from the interactive `"match"` bucket, so a big discovery run never starves the manual Score-a-Job page. The scraper's own `MAX_CONCURRENT_SCORE_BATCHES` (2) caps in-flight batch calls independent of the API's limiter. Both numbers are starting estimates sized to a rough throughput target, not yet measured against a large real run — revisit if a run either 429s or takes uncomfortably long.
-- **Matches page** (`GET /api/discovery/jobs` on the scraper, client page `/search`, nav label "Matches"): filters/sorts already-scored `DiscoveredJob` docs — `min_score`, `verdict` (csv), `days_back` (default 14, window over `discovered_at` not posting date), `criteria_id`, `location` (free-text substring, case-insensitive), `is_remote`, `actual_job_level` (csv), `include_dismissed`/`include_saved`, pagination (`limit`/`offset`). Defaults exclude triaged-out jobs, unscored/score-failed jobs (`score: null`), and dismissed jobs; saved jobs stay visible by default ("already in my Tracker" isn't "not interested").
-- **Acted-on jobs**: dismiss/save happen against the specific `DiscoveredJob` doc (`POST /api/discovery/jobs/{id}/dismiss` / `/save`) — unlike the old RAG search's URL-set exclusion (which had to dedupe across re-scraped copies of the same posting because ingest never persisted anything until a search ran), ingest-time scoring means every scrape of a posting is its own scored, independently dismissable/saveable document from the start.
-- **Retention (M0 512MB)**: TTL index (currently named `ttl_discovered_at_45d` for historical reasons — `app/indexes.py`'s `TTL_INDEX_NAME`) on `discovered_at`, expiry set via `collMod` (falls back to `create_index` on a fresh DB), ensured at scraper startup. Tracker-saved jobs are full copies in the tracker DB, so the purge is safe. Bumped from 45 to 60 days after RAG removal (embeddings were ~12KB/doc of ~18-20KB) — not a full re-measurement, since `match_analysis` + both Claude call snapshots reintroduce their own weight; revisit once real scored-doc sizes are known.
-- **`job_level` vs `actual_job_level`**: `job_level` (jobspy) is populated by LinkedIn only. `actual_job_level` is a source-agnostic Haiku classification (`PromptSeeds.SeniorityClassification`, `POST /api/match/seniority-classify`) run once per discovery run over every relevant job's title+description — it **labels** for the Matches page's seniority filter, it does **not** gate the Evaluator call. An imprecise job-only classifier risks silently dropping a real opportunity the same way a wrongly-dropped title-triage call would; the Evaluator's own candidate-aware `hardBlockers` is the more reliable place to catch a genuine scope mismatch.
-- **Company profile** (`company_profile` on `DiscoveredJob`, `CompanyProfile` in `MatchRequest`): industry/size/revenue/description/url — free jobspy fields captured at scrape time, no extra HTTP call. Passed to the Evaluator as a `<company_profile>` context block, same "never changes numeric scores, narrative only" rule as `<company_news>`/`<glassdoor_rating>`.
-- **Role config vs Matches filters** (two decoupled filter sets): the pool's role list (`config/roles.json` plus `pool_roles`) holds **scrape** parameters - they decide what enters the pool, for everyone. The Matches page's filters (min score, verdict, days-back, location, remote, seniority) are **query-time** filters over this user's scored rows. Per-user saved criteria are gone; the read-side equivalent is `CandidateFilter`, derived from the profile.
-- **LinkedIn politeness guardrails** (scraping is unauthenticated - blocks are per-IP 429s/soft blocks, not account bans, and jobspy swallows them silently): (1) **pacing** - random 8-20s sleep between each title x location search (`scraper.PACING_SECONDS`); (2) **search budget** - `max_roles` in `config/roles.json` caps how many roles one run searches; (3) **throttle visibility** - runs carry `searches_total/failed/empty` on the run doc. The per-criteria search budget (`MAX_SEARCHES_PER_RUN`, enforced in `CreateCriteriaRequest`) went with the criteria endpoints. **The client has no Discovery page** - the Matches page is the only view into scored jobs.
+- **Concurrency guardrails**: the batch endpoints a scan or the ingest drives (`POST /api/match/pool-scan`, job-facts / job-parse) share their own rate-limit bucket (`"discovery"`, 20/min), separate from the interactive `"match"` bucket, so a big scan never starves the manual Score-a-Job page.
+- **Matches page** (client `/search`, nav label "Matches"): `GET /api/pool/jobs` browses this user's scored rows over `greenhouse_jobs` - `min_score`, `days_back` (by the posting's own date), `location`, `is_remote`, seniority (`actual_job_level`, read from the title by `TitleLevel`), `ai_roles`, `include_dismissed`/`include_saved`, pagination. Dismiss and save are per-user rows in `poolJobState`, never fields on the shared posting.
+- **Seniority**: a card's `actual_job_level` is the board ingest's extracted seniority; the Matches seniority filter reads levels from the title (`TitleLevel`). The Haiku seniority classifier (`/api/match/seniority-classify`) that labelled the LinkedIn pool was removed on 2026-10-04.
+- **Company profile** (`CompanyProfile` in `MatchRequest` / `MatchBatchItem`): industry/size/revenue/description/url, passed to the Evaluator as a `<company_profile>` context block that never changes a numeric score. No board source supplies it today.
+- **Ingest scope vs Matches filters** (two decoupled filter sets): what enters the pool is the board list (`config/boards.json`) and the pre-read filter (`pool_functions` / `pool_locations`, `docs/greenhouse.md`) - for everyone. The Matches filters are **query-time** filters over this user's scored rows; the read-side equivalent of saved criteria is `CandidateFilter`, derived from the profile.
+- **LinkedIn politeness guardrails** (for the jobspy adapter in `server/scraper`, which a future LinkedIn source in the board ingest would call; scraping is unauthenticated - blocks are per-IP 429s/soft blocks, not account bans, and jobspy swallows them silently): **pacing** - a random 8-20s sleep between each title x location search (`scraper.PACING_SECONDS`).
 - **Regression testing (golden set)**: `dotnet run --project server/api/src/EvalHarness -- verdict [--runs N]` scores 11 hand-labeled real postings (`server/api/src/EvalHarness/fixtures/golden-set.json`, 3-band expected: strong/weak/reject, `uncertain` flag, failure-mode tags) via `POST /api/match` (jobDescription only, matching real manual-page usage), maps the 6-value verdict to the 3-band expected, and reports pass/fail grouped by tag. `--runs N` gives a noise-baseline (pass-rate spread + per-case flakiness). Fails loud — raises rather than report a partial result if any case's call errors, since a run over fewer cases than expected is a different, incomparable denominator. Validated baseline: 45/45 pass-points across 11 cases × 3 runs, 0% spread, zero flaky cases, at `VerdictBands` = 85/68/50/25. This is the primary regression gate for the whole scoring architecture now — every discovered job depends on Evaluator correctness in a way the RAG-era manual-page-only Evaluator never had to guarantee. No `eval-advisor`/`eval-recall` equivalent exists anymore — both tested RAG-specific mechanisms (the comparative-ranking Advisor, `$vectorSearch` retrieval) that no longer exist.
 - **Cost profile**: the old pre-RAG per-job architecture (2 Claude calls × every scraped job, no batching) cost ≈ $2.5-3/run — the number batching is designed to beat by roughly the batch-size factor, not yet independently re-measured against a real run under the current batched design. Compare RAG-era ingest, which cost ≈ $0.006/run precisely because it deferred all scoring to on-demand search (≈ $0.10-0.15/search) — that asymmetry (near-free ingest, paid-per-look) is gone by design: this flow pays a real cost on every discovery run regardless of whether the results are ever viewed, in exchange for never missing a job to a retrieval-resolution problem. **Confirm the actual number from the Anthropic console after a real run** before treating either estimate as current.
 
@@ -136,9 +134,9 @@ The `/score` page (`ManualScorePage.tsx`, nav: "Score a Job") lets the user past
 
 Glassdoor sub-ratings used to move three sub-scores by a clamped `reviewAdjustment {base, delta}` (`EnforceReviewCaps`, ±1-3 by review count). Removed on 2026-10-03 with the rest of the review machinery: no live source has supplied review data since the LinkedIn pool's scraper was deleted, so every score ran with it empty. The lesson it taught still stands and is recorded in `AGENTS.md`: the model does not obey a prompt-stated numeric cap, so the consequence is computed in code from a structured field — `hardBlockers` and `stackedGaps` follow the same shape.
 
-## AI title triage (pre-scoring filter)
+## AI title triage (removed) - and the chunking lessons it left
 
-Job boards pad niche searches with off-target titles (a "DevEx" search scrapes "DevOps Engineer", "Data Engineer", …). Before scoring, the criteria-driven ingest ran **chunked Haiku calls** to drop clearly off-target titles (that path is removed; the endpoint and its contract remain, and the pool ingest does not triage): `match_client.triage_titles(settings, search_intent, jobs)` → `POST /api/match/title-triage` (`ClaudeClient.TriageTitlesAsync`, `PromptSeeds.TitleTriage`, JSON `{results:[{jobId, relevant, reason}]}`). Requests/results are correlated by `jobId` (assigned at scrape time), not list position — a request missing `jobId` gets a `400`, and a response the scraper can't correlate by `jobId` raises rather than falling back to positional matching, so a CD version-skew window between the two independently-deployed services fails loudly instead of silently mismatching scores to jobs. Seniority classification (`classify_seniority` → `POST /api/match/seniority-classify`) shares the same `jobId`-keyed contract. It is **lean-permissive** (keeps borderline/semantic matches like "Infrastructure Engineer (Developer Tooling)") and **fails open** — any failure keeps every job (`triage_titles` returns `None`; callers keep all). **People-management titles are their own role family**: "Team Leader"/"Engineering Manager"/"Head of"/Director/VP are off-target unless the search intent itself includes management titles (scope, not domain — "DevOps Team Leader" is filtered for an IC intent), while IC-plus titles (Tech Lead, Lead Engineer, **Team Lead** — the -er suffix is the line, and Haiku needed a worked-example pair in the prompt to hold it, abstract prose wasn't enough) always stay. **Language parity**: titles in any language (Hebrew common) are translated and judged by the same rules — an unfamiliar language is never "uncertain → keep" (a Hebrew mechanical-design title was slipping through while its English twin was filtered). Scraped titles are **untrusted data** (XML-wrapped `<scraped_titles>`, intent in `<search_intent>`). Dropped jobs persist as `DiscoveredJob(triaged_out=True, triage_reason=…)` — never scored — and the run carries `jobs_triaged_out`. Endpoint is scraper-internal (shares the `discovery` rate-limit bucket, max 200 titles) and demo-allowlisted in `Program.cs`.
+The criteria-driven ingest dropped off-target titles with chunked Haiku calls (`/api/match/title-triage`) and labelled seniority the same way (`/api/match/seniority-classify`). Both endpoints were removed on 2026-10-04 with the LinkedIn pool. The chunking machinery they introduced (`ClaudeClient.ClassifyInChunksAsync`) still serves job-facts extraction, and the lessons below apply to it.
 
 **Chunking, and why the output budget is not a single number.** Both `jobId`-keyed calls send every item in one request, so the response size scales with the batch — and the endpoints accept up to 200 items. `ClaudeClient` therefore splits them into chunks of `ClassifyChunkSize` (25) at `ClassifyChunkMaxTokens` (4000), `ClassifyChunkParallelism` (4) in flight, and merges the results; the chunk count keeps a full 200-item run inside the scraper's 120s client timeout. This is not premature generality. Moving the contract from `{"index":12}` to a 36-char UUID tripled the cost of a result row (~50 output tokens, measured on Haiku 4.5: 30 titles → 1512 tokens, 48 titles → truncated) while `MaxTokens` stayed at 2000, so from 2026-08-31 every run over ~40 titles truncated mid-JSON, triage failed open, and **twice as many jobs reached the paid Evaluator for twelve days** while each run still reported `completed`.
 
@@ -147,8 +145,6 @@ Job boards pad niche searches with off-target titles (a "DevEx" search scrapes "
 The same check guards every role that goes through `CallClaudeAsync`: a `max_tokens` stop throws immediately instead of taking the one repair-retry. **Retrying a truncation cannot succeed** — it asks for the same output under the same budget and dies at the same place, having first paid to re-send the truncated attempt as an assistant turn (measured on a real 4-job `parse-batch`: attempt 1 `input=6616/output=4096 stop=max_tokens`, attempt 2 `input=10734/output=4096 stop=max_tokens`, then a "failed to return valid JSON after retry" naming the wrong cause). This is what `jobs_score_failed` was: `AnalystBatch.MaxTokens` sat at 4096 on a "~350-390 tokens/job" estimate that was never true of the shipped schema. Measured over 813 real postings, a ParsedJob is ~746 output tokens at the median, so a median 4-job batch used ~2982 of the 4096 — under the ceiling, but with only ~27% headroom and a long right tail (p99 4863 chars, max 8105). Extraction is unbounded by design: no array has a cap and `namedTechnologies` is explicitly told to restate what `requiredSkills`/`technicalRequirements` already list, so one dense JD can carry a 24-entry skills array. Simulating random 4-job batches against that distribution puts the overflow rate at **~3.6%** — matching the observed 1-2 dead batches per run — and an overflowing batch loses all four jobs, which is why `jobs_score_failed` always came in exact multiples of `SCORE_BATCH_SIZE`. Two things then narrowed the margin at once, four days apart: `namedTechnologies`/`processSignals` reached production on 2026-08-30 (+12% array items per job), and triage broke on 08-31, doubling the batches per run and admitting the verbose off-target postings triage used to drop. Now 16000, matching `EvaluatorBatch`, whose own measured range (3567-4568) was never at risk.
 
 Sampling caution for anyone re-measuring this: the five batches replayed to confirm the fix emitted 2748-5237 output tokens, but they were selected *because* they had failed. That is the overflow tail, not the population — read the 3.6% from the per-job distribution above, not from those five.
-
-**The run records the outcome.** `jobs_triaged_out=0` alone cannot distinguish "nothing was off-target" from "triage never answered", so `DiscoveryRun` carries `triage_status` (`ok` | `partial` | `failed` | `skipped`) and `triage_unresolved`, plus the same pair for seniority. Fail-open is still the right default for relevance — it is the wrong default for cost, and these fields are what make the difference visible.
 
 ## Company Enrichment
 
@@ -187,7 +183,7 @@ the Core Stack cap, and the model wrote it in the same response as the claim.
 Zscaler: 12 required technologies absent from the profile, **1** self-reported
 gap, Core Stack 20/20, and the cap never fired. `RequiredButAbsent` computes
 the list from `must_have_groups` (extracted once at ingest, user-independent —
-`docs/job-pool.md`) against the profile, one gap per unmet requirement: a group
+`docs/greenhouse.md`) against the profile, one gap per unmet requirement: a group
 is met by any of its alternatives, and an unmet one reads "Go / Ruby / Python"; the Analyst's `NamedTechnologies`
 minus its nice-to-haves is the fallback on the manual page. Aliases collapse
 (`EKS` is not a second gap beside `Kubernetes`), and a nice-to-have is never a
@@ -308,20 +304,20 @@ this annotates rather than blocks; it would not be tolerable if it ever gated.
 
 ## Per-user scoring (Step 5)
 
-The pool is shared; scores are not. `discovered_jobs` holds what a posting
+The pool is shared; scores are not. `greenhouse_jobs` holds what a posting
 says, `jobScores` holds what it is worth to one user — keyed by
 `(userId, jobId)`, user-scoped like every other per-user collection
 (`docs/multi-user.md`).
 
 **On match-tab open** (`POST /api/match/pool-scan`):
 
-1. **Cheap Mongo filter** (`CandidateFilter.FromProfile` → `PoolJobRepository`)
-   over the facts extracted once per job: location, seniority band, tech
-   overlap. Every clause is "matches **or** is unstated" — the extraction is
-   best-effort, and missing facts must never hide a job. Seniority accepts one
-   band either side of the candidate's own; location matches on the country,
-   not the city, and never excludes a remote posting. Tech is compared with a
-   case-insensitive collation rather than by storing a second lowercased copy.
+1. **Candidate search** (`CandidateFilter.FromProfile` → `GreenhouseJobRepository`):
+   a vector search over `greenhouse_jobs` with the rendered profile as the
+   query, filtered by the facts extracted once per job — location and
+   seniority band. Every clause is "matches **or** is unstated" — the
+   extraction is best-effort, and missing facts must never hide a job.
+   Seniority accepts one band either side of the candidate's own. Without a
+   Voyage key the search refuses a scan by name (`UnconfiguredCandidateJobStore`).
 2. **Score only what is new.** "New" is decided by the *absence of a jobScores
    row*, not by a last-visited timestamp. Same answer for the common case, and
    a better one otherwise: it also picks up a job that only started matching
@@ -335,17 +331,12 @@ profile edit that widens the filter, must not become an unbounded scoring bill
 in one request; the remainder is picked up on the next visit (`capped: true`
 says so). A user with no profile yet scores nothing at all and spends nothing.
 
-The cap lives **on the source**, not on the scan, because the two sources are
-capped for different reasons and the numbers cannot be reconciled. The pool's
-Mongo filter returns everything that survived it, in no order of fit, so 50 is
-a spend ceiling. Greenhouse returns a vector-ranked list, where the top few
-*are* the answer and the tail is noise the scan would pay Claude to reject, so
-it is 5 — and 5 rather than 6 because a batch is five jobs and one Analyst plus
-one Evaluator call, so a sixth candidate buys a whole second batch for one job.
-Keeping the number on the repository means flipping `Greenhouse:UseAsJobSource`
-moves the cap with the source instead of leaving one that is right for only one
-of them. `Greenhouse:MaxCandidatesPerScan` can tune the ranked source's depth
-on the box; it cannot reach the pool's.
+The cap lives **on the source**, not on the scan, because the right number
+follows from how candidates are chosen: a vector-ranked list, where the top
+few *are* the answer and the tail is noise the scan would pay Claude to reject.
+It is 10 by default (`GreenhouseJobRepository.DefaultMaxCandidatesPerScan`);
+`Greenhouse:MaxCandidatesPerScan` tunes it on the box, and a value of 0 or
+less falls back to the default.
 
 **Pack quota: 3 per user per UTC day.** Claimed atomically in
 `UserQuotaRepository` *before* the Claude call — the `pack` rate-limit bucket

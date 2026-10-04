@@ -14,8 +14,8 @@ scrape_configs:
         refresh_interval: 15s
     relabel_configs:
       # Container name -> service label. The (?:-run)? branch catches the
-      # `docker compose run --rm` containers the cron jobs use, so pool-ingest
-      # and mailbot land under the same label as a long-running service would.
+      # `docker compose run --rm` containers the cron jobs use, so mailbot and
+      # greenhouse land under the same label as a long-running service would.
       - source_labels: ['__meta_docker_container_name']
         regex: '/nextrole-([a-z-]+?)(?:-run)?-[0-9a-f]+'
         target_label: 'service'

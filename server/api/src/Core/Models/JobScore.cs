@@ -8,7 +8,7 @@ namespace ApplicationTracker.Core.Models;
 //
 // Scores cannot live on the pool document itself: the pool is shared and a
 // score is an opinion about one candidate. This is the per-user half —
-// discovered_jobs holds what the posting says, jobScores holds what it is
+// greenhouse_jobs holds what the posting says, jobScores holds what it is
 // worth to a given user.
 //
 // Its existence is also the bookkeeping for "score only what is new": a pool
@@ -25,13 +25,13 @@ public sealed record JobScore : IUserOwned
     [BsonRepresentation(MongoDB.Bson.BsonType.String)]
     public Guid UserId { get; init; }
 
-    // discovered_jobs.id — the shared pool's own job id, not a Mongo _id.
+    // The pool job's id (greenhouse_jobs), not a Mongo _id.
     public string JobId { get; init; } = "";
 
     public int? Score { get; init; }
     public string? Verdict { get; init; }
     public bool? ShouldApply { get; init; }
-    // The full MatchResponse as stored JSON, same shape discovered_jobs.match_analysis used.
+    // The full MatchResponse as stored JSON.
     public string? MatchAnalysis { get; init; }
     // Set when scoring failed for this job: the row still exists so the job is
     // not re-scored on every visit, but it carries no verdict.

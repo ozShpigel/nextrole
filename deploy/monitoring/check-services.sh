@@ -6,7 +6,7 @@ source .env
 
 # Hardcoded on purpose: this is what SHOULD be running, so a service that
 # disappears from compose.yml without anyone noticing still pages. Keep it in
-# step with compose.yml -- the cron services (pool-ingest, mailbot) are not
+# step with compose.yml -- the cron services (mailbot, greenhouse) are not
 # listed because they are `run --rm` one-shots and are never up.
 EXPECTED="caddy api scraper web loki promtail grafana"
 STATE_FILE=/tmp/nextrole-services-down

@@ -36,6 +36,9 @@ public static class ApplicationIndexInitializer
     private const string UserIdIndex = "idx_userid";
     private const string UserApplicationIdIndex = "idx_userid_applicationid";
     private const string SnapshotTtlIndex = "ttl_createdat_90d";
+    // Same name and keys it had under the retired PoolIndexInitializer, so an
+    // existing index is left as it is.
+    private const string PoolStateIndex = "idx_userid_jobid";
     private static readonly TimeSpan SnapshotTtl = TimeSpan.FromDays(90);
 
     public static async Task EnsureIndexesAsync(
@@ -47,6 +50,7 @@ public static class ApplicationIndexInitializer
         IMongoCollection<MatchSnapshot> matchSnapshots,
         IMongoCollection<ResumePack> resumePacks,
         IMongoCollection<MockInterviewSession> mockInterviewSessions,
+        IMongoCollection<PoolJobState> poolJobState,
         ILogger logger,
         CancellationToken ct = default)
     {
@@ -97,6 +101,14 @@ public static class ApplicationIndexInitializer
         // in TrackedEmailRepository, and its upsert is a find-then-replace, i.e.
         // a genuine check-then-act race without a unique index behind it. Clear
         // pre-existing dupes first, same as applications.
+        // poolJobState (dismissed/saved/viewed) is read per (UserId, JobId).
+        await poolJobState.Indexes.CreateOneAsync(
+            new CreateIndexModel<PoolJobState>(
+                Builders<PoolJobState>.IndexKeys.Ascending("UserId").Ascending("JobId"),
+                new CreateIndexOptions { Name = PoolStateIndex }),
+            cancellationToken: ct);
+        logger.LogInformation("Ensured index {Index} on poolJobState(UserId, JobId)", PoolStateIndex);
+
         await RemoveDuplicateMessagesAsync(messages, logger, ct);
         await messages.Indexes.CreateOneAsync(
             new CreateIndexModel<TrackedEmail>(
@@ -110,9 +122,7 @@ public static class ApplicationIndexInitializer
         // can outlive every application that ever referenced it (e.g. all of
         // them deleted) with nothing to clean it up. Nothing in this codebase
         // currently reads SnapshotId back for display, so there is no live read
-        // path a TTL could break; 90 days bounds growth the same way the
-        // scraper's own discovered_jobs TTL does (60 days — longer here since
-        // these came from tracked, not just discovered, jobs).
+        // path a TTL could break; 90 days bounds growth.
         await matchSnapshots.Indexes.CreateOneAsync(
             new CreateIndexModel<MatchSnapshot>(Builders<MatchSnapshot>.IndexKeys.Ascending(s => s.CreatedAt),
                 new CreateIndexOptions { Name = SnapshotTtlIndex, ExpireAfter = SnapshotTtl }),

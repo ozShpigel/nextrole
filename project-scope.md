@@ -59,7 +59,7 @@ only — see `docs/multi-user.md`.
 Each of these was considered and declined, with a reason. They are not backlog
 by accident.
 
-- **A separate vector database** — retrieval uses Atlas Vector Search in the database the app already runs on. For the LinkedIn pool (~600–2,500 postings) even that was declined in favour of a deterministic filter over extracted fields (`docs/job-pool.md`); the board ingest added one embedding per posting as a recall prefilter, never as a score (`docs/greenhouse.md`).
+- **A separate vector database** — retrieval uses Atlas Vector Search in the database the app already runs on. For the LinkedIn pool (~600–2,500 postings) even that was declined in favour of a deterministic filter over extracted fields (that pool was removed on 2026-10-04); the board ingest added one embedding per posting as a recall prefilter, never as a score (`docs/greenhouse.md`).
 - **Gmail OAuth per user** — the mailbot reads one mailbox and writes as a single configured user. Multi-user mail would need per-user OAuth, token storage and refresh, which is a larger surface than the feature is worth today.
 - **Passwords and account recovery beyond Google** — the session cookie is the identity; Google sign-in is the only way back to it from another browser.
 - **A demo-persona path for unidentified visitors** — considered and withdrawn. An unidentified visitor is not shown someone else's seeded profile; they upload their own CV. (The seeded demo instance this once referred to has been retired.)

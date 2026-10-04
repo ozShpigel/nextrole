@@ -38,47 +38,12 @@ Scheduled jobs run as systemd timers rather than always-on containers.
 
 ## Multi-user migration — read before the first deploy of this build
 
-Both services migrate pre-multi-user data on startup, and **both must run**.
-The API stamps `userId` onto the tracker collections and re-keys the
-one-per-user singletons; the scraper rebuilds the retention TTL,
-migrates the per-user pool flags into `poolJobState`, and creates the pool
-indexes. Only the TTL rebuild is fatal. Each refuses to start if its own
-fatal migration cannot complete — the API because it would otherwise serve a
-view of the database that does not match what is in it, the scraper because
-until its TTL rebuild lands every shared-pool job is a deletion candidate under
-the old unfiltered index. Full detail: `docs/multi-user.md`, `docs/job-pool.md`.
-
-### `Identity:FixedUserId` is set once and cannot be changed afterwards
-
-Under `Identity:Mode=Fixed` (the eval CLIs, or a self-hosted single-user run), this GUID is the answer to
-"who owns all the existing data". The first startup stamps every pre-multi-user
-document with it and re-keys the profile and résumé file onto it.
-
-**Changing it later orphans everything.** The previous owner's rows stay in the
-database under the old id, and the instance comes up looking empty — the data
-is intact but unreachable without a second, hand-written migration. Decide the
-value before the first boot and keep it in the environment file for good.
-
-> The pre-deploy rehearsal was run with the `appsettings.json` default
-> `11111111-1111-1111-1111-111111111111`. If production deploys with a
-> different GUID, the rehearsal still holds — the id is a parameter, not a
-> behaviour — but the deployed value is the one that becomes permanent.
-
-### Rehearse against a copy first
-
-```bash
-# Copy production (documents AND index definitions) to a scratch name
-dotnet run --project server/api/src/DbCopy -- job-tracker=job-tracker-rehearsal
-dotnet run --project server/api/src/DbCopy -- jobmatch=jobmatch-rehearsal
-
-# Point a local API + scraper at the copy and watch the startup logs, then
-# boot a second time: a correct migration logs nothing at all on the rerun.
-```
-
-Copying the index definitions is the point: the migration drops and rebuilds
-the legacy unique indexes, and a document-only copy silently skips half the
-test. Drop the copies afterwards — a full copy of production roughly doubles
-cluster storage, which matters on the M0 free tier.
+The API migrates pre-multi-user data on startup: it stamps `userId` onto the
+tracker collections and re-keys the one-per-user singletons, and refuses to
+start if that cannot complete, because it would otherwise serve a view of the
+database that does not match what is in it. Full detail: `docs/multi-user.md`.
+(The shared-pool TTL rebuild that also ran here went with the LinkedIn pool,
+removed 2026-10-04.)
 
 ## Notes
 
@@ -89,29 +54,23 @@ cluster storage, which matters on the M0 free tier.
 - Frontend API URLs are Vite build-time variables. They must be unset in
   GitHub Actions variables so the code falls back to relative paths.
 - Schedules are UTC, and live in `deploy/systemd/` — **not** in anyone's
-  crontab, which holds only the 5-minutely service health check. Three
-  one-shot timers, staggered so the two ingests do not contend for the API's
-  `discovery` rate-limit bucket (20/min, shared):
+  crontab, which holds only the 5-minutely service health check. Two
+  one-shot timers:
 
       nextrole-mailbot.timer       02:00
-      nextrole-pool-ingest.timer   05:30   the shared pool
+      nextrole-greenhouse.timer    06:15   the board ingest's fan-out
 
   `Persistent=true` on both: a timer whose window was missed because the box
   was down fires once on the next boot rather than skipping the day.
 
-  A third timer, `nextrole-ingest.timer`, ran a criteria-driven scrape at 05:00
-  into the same pool. Three of its four job titles were already in
-  `roles.json`, so `pool_key` deduped the rows while the scrape was paid twice;
-  it was removed at teardown and its one unique title ("AI Engineer") moved
-  into `roles.json`.
+  `nextrole-pool-ingest.timer` (05:30, the LinkedIn pool) was disabled on
+  2026-09-26 and its unit and image removed on 2026-10-04. On the box:
+  `systemctl disable --now nextrole-pool-ingest.timer` if it is still
+  enabled, then delete both unit files and run `systemctl daemon-reload`.
 
-- **`pool-ingest` is what makes the instance usable.** It fills the
-  shared job pool the per-user scan matches against; without it a visitor
-  uploads a CV and sees an empty Matches tab, because the candidate filter has
-  no extracted requirements to filter on. It needs no identity of its own (the
-  pool is user-independent), so it can be scheduled independently of how the
-  instance resolves users. First run costs roughly $0.33 in extraction over ~160 postings;
-  subsequent runs only pay for what is new (`docs/job-pool.md`).
+- **`greenhouse` (the publish cron) and `greenhouse-consumer` are what make the instance
+  usable.** They fill `greenhouse_jobs`, the pool the per-user scan matches
+  against (`docs/greenhouse.md`).
 
 ## Monitoring
 
@@ -133,12 +92,11 @@ there rather than on the command line:
 
 Log in to Grafana as `admin` with `GRAFANA_PASSWORD` from the box's `.env`.
 
-Logs are labelled `service` (api, scraper, web, caddy, pool-ingest, mailbot, ...)
+Logs are labelled `service` (api, scraper, web, caddy, mailbot, greenhouse-consumer, ...)
 and `env`, which is now always `prod`. Filter by `service`:
 
     {service="api"} |= "jobId=<uuid>"     # one job's full path through the pipeline
-    {service="api"} |= "runId=<uuid>"     # everything that happened in one discovery run
-    {service="pool-ingest"} |= "Job skipped"
+    {service="greenhouse-consumer"} |= "Board"   # one ingest run's per-board lines
 
 `env` used to distinguish two stacks and got it backwards -- the rule overrode
 it to `demo` for any service matching `demo-.*`, which after the repurposing
@@ -173,7 +131,7 @@ A new or changed unit needs systemd told about it — copying the file is not
 enough:
 
     systemctl daemon-reload
-    systemctl enable --now nextrole-pool-ingest.timer
+    systemctl enable --now nextrole-greenhouse.timer
     systemctl list-timers 'nextrole-*'          # NEXT/LEFT columns confirm it is armed
 
 To check for drift:
@@ -182,10 +140,10 @@ To check for drift:
 
 **`docker compose pull` alone is not enough.** A running container keeps using its old
 image until recreated. Always follow with `--force-recreate`, and remember that the
-cron-profile containers (`pool-ingest`, `mailbot`) are pulled separately:
+cron-profile containers (`mailbot`, `greenhouse`) are pulled separately:
 
     docker compose pull api scraper web
     docker compose up -d --force-recreate api scraper web
-    docker compose --profile cron pull pool-ingest mailbot
+    docker compose --profile cron pull mailbot greenhouse
 
 Verify with `docker inspect -f '{{.State.StartedAt}}' nextrole-api-1`.

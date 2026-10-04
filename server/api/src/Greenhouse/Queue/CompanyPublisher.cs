@@ -9,7 +9,7 @@ namespace ApplicationTracker.Greenhouse;
 /// Fans one message out per board token, then exits. The daily timer's job.
 /// </summary>
 /// <remarks>
-/// One-shot, like PoolIngest and the mailbot: it runs, it exits, and the exit
+/// One-shot, like the mailbot: it runs, it exits, and the exit
 /// code is what systemd sees.
 /// </remarks>
 public sealed class CompanyPublisher

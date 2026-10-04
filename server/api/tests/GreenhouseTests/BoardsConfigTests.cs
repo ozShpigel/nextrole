@@ -123,7 +123,7 @@ public class BoardsConfigTests
     [Fact]
     public void The_comment_keys_in_the_shipped_file_do_not_break_the_parse()
     {
-        // config/boards.json carries _comment keys, the way roles.json does.
+        // config/boards.json carries _comment keys.
         var path = WriteTemp("""
             { "_comment": "why this list looks like this", "companies": ["alpha-co"] }
             """);

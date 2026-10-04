@@ -11,7 +11,7 @@ import { useDwell } from '../lib/useDwell';
 import { isCvUploadInProgress, isScoringHeld, useCvUpload } from '../lib/cvUpload';
 import { useSaveJob, useDismissJob, useMarkViewed } from '../lib/mutations';
 import type { DiscoveredJobSummary } from '../lib/types';
-import { cityCountry, formatAge, formatSalaryRange, isNew, hasRealJobUrl } from '../lib/format';
+import { cityCountry, formatAge, formatSalaryRange, isNew } from '../lib/format';
 import AnalysisCard, { edVerdictColor } from '../components/AnalysisCard';
 import { CompanyAvatar } from '../components/CompanyAvatar';
 import { JobDescriptionText } from '../components/JobDescriptionText';
@@ -502,7 +502,7 @@ function MatchDetail({ job, saved, dismissed, onClose, onSave, onDismiss }: Matc
         <div className="min-w-0 flex-1 text-[13px] text-[var(--ed-ink-faint)] truncate">
           <span className="text-[var(--ed-ink)] font-medium">{job.title}</span> · {job.company}
         </div>
-        {hasRealJobUrl(job.job_url) && (
+        {job.job_url && (
           <a href={job.job_url!} target="_blank" rel="noopener noreferrer" className="shrink-0 text-[13px] text-[var(--ed-ink-faint)] hover:text-[var(--ed-ink)] transition-colors">
             View posting ↗
           </a>
@@ -568,7 +568,7 @@ function MatchDetail({ job, saved, dismissed, onClose, onSave, onDismiss }: Matc
               {/* Applying happens on the company's own site: this opens the
                   original posting. Saving is separate, so a role can be saved
                   first and applied to later. */}
-              {hasRealJobUrl(job.job_url) && (
+              {job.job_url && (
                 <a
                   href={job.job_url!}
                   target="_blank"

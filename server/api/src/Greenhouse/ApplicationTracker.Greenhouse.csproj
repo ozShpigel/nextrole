@@ -10,8 +10,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- Here beside PoolIngest, DbCopy and Seeder for the reason PoolIngest is:
-         it compiles Core and Infrastructure. The unit of work, the models, the
+    <!-- Here beside DbCopy and the API because it compiles Core and
+         Infrastructure. The unit of work, the models, the
          Mongo layer and the embedding client all live there, and the API's
          FindCandidateJobIds uses the SAME embedding client, model and
          dimensions as this ingest does.
@@ -25,8 +25,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- The board-token list ships with the image, exactly as roles.json does
-         for PoolIngest. Still configuration (Boards__ConfigPath points
+    <!-- The board-token list ships with the image. Still configuration (Boards__ConfigPath points
          elsewhere when you want it to) but baking a default means the box needs
          no hand-placed file. Manual state on the box is what no `git pull`
          fixes (AGENTS.md). -->

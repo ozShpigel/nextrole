@@ -8,7 +8,7 @@ namespace ApplicationTracker.Core.Models;
 // Read by the Greenhouse ingest's pre-read filter: a NEW posting of a function
 // nobody wants, or in a place nobody is, is not paid for (docs/greenhouse.md ->
 // "The pre-read filter"). One shape, two collections. Deliberately NOT
-// user-scoped, like PoolRole: it is a property of the shared pool, and it
+// user-scoped: it is a property of the shared pool, and it
 // records WHICH users want the value only so it can leave when the last of
 // them does.
 public sealed record PoolDemand

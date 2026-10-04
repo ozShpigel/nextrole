@@ -348,11 +348,11 @@ export function useDeleteApplication() {
   const queryClient = useQueryClient();
   return useMutation({
     // jobUrl is optional (older applications may predate JobUrl being
-    // populated) — when present, also clears the originating discovered
-    // job's saved_to_tracker flag so it doesn't stay permanently hidden
-    // from Search/re-add. The API has no reference back to the scraper's
-    // discovered_jobs doc, so this is a second, best-effort client call
-    // rather than something the API delete can cascade itself.
+    // populated) — when present, also clears this user's saved flag on the
+    // originating pool job so it doesn't stay permanently hidden from
+    // Matches/re-add. The application has no reference back to the pool job,
+    // so this is a second, best-effort client call rather than something the
+    // API delete can cascade itself.
     mutationFn: async ({ id, jobUrl }: { id: string; jobUrl?: string | null }) => {
       await api(`/applications/${id}`, { method: 'DELETE' });
       if (jobUrl) {

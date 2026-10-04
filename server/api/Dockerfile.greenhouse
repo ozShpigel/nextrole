@@ -24,15 +24,15 @@ RUN dotnet publish API/src/Greenhouse/ApplicationTracker.Greenhouse.csproj -c Re
 #   You must install or update .NET to run this application.
 #   Framework: 'Microsoft.AspNetCore.App', version '10.0.0'
 #
-# Dockerfile.poolingest gets away with `runtime` because PoolIngest references
-# Core only. The difference is the reference graph, not whether the process
-# serves HTTP -- and it is invisible outside a container, because `dotnet run`
-# against the SDK has every framework installed.
+# A process referencing Core only could use `runtime`. The difference is the
+# reference graph, not whether the process serves HTTP -- and it is invisible
+# outside a container, because `dotnet run` against the SDK has every framework
+# installed.
 FROM mcr.microsoft.com/dotnet/aspnet:10.0-alpine
 WORKDIR /app
 COPY --from=build /app .
 
-# The board list ships with the image, as roles.json does for pool-ingest. Still
+# The board list ships with the image. Still
 # configuration -- Boards__ConfigPath points elsewhere when you want it to --
 # but baking a default means the box needs no hand-placed file, and manual state
 # on the box is what no `git pull` fixes.

@@ -40,7 +40,7 @@ public interface IListingsClient
 /// scraper called the API and never the reverse. That is deliberate and it is
 /// the direction the slimming is heading — the Python service becomes a library
 /// the .NET side calls, rather than an orchestrator that consumes the API
-/// (docs/scraper-slimming.md). <c>PoolIngest</c> is the other caller.
+/// (docs/scraper-slimming.md).
 ///
 /// It exists because fetching a LinkedIn posting needs jobspy, and jobspy is
 /// Python. Nothing else about importing a job does.

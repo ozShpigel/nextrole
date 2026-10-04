@@ -4,7 +4,6 @@ import { Download, Sparkles, RefreshCw, ChevronLeft, ChevronRight, ExternalLink,
 import { useApplicationDetail, usePack } from '../lib/queries';
 import { useGeneratePack } from '../lib/mutations';
 import { apiUrl } from '../lib/api';
-import { hasRealJobUrl } from '../lib/format';
 import { ResumePackEditModal } from '../components/ResumePackEditModal';
 
 const ED_BTN = 'rounded-full border px-4 py-[0.55rem] text-[0.8rem] font-semibold tracking-[0.02em] transition-all disabled:opacity-50 disabled:pointer-events-none inline-flex items-center gap-[0.4rem]';
@@ -143,7 +142,7 @@ export default function ResumePackPage() {
             <button type="button" className={ED_GHOST} onClick={() => setShowEditModal(true)}>
               <Pencil size={14} /> Edit Manually
             </button>
-            {app?.jobUrl && hasRealJobUrl(app.jobUrl) && (
+            {app?.jobUrl && (
               <a href={app.jobUrl} target="_blank" rel="noopener noreferrer" className={ED_GHOST}>
                 <ExternalLink size={14} /> View Job
               </a>

@@ -145,9 +145,9 @@ export interface CompanyProfileInfo {
   url?: string | null;
 }
 
-// A discovered_jobs doc (snake_case, as stored) — score/verdict/match_analysis
-// are populated by the batched ingest-time scoring path; null when a job is
-// still unscored (score-call failed) rather than "not yet searched".
+// A pool job as GET /api/pool/jobs lists it (snake_case) — score/verdict/
+// match_analysis come from this user's jobScores row; null while a job is
+// still unscored.
 export interface JobSalary {
   min: number;
   max: number;

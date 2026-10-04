@@ -4,7 +4,7 @@ Full setup for [NextRole](../README.md) — running the stack with Docker or per
 
 ## Prerequisites
 
-- [.NET 10 SDK](https://dotnet.microsoft.com/download) — API, Mailbot, Seeder
+- [.NET 10 SDK](https://dotnet.microsoft.com/download) — API, Mailbot
 - [Python 3.12+](https://www.python.org/) — Scraper
 - [Bun](https://bun.sh/) — frontend runtime & package manager
 - A [MongoDB](https://www.mongodb.com/) instance (Atlas free tier works)
@@ -83,15 +83,14 @@ parses hostile HTML should not hold either (`docs/scraper-slimming.md`).
 |----------|----------|---------|-------------|
 | `CORS_ORIGINS` | no | `*` | Comma-separated allowed browser origins. Vestigial: the browser does not call this service. |
 
-It serves `POST /scrape`, `POST /scrape/url` and `/health`, and is called by
-`PoolIngest` and the API over Docker DNS.
+It serves `POST /scrape`, `POST /scrape/url` and `/health`. The API calls
+`/scrape/url` over Docker DNS for Import Job; `/scrape` has no caller since the
+LinkedIn pool ingest was removed (2026-10-04) and is kept for a LinkedIn source
+in the board ingest.
 
-**Scheduled ingest.** The daily run is `PoolIngest`, a .NET cron container
-(`server/api/Dockerfile.poolingest`), not this service. It reads
-`server/api/src/PoolIngest/config/roles.json`, calls `POST /scrape` here, folds
-the results into the shared pool, and exits non-zero on failure so a bad night
-is visible in whatever job history your scheduler keeps. `0 5 * * *` is the
-reference cadence; see `deploy/systemd/nextrole-pool-ingest.*`.
+**Scheduled ingest.** The job source is the board ingest
+(`server/api/src/Greenhouse`, `docs/greenhouse.md`), not this service; see
+`deploy/systemd/nextrole-greenhouse.*`.
 
 ### Mailbot (.NET console, optional) & Frontend
 

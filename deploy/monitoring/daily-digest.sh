@@ -18,8 +18,8 @@ START=$(( $(date +%s) - WINDOW_HOURS*3600 ))000000000
 #
 # SEPARATELY, `source=ingest` is stale and this digest is probably reporting
 # near-zero: ingest stopped scoring when scoring moved to the per-user scan
-# (docs/job-pool.md), so the only thing still tagging X-Source: ingest is
-# Import Job. Left alone deliberately -- changing what a metric measures is
+# (docs/scoring-and-search.md), so what still tags X-Source: ingest is the
+# board ingest's fact/parse reads and Import Job. Left alone deliberately -- changing what a metric measures is
 # not a rename -- but it wants deciding.
 RAW=$(curl -sG "$LOKI/loki/api/v1/query_range" \
   --data-urlencode 'query={service="api"} |= "Job scored" |= "source=ingest"' \

@@ -105,8 +105,7 @@ public sealed class MongoCandidateJobStore : ICandidateJobStore
     /// short result set looks exactly like a thin pool.
     /// </para>
     /// <para>
-    /// <b>Every clause is "matches OR is unstated"</b>, which is
-    /// <c>PoolJobRepository</c>'s rule and has to stay so. The extraction is
+    /// <b>Every clause is "matches OR is unstated"</b>, and has to stay so. The extraction is
     /// best-effort; a job whose facts are missing must never become invisible
     /// to everyone. Greenhouse rows carry <c>extracted: null</c> until the
     /// extraction step runs, so without this every one of them would be

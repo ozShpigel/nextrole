@@ -42,8 +42,6 @@ export async function clearAll(): Promise<void> {
   const db = await getDb();
   await Promise.all([
     db.collection('search_criteria').deleteMany({}),
-    db.collection('discovery_runs').deleteMany({}),
-    db.collection('discovered_jobs').deleteMany({}),
     db.collection('applications').deleteMany({}),
     db.collection('interviews').deleteMany({}),
     db.collection('notes').deleteMany({}),

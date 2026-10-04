@@ -1,8 +1,8 @@
 """The jobspy adapter.
 
-Parameters in, listings out. No database, no identity, no decisions -- every
-choice the daily run makes (what is new, what to keep, what to extract, what to
-age out) lives in PoolIngest, and every user-scoped route lives in the API.
+Parameters in, listings out. No database, no identity, no decisions -- what to
+keep, extract and close is the board ingest's job, and every user-scoped route
+lives in the API.
 
 This is what is left after docs/scraper-slimming.md: the one part of the old
 scraper that genuinely needs Python, because jobspy is a Python library. It went
@@ -57,14 +57,15 @@ async def health():
 # ---------------------------------------------------------------------------
 # Scrape — the jobspy adapter
 #
-# The one thing in this service that genuinely needs Python. PoolIngest (.NET)
-# calls it; nothing else does, and no browser can reach it — nginx proxies only
-# what the client uses, and this is container-to-container over Docker DNS.
+# The one thing in this service that genuinely needs Python. Its caller was the
+# retired LinkedIn pool ingest (removed 2026-10-04); kept for a LinkedIn source
+# in the board ingest, which would call it the same way. No browser can reach
+# it — nginx proxies only what the client uses, and this is container-to-
+# container over Docker DNS.
 #
 # Stateless by construction: parameters in, listings out. It touches no
-# database, resolves no identity and makes no decisions. Everything the daily
-# run decides — what is new, what to keep, what to extract, what to age out —
-# lives in PoolIngest (docs/scraper-slimming.md).
+# database, resolves no identity and makes no decisions — those belong to the
+# caller (docs/scraper-slimming.md).
 # ---------------------------------------------------------------------------
 
 class ScrapeRequest(BaseModel):

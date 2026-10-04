@@ -6,9 +6,8 @@ class ScrapeSpec(BaseModel):
 
     This was `SearchCriteria`, a user-owned document with an id, an owner, a
     name and a save threshold. The criteria-driven ingest that read those
-    documents is gone (docs/scraper-slimming.md, Phase 0) and the only
-    remaining caller builds one in memory from `config/roles.json`, so what
-    survives is the seven fields `scrape_for_criteria` actually reads.
+    documents is gone (docs/scraper-slimming.md, Phase 0), so what survives is
+    the seven fields `scrape_for_criteria` actually reads.
 
     Deliberately has no `user_id`. The pool is shared, and a scrape is not
     performed on anyone's behalf — keeping an owner field here is what let the

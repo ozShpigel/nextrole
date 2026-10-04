@@ -1,6 +1,6 @@
 # Prep-tab / Active-board / Translation Recon
 
-Read-only findings only — no recommendations, no proposed changes. Secrets, credentials, connection strings, and personal data are elided as `<REDACTED>`. Anything not found is marked "does not exist".
+Read-only findings only — no recommendations, no proposed changes. A snapshot: code excerpts below predate later removals (the Glassdoor/news parameters on 2026-10-03; `TriageTitlesAsync`, `ClassifySeniorityAsync` and `/enrich-narrative` on 2026-10-04). Secrets, credentials, connection strings, and personal data are elided as `<REDACTED>`. Anything not found is marked "does not exist".
 
 ---
 
@@ -655,7 +655,7 @@ Both are exposed as plain singletons (not just `IOptions<T>`) so `ClaudeClient`'
 
 ### What it would take to add one more distinct model call
 
-Using an existing narrow, batch-free agent (e.g. `SummarizeCompanyAsync` / `TriageTitlesAsync`) as the template, in order:
+Using an existing narrow, batch-free agent (e.g. `SummarizeCompanyAsync`) as the template, in order:
 
 1. **`server/api/src/Infrastructure/AI/PromptSeeds.cs`** — add a new static prompt-text constant for the new agent's system prompt.
 2. **`server/api/src/Core/Profile/ScoringConfig.cs`** — add a new `RoleScoringConfig` property if the call's model/temperature/max-tokens should be independently tunable (most agents get one; a few hardcode the model inline instead).

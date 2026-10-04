@@ -9,9 +9,8 @@ namespace ApplicationTracker.Core.Matching;
 /// One posting as the ingest-time AI passes need to see it.
 /// </summary>
 /// <remarks>
-/// Source-neutral on purpose. Both ingests produce it -- PoolIngest from a
-/// scraped LinkedIn listing, the Greenhouse ingest from a board posting -- and
-/// neither the endpoints nor this client need to know which.
+/// Source-neutral on purpose: every board source produces it, and neither the
+/// endpoints nor this client need to know which.
 /// </remarks>
 /// <param name="JobId">
 /// Correlation key. The response is matched back on this, never on position.

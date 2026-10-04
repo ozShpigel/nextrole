@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { Sparkles, RefreshCw, ExternalLink, X, Link as LinkIcon, Archive, ChevronDown, Pencil, Zap, MailCheck } from 'lucide-react';
 import { useApplications } from '../lib/queries';
 import { useGeneratePack, useUpdateAppStatus } from '../lib/mutations';
-import { formatDate, formatTime, daysSince, hasRealJobUrl } from '../lib/format';
+import { formatDate, formatTime, daysSince } from '../lib/format';
 import { CompanyAvatar } from '../components/CompanyAvatar';
 import { StatusBadge, StatusModal } from '../components/Status';
 import { ImportJobModal } from '../components/ImportJobModal';
@@ -254,7 +254,7 @@ export default function ActivePage() {
   function ApplyActions({ app }: { app: Application }) {
     return (
       <>
-        {hasRealJobUrl(app.jobUrl) && (
+        {app.jobUrl && (
           <a
             href={app.jobUrl!}
             target="_blank"
@@ -396,7 +396,7 @@ export default function ActivePage() {
                     {a.nextInterviewer && ` — ${a.nextInterviewer}`}
                   </span>
                 )}
-                {hasRealJobUrl(a.jobUrl) && (
+                {a.jobUrl && (
                   <a
                     href={a.jobUrl!}
                     target="_blank"

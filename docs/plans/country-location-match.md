@@ -161,8 +161,9 @@ as today.
 
 ## Not in this change
 
-- **The LinkedIn pool's Mongo query** (`PoolJobRepository`) keeps its regex.
-  It is the retiring source, and a Mongo filter cannot call the resolver.
+- **The LinkedIn pool's Mongo query** (`PoolJobRepository`) kept its regex.
+  It was the retiring source (removed 2026-10-04), and a Mongo filter cannot
+  call the resolver.
 - **The ingest's served locations** already resolve countries. A learned
   profile term like "london" is ambiguous and serves only its text, but the
   baseline `served_locations` already lists the UK. The profile rule from

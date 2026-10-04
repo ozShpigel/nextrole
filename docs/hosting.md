@@ -72,14 +72,7 @@ instance is how the mailbot spent an hour syncing an empty account (issue #67).
 
 ## Fictional data
 
-`server/api/src/Seeder` and `app/services/demo_seed.py` still exist. Their only
-consumer is [`docs/demos`](demos/README.md), which records the per-feature clips
-against a persistent seeded database so a clip stays reproducible.
-
-**Confirm a database name is free before seeding into it.** The seeder deletes
-and reinserts per seed user, so the blast radius is bounded by nothing except
-which database it was pointed at — a "scratch" name that turns out to be real
-means it writes into live data. It has already cost two documents written into a
-real database, caught only because a legacy unique index happened to abort the
-run. With the `-demo` databases now dropped, a stale `--db job-tracker-demo`
-argument no longer lands somewhere harmless.
+None. The Seeder (`server/api/src/Seeder`) and the demo-clip recorder
+(`docs/demos`), its only consumer, were removed on 2026-10-04. The lesson it left
+is in `AGENTS.md`: confirm a database name is free before writing test or
+scratch data into it.

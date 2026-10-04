@@ -8,7 +8,7 @@ services:
     environment:
       - Anthropic__ApiKey=${ANTHROPIC_API_KEY}
       # Per-source key for ingest-initiated calls (ClaudeClient.ResolveClient,
-      # routed by the X-Source: ingest header that PoolIngest sends) — optional,
+      # routed by the X-Source: ingest header the board ingest sends) — optional,
       # blank-guarded back to the default key above if unset. Lets the Anthropic
       # console bill ingest scoring separately from everything else.
       - Anthropic__ApiKeys__ingest=${ANTHROPIC_INGEST_API_KEY:-}
@@ -38,24 +38,6 @@ services:
       dockerfile: server/scraper/Dockerfile
     ports:
       - "5137:8080"
-
-  # The daily pool ingest. A one-shot cron container, not a service, so it is
-  # behind a profile and does not start with `docker compose up`:
-  #
-  #   docker compose --profile cron run --rm pool-ingest
-  #
-  # It owns the pipeline -- dedupe, upsert, fact extraction, age-out -- and
-  # calls the scraper above for listings and the API for Claude.
-  pool-ingest:
-    build:
-      context: .
-      dockerfile: server/api/Dockerfile.poolingest
-    profiles: ["cron"]
-    environment:
-      - MongoDB__ConnectionString=${MONGODB_CONNECTION_STRING}
-      - MongoDB__Database=${MONGO_DB:-job-tracker}
-      - Api__BaseUrl=http://api:8080
-      - Scraper__BaseUrl=http://scraper:8080
 
   mailbot:
     build:

@@ -31,18 +31,8 @@ jobs:
           file: server/api/Dockerfile
           push: true
           tags: ghcr.io/${{ env.OWNER }}/${{ env.IMAGE_NAME }}:latest
-      # Same source tree, same commit, same workflow. Both images compile Core
-      # and Infrastructure, so they must ship together: two workflows on the
-      # same server/api/** filter could deploy an API on new Core while
-      # pool-ingest still ran the old one, and nothing would report it.
-      - uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: server/api/Dockerfile.poolingest
-          push: true
-          tags: ghcr.io/${{ env.OWNER }}/pool-ingest:latest
-      # Same reasoning, one step further. This image and the API share more than
-      # Core: they share the EMBEDDING CLIENT, the model and the dimensions
+      # Same source tree, same commit, same workflow. This image and the API
+      # share more than Core: they share the EMBEDDING CLIENT, the model and the dimensions
       # (GreenhouseEmbeddingOptions). If they ever shipped from different
       # commits and disagreed about either, $vectorSearch would return an empty
       # result rather than an error -- the prefilter would simply stop finding
@@ -63,10 +53,6 @@ jobs:
             cd /srv/nextrole
             docker compose pull api
             docker compose up -d --force-recreate api
-            # pool-ingest is a cron container: nothing is running to recreate.
-            # Pulling is enough — the next timer fire starts a fresh one from
-            # the new image.
-            docker compose --profile cron pull pool-ingest
             # greenhouse is two services from one image: a cron container
             # (publish) that the next timer fire starts fresh, and a
             # LONG-RUNNING consumer that has to be recreated to pick up the new
@@ -91,7 +77,7 @@ jobs:
             # not sync.
             #
             # -f, NOT -a. Dangling images only. `-a` removes anything no RUNNING
-            # container holds, and pool-ingest, mailbot and greenhouse-publish
+            # container holds, and mailbot and greenhouse-publish
             # are cron containers that do not exist between runs -- it would
             # delete their images and break the next timer firing until a deploy
             # re-pulled them.

@@ -17,8 +17,6 @@ public sealed record NarrativeEnrichRequest
     public required int OverallScore { get; init; }
     public required string Verdict { get; init; }
     public required Breakdown Breakdown { get; init; }
-    public HardBlocker[] HardBlockers { get; init; } = [];
-    public string[] MustClarify { get; init; } = [];
     public string[] StackedGaps { get; init; } = [];
 }
 

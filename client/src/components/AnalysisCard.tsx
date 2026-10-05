@@ -56,8 +56,6 @@ function ScoreNumber({ score, maxScore, hero, color }: { score: number | null | 
 // kept in Latin script rather than translated.
 const HE_LABELS: Record<string, string> = {
   'AI Analysis': 'ניתוח AI',
-  'Hard Blockers': 'חסמים קשיחים',
-  'Worth Clarifying': 'כדאי להבהיר',
   'Technical': 'טכני',
   'Execution': 'ביצוע',
   'Sustainability': 'קיימות',
@@ -116,8 +114,6 @@ interface MatchAnalysis {
   breakdown?: Record<string, DimensionData>;
   recommendation?: Recommendation;
   honestAssessment?: string;
-  hardBlockers?: { filter: string; reason: string }[];
-  mustClarify?: string[];
   stackedGaps?: string[];
   // Technologies the rationale named as yours that your profile does not
   // evidence. Server-side check (ClaimGrounding); advisory, never withholds
@@ -221,27 +217,6 @@ export default function AnalysisCard({ matchAnalysisJson, headerAction, lang = '
               )}
             </div>
           </div>
-
-          {/* Hard blockers — mechanical gate, not narrative: non-empty always
-              means the verdict was forced to STRONG_NO server-side. */}
-          {a.hardBlockers && a.hardBlockers.length > 0 && (
-            <div className="mb-6 p-[0.9rem_1.1rem] rounded-xl border border-[var(--ed-ink)]">
-              <span className={SUBLABEL}>{t('Hard Blockers', lang)}</span>
-              <ul dir="auto" className="list-disc pl-5 m-0 marker:text-[var(--ed-accent)]">
-                {a.hardBlockers.map((item, i) => <li key={i} className="text-[16px] mb-[0.3rem] text-[var(--ed-ink)] leading-[1.6]"><BidiText text={item.reason} /></li>)}
-              </ul>
-            </div>
-          )}
-
-          {/* Must clarify — genuinely ambiguous requirements, narrative only. */}
-          {a.mustClarify && a.mustClarify.length > 0 && (
-            <div className="mb-6 p-[0.9rem_1.1rem] rounded-xl border border-[var(--ed-rule)]">
-              <span className={SUBLABEL}>{t('Worth Clarifying', lang)}</span>
-              <ul dir="auto" className="list-disc pl-5 m-0 marker:text-[var(--ed-accent)]">
-                {a.mustClarify.map((item, i) => <li key={i} className="text-[16px] mb-[0.3rem] text-[var(--ed-ink)] leading-[1.6]"><BidiText text={item} /></li>)}
-              </ul>
-            </div>
-          )}
 
           {/* Dimension cards */}
           {b && (

@@ -13,7 +13,8 @@ namespace ApplicationTracker.Core.Profile;
 // strength is the weakest evidence in the profile -- which is the whole reason
 // ClaimGrounding exists. Scoring rests on demonstrated experience instead.
 // RedFlags (manual dealbreakers) went the same way on 2026-10-03: they forced
-// STRONG_NO on the model's reading of a job description (HardBlockerScope).
+// STRONG_NO on the model's reading of a job description (hard blockers were
+// removed altogether on 2026-10-05).
 // Stored profiles may still carry `redFlags`; the JSON read ignores it.
 //
 // Persisted on the profile doc and rendered to a canonical string (`content`)

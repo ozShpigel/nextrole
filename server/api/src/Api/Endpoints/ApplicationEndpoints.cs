@@ -77,8 +77,6 @@ public static class ApplicationEndpoints
                         OverallScore = overallScore.Value,
                         Verdict = verdict,
                         Breakdown = existingNode["breakdown"]?.Deserialize<Breakdown>(CaseInsensitive) ?? new Breakdown(),
-                        HardBlockers = existingNode["hardBlockers"]?.Deserialize<HardBlocker[]>(CaseInsensitive) ?? [],
-                        MustClarify = existingNode["mustClarify"]?.Deserialize<string[]>(CaseInsensitive) ?? [],
                         StackedGaps = existingNode["stackedGaps"]?.Deserialize<string[]>(CaseInsensitive) ?? [],
                     };
 
@@ -86,7 +84,7 @@ public static class ApplicationEndpoints
 
                     // Same merge shape as the old Python _enrich_saved_job: overwrite
                     // only the narrative fields NarrativeEnrichment owns, leave every
-                    // other key in the stored blob (score, breakdown, hardBlockers, …)
+                    // other key in the stored blob (score, breakdown, stackedGaps, …)
                     // untouched — hence JsonNode surgery rather than a typed
                     // deserialize/re-serialize round-trip, which would silently drop
                     // any field not modeled on MatchResponse.

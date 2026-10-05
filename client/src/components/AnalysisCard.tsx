@@ -45,6 +45,14 @@ function ScoreNumber({ score, maxScore, hero, color }: { score: number | null | 
   return <span className="text-[16px] font-medium tabular-nums" style={{ color }}>{score ?? '—'}<span className="text-[13px] text-[var(--ed-ink-faint)] font-normal"> / {maxScore}</span></span>;
 }
 
+// A dimension the server dropped from the total (no evidence anywhere — today
+// only Sustainability, when the posting says nothing about pace) has a null
+// score. "— / 35" next to an 18 and a 10 under a 43 read as arithmetic gone
+// wrong; this says what happened instead.
+function NotAssessed({ lang }: { lang: 'en' | 'he' }) {
+  return <span className="text-[13px] font-medium text-[var(--ed-ink-faint)]">{t('Not assessed', lang)}</span>;
+}
+
 // Static UI labels this component renders itself — section headers,
 // dimension names, +/- group labels. The narrative content (reasons,
 // summaries, flags…) already arrives pre-translated from the server (see
@@ -59,6 +67,8 @@ const HE_LABELS: Record<string, string> = {
   'Hard Blockers': 'חסמים קשיחים',
   'Worth Clarifying': 'כדאי להבהיר',
   'Technical': 'טכני',
+  'Not assessed': 'לא הוערך',
+  'Scored on': 'חושב לפי',
   'Execution': 'ביצוע',
   'Sustainability': 'קיימות',
   'Strengths': 'חוזקות',
@@ -97,7 +107,8 @@ const DIMS: DimensionDef[] = [
 ];
 
 interface DimensionData {
-  score: number;
+  // null when the server dropped the dimension from the total (no evidence).
+  score: number | null;
   maxScore: number;
   [key: string]: unknown;
 }
@@ -195,6 +206,16 @@ export default function AnalysisCard({ matchAnalysisJson, headerAction, lang = '
 
   const b = a.breakdown;
   const rec = a.recommendation;
+  // When a dimension was not assessed the total is renormalised over the rest
+  // (ScoreTotal on the server), so say what it was computed from.
+  const assessed = b ? DIMS.filter((dim) => b[dim.key] && b[dim.key].score != null) : [];
+  const scoredOn = b && assessed.length > 0 && assessed.length < DIMS.filter((dim) => b[dim.key]).length
+    ? {
+        labels: assessed.map((dim) => dim.label),
+        points: assessed.reduce((sum, dim) => sum + (b[dim.key].score ?? 0), 0),
+        max: assessed.reduce((sum, dim) => sum + b[dim.key].maxScore, 0),
+      }
+    : null;
   const active = activeDim && b?.[activeDim]
     ? { ...DIMS.find(d => d.key === activeDim)!, data: b[activeDim] }
     : null;
@@ -214,6 +235,11 @@ export default function AnalysisCard({ matchAnalysisJson, headerAction, lang = '
               <div className="text-[16px] font-medium leading-[1.2] text-[var(--ed-ink)]">
                 {VERDICT_LABELS[a.verdict] || VERDICT_LABELS.INSUFFICIENT_DATA}
               </div>
+              {scoredOn && (
+                <div dir="auto" className="text-[13px] text-[var(--ed-ink-faint)] tabular-nums">
+                  {t('Scored on', lang)} {scoredOn.labels.map((l) => t(l, lang)).join(' + ')} ({scoredOn.points}/{scoredOn.max})
+                </div>
+              )}
               {rec && (
                 <div className="text-[13px] font-medium tracking-[0.02em] py-[0.35rem] px-[0.9rem] w-fit rounded-full border border-[var(--ed-rule)] text-[var(--ed-ink-soft)]">
                   {rec.shouldApply ? t('Worth Applying', lang) : t('Not Recommended', lang)}
@@ -257,7 +283,9 @@ export default function AnalysisCard({ matchAnalysisJson, headerAction, lang = '
                       className={`flex flex-col items-center gap-2 p-[1rem_0.5rem] rounded-xl border cursor-pointer transition-all ${isActive ? 'border-[var(--ed-ink)] bg-[var(--ed-panel)]/60' : 'border-[var(--ed-rule)] hover:border-[var(--ed-ink-faint)]'}`}
                       onClick={() => setActiveDim(isActive ? null : dim.key)}
                     >
-                      <ScoreNumber score={d.score} maxScore={d.maxScore} color={edScoreColor(d.score, d.maxScore)} />
+                      {d.score == null
+                        ? <NotAssessed lang={lang} />
+                        : <ScoreNumber score={d.score} maxScore={d.maxScore} color={edScoreColor(d.score, d.maxScore)} />}
                       <span className="text-[13px] text-[var(--ed-ink-soft)] font-medium tracking-[0.02em]">{t(dim.label, lang)}</span>
                     </button>
                   );

@@ -79,7 +79,7 @@ const TOOLTIP_GAP = 8;
 // win against a later row's score painting over it. Escaping to the body
 // sidesteps that entirely, and lets position be computed in real viewport
 // coordinates instead of guessing at ancestor overflow.
-function RationaleTooltip({ anchorRef, highlights }: { anchorRef: React.RefObject<HTMLElement | null>; highlights: string[] }) {
+function RationaleTooltip({ anchorRef, highlights, flagged }: { anchorRef: React.RefObject<HTMLElement | null>; highlights: string[]; flagged: ReadonlySet<string> }) {
   const tooltipRef = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
 
@@ -123,7 +123,15 @@ function RationaleTooltip({ anchorRef, highlights }: { anchorRef: React.RefObjec
           Match Rationale
         </span>
         <ul className="list-disc pl-4 m-0 space-y-1">
-          {highlights.map((h, i) => (
+          {highlights.map((h, i) => flagged.has(h.trim()) ? (
+            // The server flagged this line: it credits the candidate with a
+            // technology their profile does not show. Marked, not hidden, so
+            // the hover agrees with the detail view's Unsupported Claims.
+            <li key={i} className="text-[13px] leading-[1.5] text-muted-foreground">
+              <span className="line-through">{h}</span>
+              <span className="text-destructive"> — not in your profile</span>
+            </li>
+          ) : (
             <li key={i} className="text-[13px] leading-[1.5]">{h}</li>
           ))}
         </ul>
@@ -159,6 +167,10 @@ function ScoreRing({ job, pulse = true }: { job: DiscoveredJobSummary; pulse?: b
   const scored = job.score !== null && job.score !== undefined;
   const tone = edVerdictColor(job.verdict);
   const highlights = job.match_analysis?.quickHighlights;
+  const flaggedHighlights = new Set(
+    (job.match_analysis?.unsupportedClaims ?? [])
+      .filter((c) => c.field === 'quickHighlights')
+      .map((c) => c.text.trim()));
   const hasHighlights = scored && !!highlights && highlights.length > 0;
   const fill = scored ? Math.min(Math.max(job.score!, 0), 100) / 100 : 0;
 
@@ -199,7 +211,7 @@ function ScoreRing({ job, pulse = true }: { job: DiscoveredJobSummary; pulse?: b
           </>
         )}
       </div>
-      {open && hasHighlights && <RationaleTooltip anchorRef={anchorRef} highlights={highlights!} />}
+      {open && hasHighlights && <RationaleTooltip anchorRef={anchorRef} highlights={highlights!} flagged={flaggedHighlights} />}
     </div>
   );
 }

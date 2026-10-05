@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using ApplicationTracker.Core.Matching;
+using ApplicationTracker.Core.Profile;
 using Microsoft.Extensions.Logging;
 
 namespace ApplicationTracker.Infrastructure.AI;
@@ -23,6 +24,26 @@ public sealed class PromptBuilder
     // translate step afterward, never at generation time, so no env var can
     // flip this into Hebrew and invalidate that baseline.
     private const string OutputLanguage = "English";
+
+    /// <summary>
+    /// The Evaluator prompt with its DECISION THRESHOLDS filled from the bands
+    /// the server applies (<c>JobMatchService.VerdictFromScore</c>).
+    /// </summary>
+    /// <remarks>
+    /// The prompt used to state 80/60/40/20 while the server applied 85/68/50/25
+    /// and overwrote the model's verdict -- so the model chose terse or full
+    /// output (OUTPUT LENGTH BY VERDICT) by one scale and was judged by another:
+    /// an 82 read as STRONG_YES to the model and became a YES. Rendering both
+    /// from <see cref="VerdictBands"/> makes them one number. A prompt override
+    /// without the placeholder is left as it is.
+    /// </remarks>
+    public static string WithVerdictBands(string evaluatorPrompt, VerdictBands bands) =>
+        evaluatorPrompt.Replace("{{VERDICT_BANDS}}", string.Join("\n",
+            $"- STRONG_YES → {bands.StrongYes}–100",
+            $"- YES → {bands.Yes}–{bands.StrongYes - 1}",
+            $"- MAYBE → {bands.Maybe}–{bands.Yes - 1}",
+            $"- NO → {bands.No}–{bands.Maybe - 1}",
+            $"- STRONG_NO → 0–{bands.No - 1} OR any FAIL in hard filters"));
 
     public (string System, string User) BuildAnalysisPrompt(string jobDescription, string analystPrompt)
     {
@@ -132,7 +153,7 @@ Include every job id exactly once, in any order.
         return (system, userParts);
     }
 
-    // Batched ingest-time scoring addendum, appended to the SAME evaluatorPrompt
+    // Batched scoring addendum (the per-user scan), appended to the SAME evaluatorPrompt
     // text used by the single-job path above — deliberately not a separate
     // prompt const, so the two paths can never drift on the actual rubric.
     // Only the delivery shape changes: many jobs in one call instead of one.
@@ -173,27 +194,27 @@ You are scoring MULTIPLE jobs in this call, each inside its own <job id="..."> b
 - Do NOT let one job's flaws or strengths raise or lower another job's score.
 - Judge each job purely against the candidate profile and the fixed rubric — the same judgment you would reach if this job were the only one in the request.
 
-## Ingest-time: omit narrative-only fields entirely
+## Batch scoring: omit narrative-only fields entirely
 
-This call is ingest-time batch scoring — the vast majority of scored jobs are never revisited (~4% get added to the tracker). Regardless of each job's verdict — including STRONG_YES and YES — OMIT these fields ENTIRELY for every job: do not generate a value, do not include the key at all.
+This call scores a batch of jobs for one candidate — most of them are never revisited. Regardless of each job's verdict — including STRONG_YES and YES — OMIT these fields ENTIRELY for every job: do not generate a value, do not include the key at all.
 - `honestAssessment`
 - The entire `recommendation` key, including `keyReasons`, `questionsToAsk`, `redFlags`, `greenFlags`, and `shouldApply` — the server always recomputes and overwrites `shouldApply` from the numeric score/verdict, so there is no reason to generate any part of `recommendation` here
 
-All of these get generated fresh, in full, by a separate call, only if and when the candidate clicks Add — generating even a terse version here for every scored job is pure waste, since ~96% of them are never added.
+All of these get generated fresh, in full, by a separate call, only if and when the candidate's application reaches Interviewing — generating even a terse version here for every scored job is pure waste.
 
 This overrides OUTPUT LENGTH BY VERDICT's STRONG_YES/YES carve-out for this call only — full narrative detail for a job the candidate actually adds is generated separately, on demand, by a different call.
 
 As always, never shorten `hardBlockers`, `mustClarify`, `stackedGaps`, or `quickHighlights` — these stay full length regardless of verdict or batch mode. (`reason`/`strengths`/`gaps`/`concerns`/`positiveSignals` are also scoring rationale, but batch mode has its own separate word-count caps for them — see below — which take precedence over "full length" for this call only.)
 
-## Ingest-time bullet length: max 4 words each
+## Batch bullet length: max 4 words each
 
 Every item in the `strengths`/`gaps`/`concerns`/`positiveSignals` arrays MUST be at most 4 words — a scannable label, not a sentence. Cut connecting words ("and", "with", "from") and articles where possible; keep only the concrete noun/skill/signal. These examples illustrate the WORD-COUNT rule only — write the actual words in {{OUTPUT_LANGUAGE}} (per OUTPUT LANGUAGE RULES above), not necessarily English: "Kubernetes and Azure expertise from NCR infrastructure expansion" (10 words, too long) → "Kubernetes/Azure production expertise" (4 words). This does NOT reduce how many items you include — keep every real signal, just express each one in 4 words or fewer.
 
-## Ingest-time reason length: max 8 words
+## Batch reason length: max 8 words
 
 Every breakdown component's `reason` MUST be at most 8 words — STRICT hard limit, count before you finalize. State the single deciding factor only, not a full justification. These examples illustrate the WORD-COUNT rule only — write the actual words in {{OUTPUT_LANGUAGE}} (per OUTPUT LANGUAGE RULES above), not necessarily English: "You have Python, Kubernetes, and Terraform experience; missing NestJS (learnable framework) and Kafka, but LLM integration with Anthropic is directly applicable" (21 words — too long) → "Strong Python/Kubernetes/Terraform match; missing NestJS, Kafka" (8 words). If the deciding factor genuinely can't fit in 8 words, drop qualifiers and keep only the core noun phrase — a shorter, less-hedged reason beats an overlong one.
 
-These two word caps apply ONLY to `strengths`/`gaps`/`concerns`/`positiveSignals`/`reason` — nothing outside batch/ingest mode is affected.
+These two word caps apply ONLY to `strengths`/`gaps`/`concerns`/`positiveSignals`/`reason` — nothing outside batch mode is affected.
 
 Return a JSON array, one result per job, in this shape:
 {
@@ -270,7 +291,7 @@ Include every job id exactly once, in any order.
 
     // On-demand narrative upgrade (see PromptSeeds.NarrativeEnrichment): the
     // numeric scoring context travels as immutable data, not something this
-    // call re-derives — it only produces the 4 fields ingest-time keeps terse.
+    // call re-derives — it only produces the 4 fields batch scoring keeps terse.
     public (string System, string User) BuildNarrativeEnrichmentPrompt(string profile, NarrativeEnrichRequest request, string narrativeEnrichmentPrompt)
     {
         if (string.IsNullOrWhiteSpace(narrativeEnrichmentPrompt))

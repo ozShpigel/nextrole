@@ -172,8 +172,9 @@ public sealed class ClaudeClient : IClaudeClient
     // override env var can never silently ship an empty system prompt.
     private string AnalystPrompt =>
         string.IsNullOrWhiteSpace(_prompts.Analyzer) ? PromptSeeds.Analyst : _prompts.Analyzer;
-    private string EvaluatorPrompt =>
-        string.IsNullOrWhiteSpace(_prompts.Evaluator) ? PromptSeeds.Evaluator : _prompts.Evaluator;
+    private string EvaluatorPrompt => PromptBuilder.WithVerdictBands(
+        string.IsNullOrWhiteSpace(_prompts.Evaluator) ? PromptSeeds.Evaluator : _prompts.Evaluator,
+        _scoring.VerdictBands);
 
     // {{OUTPUT_LANGUAGE}} substitution for the prompts that don't go through
     // PromptBuilder (which hardcodes English for its own — see
@@ -245,7 +246,8 @@ public sealed class ClaudeClient : IClaudeClient
     {
         _logger.LogInformation("Evaluating job match: {Title} at {Company}", parsedJob.JobTitle, parsedJob.Company);
 
-        var (systemPrompt, userMessage) = _promptBuilder.BuildEvaluationPrompt(profile, parsedJob, evaluatorPrompt, companyProfile);
+        var (systemPrompt, userMessage) = _promptBuilder.BuildEvaluationPrompt(
+            profile, parsedJob, PromptBuilder.WithVerdictBands(evaluatorPrompt, _scoring.VerdictBands), companyProfile);
 
         var (result, snapshot) = await CallClaudeAsync<MatchResponse>(systemPrompt, userMessage, evaluatorConfig, "evaluate", cancellationToken);
         _logger.LogInformation("Match evaluation completed. Verdict: {Verdict}, Score: {Score}",

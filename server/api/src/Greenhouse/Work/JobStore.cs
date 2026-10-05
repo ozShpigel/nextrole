@@ -146,8 +146,25 @@ public sealed class JobStore : IJobStore
         var doc = GreenhouseJob.InitialExtractionFields();
         doc.Add(GreenhouseJobFields.FirstSeenAt, now);
         doc.Add(GreenhouseJobFields.Source, job.SourceName);
+        if (DeleteAtFor(job.SourceName, job.Source.Listed.PostedAt, now) is { } deleteAt)
+            doc.Add(GreenhouseJobFields.DeleteAt, deleteAt);
         return doc;
     }
+
+    /// <summary>
+    /// When a newly stored posting is deleted: LinkedIn postings only, a fixed
+    /// span after they were posted -- or after now, when LinkedIn gives no date
+    /// (conservative: maybe older than that, never younger). Null for every
+    /// board source.
+    /// </summary>
+    /// <remarks>
+    /// Set once, on insert. A later run that sees the posting again does not
+    /// push it back, so a long-lived listing still leaves on schedule.
+    /// </remarks>
+    public static DateTime? DeleteAtFor(string source, DateTime? postedAt, DateTime now) =>
+        source == LinkedInSource.SourceName
+            ? (postedAt ?? now).AddDays(LinkedInSource.DeleteAfterDays)
+            : null;
 
     /// <summary>
     /// Mark jobs seen again whose content did not change.
@@ -652,6 +669,11 @@ public sealed class JobStore : IJobStore
             new CreateIndexModel<BsonDocument>(
                 Builders<BsonDocument>.IndexKeys.Ascending(GreenhouseJobFields.BoardKey).Ascending(GreenhouseJobFields.ClosedAt),
                 new CreateIndexOptions { Name = "idx_boardkey_open" }),
+            // Deletes a LinkedIn posting at its deleteAt. Only those documents
+            // carry the field, so a board posting is never touched by it.
+            new CreateIndexModel<BsonDocument>(
+                Builders<BsonDocument>.IndexKeys.Ascending(GreenhouseJobFields.DeleteAt),
+                new CreateIndexOptions { Name = "ttl_deleteat", ExpireAfter = TimeSpan.Zero }),
         ], ct);
 
         await LegacyIndexes.DropIfPresentAsync(_jobs, "uniq_board_job", _log, ct);

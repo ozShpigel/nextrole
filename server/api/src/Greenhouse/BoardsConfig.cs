@@ -61,6 +61,32 @@ public sealed record BoardConfig
     /// </summary>
     [JsonPropertyName("region")] public string? Region { get; init; }
 
+    /// <summary>
+    /// Other names a company's postings appear under elsewhere ("Wiz Inc." for
+    /// a board named Wiz). Read only by the LinkedIn source, to skip a LinkedIn
+    /// posting from a company that has its own board.
+    /// </summary>
+    [JsonPropertyName("aliases")] public List<string>? Aliases { get; init; }
+
+    /// <summary>LinkedIn only: the job titles the search asks for.</summary>
+    [JsonPropertyName("titles")] public List<string>? Titles { get; init; }
+
+    /// <summary>LinkedIn only: where to search, e.g. "Israel".</summary>
+    [JsonPropertyName("locations")] public List<string>? Locations { get; init; }
+
+    /// <summary>
+    /// LinkedIn only: results per title per location -- the run's cap on what
+    /// it can bring in (titles x locations x this).
+    /// </summary>
+    [JsonPropertyName("results_wanted")] public int? ResultsWanted { get; init; }
+
+    /// <summary>
+    /// LinkedIn only: how recent a posting must be. Short on purpose: a posting
+    /// is deleted after <c>LinkedInSource.DeleteAfterDays</c>, and a search that
+    /// reached further back would fetch it again.
+    /// </summary>
+    [JsonPropertyName("hours_old")] public int? HoursOld { get; init; }
+
     [JsonIgnore] public string Key => GreenhouseJob.KeyFor(Source, Token);
 }
 
@@ -160,6 +186,7 @@ public sealed record BoardsConfig
         new HashSet<string>(StringComparer.Ordinal)
         {
             GreenhouseSource.SourceName, WorkdaySource.SourceName, LeverSource.SourceName, ComeetSource.SourceName,
+            LinkedInSource.SourceName,
         };
 
     private static readonly JsonSerializerOptions Json = new()
@@ -282,6 +309,9 @@ public sealed record BoardsConfig
                 CompanyUid = raw.CompanyUid?.Trim(),
                 ApiToken = raw.ApiToken?.Trim(),
                 Region = raw.Region?.Trim(),
+                Aliases = Trimmed(raw.Aliases),
+                Titles = Trimmed(raw.Titles),
+                Locations = Trimmed(raw.Locations),
             };
 
             if (!KnownSources.Contains(board.Source))
@@ -366,6 +396,17 @@ public sealed record BoardsConfig
         if (board.Source != LeverSource.SourceName && board.Region is not null)
             throw new InvalidOperationException($"{what}: {board.Key} has region, which only a lever board takes.");
 
+        var linkedInFields = board.Titles is not null || board.Locations is not null
+                             || board.ResultsWanted is not null || board.HoursOld is not null;
+        if (board.Source != LinkedInSource.SourceName && linkedInFields)
+            throw new InvalidOperationException(
+                $"{what}: {board.Key} has titles/locations/results_wanted/hours_old, which only a linkedin search takes.");
+        if (board.Source == LinkedInSource.SourceName)
+        {
+            CheckLinkedInFields(board, what);
+            return;
+        }
+
         string Required(string? value, string field) => string.IsNullOrWhiteSpace(value)
             ? throw new InvalidOperationException($"{what}: {board.Key} is a {board.Source} board and needs {field}.")
             : value;
@@ -408,6 +449,27 @@ public sealed record BoardsConfig
                     $"{what}: {board.Key} has a malformed facet '{facet}'. Expected a facet parameter name "
                     + "mapped to a non-empty list of facet value ids, as the site's own listing reports them.");
     }
+
+    // A LinkedIn entry is a search, not a company: no name, domain or aliases
+    // (its postings are from many companies), and the search must ask for
+    // something, in bounds that keep a run's cost and the scraper's pacing sane.
+    private static void CheckLinkedInFields(BoardConfig board, string what)
+    {
+        if (board.Name is not null || board.Domain is not null || board.Aliases is not null)
+            throw new InvalidOperationException(
+                $"{what}: {board.Key} is a linkedin search and takes no name, domain or aliases.");
+        if (board.Titles is not { Count: > 0 })
+            throw new InvalidOperationException($"{what}: {board.Key} is a linkedin search and needs titles.");
+        if (board.Locations is not { Count: > 0 })
+            throw new InvalidOperationException($"{what}: {board.Key} is a linkedin search and needs locations.");
+        if (board.ResultsWanted is < 1 or > 100)
+            throw new InvalidOperationException($"{what}: {board.Key} has results_wanted {board.ResultsWanted}: 1 to 100.");
+        if (board.HoursOld is < 1 or > 168)
+            throw new InvalidOperationException($"{what}: {board.Key} has hours_old {board.HoursOld}: 1 to 168.");
+    }
+
+    private static List<string>? Trimmed(List<string>? values) =>
+        values?.Where(v => !string.IsNullOrWhiteSpace(v)).Select(v => v.Trim()).ToList();
 
     // Both go into the request URL, so each must be exactly its shape: a typo
     // becomes a 400 blamed on the file, never a request to another path.

@@ -54,6 +54,14 @@ public abstract class JobSourceContract
     /// </remarks>
     protected abstract IJobSource? Truncated();
 
+    /// <summary>
+    /// Whether a healthy listing proves itself whole. True for every company
+    /// board. False for a search (LinkedIn), which returns a slice by nature:
+    /// for it the contract is the opposite -- it must NEVER report complete,
+    /// or the close diff would close every posting missing from one search.
+    /// </summary>
+    protected virtual bool ProvesCompleteness => true;
+
     [Fact]
     public async Task A_failed_request_throws() =>
         await Assert.ThrowsAsync<BoardFetchException>(() => ServerError().ListAsync(Board, default));
@@ -84,7 +92,7 @@ public abstract class JobSourceContract
     {
         var listing = await Healthy().ListAsync(Board, default);
 
-        Assert.True(listing.Complete);
+        Assert.Equal(ProvesCompleteness, listing.Complete);
         Assert.Equal(Expected.Select(e => e.Id).Order(), listing.Postings.Select(p => p.SourceJobId).Order());
     }
 

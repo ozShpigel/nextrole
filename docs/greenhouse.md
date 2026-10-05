@@ -359,6 +359,46 @@ docker run --rm --env-file .env.api -v "$PWD/fill-pool-demand.js:/fill.js:ro" mo
 Its location split mirrors `PoolDemand.LocationTermsOf`; change both together,
 or the next profile save corrects the difference.
 
+### LinkedIn: a search, not a board
+
+`{"source": "linkedin", "token": "israel", "titles": [...], "locations": ["Israel"], "results_wanted": 15, "hours_old": 48}`
+in `boards.json` is a **search**, run through the jobspy scraper
+(`POST /scrape`, `Scraper__BaseUrl` on the consumer). Its job is to fill the
+gaps between the company boards — smaller and Israeli companies — not to
+compete with them. `LinkedInSource` keeps every rule simple, by design:
+
+- **Never complete.** A search returns a slice, so `Listing.Complete` is always
+  false and the close diff never runs: a posting missing from today's results
+  is not closed. The source contract asserts the opposite of every board for it
+  (`ProvesCompleteness = false`).
+- **Leaves by age.** `JobStore` stamps `deleteAt` when it first stores a
+  LinkedIn posting — 21 days after it was posted, or after NextRole first saw it
+  when LinkedIn gives no date — and the `ttl_deleteat` index deletes it then.
+  The one exception to "postings are never deleted": a board posting can reopen,
+  a LinkedIn one does not. `hours_old` keeps the search to recent postings, so a
+  deleted one is not fetched back. A job filled early stays visible until then.
+- **No duplicates of a board.** A posting is skipped when its own Apply link
+  (`job_url_direct`) points at a board we read (Greenhouse/Lever/Comeet board
+  URL, Workday host) or at a board company's domain, **or** its company name,
+  normalised, equals a board's name, token, domain stem or one of its
+  `aliases`. Nothing fuzzier — a false match would hide a real job. What both
+  miss (an Easy Apply posting under an unaliased spelling) shows in the
+  "LinkedIn companies kept" log line; add an alias to that board.
+- **The key is LinkedIn's job id**, read from the posting URL
+  (`/jobs/view/…-<id>`). The scraper's own row id is a fresh UUID per scrape.
+- **No description, no posting.** jobspy fetches each description separately
+  and LinkedIn throttles it; a description under 300 characters is treated as
+  not fetched, so the posting has no detail this run and is retried if seen
+  again — never scored on its title alone.
+- **Capped by config:** titles × locations × `results_wanted` (30 a run as
+  shipped: DevOps and Backend Engineer × 15, chosen for cost — about $0.0026 a
+  new posting for the fact read and embedding, so at most ~$2.5 a month). Raise `results_wanted`
+  to bring in more; the next lever after that is reading facts on first score. Everything after the fetch is shared: pre-read filter, embedding,
+  fact read, on-demand scoring.
+- **Fails alone.** Scraping LinkedIn breaks without warning (and is against its
+  terms — accepted). A failed or fully blocked search throws, failing that one
+  message; no company board is affected.
+
 ### A board removed from boards.json is closed
 
 Postings close through the close diff of a board that was fetched. A board

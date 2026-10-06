@@ -193,8 +193,8 @@ public sealed class JobMatchService : IJobMatchService
                 EvaluatorSnapshotInput = evalSnap.Input,
                 EvaluatorSnapshotOutput = evalSnap.Output,
             };
-            // Structured, one line per job — post-correction (Correct() may
-            // have overridden the model's own verdict, e.g. via HardBlockers)
+            // Structured, one line per job — post-correction (Correct()
+            // derives the verdict from the score, not the model's own field)
             // so this reflects what actually gets stored, not the raw model
             // output. Grep/alert on this in Loki for high-score matches.
             _logger.LogInformation(
@@ -256,14 +256,12 @@ public sealed class JobMatchService : IJobMatchService
         r = EnforceScoreBounds(r);
         r = EnforceEvidenceCaps(r, parsedJob);
         r = EnforceQuickHighlightsLength(r);
-        r = EnforceHardBlockerScope(r);
+        // The verdict is the score's band, always. There is no hard blocker
+        // any more (removed 2026-10-05): every one was a model judgement that
+        // overrode the number -- an 81 shown as STRONG_NO -- and the last kind,
+        // work_arrangement, is now a concern in the narrative, with the Matches
+        // Work filter as the user's own, visible way to exclude arrangements.
         var verdict = VerdictFromScore(r.OverallScore, cfg.VerdictBands) ?? r.Verdict;
-        // The model reliably identifies a disqualifying condition in its
-        // reasoning but doesn't reliably apply the consequence to its own
-        // verdict field — same pattern as the review-cap enforcement below,
-        // enforced here instead of trusted from the prompt alone.
-        if (r.HardBlockers.Length > 0)
-            verdict = "STRONG_NO";
         var shouldApply = r.OverallScore >= cfg.MinScoreToSave && verdict != "STRONG_NO";
         // Prompt asks for at most 1 questionsToAsk item on MAYBE/NO/STRONG_NO
         // (terse) and at most 3 on STRONG_YES/YES (full detail) — but per the
@@ -576,23 +574,5 @@ public sealed class JobMatchService : IJobMatchService
         }).ToArray();
 
         return changed ? r with { QuickHighlights = corrected } : r;
-    }
-
-    // The allow-list, its rationale and the measurements behind removing four
-    // filters live in HardBlockerScope -- extracted so the decision has a test.
-    private MatchResponse EnforceHardBlockerScope(MatchResponse r)
-    {
-        if (r.HardBlockers.Length == 0) return r;
-
-        var kept = r.HardBlockers.Where(b =>
-        {
-            if (HardBlockerScope.IsSupported(b)) return true;
-            _logger.LogWarning(
-                "Unsupported hard blocker dropped: filter={Filter} reason={Reason}",
-                b.Filter, b.Reason);
-            return false;
-        }).ToArray();
-
-        return kept.Length == r.HardBlockers.Length ? r : r with { HardBlockers = kept };
     }
 }

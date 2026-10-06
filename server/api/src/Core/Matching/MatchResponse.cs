@@ -14,12 +14,6 @@ public sealed record MatchResponse
     public string? EvaluatorSnapshotInput { get; init; }
     public string? EvaluatorSnapshotOutput { get; init; }
 
-    // Mechanical hard-filter gate: non-empty => Correct() forces Verdict to
-    // STRONG_NO regardless of score or the model's own verdict field.
-    public HardBlocker[] HardBlockers { get; init; } = [];
-    // Genuinely ambiguous requirements worth asking about rather than
-    // scoring against — narrative only, no server-side consequence.
-    public string[] MustClarify { get; init; } = [];
     // Literal inventory of missing REQUIRED (not "nice to have") named
     // tech/skills, independent of the narrative Core Stack score: >=4 caps
     // Core Stack's score server-side.
@@ -39,22 +33,6 @@ public sealed record MatchResponse
     // score ring. Mixes the strongest fit signal(s) with the biggest
     // concern(s); not a subset of any other field, its own literal output.
     public string[] QuickHighlights { get; init; } = [];
-}
-
-// One HARD FILTERS failure. Filter is work_arrangement, and Correct() DROPS
-// anything else -- an allow-list, because a hard blocker forces STRONG_NO over
-// every score in the response.
-//
-// candidate_dealbreaker was removed: a model judgement on thin evidence
-// carrying an absolute consequence (see HardBlockerScope). scope_discipline, sustainability_signals and people_management were removed:
-// the first two disqualified a posting for its own prose ("wear many hats",
-// "fast-paced"), which is taste and belongs in a dimension's concerns, and the
-// third was a fit judgement that fired on mentoring and interview panels and
-// flipped between runs on identical input. See EnforceHardBlockerScope.
-public sealed record HardBlocker
-{
-    public string Filter { get; init; } = "";
-    public string Reason { get; init; } = "";
 }
 
 public sealed record Breakdown

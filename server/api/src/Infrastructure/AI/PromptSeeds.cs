@@ -928,28 +928,11 @@ This rule governs ONLY that block being missing from the request. It does NOT ex
 
 ---
 
-# HARD FILTERS (PRE-SCORING GATE)
+# WORK ARRANGEMENT
 
-Each filter must be evaluated strictly as:
+If the candidate EXPLICITLY states a work-arrangement constraint in the profile (e.g. remote-only, no relocation) and the posting EXPLICITLY conflicts with it, name the conflict in `sustainabilityPaceFit.concerns`. That is the whole consequence: it is never a disqualification and never changes a score on its own — the candidate filters arrangements themselves. When either side does not state an arrangement, say nothing about it.
 
-There is exactly ONE, and it is something the CANDIDATE stated about themselves. Nothing about the posting's own language or culture can disqualify it.
-
-- FAIL → immediate `STRONG_NO`, add an entry to `hardBlockers` tagged with the filter that fired (the one `filter` value in OUTPUT STRUCTURE below)
-- UNKNOWN → add to `mustClarify`, continue evaluation
-- PASS → continue evaluation
-
-If the filter is FAIL → final verdict MUST be `STRONG_NO`.
-
-`hardBlockers` may ONLY be populated by this filter, and the server DROPS any entry tagged with anything else. Any other concern — a technical gap, an experience mismatch, a workload worry, a "wear many hats" or "fast-paced" posting, a role wanting more management than the candidate has done — belongs in the relevant dimension's `concerns`, not here, however disqualifying it feels.
-
----
-
-## Work Arrangement (`filter: work_arrangement`)
-
-Evaluate only against a work-arrangement constraint the candidate has EXPLICITLY stated in the profile.
-- Job's arrangement explicitly conflicts with the candidate's explicitly stated constraint → FAIL
-- Job's arrangement explicitly satisfies the candidate's stated constraint → PASS
-- Candidate states no arrangement constraint, OR the job does not state its arrangement → UNKNOWN (add to `mustClarify`; do not FAIL)
+Nothing disqualifies a posting outright. Every concern — a technical gap, an experience mismatch, a workload worry, a "wear many hats" or "fast-paced" posting, a role wanting more management than the candidate has done — belongs in the relevant dimension's `concerns` and its score, however disqualifying it feels.
 
 ---
 
@@ -992,7 +975,7 @@ Compare the level the role demands with the level the candidate has DEMONSTRABLY
 - The level gap MUST be stated in the System Design `reason` and appear in `recommendation.redFlags`.
 - This works on demonstrated scope, not words: a profile showing architecture-level ownership counts even without the title; conversely, a plain seniority prefix ("Senior Software Engineer") is NOT a level gap for an experienced engineer — this rule targets genuine role-kind jumps, not years-of-experience arithmetic.
 
-**A people-management gap is a SCORE gap, never a disqualification.** It caps System Design by the rule above and is stated in the component `reason` and `recommendation.redFlags`. Do NOT put it in `hardBlockers` — there is no `people_management` filter, and the server drops any entry claiming one.
+**A people-management gap is a SCORE gap, never a disqualification.** It caps System Design by the rule above and is stated in the component `reason` and `recommendation.redFlags`.
 - A management requirement is the JD asking the candidate to formally manage people — as the role's OWN duties ("lead the DevOps team", "grow and manage a team", "2+ years leading a team") — OR as a stated PRIOR-experience qualification ("Experience as a DevOps lead, minimum 5 years", "X years in a management capacity"). Read the actual requirement text, not the job title.
 - Individual-contributor mentoring — "mentor fellow engineers", code reviews, informal guidance, helping juniors, supporting a colleague's growth — is NOT people-management.
 - **Sitting on an interview panel is NOT people-management.** "Take an active role in conducting engineering interviews", "participate in our hiring process", a "Mentor & Hire" heading: that is normal senior IC work. Only formal responsibility for people — being their manager, owning the decision to hire and to promote — counts.
@@ -1105,8 +1088,6 @@ Every `score` below — component, dimension, and `overallScore` — is bounded 
     "redFlags": ["string ({{OUTPUT_LANGUAGE}})"],
     "greenFlags": ["string ({{OUTPUT_LANGUAGE}})"]
   },
-  "hardBlockers": [{ "filter": "work_arrangement", "reason": "string ({{OUTPUT_LANGUAGE}})" }],
-  "mustClarify": ["string ({{OUTPUT_LANGUAGE}}) — HARD FILTER items that returned UNKNOWN; empty array if none"],
   "stackedGaps": ["string ({{OUTPUT_LANGUAGE}}) — see Stacked gaps rule under Core Stack; empty array if none"],
   "quickHighlights": ["string (English, \"<term> — <short explanation>\" format) — see QUICK HIGHLIGHTS section; 4-6 items"],
   "honestAssessment": "2-3 concise sentences in {{OUTPUT_LANGUAGE}}"
@@ -1120,7 +1101,7 @@ Full narrative detail is for STRONG_YES and YES — the candidate will actually 
 - `recommendation.questionsToAsk`: at most 1 item (empty array if nothing stands out), anchored to one requirement of this posting that the posting leaves genuinely ambiguous. Frame it the way a sharp candidate would ask an interviewer — about the business/team consequence of that ambiguity (impact, risk, ownership, how success is judged), not a self-interested checkbox question. Example, same underlying concern about an ambiguous "mentoring" requirement — self-interested (AVOID, asks what it means for the candidate): "Is mentoring 2-3 engineers informal guidance, or formal people-management?"; business-framed (USE, asks about accountability/how the role is judged): "Is growing engineers into senior contributors something this role is actually evaluated on, or more of a nice-to-have alongside the IC work?" Don't hedge by combining the scope-clarifying phrasing ("is this X or Y?") with the accountability phrasing ("how is that judged?") into one question joined by "and"/"versus" — commit to the business-framed version alone and drop the scope-clarifying half entirely. It MUST be crystal clear and simple: one plain-language question a candidate could actually say out loud to a recruiter, a single idea — never a compound/multi-part question or jargon strung together. This applies to ANY topic, not just mentoring. Before finalizing, check your own draft: if it contains "and" or "or" joining two different question-verbs (e.g. "how is X distributed, AND what does Y look like"), that is two questions — pick only the single sharpest one and delete the rest, don't stitch multiple asks together with a conjunction or a comma-separated list. A single clean example: "How is on-call distributed across the team?"
 - `honestAssessment`: one sentence, not a paragraph
 
-Never shorten `hardBlockers`, `mustClarify`, `stackedGaps`, `quickHighlights`, or any breakdown `reason`/`strengths`/`gaps`/`concerns`/`positiveSignals` — those are the scoring rationale itself, not narrative extras, and stay full length regardless of verdict.
+Never shorten `stackedGaps`, `quickHighlights`, or any breakdown `reason`/`strengths`/`gaps`/`concerns`/`positiveSignals` — those are the scoring rationale itself, not narrative extras, and stay full length regardless of verdict.
 
 ---
 
@@ -1130,7 +1111,6 @@ Never shorten `hardBlockers`, `mustClarify`, `stackedGaps`, `quickHighlights`, o
 - `overallScore` MUST equal the sum of the three breakdown `score` values
 - Each component `reason` MUST be a single concise {{OUTPUT_LANGUAGE}} sentence with minimal words
 - verdict MUST match overallScore's band
-- If `hardBlockers` is non-empty, verdict MUST be `STRONG_NO` — before returning your answer, re-check: does `hardBlockers` list anything? If yes, verdict MUST already say `STRONG_NO` — go back and fix verdict if it doesn't, don't leave the two inconsistent
 - `stackedGaps` is checked mechanically by the caller, not just read narratively — populate it honestly every time, not only when it would change the verdict
 
 ---
@@ -1171,7 +1151,7 @@ You are the same career advisor who already scored this job for this candidate. 
 {{USER_PROFILE}}
 
 ## Already-Decided Scoring (immutable — do not change, question, or contradict any of it)
-Provided in the user message inside <scoring_context> tags: overallScore, verdict, the full breakdown (dimension/component scores and reasons), hardBlockers, mustClarify, stackedGaps. Treat every one of these as ground truth. Your narrative must be CONSISTENT with these — never imply a different score, verdict, or set of blockers/gaps than what's given.
+Provided in the user message inside <scoring_context> tags: overallScore, verdict, the full breakdown (dimension/component scores and reasons), stackedGaps. Treat every one of these as ground truth. Your narrative must be CONSISTENT with these — never imply a different score, verdict, or set of blockers/gaps than what's given.
 
 ## Job Description
 Provided in the user message inside <job_description> tags — the posting this scoring was based on.
@@ -1192,10 +1172,10 @@ Same as the original scoring call:
 
 Write the FULL-detail version of exactly these fields — the same depth the original rubric specifies for a STRONG_YES/YES verdict, regardless of this job's actual verdict:
 - `honestAssessment`: 2-3 concise sentences (not one sentence).
-- `recommendation.keyReasons`, `recommendation.redFlags`, `recommendation.greenFlags`: full detail, grounded in the given breakdown/hardBlockers/stackedGaps — do not invent reasons the scoring doesn't support.
+- `recommendation.keyReasons`, `recommendation.redFlags`, `recommendation.greenFlags`: full detail, grounded in the given breakdown/stackedGaps — do not invent reasons the scoring doesn't support.
 - `recommendation.questionsToAsk`: at most 3, each anchored to a requirement of this posting — pick whichever the posting leaves genuinely ambiguous. Frame each the way a sharp candidate would ask an interviewer — about the business/team consequence of that ambiguity (impact, risk, ownership, how success is judged), not a self-interested checkbox question. Example, same underlying concern about an ambiguous "mentoring" requirement — self-interested (AVOID, asks what it means for the candidate): "Is mentoring 2-3 engineers informal guidance, or formal people-management?"; business-framed (USE, asks about accountability/how the role is judged): "Is growing engineers into senior contributors something this role is actually evaluated on, or more of a nice-to-have alongside the IC work?" Don't hedge by combining the scope-clarifying phrasing ("is this X or Y?") with the accountability phrasing ("how is that judged?") into one question joined by "and"/"versus" — commit to the business-framed version alone and drop the scope-clarifying half entirely. Not generic technical curiosity about the team's stack or incidents either. Each MUST be crystal clear and simple: one plain-language question a candidate could actually say out loud to a recruiter, a single idea per question — never a compound/multi-part question, never internal jargon (frameworks, incident names, tool names) strung together into a run-on ask. This applies to ANY topic, not just mentoring. Before finalizing each question, check your own draft: if it contains "and" or "or" joining two different question-verbs (e.g. "how is X distributed, AND what does Y look like"), that is two questions — pick only the single sharpest one and delete the rest, don't stitch multiple asks together with a conjunction or a comma-separated list. A single clean example: "How is on-call distributed across the team?"
 
-Do NOT output `overallScore`, `verdict`, `breakdown`, `hardBlockers`, `mustClarify`, `stackedGaps`, `quickHighlights`, or `recommendation.shouldApply` — none of that is yours to produce here; the caller already has it and ignores anything else.
+Do NOT output `overallScore`, `verdict`, `breakdown`, `stackedGaps`, `quickHighlights`, or `recommendation.shouldApply` — none of that is yours to produce here; the caller already has it and ignores anything else.
 
 ---
 

@@ -38,7 +38,7 @@ public class VerdictBandsPromptTests
         Assert.Contains("- YES → 68–84", rendered);
         Assert.Contains("- MAYBE → 50–67", rendered);
         Assert.Contains("- NO → 25–49", rendered);
-        Assert.Contains("- STRONG_NO → 0–24 OR any FAIL in hard filters", rendered);
+        Assert.Contains("- STRONG_NO → 0–24", rendered);
     }
 
     [Fact]

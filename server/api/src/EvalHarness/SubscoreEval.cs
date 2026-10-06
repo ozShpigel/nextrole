@@ -14,9 +14,7 @@ public sealed record SubscoreResult
     public required string Id { get; init; }
     public string? Title { get; init; }
     public List<DimensionCheck> Checked { get; init; } = [];
-    public int HardBlockers { get; init; }
-    public bool BlockersOk { get; init; }
-    public bool Passed => BlockersOk && Checked.All(c => c.Passed);
+    public bool Passed => Checked.All(c => c.Passed);
 }
 
 /// <summary>
@@ -87,8 +85,6 @@ public static class SubscoreEval
             var root = body.RootElement;
 
             var breakdown = root.TryGetProperty("breakdown", out var b) ? b : default;
-            var blockers = root.TryGetProperty("hardBlockers", out var hb) && hb.ValueKind == JsonValueKind.Array
-                ? hb.GetArrayLength() : 0;
 
             var spec = expectations.GetValueOrDefault(c.Id);
             var checks = new List<DimensionCheck>();
@@ -104,29 +100,11 @@ public static class SubscoreEval
                 }
             }
 
-            // expectBlocked is tri-state: true/false assert on hardBlockers
-            // being non-empty/empty, and absent means this flag has no opinion.
-            // Cases that test the veto itself carry no `expected` dict at all.
-            var blockersOk = true;
-            if (spec.ValueKind == JsonValueKind.Object)
-            {
-                if (spec.TryGetProperty("expectNoBlockers", out var enb)
-                    && enb.ValueKind == JsonValueKind.True && blockers > 0)
-                    blockersOk = false;
-
-                if (spec.TryGetProperty("expectBlocked", out var eb)
-                    && eb.ValueKind is JsonValueKind.True or JsonValueKind.False
-                    && (blockers > 0) != eb.GetBoolean())
-                    blockersOk = false;
-            }
-
             results.Add(new SubscoreResult
             {
                 Id = c.Id,
                 Title = c.Title,
                 Checked = checks,
-                HardBlockers = blockers,
-                BlockersOk = blockersOk,
             });
 
             Console.Error.WriteLine($"  [{i + 1}/{cases.Count}] {c.Id}: "
@@ -159,8 +137,6 @@ public static class SubscoreEval
         {
             sb.AppendLine();
             sb.AppendLine($"  {r.Id} — {r.Title}");
-            if (!r.BlockersOk)
-                sb.AppendLine($"      hardBlockers: {r.HardBlockers} (not what the case expects)");
             foreach (var c in r.Checked.Where(c => !c.Passed))
                 sb.AppendLine($"      {c.Dimension,-26} expected {c.ExpectedBand,-5} got "
                     + $"{c.ActualBand ?? "none",-5} ({c.Score}/{c.MaxScore})");

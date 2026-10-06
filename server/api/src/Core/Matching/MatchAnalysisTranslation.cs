@@ -15,8 +15,9 @@ public static class MatchAnalysisTranslation
     // These keys must come back byte-identical, at any nesting depth, even
     // though several of them (filter, verdict, name) are JSON strings a naive
     // "translate every string" pass would otherwise touch:
-    //   - filter: HardBlocker.Filter — fixed vocabulary, validated server-side
-    //     against an enum-like set elsewhere (JobMatchService).
+    //   - filter: the retired hardBlockers[].filter (removed 2026-10-05). New
+    //     analyses no longer carry it, but applications saved before still do,
+    //     and a translation of one must not rewrite it.
     //   - verdict: MatchResponse.Verdict — one of a fixed set of bands.
     //   - name: ScoreComponent.Name — not a C# enum, but effectively fixed
     //     vocabulary in practice: PromptSeeds.Evaluator hardcodes the six

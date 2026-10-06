@@ -582,6 +582,24 @@ public sealed class JobStore : IJobStore
     }
 
     /// <inheritdoc />
+    public async Task<long> StampPostingLogosAsync(
+        string boardKey, IReadOnlyCollection<(string SourceJobId, string LogoUrl)> logos, CancellationToken ct)
+    {
+        if (logos.Count == 0) return 0;
+
+        var f = Builders<BsonDocument>.Filter;
+        var writes = logos.Select(l => new UpdateOneModel<BsonDocument>(
+            f.And(
+                f.Eq(GreenhouseJobFields.BoardKey, boardKey),
+                f.Eq(GreenhouseJobFields.SourceJobId, l.SourceJobId),
+                f.Ne(GreenhouseJobFields.CompanyLogo, l.LogoUrl)),
+            Builders<BsonDocument>.Update.Set(GreenhouseJobFields.CompanyLogo, l.LogoUrl))).ToList();
+
+        var result = await _jobs.BulkWriteAsync(writes, new BulkWriteOptions { IsOrdered = false }, ct);
+        return result.ModifiedCount;
+    }
+
+    /// <inheritdoc />
     public async Task<long> StampPostedSalariesAsync(
         string boardKey, IReadOnlyCollection<(string SourceJobId, SalaryRange? Salary)> salaries, CancellationToken ct)
     {

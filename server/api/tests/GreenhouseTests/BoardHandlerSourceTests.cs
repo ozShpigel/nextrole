@@ -15,11 +15,11 @@ public class BoardHandlerSourceTests
 {
     private static readonly string Body = "&lt;p&gt;" + new string('a', 400) + "&lt;/p&gt;";
 
-    private sealed class FakeSource(Listing listing, Func<ListedPosting, SourcePosting?> detail) : IJobSource
+    private sealed class FakeSource(Listing listing, Func<ListedPosting, SourcePosting?> detail, string name = "fake") : IJobSource
     {
         public int DetailCalls => DetailFor.Count;
         public List<string> DetailFor { get; } = [];
-        public string Name => "fake";
+        public string Name => name;
 
         public Task<Listing> ListAsync(BoardConfig board, CancellationToken ct) => Task.FromResult(listing);
 
@@ -41,6 +41,24 @@ public class BoardHandlerSourceTests
     private static BoardHandler Handler(IJobSource source, FakeJobStore store) =>
         new([source], new FakeEmbeddingClient(), store, BoardsConfig.ForTesting(Build.Token),
             NullLogger<BoardHandler>.Instance);
+
+    [Fact]
+    public async Task A_linkedin_search_stamps_each_postings_own_logo_and_never_the_board_wide_null()
+    {
+        // A search has no domain: the board-wide stamp would null every row.
+        var store = new FakeJobStore();
+        var source = new FakeSource(
+            new Listing([Listed("1"), Listed("2")], Complete: false, Total: null),
+            p => Full(p) with { CompanyLogo = p.SourceJobId == "1" ? "https://media.licdn.com/1.png" : null },
+            name: "linkedin");
+        var board = new BoardConfig { Source = "linkedin", Token = "israel" };
+
+        await Handler(source, store).HandleBoardAsync(board);
+
+        Assert.Empty(store.StampedLogos);
+        var stamped = Assert.Single(store.StampedPostingLogos).Value;
+        Assert.Equal("https://media.licdn.com/1.png", Assert.Single(stamped).Value);   // "2" had none: left as it was
+    }
 
     [Fact]
     public async Task A_posting_whose_detail_failed_is_neither_stored_nor_closed()

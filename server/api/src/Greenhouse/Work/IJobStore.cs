@@ -142,6 +142,13 @@ public interface IJobStore
     Task<long> StampCompanyLogoAsync(string boardKey, string? logoUrl, CancellationToken ct);
 
     /// <summary>
+    /// Set each posting's own logo where it differs from what is stored -- a
+    /// search's postings, which are from many companies. Returns the rows changed.
+    /// </summary>
+    Task<long> StampPostingLogosAsync(
+        string boardKey, IReadOnlyCollection<(string SourceJobId, string LogoUrl)> logos, CancellationToken ct);
+
+    /// <summary>
     /// Set each posting's published pay range (or null) where it differs from
     /// what is stored. Returns the rows changed.
     /// </summary>

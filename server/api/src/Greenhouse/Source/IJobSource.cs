@@ -89,10 +89,16 @@ public sealed record ListedPosting(
 /// The company's own published annual pay range, when the source carries one
 /// and it passed <c>SalaryBounds</c>. Restamped every run, never hashed.
 /// </param>
+/// <param name="CompanyLogo">
+/// The company's logo as this posting carries it -- a search's postings are
+/// from many companies, so the logo comes per posting (LinkedIn). A company
+/// board's logo comes from its configured domain instead, and this stays null.
+/// </param>
 public sealed record SourcePosting(
     ListedPosting Listed,
     string? ContentHtml,
     string? Url,
     string? Company,
     string? RequisitionId,
-    SalaryRange? PostedSalary = null);
+    SalaryRange? PostedSalary = null,
+    string? CompanyLogo = null);

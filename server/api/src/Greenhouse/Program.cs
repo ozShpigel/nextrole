@@ -277,12 +277,22 @@ try
     var publicApiHttp = new HttpClient { Timeout = TimeSpan.FromMinutes(2) };
     publicApiHttp.DefaultRequestHeaders.UserAgent.ParseAdd("NextRole-ingest/1.0 (+https://nextrole.cloud)");
 
+    // LinkedIn: searches through the jobspy scraper (Scraper:BaseUrl, Docker DNS
+    // on the box). A search paces itself 8-20s between titles and fetches each
+    // description, so one entry takes minutes. Without the setting the source
+    // still loads and refuses its own boards by name; every other board runs.
+    var scraperUrl = configuration["Scraper:BaseUrl"];
+    var scraperHttp = string.IsNullOrWhiteSpace(scraperUrl)
+        ? null
+        : new HttpClient { BaseAddress = new Uri(scraperUrl.TrimEnd('/') + "/"), Timeout = TimeSpan.FromMinutes(20) };
+
     IJobSource[] sources =
     [
         new GreenhouseSource(new BoardClient(boardHttp, loggerFactory.CreateLogger<BoardClient>())),
         new WorkdaySource(workdayHttp, loggerFactory.CreateLogger<WorkdaySource>()),
         new LeverSource(publicApiHttp, loggerFactory.CreateLogger<LeverSource>()),
         new ComeetSource(publicApiHttp, loggerFactory.CreateLogger<ComeetSource>()),
+        new LinkedInSource(scraperHttp, boards.All, loggerFactory.CreateLogger<LinkedInSource>()),
     ];
 
     // Dates of new postings the detail showed too old, so tomorrow's run skips

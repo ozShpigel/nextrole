@@ -158,6 +158,9 @@ services:
       # forever. Reached by Docker DNS, so it is the API's SERVICE name and
       # container port, never localhost.
       - Api__BaseUrl=${API_INTERNAL_URL:-http://api:8080}
+      # The LinkedIn source's scraper (POST /scrape). Only used when the boards
+      # config has a linkedin entry -- boards.dev.json does not.
+      - Scraper__BaseUrl=${SCRAPER_INTERNAL_URL:-http://scraper:8080}
       # Only needed when the instance-wide ApiKey gate is on. Harmless when
       # unset; the header is simply not sent.
       - Api__ApiKey=${API_KEY:-}

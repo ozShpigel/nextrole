@@ -208,6 +208,12 @@ def scrape_for_criteria(criteria: ScrapeSpec) -> tuple[list[dict], dict]:
                         "location": _clean(row.get("location")) or "",
                         "description": description_text,
                         "job_url": url,
+                        # The posting's own "Apply" link when it leaves LinkedIn
+                        # (a company careers page or ATS board). The board
+                        # ingest's LinkedIn source skips a posting whose link
+                        # points at a board it already reads -- the duplicate
+                        # check that does not depend on how the name is spelled.
+                        "job_url_direct": _clean(row.get("job_url_direct")),
                         "date_posted": _clean(row.get("date_posted")),
                         "site": _clean(row.get("site")) or "linkedin",
                         "job_level": _clean(row.get("job_level")),

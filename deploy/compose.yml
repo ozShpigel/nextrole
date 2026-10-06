@@ -143,6 +143,11 @@ services:
     command: ["consume"]
     restart: unless-stopped
     env_file: [.env.greenhouse]
+    environment:
+      # The LinkedIn source searches through the jobspy scraper (POST /scrape).
+      # Docker DNS and the container's port, never localhost. Without it the
+      # linkedin entry in boards.json fails by name and every other board runs.
+      - Scraper__BaseUrl=http://scraper:8080
     depends_on:
       rabbitmq:
         condition: service_healthy

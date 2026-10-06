@@ -264,8 +264,11 @@ public class BoardsConfigTests
 
         var config = BoardsConfig.Load(Path.Combine(dir!, relative));
 
-        // Every shipped board is on a known source and has a domain, so a logo.
-        Assert.All(config.All, board => Assert.NotNull(config.LogoUrlFor(board)));
+        // Every shipped company board is on a known source and has a domain, so
+        // a logo. A LinkedIn search is many companies and has neither: its
+        // postings show the company's initial.
+        Assert.All(config.All.Where(b => b.Source != LinkedInSource.SourceName),
+            board => Assert.NotNull(config.LogoUrlFor(board)));
     }
 
     [Fact]

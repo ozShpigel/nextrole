@@ -193,6 +193,15 @@ public static class GreenhouseJobFields
 
     public const string EmbeddedAt = "embeddedAt";
     public const string FirstSeenAt = "firstSeenAt";
+
+    /// <summary>
+    /// When a TTL index deletes the posting. Set only on LinkedIn postings
+    /// (<c>LinkedInSource.DeleteAfterDays</c> after posting, or after first
+    /// seen): they are never closed by a close diff, so they leave by age.
+    /// Board postings never carry it -- they are kept forever because a board
+    /// posting can reopen.
+    /// </summary>
+    public const string DeleteAt = "deleteAt";
     public const string LastSeenAt = "lastSeenAt";
     public const string LastSeenRunId = "lastSeenRunId";
 

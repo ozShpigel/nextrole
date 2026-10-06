@@ -125,9 +125,12 @@ public sealed partial class LinkedInSource : IJobSource
             throw new BoardFetchException(
                 $"Board {board.Key}: every one of {stats.SearchesTotal} LinkedIn searches failed (blocked?).");
 
+        var excluded = (board.ExcludeCompanies ?? []).Select(Normalize).Where(n => n.Length > 0)
+            .ToHashSet(StringComparer.Ordinal);
+
         var postings = new List<ListedPosting>();
         var seen = new HashSet<string>(StringComparer.Ordinal);
-        int noId = 0, boardCompany = 0, thin = 0;
+        int noId = 0, boardCompany = 0, agency = 0, thin = 0;
         var keptCompanies = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var job in response.Jobs)
         {
@@ -139,6 +142,9 @@ public sealed partial class LinkedInSource : IJobSource
                 boardCompany++;
                 continue;
             }
+            // Agencies listed in the entry's exclude_companies: skipped before
+            // anything is paid for them.
+            if (excluded.Contains(Normalize(job.Company))) { agency++; continue; }
             if (Blank(job.Company) is { } company) keptCompanies.Add(company);
 
             var listed = new ListedPosting(
@@ -161,8 +167,8 @@ public sealed partial class LinkedInSource : IJobSource
         }
 
         _log.LogInformation(
-            "Board {Board}: {Kept} LinkedIn posting(s); skipped {NoId} without a job id and {BoardCompany} from companies with their own board; {Thin} without a usable description (retried if seen again)",
-            board.Key, postings.Count, noId, boardCompany, thin);
+            "Board {Board}: {Kept} LinkedIn posting(s); skipped {NoId} without a job id, {BoardCompany} from companies with their own board and {Agency} from excluded companies; {Thin} without a usable description (retried if seen again)",
+            board.Key, postings.Count, noId, boardCompany, agency, thin);
         // The duplicate check's trail: a company here that also has a board
         // under another spelling is a missing alias.
         _log.LogInformation("Board {Board}: LinkedIn companies kept: {Companies}",

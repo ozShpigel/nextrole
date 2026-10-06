@@ -364,6 +364,38 @@ public sealed class GreenhouseJobRepository : IPoolJobRepository
     public Task<long> CountActiveAsync(CancellationToken ct = default) =>
         _jobs.CountDocumentsAsync(Open, cancellationToken: ct);
 
+    public async Task<List<PoolJob>> SearchTextAsync(string text, int limit, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return [];
+
+        var b = Builders<BsonDocument>.Filter;
+        var docs = await _jobs
+            .Find(b.And(Open, PostedWithin(PoolBrowseQuery.MaxAgeDays), MatchesText(text)))
+            // The vector is the bulk of every document and nothing here reads it.
+            .Project<BsonDocument>(Builders<BsonDocument>.Projection.Exclude(GreenhouseJobFields.Embedding))
+            .SortByDescending(d => d[GreenhouseJobFields.FirstSeenAt])
+            .Limit(Math.Max(1, limit))
+            .ToListAsync(ct);
+        return [.. docs.Select(ToPoolJob)];
+    }
+
+    /// <summary>
+    /// Title, company or text contains <paramref name="text"/>, ignoring case,
+    /// as typed -- escaped, so a search for "C++" is not a pattern.
+    /// </summary>
+    internal static FilterDefinition<BsonDocument> MatchesText(string text)
+    {
+        var term = BsonRegularExpression.Create(
+            new System.Text.RegularExpressions.Regex(
+                System.Text.RegularExpressions.Regex.Escape(text.Trim()),
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase));
+
+        return Builders<BsonDocument>.Filter.Or(
+            Builders<BsonDocument>.Filter.Regex(GreenhouseJobFields.Title, term),
+            Builders<BsonDocument>.Filter.Regex(GreenhouseJobFields.Company, term),
+            Builders<BsonDocument>.Filter.Regex(GreenhouseJobFields.Content, term));
+    }
+
     /// <summary>The Matches page's read over ids this user has scores for.</summary>
     public async Task<List<PoolJobListItem>> BrowseAsync(
         IReadOnlyCollection<string> jobIds, PoolBrowseQuery query, CancellationToken ct = default)
@@ -426,17 +458,7 @@ public sealed class GreenhouseJobRepository : IPoolJobRepository
                 b.Size(GreenhouseJobFields.ExtractedFunctions, 0)));
 
         if (!string.IsNullOrWhiteSpace(query.Text))
-        {
-            var term = BsonRegularExpression.Create(
-                new System.Text.RegularExpressions.Regex(
-                    System.Text.RegularExpressions.Regex.Escape(query.Text!),
-                    System.Text.RegularExpressions.RegexOptions.IgnoreCase));
-
-            clauses.Add(Builders<BsonDocument>.Filter.Or(
-                Builders<BsonDocument>.Filter.Regex(GreenhouseJobFields.Title, term),
-                Builders<BsonDocument>.Filter.Regex(GreenhouseJobFields.Company, term),
-                Builders<BsonDocument>.Filter.Regex(GreenhouseJobFields.Content, term)));
-        }
+            clauses.Add(MatchesText(query.Text!));
 
         var docs = await _jobs
             .Find(Builders<BsonDocument>.Filter.And(clauses))

@@ -744,7 +744,7 @@ export default function SearchPage() {
   // render as quiet cards and are scored in batches of five when the reader
   // actually reaches them — which is what keeps spend proportional to how much
   // of the board someone reads, rather than to how many postings exist.
-  const bandQuery = usePoolBand(!uploading);
+  const bandQuery = usePoolBand(!uploading, searchDebounced);
   const scoreJobs = useScoreJobs();
 
   // Roles being collected for this user's new kind of work or location. When

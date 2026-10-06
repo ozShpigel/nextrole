@@ -34,7 +34,7 @@ public interface IPoolBrowseService
     /// that is imperfectly sorted.
     /// </para>
     /// </remarks>
-    Task<PoolBandResult> BandAsync(Guid userId, int limit, CancellationToken ct = default);
+    Task<PoolBandResult> BandAsync(Guid userId, int limit, string? search = null, CancellationToken ct = default);
 }
 
 /// <summary>
@@ -138,7 +138,7 @@ public sealed class PoolBrowseService : IPoolBrowseService
     }
 
     /// <inheritdoc />
-    public async Task<PoolBandResult> BandAsync(Guid userId, int limit, CancellationToken ct = default)
+    public async Task<PoolBandResult> BandAsync(Guid userId, int limit, string? search = null, CancellationToken ct = default)
     {
         limit = Math.Max(1, Math.Min(limit, PoolBandResult.MaxLimit));
 
@@ -153,8 +153,15 @@ public sealed class PoolBrowseService : IPoolBrowseService
         // be reconciled in the client.
         // Never older than Matches will show ("Any" is three months): an older
         // posting would take a band slot only to be dropped below.
-        var band = await _pool.FindCandidatesAsync(
-            filter with { MaxAgeDays = PoolBrowseQuery.MaxAgeDays }, [], limit, ct);
+        //
+        // With a search, the band is the WHOLE pool's text matches instead of
+        // the postings closest to this profile: a posting the reader knows is
+        // there (a company name) must be findable even when it is not among
+        // their nearest 40. Everything after -- scores, dismissed, the board's
+        // own chips in the browser, scoring on dwell -- is the same.
+        var band = string.IsNullOrWhiteSpace(search)
+            ? await _pool.FindCandidatesAsync(filter with { MaxAgeDays = PoolBrowseQuery.MaxAgeDays }, [], limit, ct)
+            : await _pool.SearchTextAsync(search.Trim(), limit, ct);
         if (band.Count == 0)
             return new PoolBandResult { PoolSize = await _pool.CountActiveAsync(ct) };
 

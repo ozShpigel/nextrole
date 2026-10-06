@@ -65,10 +65,16 @@ export function usePoolScan(enabled: boolean) {
 // call — which is the whole point of separating it from the scan. A short
 // staleTime rather than Infinity, because scoring writes rows this read merges
 // in, so the board needs to pick them up.
-export function usePoolBand(enabled: boolean) {
+//
+// With a search, the band is the whole pool's text matches rather than the
+// postings nearest this profile — so a company the reader knows is there can
+// be found by name. Keyed by the search, so clearing it returns to the
+// nearest-40 band from cache.
+export function usePoolBand(enabled: boolean, search?: string) {
+  const q = search?.trim() ?? '';
   return useQuery<PoolBandResult>({
-    queryKey: ['match', 'pool-band'],
-    queryFn: () => matchApi('/pool-band'),
+    queryKey: ['match', 'pool-band', q],
+    queryFn: () => matchApi(q ? `/pool-band?q=${encodeURIComponent(q)}` : '/pool-band'),
     enabled,
     staleTime: 15 * 1000,
     retry: false,

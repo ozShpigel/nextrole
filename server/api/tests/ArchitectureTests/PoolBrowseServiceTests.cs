@@ -61,8 +61,21 @@ public class PoolBrowseServiceTests
             return Task.FromResult(Rows.Where(r => jobIds.Contains(r.Id)).ToList());
         }
 
-        public Task<List<PoolJob>> FindCandidatesAsync(CandidateFilter f, IReadOnlyCollection<string> x, int n, CancellationToken ct = default) =>
-            Task.FromResult(new List<PoolJob>());
+        public List<PoolJob> Candidates = [];
+        public List<PoolJob> SearchHits = [];
+        public string? LastSearch;
+        public int CandidateCalls;
+
+        public Task<List<PoolJob>> FindCandidatesAsync(CandidateFilter f, IReadOnlyCollection<string> x, int n, CancellationToken ct = default)
+        {
+            CandidateCalls++;
+            return Task.FromResult(Candidates);
+        }
+        public Task<List<PoolJob>> SearchTextAsync(string text, int limit, CancellationToken ct = default)
+        {
+            LastSearch = text;
+            return Task.FromResult(SearchHits);
+        }
         public int MaxCandidatesPerScan => 50;
         public Task<List<PoolJob>> GetByIdsAsync(IEnumerable<string> ids, CancellationToken ct = default) =>
             Task.FromResult(new List<PoolJob>());
@@ -310,5 +323,45 @@ public class PoolBrowseServiceTests
         await svc.BrowseAsync(User, new PoolBrowseQuery());
 
         Assert.Empty(p.LastQuery!.Functions);
+    }
+
+    // ── The search box searches the whole pool ─────────────────────────────
+
+    private static readonly ApplicationTracker.Core.Profile.StructuredProfile DevOpsProfile = new()
+    {
+        Experience = [new ApplicationTracker.Core.Profile.ExperienceItem { Title = "DevOps Engineer", Company = "Acme" }],
+    };
+
+    [Fact]
+    public async Task Without_a_search_the_band_is_the_profiles_nearest_postings()
+    {
+        var (s, p, t) = (new FakeScores(), new FakePool(), new FakeState());
+        p.Candidates = [new PoolJob { Id = "near-1" }];
+        p.Rows = [new PoolJobListItem { Id = "near-1" }];
+
+        var band = await new PoolBrowseService(s, p, t, new FakeProfiles { Profile = DevOpsProfile }).BandAsync(User, 40);
+
+        Assert.Equal(1, p.CandidateCalls);
+        Assert.Null(p.LastSearch);
+        Assert.Equal(["near-1"], band.Jobs.Select(j => j.Id));
+    }
+
+    [Fact]
+    public async Task A_search_finds_a_posting_outside_the_profiles_nearest()
+    {
+        // The case that started this: Apono's backend posting, in the pool,
+        // never among a DevOps profile's nearest 40.
+        var (s, p, t) = (new FakeScores(), new FakePool(), new FakeState());
+        p.Candidates = [new PoolJob { Id = "near-1" }];
+        p.SearchHits = [new PoolJob { Id = "apono-backend" }];
+        p.Rows = [new PoolJobListItem { Id = "near-1" }, new PoolJobListItem { Id = "apono-backend" }];
+
+        var band = await new PoolBrowseService(s, p, t, new FakeProfiles { Profile = DevOpsProfile })
+            .BandAsync(User, 40, "  Apono ");
+
+        Assert.Equal("Apono", p.LastSearch);
+        Assert.Equal(0, p.CandidateCalls);
+        Assert.Equal(["apono-backend"], band.Jobs.Select(j => j.Id));
+        Assert.Equal(1, band.Unscored);
     }
 }

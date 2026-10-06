@@ -320,7 +320,7 @@ public sealed class BoardHandler
         // closed and came back unchanged reopens without being re-embedded.
         await _store.TouchAsync(board.Key, unchanged, runId, now, ct);
 
-        await StampLogoAsync(board, ct);
+        await StampLogoAsync(board, jobs, ct);
         await StampPostedSalariesAsync(board, jobs, ct);
 
         // The diff is driven by the LISTING, never by what was read in full: a
@@ -964,19 +964,29 @@ public sealed class BoardHandler
     }
 
     /// <summary>
-    /// Stamp the board's configured logo onto its rows.
+    /// Stamp the board's configured logo onto its rows -- or, for a LinkedIn
+    /// search, each posting's own.
     /// </summary>
     /// <remarks>
     /// Never throws. A logo is display-only, and failing the company over it
     /// would nack a message whose embeddings are already written and paid for.
     /// The next run stamps it again.
+    /// <para>
+    /// A search has no domain, so the board-wide stamp would set every row's
+    /// logo to null. Its postings carry their own, and only those read this
+    /// run with a logo are stamped: a posting the scraper returned without one
+    /// keeps what it had.
+    /// </para>
     /// </remarks>
-    private async Task StampLogoAsync(BoardConfig board, CancellationToken ct)
+    private async Task StampLogoAsync(BoardConfig board, IReadOnlyList<GreenhouseJob> jobs, CancellationToken ct)
     {
-        var logo = _config.LogoUrlFor(board);
         try
         {
-            var stamped = await _store.StampCompanyLogoAsync(board.Key, logo, ct);
+            var stamped = board.Source == LinkedInSource.SourceName
+                ? await _store.StampPostingLogosAsync(board.Key,
+                    [.. jobs.Where(j => j.Source.CompanyLogo is not null)
+                        .Select(j => (j.SourceJobId, j.Source.CompanyLogo!))], ct)
+                : await _store.StampCompanyLogoAsync(board.Key, _config.LogoUrlFor(board), ct);
             if (stamped > 0)
                 _log.LogInformation("Board {Board}: set the company logo on {Count} row(s)", board.Token, stamped);
         }

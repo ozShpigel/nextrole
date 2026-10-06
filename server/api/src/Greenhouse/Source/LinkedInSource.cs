@@ -162,7 +162,8 @@ public sealed partial class LinkedInSource : IJobSource
                 ? listed
                 : listed with
                 {
-                    Detail = new SourcePosting(listed, text, Blank(job.JobUrl), Blank(job.Company), RequisitionId: null),
+                    Detail = new SourcePosting(listed, text, Blank(job.JobUrl), Blank(job.Company), RequisitionId: null,
+                        CompanyLogo: HttpsUrl(job.CompanyLogo)),
                 });
         }
 
@@ -282,6 +283,12 @@ public sealed partial class LinkedInSource : IJobSource
 
     private static string? Blank(string? s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
 
+    // Scraped, and rendered as an image source: an absolute https URL or nothing.
+    internal static string? HttpsUrl(string? s) =>
+        Uri.TryCreate(Blank(s), UriKind.Absolute, out var uri) && uri.Scheme == Uri.UriSchemeHttps
+            ? uri.AbsoluteUri
+            : null;
+
     [GeneratedRegex(@"/jobs/view/(?:[^/?#]*-)?(\d{6,})")]
     private static partial Regex JobIdPattern();
 
@@ -318,5 +325,6 @@ public sealed partial class LinkedInSource : IJobSource
         [JsonPropertyName("job_url")] public string? JobUrl { get; init; }
         [JsonPropertyName("job_url_direct")] public string? JobUrlDirect { get; init; }
         [JsonPropertyName("date_posted")] public string? DatePosted { get; init; }
+        [JsonPropertyName("company_logo")] public string? CompanyLogo { get; init; }
     }
 }

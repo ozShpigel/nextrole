@@ -35,10 +35,11 @@ internal static class LinkedIn
 
     // id is the scraper's own row id: a fresh UUID every scrape, never the key.
     public static string Job(string id, string url, string company, string title = "DevOps Engineer",
-        string? description = null, string? date = "2026-10-03", string? direct = null) => $$"""
+        string? description = null, string? date = "2026-10-03", string? direct = null, string? logo = null) => $$"""
         { "id": "{{id}}", "title": "{{title}}", "company": "{{company}}", "location": "Tel Aviv, Israel",
           "description": "{{description ?? LongText}}", "job_url": "{{url}}", "date_posted": {{(date is null ? "null" : $"\"{date}\"")}},
-          "job_url_direct": {{(direct is null ? "null" : $"\"{direct}\"")}}, "site": "linkedin" }
+          "job_url_direct": {{(direct is null ? "null" : $"\"{direct}\"")}}, "site": "linkedin",
+          "company_logo": {{(logo is null ? "null" : $"\"{logo}\"")}} }
         """;
 
     public static string Response(params string[] jobs) =>
@@ -170,6 +171,20 @@ public class LinkedInSourceTests
         var listing = await LinkedIn.Over(HttpStatusCode.OK, json).ListAsync(LinkedIn.Board, default);
 
         Assert.Single(listing.Postings);
+    }
+
+    [Theory]
+    [InlineData("https://media.licdn.com/dms/image/v2/abc/company-logo_100_100/0?e=2147483647&v=beta", true)]
+    [InlineData("http://media.licdn.com/logo.png", false)]
+    [InlineData("javascript:alert(1)", false)]
+    [InlineData("/relative/logo.png", false)]
+    public async Task Carries_the_postings_company_logo_only_as_an_https_url(string logo, bool kept)
+    {
+        var json = LinkedIn.Response(LinkedIn.Job("x", "https://www.linkedin.com/jobs/view/4000000020", "Silverfort", logo: logo));
+
+        var listing = await LinkedIn.Over(HttpStatusCode.OK, json).ListAsync(LinkedIn.Board, default);
+
+        Assert.Equal(kept ? logo : null, listing.Postings.Single().Detail!.CompanyLogo);
     }
 
     [Fact]

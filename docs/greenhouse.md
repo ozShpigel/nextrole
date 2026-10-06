@@ -390,6 +390,9 @@ compete with them. `LinkedInSource` keeps every rule simple, by design:
   board job can't be recognised, and their postings are vaguer. Same
   normalised-name match; skipped before anything is paid. Add names as they
   show up in the "companies kept" log line.
+- **The logo is the posting's own.** A search has no domain, so instead of the
+  board-wide stamp each posting's LinkedIn logo (`company_logo`, https only) is
+  stamped on its row; a posting returned without one keeps what it had.
 - **The key is LinkedIn's job id**, read from the posting URL
   (`/jobs/view/…-<id>`). The scraper's own row id is a fresh UUID per scrape.
 - **No description, no posting.** jobspy fetches each description separately

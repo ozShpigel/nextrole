@@ -280,6 +280,18 @@ public sealed class FakeJobStore : IJobStore
         return Task.FromResult(1L);
     }
 
+    /// <summary>Each posting's own logo stamped per board key, by source job id.</summary>
+    public Dictionary<string, Dictionary<string, string>> StampedPostingLogos { get; } = [];
+
+    public Task<long> StampPostingLogosAsync(
+        string boardKey, IReadOnlyCollection<(string SourceJobId, string LogoUrl)> logos, CancellationToken ct)
+    {
+        if (StampThrows is not null) throw StampThrows;
+        var board = StampedPostingLogos.TryGetValue(boardKey, out var b) ? b : StampedPostingLogos[boardKey] = [];
+        foreach (var (id, logo) in logos) board[id] = logo;
+        return Task.FromResult((long)logos.Count);
+    }
+
     /// <summary>The published pay stamped per board key, by source job id.</summary>
     public Dictionary<string, Dictionary<string, SalaryRange?>> StampedSalaries { get; } = [];
 

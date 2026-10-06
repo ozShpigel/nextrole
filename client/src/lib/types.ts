@@ -126,6 +126,10 @@ export interface MatchResponse {
   // e.g. the Matches page's score-ring hover tooltip. Absent on jobs scored
   // before this field existed.
   quickHighlights?: string[];
+  // Technologies the rationale credits to the candidate that their profile
+  // does not show (server-side ClaimGrounding). `text` is the flagged line
+  // verbatim, so a highlight can be matched to its flag exactly.
+  unsupportedClaims?: { field: string; technology: string; text: string }[];
   honestAssessment?: string;
   analystSnapshotInput?: string | null;
   analystSnapshotOutput?: string | null;

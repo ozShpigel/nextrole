@@ -31,3 +31,39 @@ describe('AnalysisCard - stored analyses from the LinkedIn era', () => {
     expect(screen.queryByText('reviews summary')).not.toBeInTheDocument();
   });
 });
+
+describe('AnalysisCard - a dimension the server did not assess', () => {
+  // Sustainability is dropped from the total when the posting says nothing
+  // about pace; the server sends its score as null and renormalises the rest.
+  const renormalised = {
+    overallScore: 43,
+    verdict: 'NO',
+    breakdown: {
+      technicalFit: { score: 18, maxScore: 35, components: [] },
+      engineeringExecutionFit: { score: 10, maxScore: 30, components: [] },
+      sustainabilityPaceFit: { score: null, maxScore: 35, components: [] },
+    },
+  };
+
+  it('says "Not assessed" instead of a dash out of 35', () => {
+    render(<AnalysisCard matchAnalysisJson={JSON.stringify(renormalised)} />);
+    expect(screen.getByText('Not assessed')).toBeInTheDocument();
+    // The old rendering was an em dash where the score would be.
+    expect(screen.queryByText('—', { exact: false })).not.toBeInTheDocument();
+  });
+
+  it('says what the total was computed from', () => {
+    render(<AnalysisCard matchAnalysisJson={JSON.stringify(renormalised)} />);
+    expect(screen.getByText('Scored on Technical + Execution (28/65)')).toBeInTheDocument();
+  });
+
+  it('adds no such line when every dimension was assessed', () => {
+    const full = {
+      ...renormalised,
+      breakdown: { ...renormalised.breakdown, sustainabilityPaceFit: { score: 20, maxScore: 35, components: [] } },
+    };
+    render(<AnalysisCard matchAnalysisJson={JSON.stringify(full)} />);
+    expect(screen.queryByText(/Scored on/)).not.toBeInTheDocument();
+    expect(screen.queryByText('Not assessed')).not.toBeInTheDocument();
+  });
+});

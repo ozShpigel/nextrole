@@ -2,8 +2,7 @@ import { useEffect, useState } from 'react';
 import { Navigate, NavLink, Outlet, useLocation, useNavigationType } from 'react-router-dom';
 import { Search, Kanban, Mail, GraduationCap, User } from 'lucide-react';
 import { useAuthStatus, useHasProfile, useProfile, useResumeFile } from './lib/queries';
-import { apiUrl } from './lib/api';
-import { GoogleMark } from './components/GoogleMark';
+import { AccountMenu } from './components/AccountMenu';
 import { NoticeBanner } from './components/NoticeBanner';
 import { isCvUploadInProgress, useCvUpload } from './lib/cvUpload';
 import { BrandMark } from './components/BrandMark';
@@ -177,26 +176,13 @@ export default function App() {
               ))}
             </div>
           )}
-          {/* Optional, never a gate. The uid cookie (docs/multi-user.md) stays the
-              only identity and uploading a CV is still the whole onboarding —
-              this is the recovery path for the one real hole in cookie-only
-              identity: clearing cookies or switching device otherwise loses the
-              account for good. Shown only to a visitor we don't already
-              recognise (hasProfile === false, not falsy — `undefined` means the
-              profile queries are still loading, and rendering on that flashes
-              the link in and out). Linking an already-onboarded session to a
-              Google account belongs in Settings, and the Gmail mailbox scope
-              (gmail.readonly, a restricted scope) is deliberately NOT requested
-              here — sign-in asks for openid/email/profile only. */}
-          {hasProfile === false && auth?.available && !auth.signedIn && (
-            <a
-              href={apiUrl('/auth/google/start')}
-              className="ml-auto shrink-0 inline-flex items-center gap-2 rounded-full border border-border px-4 py-[0.4rem] text-[13px] font-medium text-foreground transition-colors hover:bg-[var(--ed-accent)]/10"
-            >
-              <GoogleMark size="14" />
-              Sign in with Google
-            </a>
-          )}
+          {/* Optional, never a gate: the uid cookie (docs/multi-user.md) stays
+              the only identity and uploading a CV is still the whole
+              onboarding. Shown once the profile queries have settled
+              (`undefined` is still loading, and rendering on it flashes the
+              chip in and out). Sign-in asks for openid/email/profile only —
+              the Gmail mailbox scope is deliberately NOT requested here. */}
+          {hasProfile !== undefined && <AccountMenu auth={auth} />}
         </div>
       </nav>
       {/* Directly under the nav and above every page, so an account-level

@@ -257,3 +257,45 @@ describe('SettingsPage', () => {
     });
   });
 });
+
+describe('SettingsPage account', () => {
+  function withAuth(auth: { signedIn: boolean; email: string | null; available: boolean }) {
+    vi.mocked(api).mockImplementation((path: string) =>
+      Promise.resolve(path === '/auth/me' ? auth : path === '/auth/signout' ? null : {}));
+    mockRoutes({ 'GET /profile': mockProfileResponse, 'GET /profile/resume-file': NO_RESUME_FILE_ERROR });
+  }
+
+  it('shows who is signed in, and signs out', async () => {
+    const assign = vi.fn();
+    vi.stubGlobal('location', { ...window.location, assign });
+    withAuth({ signedIn: true, email: 'ada@example.com', available: true });
+    renderWithRouter(<SettingsPage />);
+
+    const account = await screen.findByRole('region', { name: 'Account' });
+    expect(within(account).getByText('ada@example.com')).toBeInTheDocument();
+    await userEvent.click(within(account).getByRole('button', { name: /sign out/i }));
+
+    await waitFor(() => expect(assign).toHaveBeenCalledWith('/'));
+    expect(vi.mocked(api)).toHaveBeenCalledWith('/auth/signout', { method: 'POST' });
+    vi.unstubAllGlobals();
+  });
+
+  // Signing in from an onboarded session links THIS account to Google.
+  it('offers Google sign-in when not signed in', async () => {
+    withAuth({ signedIn: false, email: null, available: true });
+    renderWithRouter(<SettingsPage />);
+
+    const account = await screen.findByRole('region', { name: 'Account' });
+    expect(within(account).getByRole('link', { name: /sign in with google/i }))
+      .toHaveAttribute('href', '/api/auth/google/start');
+  });
+
+  it('shows nothing where sign-in is unavailable', async () => {
+    withAuth({ signedIn: false, email: null, available: false });
+    renderWithRouter(<SettingsPage />);
+
+    await screen.findByRole('heading', { name: 'About You' });
+    expect(screen.queryByRole('region', { name: 'Account' })).not.toBeInTheDocument();
+  });
+});
+

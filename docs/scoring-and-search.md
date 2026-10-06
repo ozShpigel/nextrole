@@ -37,6 +37,10 @@ the expensive one.
   ~95ms, **no Claude call**. Returns the whole relevant band (default 40, ceiling
   `PoolBandResult.MaxLimit`) in retrieval order, scored or not, with per-user
   score and saved/dismissed state merged in. This is the board's first paint.
+  With `?q=` (the search box) the band is instead the **whole pool's** text
+  matches — title, company or description, open, within `MaxAgeDays`, newest
+  first — so a posting the reader knows is there (a company name) is findable
+  even when it is not among their nearest 40. Everything after is the same.
 - **`POST /api/match/pool-scan`** — the eager scan, which scores the top
   `IPoolJobRepository.MaxCandidatesPerScan` (10 on the Greenhouse source).
 - **`POST /api/match/score-jobs`** — scores specific ids, which is what the

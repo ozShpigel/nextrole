@@ -81,4 +81,18 @@ public interface IPoolJobRepository
     Task<int> SaveParsesAsync(
         IReadOnlyDictionary<string, ParsedJob> parses, string? parseVersion, CancellationToken ct = default) =>
         Task.FromResult(0);
+
+    /// <summary>
+    /// Open postings anywhere in the pool whose title, company or text contains
+    /// <paramref name="text"/>, newest first -- the Matches search box.
+    /// </summary>
+    /// <remarks>
+    /// Not the candidate search: no profile, no similarity, no profile filters.
+    /// The board otherwise shows the postings closest to the reader's profile,
+    /// so a company they know is in the pool (a backend posting on a DevOps
+    /// profile) could not be found by name at all. Still capped at
+    /// <see cref="Matching.PoolBrowseQuery.MaxAgeDays"/>, like everything Matches shows.
+    /// </remarks>
+    Task<List<PoolJob>> SearchTextAsync(string text, int limit, CancellationToken ct = default) =>
+        Task.FromResult(new List<PoolJob>());
 }

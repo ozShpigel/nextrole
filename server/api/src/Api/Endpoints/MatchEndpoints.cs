@@ -130,11 +130,14 @@ public static class MatchEndpoints
             IPoolBrowseService browse,
             ILogger<Program> logger,
             int? limit,
+            string? q,
             CancellationToken ct) =>
         {
             try
             {
-                var result = await browse.BandAsync(user.UserId, limit ?? 40, ct);
+                // A search longer than this is not a company or a keyword.
+                var search = string.IsNullOrWhiteSpace(q) ? null : q.Trim()[..Math.Min(q.Trim().Length, 100)];
+                var result = await browse.BandAsync(user.UserId, limit ?? 40, search, ct);
                 return Results.Ok(result);
             }
             catch (Exception ex)

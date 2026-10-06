@@ -87,6 +87,14 @@ public sealed record BoardConfig
     /// </summary>
     [JsonPropertyName("hours_old")] public int? HoursOld { get; init; }
 
+    /// <summary>
+    /// LinkedIn only: companies whose postings are skipped -- recruiting and
+    /// staffing agencies, which post for an unnamed employer (so a duplicate of
+    /// a board job cannot be recognised) and usually with less to read. Matched
+    /// by the same normalised name as the board-duplicate check.
+    /// </summary>
+    [JsonPropertyName("exclude_companies")] public List<string>? ExcludeCompanies { get; init; }
+
     [JsonIgnore] public string Key => GreenhouseJob.KeyFor(Source, Token);
 }
 
@@ -312,6 +320,7 @@ public sealed record BoardsConfig
                 Aliases = Trimmed(raw.Aliases),
                 Titles = Trimmed(raw.Titles),
                 Locations = Trimmed(raw.Locations),
+                ExcludeCompanies = Trimmed(raw.ExcludeCompanies),
             };
 
             if (!KnownSources.Contains(board.Source))
@@ -397,10 +406,11 @@ public sealed record BoardsConfig
             throw new InvalidOperationException($"{what}: {board.Key} has region, which only a lever board takes.");
 
         var linkedInFields = board.Titles is not null || board.Locations is not null
-                             || board.ResultsWanted is not null || board.HoursOld is not null;
+                             || board.ResultsWanted is not null || board.HoursOld is not null
+                             || board.ExcludeCompanies is not null;
         if (board.Source != LinkedInSource.SourceName && linkedInFields)
             throw new InvalidOperationException(
-                $"{what}: {board.Key} has titles/locations/results_wanted/hours_old, which only a linkedin search takes.");
+                $"{what}: {board.Key} has titles/locations/results_wanted/hours_old/exclude_companies, which only a linkedin search takes.");
         if (board.Source == LinkedInSource.SourceName)
         {
             CheckLinkedInFields(board, what);

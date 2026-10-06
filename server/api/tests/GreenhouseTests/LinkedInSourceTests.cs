@@ -267,3 +267,41 @@ public class LinkedInBoardsConfigTests
     public void A_malformed_linkedin_entry_is_refused(string json) =>
         Assert.Throws<InvalidOperationException>(() => BoardsConfig.Parse(json));
 }
+
+/// <summary>The entry's exclude_companies: recruiting and staffing agencies.</summary>
+public class LinkedInExcludedCompaniesTests
+{
+    private static readonly BoardConfig Board = LinkedIn.Board with
+    {
+        ExcludeCompanies = ["Gotfriends", "Logica-IT", "Mertens"],
+    };
+
+    [Theory]
+    [InlineData("Gotfriends")]
+    [InlineData("GotFriends Ltd")]                       // case and legal suffix
+    [InlineData("Logica IT")]                            // punctuation
+    [InlineData("מרטנס | Mertens – מקבוצת מלם תים")]      // matched on its Latin part, as LinkedIn shows it
+    public async Task An_excluded_company_is_skipped(string company)
+    {
+        var json = LinkedIn.Response(LinkedIn.Job("x", "https://www.linkedin.com/jobs/view/4000000010", company));
+
+        var listing = await LinkedIn.Over(System.Net.HttpStatusCode.OK, json).ListAsync(Board, default);
+
+        Assert.Empty(listing.Postings);
+    }
+
+    [Fact]
+    public async Task Other_companies_are_kept()
+    {
+        var json = LinkedIn.Response(LinkedIn.Job("x", "https://www.linkedin.com/jobs/view/4000000011", "Silverfort"));
+
+        var listing = await LinkedIn.Over(System.Net.HttpStatusCode.OK, json).ListAsync(Board, default);
+
+        Assert.Single(listing.Postings);
+    }
+
+    [Fact]
+    public void Exclusions_belong_only_on_a_linkedin_search() =>
+        Assert.Throws<InvalidOperationException>(() => BoardsConfig.Parse(
+            """{ "boards": [ { "source": "greenhouse", "token": "wiz", "exclude_companies": ["x"] } ] }"""));
+}

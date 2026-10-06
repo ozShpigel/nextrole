@@ -81,7 +81,7 @@
     {"source": "lever", "token": "spotify", "name": "Spotify", "domain": "spotify.com"},
     {"source": "lever", "token": "zopa", "name": "Zopa", "domain": "zopa.com"},
     {"source": "lever", "token": "mobileye", "name": "Mobileye", "domain": "mobileye.com", "region": "eu"},
-    {"source": "linkedin", "token": "israel", "titles": ["DevOps Engineer", "Backend Engineer"], "locations": ["Israel"], "results_wanted": 15, "hours_old": 48}
+    {"source": "linkedin", "token": "israel", "titles": ["DevOps Engineer", "Backend Engineer"], "locations": ["Israel"], "results_wanted": 15, "hours_old": 48, "exclude_companies": ["Gotfriends", "recruitricks", "Referment", "Logica-IT", "Mertens"]}
   ],
 
   "_domains_comment": "Each board's domain is its company's own web domain, for its logo -- the boards API returns none -- and for the one-domain-one-board rule. The token is a Greenhouse slug, not a domain, so it is written down rather than derived. Optional: a board with no domain gets its initial on the card. The ingest resolves logo_url_template per domain and stamps the URL on every row of that board, so the API never reads this file. Swapping the service -- e.g. to logo.dev, https://img.logo.dev/{domain}?token=pk_... -- is an edit to the template; the next run restamps every row.",

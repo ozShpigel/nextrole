@@ -384,6 +384,12 @@ compete with them. `LinkedInSource` keeps every rule simple, by design:
   `aliases`. Nothing fuzzier — a false match would hide a real job. What both
   miss (an Easy Apply posting under an unaliased spelling) shows in the
   "LinkedIn companies kept" log line; add an alias to that board.
+- **Agencies excluded.** `exclude_companies` on the entry lists recruiting and
+  staffing agencies (Gotfriends, recruitricks, Referment, Logica-IT, Mertens
+  as of the first run): they post for an unnamed employer, so a duplicate of a
+  board job can't be recognised, and their postings are vaguer. Same
+  normalised-name match; skipped before anything is paid. Add names as they
+  show up in the "companies kept" log line.
 - **The key is LinkedIn's job id**, read from the posting URL
   (`/jobs/view/…-<id>`). The scraper's own row id is a fresh UUID per scrape.
 - **No description, no posting.** jobspy fetches each description separately

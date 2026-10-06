@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Navigate, NavLink, Outlet, useLocation, useNavigationType } from 'react-router-dom';
 import { Search, Kanban, Mail, GraduationCap, User } from 'lucide-react';
 import { useAuthStatus, useHasProfile, useProfile, useResumeFile } from './lib/queries';
-import { AccountMenu } from './components/AccountMenu';
+import { ProfileTabIcon, SignInWithGoogle } from './components/Account';
 import { NoticeBanner } from './components/NoticeBanner';
 import { isCvUploadInProgress, useCvUpload } from './lib/cvUpload';
 import { BrandMark } from './components/BrandMark';
@@ -55,6 +55,12 @@ const NAV_LINKS = [
   { to: '/settings', label: 'Profile', Icon: User },
 ];
 
+// The Profile tab is also the account: signed in, its icon is the account's
+// initial, and the Profile page holds the email and Sign out (Account.tsx).
+function NavIcon({ to, auth, size, fallback }: { to: string; auth: AuthStatus; size: number; fallback: React.ReactNode }) {
+  return to === '/settings' ? <ProfileTabIcon auth={auth} size={size} fallback={fallback} /> : <>{fallback}</>;
+}
+
 const navLinkClass = ({ isActive }: { isActive: boolean }): string =>
   `shrink-0 relative inline-flex items-center gap-2 py-[0.45rem] px-[0.95rem] rounded-full text-[0.8rem] font-medium transition-all ${isActive ? 'text-[var(--ed-accent)] bg-[var(--ed-accent)]/10' : 'text-muted-foreground bg-transparent hover:text-foreground'}`;
 
@@ -66,7 +72,9 @@ const mobileNavLinkClass = ({ isActive }: { isActive: boolean }): string =>
 // Fixed to the viewport, so App's caller pads the content column to match
 // its height (including the iOS home-indicator safe area) — see MOBILE_NAV_
 // SPACER below.
-function MobileNav({ hasProfile }: { hasProfile: boolean | undefined }) {
+type AuthStatus = ReturnType<typeof useAuthStatus>['data'];
+
+function MobileNav({ hasProfile, auth }: { hasProfile: boolean | undefined; auth: AuthStatus }) {
   if (!hasProfile) return null;
   return (
     <nav
@@ -75,7 +83,7 @@ function MobileNav({ hasProfile }: { hasProfile: boolean | undefined }) {
     >
       {NAV_LINKS.map(({ to, label, Icon }) => (
         <NavLink key={to} to={to} className={mobileNavLinkClass}>
-          <Icon size={20} aria-hidden="true" />
+          <NavIcon to={to} auth={auth} size={20} fallback={<Icon size={20} aria-hidden="true" />} />
           {label}
         </NavLink>
       ))}
@@ -170,7 +178,7 @@ export default function App() {
             <div className="ed-scroll hidden md:flex items-center gap-2 min-w-0 overflow-x-auto">
               {NAV_LINKS.map(({ to, label, Icon }) => (
                 <NavLink key={to} to={to} className={navLinkClass}>
-                  <Icon size={16} strokeWidth={2} aria-hidden="true" className="shrink-0 opacity-80" />
+                  <NavIcon to={to} auth={auth} size={16} fallback={<Icon size={16} strokeWidth={2} aria-hidden="true" className="shrink-0 opacity-80" />} />
                   {label}
                 </NavLink>
               ))}
@@ -178,11 +186,13 @@ export default function App() {
           )}
           {/* Optional, never a gate: the uid cookie (docs/multi-user.md) stays
               the only identity and uploading a CV is still the whole
-              onboarding. Shown once the profile queries have settled
-              (`undefined` is still loading, and rendering on it flashes the
-              chip in and out). Sign-in asks for openid/email/profile only —
-              the Gmail mailbox scope is deliberately NOT requested here. */}
-          {hasProfile !== undefined && <AccountMenu auth={auth} />}
+              onboarding. Here only before onboarding, when there is no
+              Profile tab yet; after it, sign-in and Sign out live on the
+              Profile page. `hasProfile === false`, not falsy — `undefined` is
+              still loading, and rendering on it flashes the link in and out.
+              Sign-in asks for openid/email/profile only — the Gmail mailbox
+              scope is deliberately NOT requested here. */}
+          {hasProfile === false && auth?.available && !auth.signedIn && <SignInWithGoogle className="ml-auto" />}
         </div>
       </nav>
       {/* Directly under the nav and above every page, so an account-level
@@ -194,7 +204,7 @@ export default function App() {
         <OnboardingGate />
         <AppFooter />
       </div>
-      <MobileNav hasProfile={hasProfile} />
+      <MobileNav hasProfile={hasProfile} auth={auth} />
     </div>
   );
 }

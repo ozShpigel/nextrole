@@ -1,68 +1,8 @@
 {
   "version": 2,
   "labeledAt": "2026-08-28",
-  "baseline": "22/24, stable across three consecutive runs at temperature 0. The three recurring failures (s-neg-01, t-neg-01, e-neg-02) are documented tagging edges, not regressions — see each case's why field. A run below 22 warrants investigation; 22 is the expected result.",  
+  "baseline": "Not re-measured since 2026-10-05, when the six blocker probes were removed with the hard blockers themselves (18 cases remain). Before that: 22/24, stable across three consecutive runs at temperature 0; the three recurring failures (s-neg-01, t-neg-01, e-neg-02) are documented tagging edges, not regressions — see each case's why field. Re-run to set a new baseline before trusting a delta.",
   "cases": [
-    {
-      "id": "b-scope-01",
-      "title": "Platform Engineer, Northwind Systems",
-      "probe": "blocker",
-      "blocker": "scope_discipline",
-      "expectBlocked": false,
-      "dependsOnProfile": false,
-      "why": "Well-defined platform role with one throwaway 'rockstar' in the intro. Scope Discipline has no count qualifier and no exceptions, so a single trigger word is expected to FAIL — but it shouldn't. This is the case that tests whether a keyword veto rejects a genuinely good job.",
-      "jdText": "Northwind Systems is hiring a Platform Engineer to join our Developer Platform group. We're looking for a rockstar engineer to help us scale.\n\nThe Developer Platform group owns the internal tooling that our 200 engineers use every day: CI/CD pipelines, service scaffolding, deployment automation, and the Kubernetes clusters underneath. We are a team of six, we have a clearly scoped charter, and we do not carry production on-call for product services.\n\nWhat you'll do:\n- Own and evolve our GitHub Actions pipelines and reusable workflow library\n- Maintain Terraform modules for our Azure footprint (AKS, Key Vault, Storage)\n- Build internal CLI tooling in C# and Python that removes manual steps for product teams\n- Improve our Prometheus/Grafana observability stack and the alerting on top of it\n- Partner with product teams on deployment patterns and service templates\n\nWhat we're looking for:\n- 5+ years in Platform Engineering, DevOps, or Infrastructure\n- Strong Kubernetes and Terraform experience in production\n- Comfortable writing real code, not just glue scripts\n- Experience with Azure or a comparable cloud\n\nHow we work: two-week iterations, mandatory code review on every change, design docs for anything non-trivial, and a documented on-call rotation limited to platform-owned services. We are deliberate about scope — the team charter is written down and we say no to work outside it."
-    },
-    {
-      "id": "b-scope-02",
-      "title": "Infrastructure Engineer, Halcyon Labs",
-      "probe": "blocker",
-      "blocker": "scope_discipline",
-      "expectBlocked": true,
-      "dependsOnProfile": false,
-      "why": "Genuinely boundaryless role — infrastructure plus helpdesk plus QA plus vendor management — with none of the trigger phrases. Scope Discipline routes 'broad ambiguous ownership' to UNKNOWN rather than FAIL, so this is expected to pass through unblocked. Tests whether the filter catches substance or only vocabulary.",
-      "jdText": "Halcyon Labs is looking for an Infrastructure Engineer.\n\nYou will be responsible for all areas of our technical operations. On any given week this might include provisioning cloud resources, resolving employee laptop and VPN issues, writing automated tests for the product before a release, managing our relationships with hosting and SaaS vendors, and responding to customer-reported outages.\n\nWe don't believe in rigid job descriptions. Responsibilities shift as the business needs change, and we expect everyone to pick up whatever needs doing. There is no formal ticketing system — people come to you directly.\n\nRequirements:\n- 4+ years in an infrastructure, IT, or operations role\n- Experience with a major cloud provider\n- Familiarity with Linux, networking, and scripting\n- Willingness to take on unfamiliar problems\n\nWe are a team of 40 and growing. Reporting lines are flexible and the role will evolve."
-    },
-    {
-      "id": "b-pace-01",
-      "title": "Senior DevOps Engineer, Meridian Data",
-      "probe": "blocker",
-      "blocker": "sustainability_signals",
-      "expectBlocked": false,
-      "dependsOnProfile": false,
-      "why": "One incidental 'fast-paced' in a posting that is otherwise heavy on quality and reliability signals. The rule explicitly routes a single generic mention to UNKNOWN, and balancing signals to PASS. Tests whether the model honours its own carve-out.",
-      "jdText": "Meridian Data builds analytics infrastructure for enterprise customers. We're hiring a Senior DevOps Engineer for our Platform team.\n\nThis is a fast-paced environment and there is a lot to do, but we are equally serious about doing it well. Our engineering culture is built on code review, automated testing, and blameless postmortems. We measure ourselves on reliability, not on how many changes we ship.\n\nResponsibilities:\n- Operate and scale our Kubernetes clusters across Azure and on-prem\n- Own Terraform modules and the review process around infrastructure changes\n- Build and maintain CI/CD in GitHub Actions and Jenkins\n- Extend our Prometheus and Grafana observability, and define SLOs with product teams\n- Participate in a rotating on-call, currently one week in six, with a documented escalation path\n\nRequirements:\n- 5+ years in DevOps, SRE, or Platform Engineering\n- Production Kubernetes, Terraform, and CI/CD\n- Scripting in Python, Bash, or PowerShell\n- Experience with observability tooling\n\nWe protect focus time, we don't expect out-of-hours work outside of on-call, and we plan capacity with slack in it."
-    },
-    {
-      "id": "b-pace-02",
-      "title": "DevOps Engineer, Velocity Shift",
-      "probe": "blocker",
-      "blocker": "sustainability_signals",
-      "expectBlocked": true,
-      "dependsOnProfile": false,
-      "why": "Speed as the company's core cultural identity, with no balancing signal anywhere. Expected FAIL. This is the case the filter was written for.",
-      "jdText": "At Velocity Shift, we move fast. It's not a slogan, it's the whole point.\n\nWe ship to production dozens of times a day. We don't do long planning cycles, we don't write design docs, and we don't wait for permission. If you need three meetings to make a decision, this isn't the place for you.\n\nWe're looking for a DevOps Engineer who thrives at high velocity and wants to keep up with a team that never slows down. You'll be expected to move quickly, break things when necessary, and fix them fast.\n\nWhat you'll do:\n- Keep our deployment pipeline fast and unblocked\n- Manage our AWS infrastructure and Kubernetes clusters\n- Respond to production issues, day or night — we're always on\n- Automate whatever is slowing the team down this week\n\nRequirements:\n- 3+ years in DevOps or SRE\n- AWS, Kubernetes, Terraform\n- Bias for action over process\n- Comfortable with ambiguity and constant change\n\nSpeed is our competitive advantage. Everything else is negotiable."
-    },
-    {
-      "id": "b-mgmt-01",
-      "title": "Staff Platform Engineer, Cobalt Systems",
-      "probe": "blocker",
-      "blocker": "people_management",
-      "expectBlocked": false,
-      "dependsOnProfile": false,
-      "why": "Mentoring, code review, design reviews, and end-to-end project ownership — all explicitly excluded from the people-management rule by name. No direct reports, no hiring, no 'leading a team'. Expected to pass unblocked.",
-      "jdText": "Cobalt Systems is hiring a Staff Platform Engineer for our Internal Developer Platform team.\n\nThis is a senior individual contributor role. You will not have direct reports. You will have significant technical influence.\n\nWhat you'll do:\n- Lead platform initiatives end to end, from design through production rollout\n- Mentor engineers on the team through code review, pairing, and design feedback\n- Set technical standards for how we build and operate internal services\n- Run design reviews and help other engineers think through their architecture\n- Own our Azure infrastructure, AKS clusters, and Terraform modules hands-on\n- Build the self-service tooling that product teams use to ship\n\nRequirements:\n- 7+ years building infrastructure and internal platforms\n- Deep Kubernetes and Terraform experience\n- Strong programming skills — we write real software, primarily C# and Python\n- Experience influencing technical direction without formal authority\n\nCareer growth here does not require becoming a manager. We have a parallel IC track and this role sits on it."
-    },
-    {
-      "id": "b-mgmt-02",
-      "title": "DevOps Team Lead, Ironvale",
-      "probe": "blocker",
-      "blocker": "people_management",
-      "expectBlocked": true,
-      "dependsOnProfile": false,
-      "why": "Formal people management as the role's own duties, plus prior team-leadership experience as a stated qualification. The rule says both count identically. Expected FAIL.",
-      "jdText": "Ironvale is looking for a DevOps Team Lead to build and run our infrastructure organisation.\n\nYou will lead the DevOps team of five engineers, own their professional development, run performance reviews, and hire as we grow. You'll set the team's technical direction and be accountable for its delivery.\n\nWhat you'll do:\n- Lead, grow, and manage the DevOps team\n- Own hiring: define roles, interview, and onboard new engineers\n- Set technical standards and conduct architecture reviews\n- Partner with R&D leadership on the infrastructure roadmap\n- Stay hands-on where it matters, particularly on early architecture\n\nRequirements:\n- 7+ years in DevOps, SRE, or Platform Engineering\n- At least 2 years leading a team or in a management capacity\n- Strong Kubernetes, Terraform, and cloud infrastructure background\n- Experience building and scaling engineering teams\n\nWe're looking for someone who wants to build an organisation, not just systems."
-    },
     {
       "id": "t-pos-01",
       "title": "Platform Engineer, Meridian Retail Group",
@@ -71,7 +11,6 @@
       "expected": {
         "technicalFit": "high"
       },
-      "expectNoBlockers": true,
       "dependsOnProfile": true,
       "why": "Near-exact stack overlap: Azure, AKS, Terraform, C#/.NET, GitHub Actions, Kafka, MongoDB, Prometheus/Grafana. Internal platform for other engineering teams. Execution and sustainability signals kept deliberately neutral.",
       "jdText": "Meridian Retail Group is hiring a Platform Engineer for our Internal Developer Platform team.\n\nWe run a .NET microservices estate on Azure. The platform team owns the infrastructure and tooling that the product teams build on top of.\n\nWhat you'll work on:\n- Azure infrastructure: AKS clusters, Key Vault, Storage, networking, managed identity\n- Terraform modules covering our full Azure footprint\n- GitHub Actions pipelines and a shared reusable workflow library\n- Internal tooling written in C# and Python that removes manual steps for product teams\n- Kafka and RabbitMQ messaging infrastructure, and the MongoDB and SQL Server instances behind our services\n- Our Prometheus and Grafana observability stack, plus alerting\n\nRequirements:\n- 5+ years in Platform Engineering, DevOps, or Infrastructure\n- Production Kubernetes and Terraform\n- Strong Azure experience\n- Comfortable writing application code, not just scripts — we work primarily in C#\n- Experience with CI/CD, ideally GitHub Actions\n- Familiarity with messaging systems and document databases\n\nThe team is six engineers. Hybrid, three days a week in our Tel Aviv office."
@@ -84,7 +23,6 @@
       "expected": {
         "technicalFit": "high"
       },
-      "expectNoBlockers": true,
       "dependsOnProfile": true,
       "why": "Fintech, .NET, Azure, Kubernetes, Ansible, feature-flag and dependency automation — maps directly onto the Payoneer and NCR experience. Neutral on execution and pace.",
       "jdText": "Sterling Financial is looking for an Infrastructure Automation Engineer.\n\nOur engineering organisation is around 300 people building payment infrastructure in .NET. This role sits in the group that builds internal automation for them.\n\nResponsibilities:\n- Build and maintain internal automation services in C# and Python\n- Own our dependency-update automation: automated pull requests, release gating on outdated packages\n- Maintain the CI/CD platform on GitHub Actions and Jenkins\n- Manage Azure infrastructure with Terraform and Ansible\n- Operate our Kubernetes clusters and the Helm charts on top of them\n- Support the feature-flag platform used across the organisation\n\nRequirements:\n- 5+ years in DevOps, Platform Engineering, or backend development with an infrastructure focus\n- Strong C#/.NET; Python for tooling\n- Kubernetes, Terraform, Ansible in production\n- Azure or comparable cloud\n- Experience building tools other engineers depend on\n\nHybrid, based in Tel Aviv."
@@ -97,7 +35,6 @@
       "expected": {
         "technicalFit": "low"
       },
-      "expectNoBlockers": true,
       "dependsOnProfile": true,
       "why": "ML research and model training — PyTorch, CUDA, genomics pipelines. No infrastructure, no .NET, no platform work. Execution and pace signals deliberately healthy so a low technical score can only come from the technical axis.\n\nKNOWN EDGE — blocker status flip-flops between runs. When it blocks, it correctly cites the profile's real red flag 'Early-stage startup' applied to Cortex Bio; the variance is whether the model judges a funded biotech research company as early-stage, not whether the evidence is real. That is a judgement call, not a fabrication, and no structural check can settle it. The sub-score itself is stable at 8/35.",
       "jdText": "Cortex Bio is hiring a Machine Learning Engineer for our genomics modelling team.\n\nYou'll design and train deep learning models that predict protein structure and function from sequence data, working alongside computational biologists and research scientists.\n\nWhat you'll do:\n- Design and train transformer and diffusion models on genomic sequence data\n- Optimise training throughput across multi-GPU clusters using CUDA and mixed precision\n- Build and maintain reproducible training pipelines in PyTorch and JAX\n- Run experiments, analyse results, and iterate on model architecture\n- Publish findings internally and, where appropriate, externally\n\nRequirements:\n- MSc or PhD in Machine Learning, Computational Biology, Statistics, or related\n- 4+ years training deep learning models in production research settings\n- Deep PyTorch expertise; JAX a plus\n- Strong Python and numerical computing (NumPy, pandas, scikit-learn)\n- Experience with GPU optimisation and distributed training\n- Familiarity with genomics data formats and bioinformatics tooling\n\nHow we work: research sprints of four weeks with a review at the end, peer review on all model code, and a strong culture of documenting negative results. We keep normal hours — good science doesn't come from exhaustion."
@@ -110,7 +47,6 @@
       "expected": {
         "technicalFit": "low"
       },
-      "expectNoBlockers": true,
       "dependsOnProfile": true,
       "why": "Pure frontend: React, design systems, accessibility, browser performance. TypeScript is the only overlap. No infrastructure or backend. Execution and pace kept healthy.",
       "jdText": "Palette is hiring a Senior Frontend Engineer to work on our design system and component library.\n\nOur product is a collaborative design tool used by 50,000 teams. The frontend is where nearly all of the complexity lives.\n\nWhat you'll do:\n- Build and maintain our React component library, used by every product team\n- Own accessibility: WCAG compliance, screen reader support, keyboard navigation\n- Optimise browser rendering performance — we care about frame budgets and paint times\n- Work with designers on interaction patterns and motion design\n- Maintain our Storybook documentation and visual regression suite\n- Improve our CSS architecture and design token pipeline\n\nRequirements:\n- 5+ years building complex frontend applications\n- Deep React and TypeScript expertise\n- Strong CSS: layout, animation, responsive design\n- Experience with design systems and component API design\n- Understanding of browser internals and rendering performance\n- Accessibility experience\n\nHow we work: design reviews before implementation, code review on every change, and a two-week release cadence. We don't ship on Fridays and we don't expect out-of-hours work."
@@ -123,7 +59,6 @@
       "expected": {
         "technicalFit": "mid"
       },
-      "expectNoBlockers": true,
       "dependsOnProfile": true,
       "why": "A real-world posting shape: describes the role's purpose but names almost no technologies. Tests whether absence of stack detail is scored as neutral rather than penalised.",
       "jdText": "Halden Group is looking for a DevOps Engineer to join our technology division.\n\nWe are a well-established company undergoing a modernisation of our engineering practices. This role will help us get there.\n\nWhat you'll do:\n- Improve how our software is built, tested, and released\n- Automate manual processes across the development lifecycle\n- Work with development teams to improve their tooling and workflows\n- Help move our systems toward a more modern hosting model\n- Improve how we monitor our production systems\n\nWhat we're looking for:\n- Several years of experience in a DevOps, infrastructure, or automation role\n- A track record of automating things that used to be manual\n- Comfort working across the boundary between development and operations\n- Good communication with engineers and with non-technical stakeholders\n- A pragmatic approach to improving existing systems rather than replacing them\n\nHow we work: we plan in monthly cycles, review changes before they go out, and have a defined process for production releases. Hybrid, two days a week in the office."
@@ -136,7 +71,6 @@
       "expected": {
         "technicalFit": "mid"
       },
-      "expectNoBlockers": true,
       "dependsOnProfile": true,
       "why": "Vague technical framing with no named tools or platforms. Second silence case to distinguish signal from noise in this cell.",
       "jdText": "Ravensworth is hiring a Systems Engineer.\n\nOur platform serves enterprise customers across several regions and needs to be reliable, secure, and efficient. You'll help keep it that way and help it grow.\n\nResponsibilities:\n- Design and maintain the systems that our applications run on\n- Ensure our environments are consistent, reproducible, and secure\n- Investigate and resolve production issues\n- Improve deployment processes and reduce the time it takes to ship a change\n- Contribute to capacity planning and cost management\n\nRequirements:\n- Experience in a systems, infrastructure, or operations engineering role\n- Solid understanding of distributed systems and how they fail\n- Scripting ability and comfort automating repetitive work\n- Experience operating production systems and responding to incidents\n- Ability to work independently and communicate clearly\n\nHow we work: quarterly planning, weekly team syncs, mandatory review on infrastructure changes, and a documented incident process. Hybrid."
@@ -149,7 +83,6 @@
       "expected": {
         "engineeringExecutionFit": "high"
       },
-      "expectNoBlockers": true,
       "dependsOnProfile": false,
       "why": "Explicit role boundaries, written team charter, mandatory code review, design docs, defined ownership. Technical stack kept moderate and generic so it doesn't drive the score.",
       "jdText": "Alderbrook Systems is hiring a Platform Engineer.\n\nThe platform team owns four services and nothing else. Our charter is written down, reviewed quarterly, and we decline work outside it. If something falls between teams, we decide who owns it before anyone starts work on it.\n\nWhat you'll do:\n- Own two of our four platform services end to end, including their roadmap\n- Write design documents for any change that touches a service boundary; these are reviewed by two engineers before implementation starts\n- Participate in mandatory code review — every change, no exceptions, including ours\n- Take part in our postmortem process, which is blameless and produces tracked action items\n- Contribute to the team's technical standards documentation\n\nHow we work:\n- Two-week iterations with a planning session and a retro\n- Every service has a named owner and a documented runbook\n- On-call covers only platform-owned services, one week in six, with a written escalation path\n- We measure ourselves on change failure rate and time to restore, not on volume\n\nRequirements:\n- 4+ years in infrastructure, platform, or backend engineering\n- Experience operating production services\n- Hands-on with Azure, Kubernetes, Terraform, and Docker\n- Strong written communication — we write things down here"
@@ -162,7 +95,6 @@
       "expected": {
         "engineeringExecutionFit": "high"
       },
-      "expectNoBlockers": true,
       "dependsOnProfile": false,
       "why": "Regulated environment with strong process maturity: change control, testing requirements, defined responsibilities, documented architecture. Generic stack.",
       "jdText": "Wexley Health builds clinical software. We're hiring an Infrastructure Engineer.\n\nBecause of the regulatory environment we work in, our engineering process is deliberate and well documented. Some engineers find that constraining; the ones who thrive here find it clarifying.\n\nWhat you'll do:\n- Own the infrastructure for two clinical products, with clearly scoped responsibilities documented in our team handbook\n- Take changes through our change-control process: design review, peer review, staged rollout, verification\n- Maintain our infrastructure documentation and architecture decision records\n- Work with QA on the automated test suites that gate every release\n- Participate in quarterly architecture reviews with the wider engineering group\n\nHow we work:\n- Requirements are specified before implementation, and changes to scope go through a defined process\n- Every production change is reviewed and traceable\n- We maintain runbooks for every system and test them\n- Roles and ownership are explicit; nobody is asked to cover for a gap in the org chart\n\nRequirements:\n- 4+ years in infrastructure or platform engineering\n- Experience in a regulated or otherwise process-heavy environment is an advantage\n- Azure, Kubernetes, Terraform, and GitHub Actions experience\n- Strong documentation habits"
@@ -175,7 +107,6 @@
       "expected": {
         "engineeringExecutionFit": "low"
       },
-      "expectNoBlockers": true,
       "dependsOnProfile": false,
       "why": "No process at all: no code review, no design docs, shifting ownership, direct-to-production changes. Avoids Scope Discipline trigger phrases and does not frame speed as cultural identity, so this should score low on execution without firing a blocker.",
       "jdText": "Tamarind Digital is hiring a DevOps Engineer.\n\nWe're a 60-person company and our engineering practices are still evolving. We'd rather someone tell us what good looks like than follow a process for its own sake.\n\nWhat you'll do:\n- Keep our infrastructure running and fix things when they break\n- Deploy changes to production — engineers here push their own changes, there's no gate\n- Take on whichever infrastructure problem is most urgent that week; priorities are set in the Monday call\n- Support product engineers when they have infrastructure questions\n\nA few things to know:\n- We don't currently do code review on infrastructure changes\n- We don't have runbooks; the people who built each system know how it works\n- Ownership of systems isn't formally assigned — it tends to follow whoever touched it last\n- There's no on-call rotation; if something breaks, whoever is around handles it\n\nRequirements:\n- 3+ years in DevOps or infrastructure\n- Experience with Azure, Kubernetes, Docker, and Terraform\n- Comfortable making decisions without much guidance\n- Able to pick up unfamiliar systems quickly"
@@ -188,7 +119,6 @@
       "expected": {
         "engineeringExecutionFit": "mid"
       },
-      "expectNoBlockers": true,
       "dependsOnProfile": false,
       "why": "Consultancy model: rotating client engagements, no company-wide standard, scope revised mid-engagement, possible reassignment. Bellamy-side structure does exist independently of the client — written handovers, change requests, a named engagement manager, end-of-engagement retros. Weak process, not absent process, which is what e-neg-01 tests.\n\nKNOWN EDGE — this case has been hard to place. The original version scored 8-10/30, straddling the 28% low/mid boundary; the current rewrite added structure to move it clearly into mid but overshot to 18/30 (60%), which reads as high. Worth one more pass to land it mid-range. Retagged from low to mid along the way, since the posting describes weak process rather than none.",
       "jdText": "Bellamy Consulting places cloud engineers with enterprise clients. We're hiring for our delivery team.\n\nYou'll be assigned to client engagements, typically three to nine months each. Each client has its own stack, its own standards, and its own way of working — you adapt to theirs.\n\nWhat you'll do:\n- Deliver cloud infrastructure work at client sites, following the client's existing practices\n- Move between engagements as projects complete or client priorities change\n- Work to requirements set by the client, which may be revised during the engagement\n- Report progress to both the client's technical lead and your Bellamy engagement manager\n\nHow delivery works at Bellamy:\n- Every engagement starts with a two-week onboarding period and a written handover from the previous engineer\n- Engagement scope is defined in a statement of work, and changes to it go through a written change request\n- You have a named Bellamy engagement manager throughout, and a weekly one-to-one with them\n- We run a retrospective at the end of each engagement and write up what we learned\n\nWhat to expect:\n- Standards, tooling, and review practices differ from client to client; there is no Bellamy-wide engineering standard\n- Scope often changes as clients discover new needs\n- You may be reassigned mid-project if a higher-priority client engagement opens\n- Documentation practices depend entirely on the client\n\nRequirements:\n- 3+ years in cloud infrastructure\n- Experience with Azure or AWS, plus Kubernetes and Terraform\n- Comfortable joining unfamiliar codebases and environments\n- Client-facing communication skills\n"
@@ -201,7 +131,6 @@
       "expected": {
         "engineeringExecutionFit": "mid"
       },
-      "expectNoBlockers": true,
       "dependsOnProfile": false,
       "why": "Describes the technical work in reasonable detail but says nothing at all about process, review, ownership, or how the team operates. The most common real-world posting shape.",
       "jdText": "Corvin Labs is hiring a Platform Engineer.\n\nWe build data infrastructure for logistics companies. This role is on the platform team.\n\nWhat you'll do:\n- Maintain and extend our Kubernetes-based deployment platform\n- Build Terraform modules for our cloud infrastructure\n- Develop internal CLI tools that product teams use to deploy and debug\n- Improve our CI/CD pipelines\n- Extend our metrics and logging infrastructure\n\nRequirements:\n- 4+ years in platform engineering, DevOps, or SRE\n- Kubernetes in production\n- Terraform or comparable infrastructure-as-code\n- Scripting in Python or Go\n- CI/CD pipeline experience\n- Cloud infrastructure on any major provider\n\nNice to have:\n- Experience with service meshes\n- Background in data-intensive systems\n\nWe're based in Tel Aviv, hybrid."
@@ -214,7 +143,6 @@
       "expected": {
         "engineeringExecutionFit": "mid"
       },
-      "expectNoBlockers": true,
       "dependsOnProfile": false,
       "why": "Technical responsibilities only — infrastructure to operate and tools to maintain. Says nothing about how the team works: no review, ownership, planning, incident process, or SLOs. The earlier version mentioned defining SLOs and driving incident follow-up, which are process signals dressed as duties; this version removes them.",
       "jdText": "Nordvik is looking for a Site Reliability Engineer.\n\nOur platform handles high transaction volumes for European retail clients.\n\nResponsibilities:\n- Operate and scale our production Kubernetes environment\n- Maintain our Prometheus and Grafana stack and the dashboards on top of it\n- Write and maintain Terraform modules for our cloud infrastructure\n- Build automation and tooling in Python and Bash\n- Maintain the GitHub Actions pipelines that deploy our services\n- Manage Linux hosts, networking, and container images\n\nRequirements:\n- 4+ years in SRE, DevOps, or infrastructure engineering\n- Strong Kubernetes and container experience\n- Observability tooling (Prometheus, Grafana, or similar)\n- Infrastructure-as-code\n- Scripting in Python, Go, or Bash\n- Linux and networking fundamentals\n\nLocation: Tel Aviv, hybrid working.\n"
@@ -227,7 +155,6 @@
       "expected": {
         "sustainabilityPaceFit": "high"
       },
-      "expectNoBlockers": true,
       "dependsOnProfile": false,
       "why": "Explicit sustainable-pace signals: bounded on-call with compensation, protected focus time, no out-of-hours expectation, capacity planned with slack, long average tenure. Stack and process kept moderate.",
       "jdText": "Lindholm Systems is hiring an Infrastructure Engineer.\n\nWe've been building industrial monitoring software for eleven years. Our average engineering tenure is over five years, which we think says more about how we work than anything we could write here.\n\nWhat you'll do:\n- Maintain and extend our Azure infrastructure and Kubernetes platform\n- Improve our deployment and observability tooling\n- Support the product teams that build on our infrastructure\n- Participate in an on-call rotation covering our own services\n\nHow we work with respect to time and workload:\n- On-call is one week in eight, compensated, and covers only systems our team owns\n- We do not expect work outside of business hours, on-call weeks aside\n- Every engineer has two protected days a week with no scheduled meetings\n- We plan quarters at roughly 70% capacity so that unplanned work doesn't become overtime\n- Nobody here is a single point of failure; every system has at least two people who understand it\n\nRequirements:\n- 4+ years in infrastructure or platform engineering\n- Azure, Kubernetes, Docker, and Terraform\n- Experience operating production systems\n- Scripting ability"
@@ -240,7 +167,6 @@
       "expected": {
         "sustainabilityPaceFit": "high"
       },
-      "expectNoBlockers": true,
       "dependsOnProfile": false,
       "why": "Second positive-pace case: no on-call at all, four-day summer weeks, explicit statement about deadlines and quality trade-offs, stable multi-year roadmap. Generic stack.",
       "jdText": "Ashgrove Analytics is hiring a DevOps Engineer.\n\nOur product is a reporting platform for public sector customers. The domain moves slowly, and so do our requirements — the roadmap for the next two years is already agreed with our customers.\n\nWhat you'll do:\n- Own our GitHub Actions pipelines and Kubernetes infrastructure\n- Maintain the environments our engineers develop and test against\n- Improve monitoring and alerting for our production systems\n- Automate the operational work that currently takes engineer time\n\nWorking here:\n- We have no on-call rotation. Our systems are not customer-facing outside business hours, and we've kept it that way deliberately\n- Deadlines are set with the team, and when something takes longer than expected we move the date rather than the quality bar\n- Four-day weeks through July and August, full pay\n- We track and discuss workload in retros; sustained overtime is treated as a planning failure, not as commitment\n\nRequirements:\n- 3+ years in DevOps or infrastructure\n- GitHub Actions, Docker, Kubernetes, and Azure\n- Comfortable automating operational work\n- Experience with monitoring and alerting"
@@ -253,7 +179,6 @@
       "expected": {
         "sustainabilityPaceFit": "low"
       },
-      "expectNoBlockers": true,
       "dependsOnProfile": false,
       "why": "Heavy operational burden stated concretely: no formal rotation, no out-of-hours compensation, eleven pages per week with work past midnight, a two-month blackout on time off, an incoming single point of failure, undocumented legacy systems, and both predecessors leaving within a year. Deliberately avoids 'fast-paced' / 'move fast' / 'high velocity'.\n\nKNOWN EDGE — currently fails on expectNoBlockers. The model fires a sustainability_signals blocker grounded in real, verbatim JD text, but that text is not the filter's defined trigger vocabulary. The server-side blocker validation checks that a signal is grounded, not that it is filed under the right filter, so a genuine signal misfiled under the wrong filter passes through. Fixing it would mean duplicating the trigger vocabulary in C#, which was explicitly declined. Not a regression.",
       "jdText": "Kestrel Commerce runs the checkout infrastructure for several large retailers. We're hiring a DevOps Engineer.\n\nWhat you'll do:\n- Operate our production infrastructure across three cloud regions\n- Maintain the deployment pipeline and the container platform underneath it\n- Respond to production incidents and drive them to resolution\n- Improve automation where it reduces operational load\n\nWhat the role involves practically:\n- You and one other engineer carry the pager between you; there is no formal rotation and no compensation for out-of-hours work\n- Our retail customers have peak trading periods in November and December; time off is not approved during these months\n- Incident volume is heavy — we averaged eleven production pages per on-call week last quarter, and several required work past midnight\n- You will be the only engineer with deep knowledge of our deployment tooling once the current owner leaves in March\n- Most legacy systems are undocumented and understood by one person\n- The two previous engineers in this role each left within a year\n\nRequirements:\n- 4+ years in DevOps, SRE, or infrastructure\n- Kubernetes and cloud infrastructure in production\n- Strong incident response experience\n- Comfortable being the escalation point for production issues\n"
@@ -266,7 +191,6 @@
       "expected": {
         "sustainabilityPaceFit": "low"
       },
-      "expectNoBlockers": true,
       "dependsOnProfile": false,
       "why": "Long-term risk rather than immediate pace: platform being rebuilt for the third time, funding runway mentioned, team churn, roadmap that changes quarterly. Avoids speed-culture phrasing.",
       "jdText": "Ryedale Media is hiring a Platform Engineer.\n\nWe're rebuilding our content delivery platform. This will be the third architecture in four years — the previous two didn't scale the way we needed, and we've learned from both.\n\nWhat you'll do:\n- Help design and build the new platform architecture\n- Migrate services from the existing platform as the new one stabilises\n- Maintain the current platform while the migration is in progress\n- Adapt the plan as the business direction develops\n\nContext you should have:\n- Our roadmap is revisited each quarter and has changed direction in each of the last three\n- The platform team has had three different technical leads in two years\n- We're funded through the next eighteen months and expect to raise again after that\n- Two of the four engineers currently on the team joined in the last six months\n- The previous platform rebuild was abandoned partway through when priorities changed\n\nRequirements:\n- 4+ years in platform or infrastructure engineering\n- Experience with large migrations\n- Azure, Kubernetes, and Terraform\n- Comfortable with changing requirements"
@@ -279,7 +203,6 @@
       "expected": {
         "sustainabilityPaceFit": "mid"
       },
-      "expectNoBlockers": true,
       "dependsOnProfile": false,
       "why": "Says nothing whatsoever about pace, on-call, workload, or company stability. Tests the default: absence of information should be neutral, not penalised.",
       "jdText": "Thornbury is hiring a Cloud Infrastructure Engineer.\n\nWe provide fleet management software to transport operators. This role is on the infrastructure team.\n\nWhat you'll do:\n- Manage our cloud infrastructure and the Kubernetes clusters that run our services\n- Build and maintain infrastructure-as-code\n- Own our CI/CD pipelines\n- Maintain monitoring and logging systems\n- Work with development teams on deployment and environment issues\n\nRequirements:\n- 4+ years in cloud infrastructure, DevOps, or platform engineering\n- Kubernetes in production\n- Terraform or equivalent\n- CI/CD tooling\n- Scripting in Python or Bash\n- Linux fundamentals\n\nNice to have:\n- Experience with multi-region deployments\n- Database administration exposure\n\nOffice in Herzliya, hybrid arrangement available."
@@ -292,7 +215,6 @@
       "expected": {
         "sustainabilityPaceFit": "mid"
       },
-      "expectNoBlockers": true,
       "dependsOnProfile": false,
       "why": "Second silence case for this axis. Standard corporate posting with no pace, workload, or stability signal in either direction.",
       "jdText": "Marchwood Technologies is seeking a DevOps Engineer to join our engineering department.\n\nAbout the role:\nThe successful candidate will be responsible for supporting and improving our software delivery infrastructure across development, staging, and production environments.\n\nKey responsibilities:\n- Administer and improve continuous integration and deployment systems\n- Manage containerised workloads and their orchestration\n- Implement and maintain infrastructure automation\n- Support environment provisioning for engineering teams\n- Maintain system monitoring and reporting\n\nEssential requirements:\n- Minimum 4 years of relevant professional experience\n- Demonstrated experience with Kubernetes and Docker\n- Terraform\n- GitHub Actions or Jenkins\n- Linux system administration\n- Scripting proficiency\n\nDesirable:\n- Relevant cloud certification\n- Experience in a multi-team engineering environment\n\nMarchwood Technologies is an equal opportunity employer. Applications are reviewed on a rolling basis."

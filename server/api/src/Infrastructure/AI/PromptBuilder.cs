@@ -43,7 +43,7 @@ public sealed class PromptBuilder
             $"- YES → {bands.Yes}–{bands.StrongYes - 1}",
             $"- MAYBE → {bands.Maybe}–{bands.Yes - 1}",
             $"- NO → {bands.No}–{bands.Maybe - 1}",
-            $"- STRONG_NO → 0–{bands.No - 1} OR any FAIL in hard filters"));
+            $"- STRONG_NO → 0–{bands.No - 1}"));
 
     public (string System, string User) BuildAnalysisPrompt(string jobDescription, string analystPrompt)
     {
@@ -204,7 +204,7 @@ All of these get generated fresh, in full, by a separate call, only if and when 
 
 This overrides OUTPUT LENGTH BY VERDICT's STRONG_YES/YES carve-out for this call only — full narrative detail for a job the candidate actually adds is generated separately, on demand, by a different call.
 
-As always, never shorten `hardBlockers`, `mustClarify`, `stackedGaps`, or `quickHighlights` — these stay full length regardless of verdict or batch mode. (`reason`/`strengths`/`gaps`/`concerns`/`positiveSignals` are also scoring rationale, but batch mode has its own separate word-count caps for them — see below — which take precedence over "full length" for this call only.)
+As always, never shorten `stackedGaps` or `quickHighlights` — these stay full length regardless of verdict or batch mode. (`reason`/`strengths`/`gaps`/`concerns`/`positiveSignals` are also scoring rationale, but batch mode has its own separate word-count caps for them — see below — which take precedence over "full length" for this call only.)
 
 ## Batch bullet length: max 4 words each
 
@@ -306,8 +306,6 @@ Include every job id exactly once, in any order.
             request.OverallScore,
             request.Verdict,
             request.Breakdown,
-            request.HardBlockers,
-            request.MustClarify,
             request.StackedGaps,
         }, jsonOpts);
 

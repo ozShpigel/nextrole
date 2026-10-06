@@ -1137,11 +1137,9 @@ Never shorten `hardBlockers`, `mustClarify`, `stackedGaps`, `quickHighlights`, o
 
 # DECISION THRESHOLDS
 
-- STRONG_YES → 80–100
-- YES → 60–79
-- MAYBE → 40–59
-- NO → 20–39
-- STRONG_NO → 0–19 OR any FAIL in hard filters
+The server derives the final verdict from `overallScore` with these bands, so use the same ones:
+
+{{VERDICT_BANDS}}
 
 ---
 
@@ -1155,11 +1153,11 @@ Not only:
 > Can the candidate perform the job successfully?
 """;
 
-    // On-demand narrative upgrade: called once when the user clicks "Add" on
-    // a job that was scored terse at ingest time (see PromptBuilder's
-    // BatchModeAddendum). The numeric scores/verdict/breakdown are already
+    // On-demand narrative upgrade: called once when an application reaches
+    // Interviewing, for a job the per-user scan scored terse (see
+    // PromptBuilder's BatchModeAddendum). The numeric scores/verdict/breakdown are already
     // final — this call must never second-guess them, only write the fuller
-    // narrative version of the fields ingest-time keeps terse for every verdict.
+    // narrative version of the fields batch scoring keeps terse for every verdict.
     public const string NarrativeEnrichment = """
 # ROLE
 

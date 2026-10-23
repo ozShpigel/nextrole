@@ -1,7 +1,7 @@
 import { useAddAllowance } from '../lib/queries';
 
 /**
- * "2 saves left today ●●○" -- the daily limit on adding jobs to the Active
+ * "2 adds left today ●●○" -- the daily limit on adding jobs to the Active
  * board (ActiveBoardAllowance on the server, which is what enforces it; this
  * only shows it). Nothing while loading or when the read fails.
  */
@@ -19,7 +19,7 @@ export function SavesLeft() {
           : 'border-[var(--ed-accent)]/40 bg-[var(--ed-accent)]/10 text-[var(--ed-accent)]'
       }`}
     >
-      {none ? 'No saves left today' : `${remaining} ${remaining === 1 ? 'save' : 'saves'} left today`}
+      {none ? 'No adds left today' : `${remaining} ${remaining === 1 ? 'add' : 'adds'} left today`}
       <span aria-hidden="true" className="inline-flex items-center gap-[5px]">
         {Array.from({ length: limit }, (_, i) => (
           <span

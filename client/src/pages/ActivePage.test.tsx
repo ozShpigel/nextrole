@@ -70,14 +70,14 @@ describe('ActivePage — coming-soon features', () => {
     serve({ AutoUpdate: true, AutoApply: true });
     renderWithRouter(<ActivePage />);
 
-    expect(await screen.findByText('2 saves left today')).toBeInTheDocument();
+    expect(await screen.findByText('2 adds left today')).toBeInTheDocument();
   });
 
   it('says so when none are left', async () => {
     serve({ AutoUpdate: true, AutoApply: true }, [ready], { limit: 3, used: 3, remaining: 0 });
     renderWithRouter(<ActivePage />);
 
-    expect(await screen.findByText('No saves left today')).toBeInTheDocument();
+    expect(await screen.findByText('No adds left today')).toBeInTheDocument();
   });
 
   it('offers Import Job only to a visitor with the feature', async () => {

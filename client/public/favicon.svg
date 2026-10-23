@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- The brand mark (src/components/BrandMark.tsx): a tile with the chevron
+       cut out. Dark tile on a light tab strip, light tile on a dark one. -->
+  <style>.t{fill:#0d0d0d}@media (prefers-color-scheme:dark){.t{fill:#fff}}</style>
+  <mask id="m">
+    <rect width="64" height="64" fill="#fff"/>
+    <path d="M27 20.5 38.5 32 27 43.5" fill="none" stroke="#000" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round"/>
+  </mask>
+  <rect class="t" width="64" height="64" rx="14" mask="url(#m)"/>
+</svg>

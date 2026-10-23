@@ -156,8 +156,8 @@ export default function App() {
     <div className="relative">
       <nav data-app-nav className={`sticky top-0 z-50 transition-[background-color,backdrop-filter] duration-300 ${scrolled ? 'bg-[var(--ed-paper)]/55 backdrop-blur-[20px]' : 'bg-transparent'}`}>
         <div className="w-full px-8 flex items-center gap-4 md:gap-10 h-14">
-          <NavLink to="/" className="shrink-0 inline-flex items-center gap-[0.4rem] font-serif font-bold text-[1rem] text-foreground tracking-[-0.01em] transition-opacity hover:opacity-75">
-            <BrandMark size={24} className="text-foreground" flicker />
+          <NavLink to="/" className="shrink-0 inline-flex items-center gap-[0.5rem] font-serif font-bold text-[1.1rem] text-foreground tracking-[-0.02em] transition-opacity hover:opacity-75">
+            <BrandMark size={24} className="text-foreground" />
             NextRole
           </NavLink>
           {/* min-w-0 lets this shrink below its content width inside the flex

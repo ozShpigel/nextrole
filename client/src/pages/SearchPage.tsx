@@ -316,7 +316,7 @@ function MatchCard({ job, index, saved, dismissed, onSelect, onSave, onDismiss, 
     <article
       ref={ref}
       data-job-id={job.id}
-      className={`ed-rise ed-card-3d group relative rounded-[18px] p-5 flex flex-col gap-4 aspect-[6.1/8.5] transition-[border-color,transform,box-shadow] duration-200 ${dismissed ? 'opacity-40' : ''} ${
+      className={`ed-rise ed-card-3d group relative rounded-[18px] p-5 flex flex-col gap-4 aspect-[6.1/7.6] transition-[border-color,transform,box-shadow] duration-200 ${dismissed ? 'opacity-40' : ''} ${
         clickable ? 'cursor-pointer hover:border-[var(--ed-ink-faint)] hover:-translate-y-[2px] motion-reduce:hover:translate-y-0' : ''
       }`}
       style={{ animationDelay: `${Math.min(index, 12) * 40}ms` }}
@@ -347,7 +347,7 @@ function MatchCard({ job, index, saved, dismissed, onSelect, onSave, onDismiss, 
           <span className="min-w-0 truncate text-[16px] font-medium text-[var(--ed-ink-soft)]">{job.company}</span>
           {place && <span className="shrink-0 max-w-[55%] truncate text-[13px] text-[var(--ed-ink-faint)]">{place}</span>}
         </div>
-        <h3 className="text-[16px] font-medium leading-[1.35] text-[var(--ed-ink)] line-clamp-3">
+        <h3 className="text-[16px] font-medium leading-[1.35] text-[var(--ed-ink)] line-clamp-2">
           {job.title}
         </h3>
       </div>
@@ -405,7 +405,7 @@ function MatchCardSkeleton({ index }: { index: number }) {
     <div
       aria-hidden="true"
       data-testid="match-card-skeleton"
-      className="ed-card-3d rounded-[18px] p-5 flex flex-col gap-4 aspect-[6.1/8.5]"
+      className="ed-card-3d rounded-[18px] p-5 flex flex-col gap-4 aspect-[6.1/7.6]"
       data-index={index}
     >
       <div className="flex items-start justify-between gap-3">

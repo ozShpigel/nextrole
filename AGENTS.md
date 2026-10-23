@@ -68,7 +68,7 @@ These guardrails stay, because each protects something other than taste:
 
 - Dark is the only theme. Don't add a light mode or a theme toggle.
 - Use tokens from `client/src/index.css`. Never hardcode hex or Tailwind palette colors in JSX — a new color gets a token there first (brand marks such as company logos are the exception — and only for companies whose jobs NextRole actually reads, `client/src/components/companyMarks.ts`; never as decoration).
-- The score ramp is for any 0-100 or rated score (match score, interview score, per-dimension sub-scores) — never for accent, status or decoration, or green/amber/red stop meaning good/fair/poor fit.
+- The score ramp is for any 0-100 or rated score (match score, interview score, per-dimension sub-scores) — never for accent, status or decoration, or green/amber/red stop meaning good/fair/poor fit. One exception (owner's call, 2026-10-23): the match-score ring and badge on Matches are one blue (`--ed-score-ring`) for every score — the number carries the fit, not the hue.
 - Error and destructive states keep their color (`--ed-no`); a destructive action never looks like an ordinary one.
 - Every animation needs a `prefers-reduced-motion` fallback.
 - **Visuals outside the app are generated — edit the source, then rerun.** The Landing scene (`PipelineScene.tsx`) has an exported README copy (`scripts/export-pipeline-scene.cjs`) and is the `og.png` link card (`scripts/build-social-cards.cjs`; bump its `?v=` in `client/index.html` so link previews refetch). The README and `/about` diagrams come from `scripts/build-readme-diagrams.cjs` — edit the script, never the SVGs.

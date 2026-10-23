@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef, useLayoutEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { createPortal } from 'react-dom';
-import { X, SlidersHorizontal, Plus, Check, Search, ExternalLink } from 'lucide-react';
+import { X, SlidersHorizontal, Plus, Check, Search, ExternalLink, ArrowRight } from 'lucide-react';
 import { useScoredJobs, usePoolScan, usePoolBand, useScoreJobs, useCollecting } from '../lib/queries';
 import { TITLE_LEVELS } from '../lib/titleLevel';
 import { matchesBandFilters } from '../lib/bandFilters';
@@ -12,7 +12,7 @@ import { isCvUploadInProgress, isScoringHeld, useCvUpload } from '../lib/cvUploa
 import { useSaveJob, useDismissJob, useMarkViewed } from '../lib/mutations';
 import type { DiscoveredJobSummary } from '../lib/types';
 import { cityCountry, formatAge, formatSalaryRange, isNew } from '../lib/format';
-import AnalysisCard, { edVerdictColor } from '../components/AnalysisCard';
+import AnalysisCard from '../components/AnalysisCard';
 import { CompanyAvatar } from '../components/CompanyAvatar';
 import { JobDescriptionText } from '../components/JobDescriptionText';
 import { SavesLeft } from '../components/SavesLeft';
@@ -149,8 +149,8 @@ function RationaleTooltip({ anchorRef, highlights, flagged }: { anchorRef: React
 // for free, and it orders the field, not the leaderboard (+0.65 against real
 // scores overall, -0.15 within the top ten): shown as a score it would reshuffle
 // the moment the real one arrived.
-const RING_SIZE = 48;
-const RING_STROKE = 3.5;
+const RING_SIZE = 42;
+const RING_STROKE = 4;
 const RING_R = (RING_SIZE - RING_STROKE) / 2;
 const RING_C = 2 * Math.PI * RING_R;
 
@@ -165,7 +165,8 @@ function ScoreRing({ job, pulse = true }: { job: DiscoveredJobSummary; pulse?: b
   }, []);
 
   const scored = job.score !== null && job.score !== undefined;
-  const tone = edVerdictColor(job.verdict);
+  // One blue whatever the score: the number carries the fit, not the hue.
+  const tone = 'var(--ed-score-ring)';
   const highlights = job.match_analysis?.quickHighlights;
   const flaggedHighlights = new Set(
     (job.match_analysis?.unsupportedClaims ?? [])
@@ -196,7 +197,7 @@ function ScoreRing({ job, pulse = true }: { job: DiscoveredJobSummary; pulse?: b
       </svg>
       <div className="absolute inset-0 flex items-center justify-center">
         {scored ? (
-          <span className="inline-flex items-baseline text-[15px] font-medium leading-none tabular-nums animate-in fade-in duration-500" style={{ color: tone }}>
+          <span className="inline-flex items-baseline text-[14px] font-semibold leading-none tabular-nums text-[var(--ed-ink)] animate-in fade-in duration-500">
             {job.score}
             <span className="ml-[1px] text-[0.6em] text-[var(--ed-ink-faint)]">%</span>
           </span>
@@ -253,7 +254,7 @@ function Segmented<T extends string | number>({ options, value, onChange }: {
 // else an honest "Salary not listed" — never a blank that reads as missing.
 function SalaryLine({ salary }: { salary: DiscoveredJobSummary['salary'] }) {
   if (!salary) {
-    return <p className="text-[16px] text-[var(--ed-ink-faint)]">Salary not listed</p>;
+    return <p className="text-[14px] text-[var(--ed-ink-faint)]">Salary not listed</p>;
   }
   return (
     <div className="flex flex-col gap-[0.2rem]">
@@ -264,6 +265,21 @@ function SalaryLine({ salary }: { salary: DiscoveredJobSummary['salary'] }) {
         {salary.source === 'posted' ? 'Base salary' : 'Estimated salary'}
       </p>
     </div>
+  );
+}
+
+// A job already added: where it went, as a link there rather than a
+// disabled-looking button that reads like the one you'd press.
+function InActiveLink({ className }: { className: string }) {
+  return (
+    <Link
+      to="/active"
+      className={`${className} inline-flex items-center gap-[0.4rem] font-medium text-[var(--ed-ink-soft)] transition-colors hover:text-[var(--ed-ink)]`}
+    >
+      <Check className="w-4 h-4 text-[var(--ed-accent)]" strokeWidth={2.5} aria-hidden="true" />
+      In Active
+      <ArrowRight className="w-[14px] h-[14px]" aria-hidden="true" />
+    </Link>
   );
 }
 
@@ -300,7 +316,7 @@ function MatchCard({ job, index, saved, dismissed, onSelect, onSave, onDismiss, 
     <article
       ref={ref}
       data-job-id={job.id}
-      className={`ed-rise group relative rounded-[18px] border bg-[color-mix(in_oklab,var(--ed-ink)_7%,var(--ed-panel))] p-5 flex flex-col gap-4 min-h-[22rem] transition-[border-color,transform,box-shadow] duration-200 ${dismissed ? 'opacity-40' : ''} border-[var(--ed-rule)] ${
+      className={`ed-rise ed-card-3d group relative rounded-[18px] p-5 flex flex-col gap-4 aspect-[6.1/8.5] transition-[border-color,transform,box-shadow] duration-200 ${dismissed ? 'opacity-40' : ''} ${
         clickable ? 'cursor-pointer hover:border-[var(--ed-ink-faint)] hover:-translate-y-[2px] motion-reduce:hover:translate-y-0' : ''
       }`}
       style={{ animationDelay: `${Math.min(index, 12) * 40}ms` }}
@@ -340,7 +356,7 @@ function MatchCard({ job, index, saved, dismissed, onSelect, onSave, onDismiss, 
           close to each other. mt-auto takes the card's spare height. */}
       <div className="mt-auto pt-4 flex flex-col gap-2">
         <SalaryLine salary={job.salary} />
-        {age && <p className="text-[13px] text-[var(--ed-ink-faint)] tabular-nums">{age}</p>}
+        {age && <p className="text-[12px] text-[var(--ed-ink-faint)] tabular-nums">{age}</p>}
       </div>
 
       <div className="flex gap-3 items-center" onClick={(e) => e.stopPropagation()}>
@@ -358,18 +374,16 @@ function MatchCard({ job, index, saved, dismissed, onSelect, onSave, onDismiss, 
         {!saved && !dismissed && (
           <button
             type="button"
-            className="ml-auto h-10 px-5 inline-flex items-center justify-center gap-2 rounded-full border border-[var(--ed-accent)]/70 bg-[var(--ed-accent)]/25 text-[13px] font-medium text-[var(--ed-accent)] shadow-[0_0_18px_-6px_var(--ed-accent)] transition-colors hover:bg-[var(--ed-accent)] hover:text-[var(--ed-paper)]"
+            className="ml-auto h-10 px-[0.85rem] inline-flex items-center justify-center gap-[0.3rem] rounded-full bg-[var(--ed-accent)] text-[13px] font-semibold text-[var(--ed-paper)] shadow-[0_0_18px_-6px_var(--ed-accent)] transition-colors hover:bg-[var(--ed-accent-deep)]"
             onClick={() => onSave(job.id)}
           >
-            <Plus className="w-4 h-4" strokeWidth={2.5} aria-hidden="true" />
-            Save
+            <Plus className="w-[14px] h-[14px]" strokeWidth={2.5} aria-hidden="true" />
+            Add to Active
           </button>
         )}
-        {saved && (
-          <span className="ed-confirm ml-auto h-10 px-5 inline-flex items-center justify-center gap-2 rounded-full border border-[var(--ed-accent)]/70 bg-[var(--ed-accent)]/25 text-[13px] font-medium text-[var(--ed-accent)]">
-            <Check className="w-4 h-4" strokeWidth={2.5} aria-hidden="true" /> Saved
-          </span>
-        )}
+        {/* Done, so no longer a button: quiet text that says where the job
+            went, and takes you there. */}
+        {saved && <InActiveLink className="ed-confirm ml-auto h-10 text-[13px]" />}
         {dismissed && (
           <span className="ml-auto h-10 px-5 inline-flex items-center justify-center rounded-full border border-[var(--ed-rule)] text-[13px] font-medium text-[var(--ed-ink-faint)]">
             Dismissed
@@ -391,7 +405,7 @@ function MatchCardSkeleton({ index }: { index: number }) {
     <div
       aria-hidden="true"
       data-testid="match-card-skeleton"
-      className="rounded-[18px] border border-[var(--ed-rule)] bg-[color-mix(in_oklab,var(--ed-ink)_7%,var(--ed-panel))] p-5 flex flex-col gap-4 min-h-[22rem]"
+      className="ed-card-3d rounded-[18px] p-5 flex flex-col gap-4 aspect-[6.1/8.5]"
       data-index={index}
     >
       <div className="flex items-start justify-between gap-3">
@@ -416,10 +430,10 @@ function MatchCardSkeleton({ index }: { index: number }) {
 
 const SKELETON_CARDS = 10;
 
-// Compact, flat score badge for list rows — same edVerdictColor() mapping as
-// the card's ScoreRing, just small and border-only (no ring).
+// Compact, flat score badge for list rows — the card's ScoreRing blue, just
+// small and border-only (no ring).
 function CompactScoreBadge({ job }: { job: DiscoveredJobSummary }) {
-  const tone = edVerdictColor(job.verdict);
+  const tone = 'var(--ed-score-ring)';
   return (
     <span
       className="shrink-0 text-[13px] font-medium tabular-nums rounded-full border px-[0.5rem] py-[0.1rem]"
@@ -472,14 +486,14 @@ function MatchRow({ job, index, selected, saved, dismissed, onSelect, onSave }: 
       </div>
       <CompactScoreBadge job={job} />
       {saved ? (
-        <span className="ed-confirm shrink-0 w-7 h-7 rounded-full border border-[var(--ed-rule)] flex items-center justify-center text-[var(--ed-ink-faint)]" title="Saved" aria-label="Saved">
+        <span className="ed-confirm shrink-0 w-7 h-7 rounded-full border border-[var(--ed-rule)] flex items-center justify-center text-[var(--ed-ink-faint)]" title="In Active" aria-label="In Active">
           <Check className="w-3.5 h-3.5" strokeWidth={2.5} />
         </span>
       ) : !dismissed && (
         <button
           type="button"
-          aria-label="Save"
-          title="Save"
+          aria-label="Add to Active"
+          title="Add to Active"
           className="shrink-0 w-7 h-7 rounded-full border border-[var(--ed-accent)] text-[var(--ed-accent)] flex items-center justify-center transition-all hover:bg-[var(--ed-accent)] hover:text-[var(--ed-paper)]"
           onClick={(e) => { e.stopPropagation(); onSave(job.id); }}
         >
@@ -562,18 +576,14 @@ function MatchDetail({ job, saved, dismissed, onClose, onSave, onDismiss }: Matc
               {!saved && !dismissed && (
                 <button
                   type="button"
-                  className="h-11 px-6 inline-flex items-center justify-center gap-2 rounded-full border border-[var(--ed-accent)]/70 bg-[var(--ed-accent)]/25 text-[14px] font-medium text-[var(--ed-accent)] shadow-[0_0_18px_-6px_var(--ed-accent)] transition-colors hover:bg-[var(--ed-accent)] hover:text-[var(--ed-paper)]"
+                  className="h-11 px-6 inline-flex items-center justify-center gap-2 rounded-full bg-[var(--ed-accent)] text-[14px] font-semibold text-[var(--ed-paper)] shadow-[0_0_18px_-6px_var(--ed-accent)] transition-colors hover:bg-[var(--ed-accent-deep)]"
                   onClick={() => onSave(job.id)}
                 >
                   <Plus className="w-4 h-4" strokeWidth={2.5} aria-hidden="true" />
-                  Save
+                  Add to Active
                 </button>
               )}
-              {saved && (
-                <span className="ed-confirm h-11 px-6 inline-flex items-center justify-center gap-2 rounded-full border border-[var(--ed-accent)]/70 bg-[var(--ed-accent)]/25 text-[14px] font-medium text-[var(--ed-accent)]">
-                  <Check className="w-4 h-4" strokeWidth={2.5} aria-hidden="true" /> Saved
-                </span>
-              )}
+              {saved && <InActiveLink className="ed-confirm h-11 text-[14px]" />}
               {dismissed && (
                 <span className="h-11 px-6 inline-flex items-center rounded-full border border-[var(--ed-rule)] text-[14px] font-medium text-[var(--ed-ink-faint)]">Dismissed</span>
               )}
@@ -887,7 +897,7 @@ export default function SearchPage() {
       // stale (another tab, or the day's last one): re-read it either way.
       qc.invalidateQueries({ queryKey: ['applications', 'allowance'] });
       const err = e as Error & { status?: number };
-      alert(err.status === 429 ? err.message : 'Save failed: ' + err.message);
+      alert(err.status === 429 ? err.message : 'Adding to Active failed: ' + err.message);
     }
   }
 

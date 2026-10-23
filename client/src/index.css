@@ -131,7 +131,7 @@
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
 
-  --ed-paper: #000000;
+  --ed-paper: #0b0b0e;
   --ed-accent: #9DB8F5;
   --ed-accent-deep: #7F9BE0;
   --ed-ink-faint: #6b6b70;
@@ -162,6 +162,8 @@
 .editorial {
   --ed-paper:        #f7f6f2;   /* warm porcelain canvas    */
   --ed-panel:        #ffffff;   /* raised card surface      */
+  --ed-card:         #ffffff;   /* a Matches job card       */
+  --ed-score-ring:   #265ee1;   /* a match score's ring and number badge */
   --ed-ink:          #1d2b25;   /* forest near-black        */
   --ed-ink-soft:     #4b5a52;   /* muted body ink           */
   --ed-ink-faint:    #7e8b83;   /* captions, metadata       */
@@ -177,8 +179,15 @@
   color: var(--ed-ink);
 }
 .dark .editorial {
-  --ed-paper:        #000000;   /* true black noir */
-  --ed-panel:        #0a0a0a;
+  /* Near-black, not true black: a card one small step above the page reads
+     as part of it (owner's reference, 2026-10-23: dreamwork's board) rather
+     than as a lit box cut out of a void. */
+  --ed-paper:        #0b0b0e;
+  --ed-panel:        #111115;
+  --ed-card:         #151519;
+  /* One blue for every match-score ring, whatever the score (owner's
+     call, 2026-10-23): the number says how good the fit is. */
+  --ed-score-ring:   #265ee1;
   --ed-ink:          #ffffff;
   --ed-ink-soft:     #a3a3a8;   /* neutral gray, no green cast */
   --ed-ink-faint:    #6b6b70;
@@ -483,6 +492,27 @@ html::-webkit-scrollbar-button, .ed-scroll::-webkit-scrollbar-button { display: 
 @media (prefers-reduced-motion: reduce) {
   .nr-scene .nr-route, .nr-scene .nr-floor-glow, .nr-scene .nr-rise, .nr-scene .nr-orbit { animation: none; }
   .nr-tilt { transition: none; transform: none !important; }
+}
+
+/* A Matches job card, lit from above (owner's reference, 2026-10-23:
+   dreamwork's board). The edge catches light on the top and left and falls
+   off on the bottom and right, a hairline highlight runs along the top
+   inside, and a soft shadow lifts it off the page — so neighbouring cards
+   read as separate raised objects, not flat panels on one surface. */
+/* In the components layer so a utility on the card (its hover border) still wins. */
+@layer components {
+  .ed-card-3d {
+    border: 1px solid color-mix(in oklab, var(--ed-ink) 5%, transparent);
+    border-top-color: color-mix(in oklab, var(--ed-ink) 11%, transparent);
+    border-left-color: color-mix(in oklab, var(--ed-ink) 8%, transparent);
+    background:
+      linear-gradient(180deg, color-mix(in oklab, var(--ed-ink) 3%, transparent), transparent 45%),
+      var(--ed-card);
+    box-shadow:
+      inset 0 1px 0 color-mix(in oklab, var(--ed-ink) 5%, transparent),
+      0 1px 2px rgb(0 0 0 / 0.4),
+      0 14px 28px -14px rgb(0 0 0 / 0.85);
+  }
 }
 
 /* Landing headline gradient — periwinkle accent into pink into amber, the

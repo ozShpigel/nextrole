@@ -485,16 +485,6 @@ html::-webkit-scrollbar-button, .ed-scroll::-webkit-scrollbar-button { display: 
   .nr-tilt { transition: none; transform: none !important; }
 }
 
-/* Nav brand mark: the lens (job ∩ you) flickers like a neon sign warming
-   up — long steady stretches, a few quick dips. Owner-requested, nav only. */
-@keyframes nr-brand-flicker {
-  0%, 18%, 22%, 25%, 53%, 57%, 100% { opacity: 1; }
-  20%, 24% { opacity: .35; }
-  55% { opacity: .6; }
-}
-.nr-brand-flicker { animation: nr-brand-flicker 7s linear infinite; }
-@media (prefers-reduced-motion: reduce) { .nr-brand-flicker { animation: none; } }
-
 /* Landing headline gradient — periwinkle accent into pink into amber, the
    dreamwork-style colored second line. Owner-requested, Landing hero only;
    its stops are tokens here so no hex reaches the JSX. */

@@ -10,9 +10,14 @@ const scene = fs.readFileSync(R + 'docs/images/pipeline-scene-dark.svg', 'utf8')
 const pipe = fs.readFileSync(R + 'docs/images/pipeline-dark.svg', 'utf8');
 const FONTS = `<link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:ital,wght@0,400..900;1,400..900&family=Instrument+Sans:wght@400..700&display=swap" rel="stylesheet">`;
 const base = `*{margin:0;box-sizing:border-box} body{background:#000;color:#fff;font-family:'Instrument Sans',sans-serif;overflow:hidden}
-.mark{font-family:'Schibsted Grotesk';font-weight:800;letter-spacing:-.03em;line-height:1}
-.mark i{font-weight:500;color:#9DB8F5}
+.mark{font-family:'Schibsted Grotesk';font-weight:700;letter-spacing:-.03em;line-height:1;display:flex;align-items:center;gap:.22em}
+.mark svg{width:.95em;height:.95em;flex:none}
 .glow{position:absolute;inset:0;background:radial-gradient(60% 70% at 72% 55%,rgba(157,184,245,.14),transparent 70%)}`;
+
+// The brand mark, as client/src/components/BrandMark.tsx draws it: a tile
+// with the chevron cut out, so the card's black shows through it.
+const TILE = `<svg viewBox="0 0 64 64"><mask id="m"><rect width="64" height="64" fill="#fff"/><path d="M27 20.5 38.5 32 27 43.5" fill="none" stroke="#000" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round"/></mask><rect width="64" height="64" rx="14" fill="#fff" mask="url(#m)"/></svg>`;
+const MARK = `<div class="mark">${TILE}NextRole</div>`;
 
 const og = `<!doctype html><html><head>${FONTS}<style>${base}
 body{width:1200px;height:630px;position:relative}
@@ -24,7 +29,7 @@ body{width:1200px;height:630px;position:relative}
 .r{position:absolute;right:-6px;top:50%;transform:translateY(-50%);width:760px}
 .r svg{width:760px;height:auto;display:block}
 </style></head><body>
-<div class="l"><div class="mark">Next <i>Role</i></div>
+<div class="l">${MARK}
 <div class="c-t">An AI job search,<br>from CV to offer.</div>
 <div class="c-s">Claude judges each match.<br>Code checks every judgement.</div>
 <div class="u">nextrole.cloud</div></div>
@@ -40,7 +45,7 @@ body{width:1280px;height:640px;position:relative}
 .p{position:absolute;left:40px;right:40px;bottom:28px}
 .p svg{width:1200px;height:auto;display:block}
 </style></head><body>
-<div class="top"><div class="c-h">The model judges, <b>code verifies.</b></div><div class="mark">Next <i>Role</i></div></div>
+<div class="top"><div class="c-h">The model judges, <b>code verifies.</b></div>${MARK}</div>
 <div class="c-sub">AI job search, from CV to offer · .NET 10 · React · MongoDB Atlas · RabbitMQ · Claude</div>
 <div class="p">${pipe}</div></body></html>`;
 

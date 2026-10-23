@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { User, FileText, Upload, Download, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react';
-import { useProfile, useResumeFile } from '../lib/queries';
+import { useAuthStatus, useProfile, useResumeFile } from '../lib/queries';
 import { useSaveProfile, useNormalizeProfileFile } from '../lib/mutations';
 import { apiUrl } from '../lib/api';
 import { EMPTY_PROFILE, hydrateProfile, mergeNormalizedProfile } from '../lib/profile';
@@ -9,6 +9,7 @@ import type { ProfileResponse, StructuredProfile, NormalizedProfile } from '../l
 import { Skeleton } from '../components/ui/skeleton';
 import { ChipInput } from '../components/ChipInput';
 import { PersonaAvatar } from '../components/PersonaAvatar';
+import { AccountPanel } from '../components/Account';
 
 // The demo persona's name — swaps the initials-circle fallback for a
 // (non-photorealistic) avatar illustration on the demo instance only.
@@ -35,6 +36,7 @@ export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<Tab>('about');
 
   const profileQuery = useProfile();
+  const auth = useAuthStatus().data;
   const resumeFileQuery = useResumeFile();
   const saveProfileMutation = useSaveProfile();
   const normalizeFileMutation = useNormalizeProfileFile();
@@ -164,6 +166,8 @@ export default function SettingsPage() {
             <SidebarTab active={activeTab === 'about'} onClick={() => setActiveTab('about')} icon={<User size={15} />} label="About You" />
             <SidebarTab active={activeTab === 'resume'} onClick={() => setActiveTab('resume')} icon={<FileText size={15} />} label="Resume" />
           </nav>
+
+          <AccountPanel auth={auth} />
         </aside>
 
         <div>

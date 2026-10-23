@@ -1,5 +1,4 @@
 import { screen, waitFor } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 import { render } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -46,7 +45,6 @@ function mockBackend({ resumeFile, hasProfile, signIn = { signedIn: false, email
   vi.mocked(api).mockImplementation((path: string) => {
     if (path === '/config') return Promise.resolve({});
     if (path === '/auth/me') return Promise.resolve(signIn);
-    if (path === '/auth/signout') return Promise.resolve(null);
     return Promise.reject(new Error(`unexpected api path: ${path}`));
   });
   vi.mocked(matchApi).mockImplementation((path: string) => {
@@ -132,33 +130,26 @@ describe('App nav sign-in', () => {
     expect(link).toHaveAttribute('href', '/api/auth/google/start');
   });
 
-  // Already onboarded but anonymous: still offered. Signing in links THIS
-  // account to Google (GoogleSignInResolver), and is the only way back to it
-  // once the cookie is gone.
-  it('offers Google sign-in to an onboarded visitor who is not signed in', async () => {
+  // Once onboarded there is a Profile tab, and sign-in lives on that page
+  // (Account.tsx) — not at the nav's right edge.
+  it('moves Google sign-in off the nav once a profile exists', async () => {
     mockBackend({ resumeFile: true, hasProfile: true });
     renderAppAt('/search');
-    const link = await screen.findByRole('link', { name: /sign in with google/i });
-    expect(link).toHaveAttribute('href', '/api/auth/google/start');
+    await screen.findByText('Search content');
+    await waitFor(() => expect(vi.mocked(api)).toHaveBeenCalledWith('/auth/me'));
+    expect(screen.queryByRole('link', { name: /sign in with google/i })).not.toBeInTheDocument();
   });
 
-  it('shows who is signed in, and signs out', async () => {
-    const assign = vi.fn();
-    vi.stubGlobal('location', { ...window.location, assign });
+  it('shows the signed-in account as the Profile tab icon', async () => {
     mockBackend({ resumeFile: true, hasProfile: true, signIn: { signedIn: true, email: 'ada@example.com', available: true } });
     renderAppAt('/search');
 
-    const chip = await screen.findByRole('button', { name: 'Account: ada@example.com' });
-    expect(chip).toHaveTextContent('A');
-    expect(screen.queryByRole('link', { name: /sign in with google/i })).not.toBeInTheDocument();
-
-    await userEvent.click(chip);
-    expect(await screen.findByText('ada@example.com')).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('menuitem', { name: /sign out/i }));
-
-    await waitFor(() => expect(assign).toHaveBeenCalledWith('/'));
-    expect(vi.mocked(api)).toHaveBeenCalledWith('/auth/signout', { method: 'POST' });
-    vi.unstubAllGlobals();
+    // Desktop row and mobile bar both carry the tab.
+    await waitFor(() => {
+      const tabs = screen.getAllByRole('link', { name: /profile/i });
+      expect(tabs.length).toBeGreaterThan(0);
+      for (const tab of tabs) expect(tab).toHaveTextContent(/^AProfile$/);
+    });
   });
 
   // Fixed-mode (private) instances take identity from configuration and issue

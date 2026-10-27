@@ -1,0 +1,84 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 330" width="1000" height="330" role="img" aria-labelledby="t d">
+<title id="t">The path a posting takes</title>
+<desc id="d">Five stages. Shared, once per posting: Fetch (code; one call per board, unchanged postings skipped by hash, never deletes, a failed fetch throws), Filter (code; age, location and function before any paid call; 0 of 116 checked wanted roles hidden), Extract (model; Claude Haiku reads each posting once for every user). Per user, on demand: Retrieve (code; vector search on the CV plus filters, only unscored postings reach a paid call), Score and verify (Claude judges at temperature 0, then seven server-side checks in Correct() override it; 22 of 24 on the golden set).</desc>
+<defs>
+  <filter id="glow" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur in="SourceAlpha" stdDeviation="9"/><feFlood flood-color="#7B93D4" flood-opacity="0.35"/><feComposite operator="in" in2="SourceAlpha"/><feComposite operator="over" in="SourceGraphic"/></filter>
+  <radialGradient id="floor" cx="80%" cy="55%" r="60%"><stop offset="0" stop-color="#7B93D4" stop-opacity="0.10"/><stop offset="1" stop-color="#7B93D4" stop-opacity="0"/></radialGradient>
+</defs>
+<style>
+  text{font-family:'Instrument Sans','Segoe UI',system-ui,-apple-system,Helvetica,Arial,sans-serif}
+  .n{font-size:10px;font-weight:600;letter-spacing:.14em;fill:#7B93D4}
+  .h{font-size:16px;font-weight:600;fill:#1d2b25}
+  .s{font-size:11px;fill:#59645f}
+  .v{font-size:15px;font-weight:700;fill:#1d2b25}
+  .vn{font-size:10.5px;fill:#59645f}
+  .cap{font-size:10px;font-weight:600;letter-spacing:.14em;fill:rgba(29,43,37,0.45)}
+  .who{font-size:9px;font-weight:700;letter-spacing:.12em}
+  .rail{fill:none;stroke:rgba(29,43,37,0.45);stroke-width:1.2;stroke-dasharray:2 5}
+  @media (prefers-reduced-motion: reduce){.pkt{display:none}}
+</style>
+<rect width="1000" height="330" fill="#ffffff"/><rect width="1000" height="330" fill="url(#floor)"/>
+<path d="M20,52 V46 H588 V52" fill="none" stroke="rgba(29,43,37,0.14)" stroke-width="1.2"/>
+<text x="304" y="36" class="cap" text-anchor="middle">SHARED · ONCE PER POSTING</text>
+<path d="M608,52 V46 H980 V52" fill="none" stroke="rgba(29,43,37,0.14)" stroke-width="1.2"/>
+<text x="794" y="36" class="cap" text-anchor="middle">PER USER · ON DEMAND</text>
+<path id="rail" d="M6,148 H994" class="rail"/>
+<path id="skip" d="M304,274 C 304,296 334,304 368,308" class="rail"/>
+<text x="374" y="312" class="vn">skipped, never paid for</text>
+<circle r="4" class="pkt" fill="#7B93D4" opacity="0"><animateMotion dur="7s" repeatCount="indefinite" keyPoints="0;0;1;1" keyTimes="0;0.000;0.657;1" calcMode="linear"><mpath href="#rail"/></animateMotion><animate attributeName="opacity" dur="7s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.000;0.004;0.653;0.657;1"/></circle>
+<circle r="4" class="pkt" fill="#7B93D4" opacity="0"><animateMotion dur="7s" repeatCount="indefinite" keyPoints="0;0;1;1" keyTimes="0;0.157;0.814;1" calcMode="linear"><mpath href="#rail"/></animateMotion><animate attributeName="opacity" dur="7s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.157;0.161;0.810;0.814;1"/></circle>
+<circle r="4" class="pkt" fill="rgba(29,43,37,0.45)" opacity="0"><animateMotion dur="7s" repeatCount="indefinite" keyPoints="0;0;1;1" keyTimes="0;0.229;0.357;1" calcMode="linear"><mpath href="#skip"/></animateMotion><animate attributeName="opacity" dur="7s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.229;0.233;0.353;0.357;1"/></circle>
+<circle r="4" class="pkt" fill="rgba(29,43,37,0.45)" opacity="0"><animateMotion dur="7s" repeatCount="indefinite" keyPoints="0;0;1;1" keyTimes="0;0.486;0.614;1" calcMode="linear"><mpath href="#skip"/></animateMotion><animate attributeName="opacity" dur="7s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.486;0.490;0.610;0.614;1"/></circle>
+<rect x="20" y="78" width="176" height="196" rx="14" fill="#f5f7fc" stroke="color-mix(in oklab, #7B93D4 45%, transparent)" stroke-width="1.1"/>
+<text x="36" y="104" class="n">01</text>
+<rect x="141.6" y="91" width="40.4" height="18" rx="9" fill="none" stroke="rgba(29,43,37,0.45)"/>
+<text x="161.79999999999998" y="103.5" class="who" text-anchor="middle" fill="#59645f">CODE</text>
+<text x="36" y="138" class="h">Fetch</text>
+<text x="36" y="162" class="s">one call per board</text>
+<text x="36" y="178" class="s">SHA-256 skips unchanged</text>
+<rect x="32" y="208" width="152" height="52" rx="10" fill="#ffffff" stroke="color-mix(in oklab, #7B93D4 30%, transparent)"></rect>
+<text x="44" y="230" class="v">never deletes</text>
+<text x="44" y="248" class="vn">a failed fetch throws</text>
+<rect x="216" y="78" width="176" height="196" rx="14" fill="#f5f7fc" stroke="color-mix(in oklab, #7B93D4 45%, transparent)" stroke-width="1.1"/>
+<text x="232" y="104" class="n">02</text>
+<rect x="337.6" y="91" width="40.4" height="18" rx="9" fill="none" stroke="rgba(29,43,37,0.45)"/>
+<text x="357.8" y="103.5" class="who" text-anchor="middle" fill="#59645f">CODE</text>
+<text x="232" y="138" class="h">Filter</text>
+<text x="232" y="162" class="s">age · location · function</text>
+<text x="232" y="178" class="s">before any paid call</text>
+<rect x="228" y="208" width="152" height="52" rx="10" fill="#ffffff" stroke="color-mix(in oklab, #7B93D4 30%, transparent)"></rect>
+<text x="240" y="230" class="v">0 of 116</text>
+<text x="240" y="248" class="vn">wanted roles hidden</text>
+<rect x="412" y="78" width="176" height="196" rx="14" fill="#f5f7fc" stroke="color-mix(in oklab, #7B93D4 45%, transparent)" stroke-width="1.1"/>
+<text x="428" y="104" class="n">03</text>
+<rect x="527" y="91" width="47" height="18" rx="9" fill="color-mix(in oklab, #7B93D4 22%, transparent)" stroke="color-mix(in oklab, #7B93D4 70%, transparent)"/>
+<text x="550.5" y="103.5" class="who" text-anchor="middle" fill="#7B93D4">MODEL</text>
+<text x="428" y="138" class="h">Extract</text>
+<text x="428" y="162" class="s">Claude Haiku, batched</text>
+<text x="428" y="178" class="s">closed vocabularies</text>
+<rect x="424" y="208" width="152" height="52" rx="10" fill="#ffffff" stroke="color-mix(in oklab, #7B93D4 30%, transparent)"></rect>
+<text x="436" y="230" class="v">once</text>
+<text x="436" y="248" class="vn">per posting, for everyone</text>
+<rect x="608" y="78" width="176" height="196" rx="14" fill="#f5f7fc" stroke="color-mix(in oklab, #7B93D4 45%, transparent)" stroke-width="1.1"/>
+<text x="624" y="104" class="n">04</text>
+<rect x="729.6" y="91" width="40.4" height="18" rx="9" fill="none" stroke="rgba(29,43,37,0.45)"/>
+<text x="749.8000000000001" y="103.5" class="who" text-anchor="middle" fill="#59645f">CODE</text>
+<text x="624" y="138" class="h">Retrieve</text>
+<text x="624" y="162" class="s">$vectorSearch on your CV</text>
+<text x="624" y="178" class="s">+ filters on the facts</text>
+<rect x="620" y="208" width="152" height="52" rx="10" fill="#ffffff" stroke="color-mix(in oklab, #7B93D4 30%, transparent)"></rect>
+<text x="632" y="230" class="v">unscored only</text>
+<text x="632" y="248" class="vn">reach a paid call</text>
+<rect x="804" y="78" width="176" height="196" rx="14" fill="#eef2fb" stroke="#7B93D4" stroke-width="1.6" filter="url(#glow)"/>
+<text x="820" y="104" class="n">05</text>
+<rect x="925.6" y="91" width="40.4" height="18" rx="9" fill="none" stroke="rgba(29,43,37,0.45)"/>
+<text x="945.8000000000001" y="103.5" class="who" text-anchor="middle" fill="#59645f">CODE</text>
+<rect x="872.6" y="91" width="47" height="18" rx="9" fill="color-mix(in oklab, #7B93D4 22%, transparent)" stroke="color-mix(in oklab, #7B93D4 70%, transparent)"/>
+<text x="896.1" y="103.5" class="who" text-anchor="middle" fill="#7B93D4">MODEL</text>
+<text x="820" y="138" class="h">Score + verify</text>
+<text x="820" y="162" class="s">Claude judges, temp 0</text>
+<text x="820" y="178" class="s">Correct() overrides</text>
+<rect x="816" y="208" width="152" height="52" rx="10" fill="#ffffff" stroke="#059669"><animate attributeName="stroke-opacity" dur="7s" repeatCount="indefinite" values="0.35;0.35;1;0.35" keyTimes="0;0.66;0.74;1"/></rect>
+<text x="828" y="230" class="v" style="fill:#059669">7 checks</text>
+<text x="828" y="248" class="vn">22/24 on the golden set</text>
+</svg>

@@ -1,0 +1,117 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 540" width="1000" height="540" role="img" aria-labelledby="t d">
+<title id="t">NextRole architecture</title>
+<desc id="d">Users, company job boards and Gmail on the left feed services on one VPS: Caddy and the React app, a RabbitMQ ingest (publisher, queue, consumer) and the mail sync. All of them go through the API, the only service that calls Claude. The API scores with Claude, corrects every score with seven server-side checks, and stores it in MongoDB Atlas next to the shared pool and its vector index; Voyage embeds postings and profiles.</desc>
+<defs>
+  <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9" fill="none" stroke="rgba(29,43,37,0.45)" stroke-width="1.4"/></marker>
+  <filter id="glow" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur in="SourceAlpha" stdDeviation="9"/><feFlood flood-color="#7B93D4" flood-opacity="0.35"/><feComposite operator="in" in2="SourceAlpha"/><feComposite operator="over" in="SourceGraphic"/></filter>
+  <radialGradient id="floor" cx="68%" cy="50%" r="55%"><stop offset="0" stop-color="#7B93D4" stop-opacity="0.10"/><stop offset="1" stop-color="#7B93D4" stop-opacity="0"/></radialGradient>
+</defs>
+<style>
+  text{font-family:'Instrument Sans','Segoe UI',system-ui,-apple-system,Helvetica,Arial,sans-serif}
+  .t{font-size:13.5px;font-weight:600;fill:#1d2b25;text-anchor:middle}
+  .s{font-size:11px;fill:#59645f;text-anchor:middle}
+  .cap{font-size:10px;font-weight:600;letter-spacing:.14em;fill:rgba(29,43,37,0.45)}
+  .el{font-size:10.5px;fill:#59645f;text-anchor:middle}
+  .e{fill:none;stroke:rgba(29,43,37,0.45);stroke-width:1.2}
+  .chip{font-size:11px;fill:#1d2b25;text-anchor:middle}
+  .chipk{font-size:9.5px;letter-spacing:.12em;font-weight:600;fill:#7B93D4;text-anchor:middle}
+  @media (prefers-reduced-motion: reduce){.pkt{display:none}}
+</style>
+<rect width="1000" height="540" fill="#ffffff"/>
+<rect width="1000" height="540" fill="url(#floor)"/>
+<text x="85" y="34" class="cap" text-anchor="middle">IN</text>
+<text x="885" y="34" class="cap" text-anchor="middle">AI + DATA</text>
+<rect x="180" y="48" width="590" height="470" rx="18" fill="none" stroke="rgba(29,43,37,0.14)" stroke-width="1.2"/>
+<text x="200" y="72" class="cap" text-anchor="start">ONE HETZNER VPS · DOCKER COMPOSE</text>
+<text x="750" y="72" class="cap" text-anchor="end">DEPLOYED ON MERGE TO MAIN</text>
+<rect x="20" y="100" width="130" height="56" rx="12" fill="#f5f7fc" stroke="rgba(29,43,37,0.45)" stroke-width="1.1" stroke-dasharray="4 4"/>
+<text x="85" y="124.5" class="t">Users</text>
+<text x="85" y="140.5" class="s">any browser, no signup</text>
+<rect x="20" y="257" width="130" height="56" rx="12" fill="#f5f7fc" stroke="rgba(29,43,37,0.45)" stroke-width="1.1" stroke-dasharray="4 4"/>
+<text x="85" y="281.5" class="t">Gmail</text>
+<text x="85" y="297.5" class="s">recruiter replies</text>
+<rect x="20" y="410" width="130" height="56" rx="12" fill="#f5f7fc" stroke="rgba(29,43,37,0.45)" stroke-width="1.1" stroke-dasharray="4 4"/>
+<text x="85" y="434.5" class="t">Job boards</text>
+<text x="85" y="450.5" class="s">Greenhouse · Workday</text>
+<text x="200" y="104" class="cap" text-anchor="start">SERVE</text>
+<rect x="200" y="112" width="110" height="50" rx="12" fill="#f5f7fc" stroke="color-mix(in oklab, #7B93D4 45%, transparent)" stroke-width="1.1"/>
+<text x="255" y="133.5" class="t">Caddy</text>
+<text x="255" y="149.5" class="s">auto TLS</text>
+<rect x="340" y="112" width="130" height="50" rx="12" fill="#f5f7fc" stroke="color-mix(in oklab, #7B93D4 45%, transparent)" stroke-width="1.1"/>
+<text x="405" y="133.5" class="t">web</text>
+<text x="405" y="149.5" class="s">nginx · React SPA</text>
+<text x="200" y="252" class="cap" text-anchor="start">MAIL SYNC · DAILY 02:00 UTC</text>
+<rect x="340" y="260" width="130" height="50" rx="12" fill="#f5f7fc" stroke="color-mix(in oklab, #7B93D4 45%, transparent)" stroke-width="1.1"/>
+<text x="405" y="281.5" class="t">mailbot</text>
+<text x="405" y="297.5" class="s">moves cards, never back</text>
+<text x="200" y="404" class="cap" text-anchor="start">INGEST · DAILY 06:15 UTC</text>
+<rect x="200" y="412" width="92" height="50" rx="12" fill="#f5f7fc" stroke="color-mix(in oklab, #7B93D4 45%, transparent)" stroke-width="1.1"/>
+<text x="246" y="433.5" class="t">publisher</text>
+<text x="246" y="449.5" class="s">1 msg / board</text>
+<rect x="310" y="412" width="92" height="50" rx="12" fill="#f5f7fc" stroke="color-mix(in oklab, #7B93D4 45%, transparent)" stroke-width="1.1"/>
+<text x="356" y="433.5" class="t">RabbitMQ</text>
+<text x="356" y="449.5" class="s">+ dead letters</text>
+<rect x="420" y="412" width="110" height="50" rx="12" fill="#f5f7fc" stroke="color-mix(in oklab, #7B93D4 45%, transparent)" stroke-width="1.1"/>
+<text x="475" y="433.5" class="t">consumer</text>
+<text x="475" y="449.5" class="s">hash · filter · embed</text>
+<rect x="570" y="96" width="180" height="400" rx="12" fill="#eef2fb" stroke="#7B93D4" stroke-width="1.6" filter="url(#glow)"/>
+<text x="660" y="300" class="t"></text>
+<text x="660" y="126" class="t" style="font-size:15px">api</text>
+<text x="660" y="143" class="s">ASP.NET Core · .NET 10</text>
+<rect x="586" y="166" width="148" height="56" rx="9" fill="#ffffff" stroke="color-mix(in oklab, #7B93D4 35%, transparent)"/>
+<text x="660" y="188" class="chipk">RETRIEVE</text>
+<text x="660" y="206" class="chip">$vectorSearch + filters</text>
+<rect x="586" y="240" width="148" height="56" rx="9" fill="#ffffff" stroke="color-mix(in oklab, #7B93D4 35%, transparent)"/>
+<text x="660" y="262" class="chipk">JUDGE</text>
+<text x="660" y="280" class="chip">Claude Evaluator</text>
+<rect x="586" y="314" width="148" height="56" rx="9" fill="#ffffff" stroke="color-mix(in oklab, #7B93D4 80%, transparent)"/>
+<text x="660" y="336" class="chipk">VERIFY</text>
+<text x="660" y="354" class="chip">Correct() · 7 checks</text>
+<rect x="586" y="388" width="148" height="56" rx="9" fill="#ffffff" stroke="color-mix(in oklab, #7B93D4 35%, transparent)"/>
+<text x="660" y="410" class="chipk">GENERATE</text>
+<text x="660" y="428" class="chip">résumé packs, validated</text>
+<text x="660" y="482" class="cap" text-anchor="middle" style="fill:#7B93D4">ONLY CLAUDE CALLER</text>
+<rect x="800" y="96" width="180" height="64" rx="12" fill="#f5f7fc" stroke="rgba(29,43,37,0.45)" stroke-width="1.1" stroke-dasharray="4 4"/>
+<text x="890" y="117" class="t">Anthropic</text>
+<text x="890" y="133" class="s">Haiku 4.5 · facts, scoring</text>
+<text x="890" y="148" class="s">Sonnet 5 · résumé packs</text>
+<rect x="800" y="190" width="180" height="56" rx="12" fill="#f5f7fc" stroke="rgba(29,43,37,0.45)" stroke-width="1.1" stroke-dasharray="4 4"/>
+<text x="890" y="214.5" class="t">Voyage</text>
+<text x="890" y="230.5" class="s">voyage-4 · api + ingest</text>
+<rect x="800" y="290" width="180" height="84" rx="12" fill="#f5f7fc" stroke="rgba(29,43,37,0.45)" stroke-width="1.1" stroke-dasharray="4 4"/>
+<text x="890" y="313.5" class="t">MongoDB Atlas</text>
+<text x="890" y="329.5" class="s">shared job pool</text>
+<text x="890" y="344.5" class="s">per-user scores</text>
+<text x="890" y="359.5" class="s">vector index</text>
+<path id="p-user" d="M150,128 C 175,128 175,137 198,137" class="e" marker-end="url(#arrow)"/>
+<path id="p-caddy" d="M310,137 H338" class="e" marker-end="url(#arrow)"/>
+<path id="p-web" d="M470,137 H568" class="e" marker-end="url(#arrow)"/>
+<text x="520" y="130" class="el">HTTP</text>
+<path id="p-claude" d="M750,128 H798" class="e" marker-end="url(#arrow)"/>
+<path id="p-query" d="M750,218 H798" class="e" marker-end="url(#arrow)"/>
+<text x="774" y="211" class="el">embed</text>
+<path id="p-store" d="M750,332 H798" class="e" marker-end="url(#arrow)"/>
+<text x="774" y="325" class="el">store</text>
+<path id="p-gmail" d="M150,285 H338" class="e" marker-end="url(#arrow)"/>
+<text x="245" y="278" class="el">read</text>
+<path id="p-mail" d="M470,285 H568" class="e" marker-end="url(#arrow)"/>
+<text x="520" y="278" class="el">HTTP</text>
+<path id="p-pub" d="M292,437 H308" class="e" marker-end="url(#arrow)"/>
+<path id="p-q" d="M402,437 H418" class="e" marker-end="url(#arrow)"/>
+<path id="p-facts" d="M530,437 H568" class="e" marker-end="url(#arrow)"/>
+<text x="549" y="430" class="el">facts</text>
+<path id="p-boards" d="M150,438 C 170,438 170,488 190,488 H 436 C 446,488 446,476 446,464" class="e" marker-end="url(#arrow)"/>
+<text x="320" y="502" class="el">fetch</text>
+<path id="p-ingest-store" d="M505,462 V 506 H 890 V 376" class="e" marker-end="url(#arrow)"/>
+<text x="822" y="500" class="el">store</text>
+<circle r="3.6" class="pkt" fill="#7B93D4" opacity="0"><animateMotion dur="8s" repeatCount="indefinite" keyPoints="0;0;1;1" keyTimes="0;0.000;0.063;1" calcMode="linear"><mpath href="#p-user"/></animateMotion><animate attributeName="opacity" dur="8s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.000;0.005;0.058;0.063;1"/></circle>
+<circle r="3.6" class="pkt" fill="#7B93D4" opacity="0"><animateMotion dur="8s" repeatCount="indefinite" keyPoints="0;0;1;1" keyTimes="0;0.063;0.100;1" calcMode="linear"><mpath href="#p-caddy"/></animateMotion><animate attributeName="opacity" dur="8s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.063;0.068;0.095;0.100;1"/></circle>
+<circle r="3.6" class="pkt" fill="#7B93D4" opacity="0"><animateMotion dur="8s" repeatCount="indefinite" keyPoints="0;0;1;1" keyTimes="0;0.100;0.175;1" calcMode="linear"><mpath href="#p-web"/></animateMotion><animate attributeName="opacity" dur="8s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.100;0.105;0.170;0.175;1"/></circle>
+<circle r="3.6" class="pkt" fill="#7B93D4" opacity="0"><animateMotion dur="8s" repeatCount="indefinite" keyPoints="0;0;1;1" keyTimes="0;0.200;0.250;1" calcMode="linear"><mpath href="#p-claude"/></animateMotion><animate attributeName="opacity" dur="8s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.200;0.205;0.245;0.250;1"/></circle>
+<circle r="3.6" class="pkt" fill="#059669" opacity="0"><animateMotion dur="8s" repeatCount="indefinite" keyPoints="0;0;1;1" keyTimes="0;0.300;0.350;1" calcMode="linear"><mpath href="#p-store"/></animateMotion><animate attributeName="opacity" dur="8s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.300;0.305;0.345;0.350;1"/></circle>
+<circle r="3.6" class="pkt" fill="#7B93D4" opacity="0"><animateMotion dur="8s" repeatCount="indefinite" keyPoints="0;0;1;1" keyTimes="0;0.375;0.463;1" calcMode="linear"><mpath href="#p-gmail"/></animateMotion><animate attributeName="opacity" dur="8s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.375;0.380;0.458;0.463;1"/></circle>
+<circle r="3.6" class="pkt" fill="#7B93D4" opacity="0"><animateMotion dur="8s" repeatCount="indefinite" keyPoints="0;0;1;1" keyTimes="0;0.463;0.525;1" calcMode="linear"><mpath href="#p-mail"/></animateMotion><animate attributeName="opacity" dur="8s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.463;0.468;0.520;0.525;1"/></circle>
+<circle r="3.6" class="pkt" fill="#7B93D4" opacity="0"><animateMotion dur="8s" repeatCount="indefinite" keyPoints="0;0;1;1" keyTimes="0;0.575;0.712;1" calcMode="linear"><mpath href="#p-boards"/></animateMotion><animate attributeName="opacity" dur="8s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.575;0.580;0.707;0.712;1"/></circle>
+<circle r="3.6" class="pkt" fill="#7B93D4" opacity="0"><animateMotion dur="8s" repeatCount="indefinite" keyPoints="0;0;1;1" keyTimes="0;0.713;0.763;1" calcMode="linear"><mpath href="#p-facts"/></animateMotion><animate attributeName="opacity" dur="8s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.713;0.718;0.758;0.763;1"/></circle>
+<circle r="3.6" class="pkt" fill="#7B93D4" opacity="0"><animateMotion dur="8s" repeatCount="indefinite" keyPoints="0;0;1;1" keyTimes="0;0.725;0.925;1" calcMode="linear"><mpath href="#p-ingest-store"/></animateMotion><animate attributeName="opacity" dur="8s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.725;0.730;0.920;0.925;1"/></circle>
+</svg>

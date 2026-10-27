@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 210" width="1000" height="210" role="img" aria-labelledby="t d">
+<title id="t">What a user does</title>
+<desc id="d">Find, with no account: 1 upload a CV, read into a profile by Claude; 2 Matches, ranked for you with the reasons. Apply and track: 3 save to your board, 3 a day; 4 a tailored, fact-checked résumé pack; 5 apply on the company's own site, outside NextRole; 6 track, as Gmail replies move the card; 7 interview prep.</desc>
+<defs><radialGradient id="floor" cx="50%" cy="60%" r="60%"><stop offset="0" stop-color="#9DB8F5" stop-opacity="0.08"/><stop offset="1" stop-color="#9DB8F5" stop-opacity="0"/></radialGradient></defs>
+<style>
+  text{font-family:'Instrument Sans','Segoe UI',system-ui,-apple-system,Helvetica,Arial,sans-serif}
+  .n{font-size:10px;font-weight:600;letter-spacing:.14em;fill:#9DB8F5}
+  .h{font-size:14.5px;font-weight:600;fill:#ffffff}
+  .s{font-size:11px;fill:#a7adba}
+  .cap{font-size:10px;font-weight:600;letter-spacing:.14em;fill:rgba(255,255,255,0.42)}
+  .who{font-size:8.5px;font-weight:700;letter-spacing:.12em}
+  .rail{fill:none;stroke:rgba(255,255,255,0.42);stroke-width:1.2;stroke-dasharray:2 5}
+  @media (prefers-reduced-motion: reduce){.pkt{display:none}}
+</style>
+<rect width="1000" height="210" fill="#000000"/><rect width="1000" height="210" fill="url(#floor)"/>
+<path d="M20,44 V38 H283 V44" fill="none" stroke="rgba(255,255,255,0.14)" stroke-width="1.2"/>
+<text x="151.5" y="28" class="cap" text-anchor="middle">FIND · NO ACCOUNT</text>
+<path d="M298,44 V38 H978 V44" fill="none" stroke="rgba(255,255,255,0.14)" stroke-width="1.2"/>
+<text x="638" y="28" class="cap" text-anchor="middle">APPLY AND TRACK · ONE BOARD, KEPT CURRENT BY YOUR INBOX</text>
+<path id="jrail" d="M8,120 H990" class="rail"/>
+<circle r="4" class="pkt" fill="#9DB8F5" opacity="0"><animateMotion dur="8s" repeatCount="indefinite" keyPoints="0;0;1;1" keyTimes="0;0.000;0.500;1" calcMode="linear"><mpath href="#jrail"/></animateMotion><animate attributeName="opacity" dur="8s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.000;0.004;0.496;0.500;1"/></circle>
+<circle r="4" class="pkt" fill="#9DB8F5" opacity="0"><animateMotion dur="8s" repeatCount="indefinite" keyPoints="0;0;1;1" keyTimes="0;0.500;1.000;1" calcMode="linear"><mpath href="#jrail"/></animateMotion><animate attributeName="opacity" dur="8s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.500;0.504;0.996;1.000;1"/></circle>
+<rect x="20" y="64" width="124" height="112" rx="14" fill="#0b0d12" stroke="color-mix(in oklab, #9DB8F5 45%, transparent)" stroke-width="1.1"/>
+<text x="34" y="88" class="n">1</text>
+<rect x="81.6" y="76" width="50.400000000000006" height="17" rx="8.5" fill="color-mix(in oklab, #9DB8F5 22%, transparent)" stroke="color-mix(in oklab, #9DB8F5 70%, transparent)"/>
+<text x="106.8" y="87.8" class="who" text-anchor="middle" fill="#9DB8F5">CLAUDE</text>
+<text x="34" y="122" class="h">Upload CV</text>
+<text x="34" y="144" class="s">no signup,</text>
+<text x="34" y="159" class="s">read into a profile</text>
+<rect x="159" y="64" width="124" height="112" rx="14" fill="#0b0d12" stroke="color-mix(in oklab, #9DB8F5 45%, transparent)" stroke-width="1.1"/>
+<text x="173" y="88" class="n">2</text>
+<rect x="220.6" y="76" width="50.400000000000006" height="17" rx="8.5" fill="color-mix(in oklab, #9DB8F5 22%, transparent)" stroke="color-mix(in oklab, #9DB8F5 70%, transparent)"/>
+<text x="245.8" y="87.8" class="who" text-anchor="middle" fill="#9DB8F5">CLAUDE</text>
+<text x="173" y="122" class="h">Matches</text>
+<text x="173" y="144" class="s">ranked for you,</text>
+<text x="173" y="159" class="s">with the reasons</text>
+<rect x="298" y="64" width="124" height="112" rx="14" fill="#0b0d12" stroke="color-mix(in oklab, #9DB8F5 45%, transparent)" stroke-width="1.1"/>
+<text x="312" y="88" class="n">3</text>
+<text x="312" y="122" class="h">Save</text>
+<text x="312" y="144" class="s">to your board,</text>
+<text x="312" y="159" class="s">3 a day</text>
+<rect x="437" y="64" width="124" height="112" rx="14" fill="#0b0d12" stroke="color-mix(in oklab, #9DB8F5 45%, transparent)" stroke-width="1.1"/>
+<text x="451" y="88" class="n">4</text>
+<rect x="498.6" y="76" width="50.400000000000006" height="17" rx="8.5" fill="color-mix(in oklab, #9DB8F5 22%, transparent)" stroke="color-mix(in oklab, #9DB8F5 70%, transparent)"/>
+<text x="523.8" y="87.8" class="who" text-anchor="middle" fill="#9DB8F5">CLAUDE</text>
+<text x="451" y="122" class="h">Résumé pack</text>
+<text x="451" y="144" class="s">tailored and</text>
+<text x="451" y="159" class="s">fact-checked</text>
+<rect x="576" y="64" width="124" height="112" rx="14" fill="#0b0d12" stroke="rgba(255,255,255,0.42)" stroke-width="1.1" stroke-dasharray="4 4"/>
+<text x="590" y="88" class="n">5</text>
+<rect x="631.2" y="76" width="56.800000000000004" height="17" rx="8.5" fill="none" stroke="rgba(255,255,255,0.42)"/>
+<text x="659.6" y="87.8" class="who" text-anchor="middle" fill="#a7adba">OUTSIDE</text>
+<text x="590" y="122" class="h">Apply</text>
+<text x="590" y="144" class="s">on the company's</text>
+<text x="590" y="159" class="s">own site</text>
+<rect x="715" y="64" width="124" height="112" rx="14" fill="#0b0d12" stroke="color-mix(in oklab, #9DB8F5 45%, transparent)" stroke-width="1.1"/>
+<text x="729" y="88" class="n">6</text>
+<rect x="776.6" y="76" width="50.400000000000006" height="17" rx="8.5" fill="color-mix(in oklab, #9DB8F5 22%, transparent)" stroke="color-mix(in oklab, #9DB8F5 70%, transparent)"/>
+<text x="801.8" y="87.8" class="who" text-anchor="middle" fill="#9DB8F5">CLAUDE</text>
+<text x="729" y="122" class="h">Track</text>
+<text x="729" y="144" class="s">Gmail replies</text>
+<text x="729" y="159" class="s">move the card</text>
+<rect x="854" y="64" width="124" height="112" rx="14" fill="#0b0d12" stroke="color-mix(in oklab, #9DB8F5 45%, transparent)" stroke-width="1.1"/>
+<text x="868" y="88" class="n">7</text>
+<rect x="915.6" y="76" width="50.400000000000006" height="17" rx="8.5" fill="color-mix(in oklab, #9DB8F5 22%, transparent)" stroke="color-mix(in oklab, #9DB8F5 70%, transparent)"/>
+<text x="940.8" y="87.8" class="who" text-anchor="middle" fill="#9DB8F5">CLAUDE</text>
+<text x="868" y="122" class="h">Prep</text>
+<text x="868" y="144" class="s">interview</text>
+<text x="868" y="159" class="s">practice</text>
+</svg>

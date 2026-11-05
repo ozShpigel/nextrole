@@ -15,7 +15,7 @@ Claude judges each match; code checks every judgement before you see it.
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/images/pipeline-scene-dark.svg">
-    <img src="docs/images/pipeline-scene-light.svg" width="760" alt="How NextRole works: ATS boards feed a shared pool every day; AI matching scores that pool against each candidate's résumé; Gmail tracks the replies, and matches go on to interview prep.">
+    <img src="docs/images/pipeline-scene-light.svg" width="760" alt="How NextRole works: ATS boards feed a shared pool every day; AI matching scores that pool against each candidate's résumé; replies arrive in each application's own inbox, and matches go on to interview prep.">
   </picture>
 </p>
 
@@ -31,7 +31,7 @@ What's missing is one place that finds the roles that fit you and keeps track of
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/images/journey-dark.svg">
-    <img src="docs/images/journey-light.svg" width="900" alt="What a user does. Find, with no account: 1 upload a CV, read into a profile by Claude; 2 Matches, ranked for you with the reasons. Apply and track, one board kept current by your inbox: 3 save to your board, 3 a day; 4 a tailored, fact-checked résumé pack; 5 apply on the company's own site; 6 track, as Gmail replies move the card; 7 interview prep.">
+    <img src="docs/images/journey-light.svg" width="900" alt="What a user does. Find: 1 upload a CV, read into a profile by Claude, then sign in with Google; 2 Matches, ranked for you with the reasons. Apply and track, one board kept current by your inbox: 3 a tailored, fact-checked résumé pack; 4 apply, sent for you where NextRole can, or on the company's own site; 5 the employer's replies arrive in the application's own inbox; 6 track, as those replies move its status; 7 interview prep.">
   </picture>
 </p>
 
@@ -40,13 +40,13 @@ What's missing is one place that finds the roles that fit you and keeps track of
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/images/architecture-dark.svg">
-    <img src="docs/images/architecture-light.svg" width="900" alt="NextRole architecture: users, Gmail and company job boards on the left feed services on one Hetzner VPS (Caddy and the React app, the mail sync, and a RabbitMQ ingest of publisher, queue and consumer). Everything goes through the API, the only service that calls Claude: it retrieves with vector search, judges with the Claude Evaluator, verifies with seven server-side checks and generates validated résumé packs. On the right: Anthropic, Voyage embeddings and MongoDB Atlas.">
+    <img src="docs/images/architecture-light.svg" width="900" alt="NextRole architecture: users (signed in with Google), employers' replies and company job boards on the left feed services on one Hetzner VPS (Caddy and the React app, the mail sync of the owner's Gmail, and a RabbitMQ ingest of publisher, queue and consumer); replies to each application's own careermail.me address reach the API through a Cloudflare Email Worker. Everything goes through the API, the only service that calls Claude: it retrieves with vector search, judges with the Claude Evaluator, verifies with seven server-side checks and generates validated résumé packs. On the right: Anthropic, Voyage embeddings and MongoDB Atlas.">
   </picture>
 </p>
 
 One API is the only service that talks to Claude. The ingest and the mail sync go through it, so there is one key, one prompt config and one set of rate limits.
 
-**Stack:** .NET 10 · React 19 · MongoDB Atlas with vector search · RabbitMQ · Claude Haiku 4.5 and Sonnet 5 · Voyage embeddings · Docker Compose on Hetzner · Caddy
+**Stack:** .NET 10 · React 19 · MongoDB Atlas with vector search · RabbitMQ · Claude Haiku 5.5 and Sonnet 5 · Voyage embeddings · Docker Compose on Hetzner · Caddy
 
 ## Core principle: the model judges, code verifies
 
@@ -71,10 +71,10 @@ AI is confident even when it's wrong, and a wrong match looks exactly like a rig
 | Decision | Why | Trade-off accepted |
 |---|---|---|
 | **Score on demand**, not at ingest | a score is about one person, so only what someone looks at costs anything | a new user's first matches take a moment to score |
-| **Company job boards**, not LinkedIn scraping | each board's completeness can be proven | only companies on the list are covered |
+| **Company job boards first**, LinkedIn as a search beside them | each board's completeness can be proven; LinkedIn fills in companies without a board | a LinkedIn posting is never proven complete, so it expires after 21 days instead of closing |
 | **Vector search inside MongoDB Atlas**, not a separate vector database | one database to run; it shortlists, it never scores | tied to Atlas |
 | **Haiku for scoring**, not Sonnet | output tokens were ~88% of scoring spend | more likely to miss nuance, so the checks in code carry more weight |
-| **Anonymous by default**, optional Google sign-in, not Better Auth | no account needed to start, and one source of truth for identity | clear your cookies without signing in and the account is gone |
+| **Upload first, then Google sign-in**, not Better Auth | the CV is read before any account exists, and Google is the one source of truth for identity | the app beyond the front door needs a Google account |
 | **Feature flags in config**, not a flag library | a handful of flags, enforced server-side | changing a flag means a redeploy |
 
 ## Running in production

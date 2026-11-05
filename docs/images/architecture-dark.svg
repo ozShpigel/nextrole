@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 540" width="1000" height="540" role="img" aria-labelledby="t d">
 <title id="t">NextRole architecture</title>
-<desc id="d">Users, company job boards and Gmail on the left feed services on one VPS: Caddy and the React app, a RabbitMQ ingest (publisher, queue, consumer) and the mail sync. All of them go through the API, the only service that calls Claude. The API scores with Claude, corrects every score with seven server-side checks, and stores it in MongoDB Atlas next to the shared pool and its vector index; Voyage embeds postings and profiles.</desc>
+<desc id="d">Users (signed in with Google), employers' replies and company job boards on the left feed services on one VPS: Caddy and the React app, a RabbitMQ ingest (publisher, queue, consumer) and the mail sync. Replies to an application's own careermail.me address reach the API through a Cloudflare Email Worker; the mail sync reads the owner's Gmail. All of them go through the API, the only service that calls Claude. The API scores with Claude, corrects every score with seven server-side checks, and stores it in MongoDB Atlas next to the shared pool and its vector index; Voyage embeds postings and profiles.</desc>
 <defs>
   <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9" fill="none" stroke="rgba(255,255,255,0.42)" stroke-width="1.4"/></marker>
   <filter id="glow" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur in="SourceAlpha" stdDeviation="9"/><feFlood flood-color="#9DB8F5" flood-opacity="0.35"/><feComposite operator="in" in2="SourceAlpha"/><feComposite operator="over" in="SourceGraphic"/></filter>
@@ -26,13 +26,13 @@
 <text x="750" y="72" class="cap" text-anchor="end">DEPLOYED ON MERGE TO MAIN</text>
 <rect x="20" y="100" width="130" height="56" rx="12" fill="#0b0d12" stroke="rgba(255,255,255,0.42)" stroke-width="1.1" stroke-dasharray="4 4"/>
 <text x="85" y="124.5" class="t">Users</text>
-<text x="85" y="140.5" class="s">any browser, no signup</text>
+<text x="85" y="140.5" class="s">Google sign-in</text>
 <rect x="20" y="257" width="130" height="56" rx="12" fill="#0b0d12" stroke="rgba(255,255,255,0.42)" stroke-width="1.1" stroke-dasharray="4 4"/>
-<text x="85" y="281.5" class="t">Gmail</text>
-<text x="85" y="297.5" class="s">recruiter replies</text>
+<text x="85" y="281.5" class="t">Mail</text>
+<text x="85" y="297.5" class="s">employer replies</text>
 <rect x="20" y="410" width="130" height="56" rx="12" fill="#0b0d12" stroke="rgba(255,255,255,0.42)" stroke-width="1.1" stroke-dasharray="4 4"/>
 <text x="85" y="434.5" class="t">Job boards</text>
-<text x="85" y="450.5" class="s">Greenhouse · Workday</text>
+<text x="85" y="450.5" class="s">Greenhouse +5</text>
 <text x="200" y="104" class="cap" text-anchor="start">SERVE</text>
 <rect x="200" y="112" width="110" height="50" rx="12" fill="#0b0d12" stroke="color-mix(in oklab, #9DB8F5 45%, transparent)" stroke-width="1.1"/>
 <text x="255" y="133.5" class="t">Caddy</text>
@@ -40,10 +40,10 @@
 <rect x="340" y="112" width="130" height="50" rx="12" fill="#0b0d12" stroke="color-mix(in oklab, #9DB8F5 45%, transparent)" stroke-width="1.1"/>
 <text x="405" y="133.5" class="t">web</text>
 <text x="405" y="149.5" class="s">nginx · React SPA</text>
-<text x="200" y="252" class="cap" text-anchor="start">MAIL SYNC · DAILY 02:00 UTC</text>
+<text x="200" y="252" class="cap" text-anchor="start">MAIL SYNC · OWNER'S GMAIL · 4× A DAY</text>
 <rect x="340" y="260" width="130" height="50" rx="12" fill="#0b0d12" stroke="color-mix(in oklab, #9DB8F5 45%, transparent)" stroke-width="1.1"/>
 <text x="405" y="281.5" class="t">mailbot</text>
-<text x="405" y="297.5" class="s">moves cards, never back</text>
+<text x="405" y="297.5" class="s">moves status, never back</text>
 <text x="200" y="404" class="cap" text-anchor="start">INGEST · DAILY 06:15 UTC</text>
 <rect x="200" y="412" width="92" height="50" rx="12" fill="#0b0d12" stroke="color-mix(in oklab, #9DB8F5 45%, transparent)" stroke-width="1.1"/>
 <text x="246" y="433.5" class="t">publisher</text>
@@ -73,7 +73,7 @@
 <text x="660" y="482" class="cap" text-anchor="middle" style="fill:#9DB8F5">ONLY CLAUDE CALLER</text>
 <rect x="800" y="96" width="180" height="64" rx="12" fill="#0b0d12" stroke="rgba(255,255,255,0.42)" stroke-width="1.1" stroke-dasharray="4 4"/>
 <text x="890" y="117" class="t">Anthropic</text>
-<text x="890" y="133" class="s">Haiku 4.5 · facts, scoring</text>
+<text x="890" y="133" class="s">Haiku 5.5 · facts, scoring</text>
 <text x="890" y="148" class="s">Sonnet 5 · résumé packs</text>
 <rect x="800" y="190" width="180" height="56" rx="12" fill="#0b0d12" stroke="rgba(255,255,255,0.42)" stroke-width="1.1" stroke-dasharray="4 4"/>
 <text x="890" y="214.5" class="t">Voyage</text>
@@ -93,7 +93,9 @@
 <path id="p-store" d="M750,332 H798" class="e" marker-end="url(#arrow)"/>
 <text x="774" y="325" class="el">store</text>
 <path id="p-gmail" d="M150,285 H338" class="e" marker-end="url(#arrow)"/>
-<text x="245" y="278" class="el">read</text>
+<text x="245" y="278" class="el">owner's Gmail</text>
+<path id="p-inbound" d="M150,302 C 165,302 165,332 180,332 H568" class="e" marker-end="url(#arrow)"/>
+<text x="374" y="325" class="el">inbound · careermail.me</text>
 <path id="p-mail" d="M470,285 H568" class="e" marker-end="url(#arrow)"/>
 <text x="520" y="278" class="el">HTTP</text>
 <path id="p-pub" d="M292,437 H308" class="e" marker-end="url(#arrow)"/>
@@ -110,6 +112,7 @@
 <circle r="3.6" class="pkt" fill="#9DB8F5" opacity="0"><animateMotion dur="8s" repeatCount="indefinite" keyPoints="0;0;1;1" keyTimes="0;0.200;0.250;1" calcMode="linear"><mpath href="#p-claude"/></animateMotion><animate attributeName="opacity" dur="8s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.200;0.205;0.245;0.250;1"/></circle>
 <circle r="3.6" class="pkt" fill="#059669" opacity="0"><animateMotion dur="8s" repeatCount="indefinite" keyPoints="0;0;1;1" keyTimes="0;0.300;0.350;1" calcMode="linear"><mpath href="#p-store"/></animateMotion><animate attributeName="opacity" dur="8s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.300;0.305;0.345;0.350;1"/></circle>
 <circle r="3.6" class="pkt" fill="#9DB8F5" opacity="0"><animateMotion dur="8s" repeatCount="indefinite" keyPoints="0;0;1;1" keyTimes="0;0.375;0.463;1" calcMode="linear"><mpath href="#p-gmail"/></animateMotion><animate attributeName="opacity" dur="8s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.375;0.380;0.458;0.463;1"/></circle>
+<circle r="3.6" class="pkt" fill="#9DB8F5" opacity="0"><animateMotion dur="8s" repeatCount="indefinite" keyPoints="0;0;1;1" keyTimes="0;0.375;0.487;1" calcMode="linear"><mpath href="#p-inbound"/></animateMotion><animate attributeName="opacity" dur="8s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.375;0.380;0.482;0.487;1"/></circle>
 <circle r="3.6" class="pkt" fill="#9DB8F5" opacity="0"><animateMotion dur="8s" repeatCount="indefinite" keyPoints="0;0;1;1" keyTimes="0;0.463;0.525;1" calcMode="linear"><mpath href="#p-mail"/></animateMotion><animate attributeName="opacity" dur="8s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.463;0.468;0.520;0.525;1"/></circle>
 <circle r="3.6" class="pkt" fill="#9DB8F5" opacity="0"><animateMotion dur="8s" repeatCount="indefinite" keyPoints="0;0;1;1" keyTimes="0;0.575;0.712;1" calcMode="linear"><mpath href="#p-boards"/></animateMotion><animate attributeName="opacity" dur="8s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.575;0.580;0.707;0.712;1"/></circle>
 <circle r="3.6" class="pkt" fill="#9DB8F5" opacity="0"><animateMotion dur="8s" repeatCount="indefinite" keyPoints="0;0;1;1" keyTimes="0;0.713;0.763;1" calcMode="linear"><mpath href="#p-facts"/></animateMotion><animate attributeName="opacity" dur="8s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.713;0.718;0.758;0.763;1"/></circle>
